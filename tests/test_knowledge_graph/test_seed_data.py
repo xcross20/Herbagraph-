@@ -70,7 +70,7 @@ REQUIRED_EVIDENCE_CLAIM_KEYS = {
 
 
 def test_biomarkers_count():
-    assert len(BIOMARKERS) == 17
+    assert len(BIOMARKERS) == 25
 
 
 def test_biomarkers_unique_canonical_names():

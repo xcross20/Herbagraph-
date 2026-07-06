@@ -15,7 +15,9 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 ## Table of Contents
 
 - [Architecture](#architecture)
+- [MVP Scope](#mvp-scope)
 - [Pipeline Overview](#pipeline-overview)
+- [Biological Systems & Signal Scoring](#biological-systems--signal-scoring)
 - [Intervention Ontology](#intervention-ontology)
 - [Food → Compound Layer](#food--compound-layer)
 - [Tech Stack](#tech-stack)
@@ -72,16 +74,27 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 
 ---
 
+## MVP Scope
+
+HerbaGraph deliberately caps its scope rather than trying to cover every biomarker, pathway, or intervention that exists -- a narrower, well-validated MVP is more useful (and more honest) than a broad one nobody can vouch for.
+
+- **25 biomarkers max** (a 17-test core panel + 8 optional near-MVP additions), not 100+. See [Knowledge Graph](#knowledge-graph) for the full list.
+- **16 pathways internally, but only 7 systems shown to the user.** Mapping biology to 16 named pathways is fine as an internal representation; showing a patient 16 pathway codes is not actionable. See [Biological Systems & Signal Scoring](#biological-systems--signal-scoring).
+- **A simple 0-3 signal scale**, not a false-precision decimal. Internally each pathway still gets a continuous 0-1 evidence-weighted score (used for confidence-scoring math), but everything user-facing is bucketed into No/Mild/Moderate/Strong Signal.
+- **Evidence-weighted signal, never "activation."** The pipeline has not measured biological activation directly -- only inferred a signal from lab values and published mechanism-of-action literature. Output is phrased "Inflammation Signal: Elevated, Confidence: Moderate, Drivers: CRP" -- never "NF-κB is 90% activated."
+
+---
+
 ## Pipeline Overview
 
 ### Stage 1: Lab Parser
 Accepts PDF (via OCR) or plain text lab reports. Supports Quest, LabCorp, and most standard tabular formats using four layered regex patterns. Falls back to pytesseract OCR for scanned PDFs.
 
 ### Stage 2: Biomarker Normalizer
-Maps 100+ raw lab test names (aliases, abbreviations, manufacturer variations) to a canonical set of biomarkers. Classifies each result as `critical_low`, `low`, `optimal`, `normal`, `high`, or `critical_high` using both lab-provided and clinically-validated reference ranges.
+Maps 100+ raw lab test names (aliases, abbreviations, manufacturer variations) to a canonical set of 25 biomarkers (see [MVP Scope](#mvp-scope)). Classifies each result as `critical_low`, `low`, `optimal`, `normal`, `high`, or `critical_high` using both lab-provided and clinically-validated reference ranges.
 
 ### Stage 3: Pathway Mapper
-Maps each abnormal biomarker to one or more biological pathways (NF-κB, AMPK, Nrf2, mTOR, HPA Axis, etc.) with weighted activation scores. 16 pathways, ~45 biomarker-to-pathway rules.
+Maps each abnormal biomarker to one or more of 16 internal biological pathways (NF-κB, AMPK, Nrf2, mTOR, HPA Axis, etc.) with weighted, evidence-based signal scores. 16 pathways, 50+ biomarker-to-pathway rules. These 16 pathways are then rolled up into 7 user-facing biological systems -- see below.
 
 ### Stage 4: Evidence Retriever
 Builds intervention-specific PubMed queries from activated pathways. Concurrently fetches studies from PubMed (ESearch + EFetch), ClinicalTrials.gov v2, and Europe PMC. Deduplicates by PMID/NCTID and ranks by study quality (meta-analysis → RCT → cohort → preclinical).
@@ -98,7 +111,50 @@ Runs every recommendation through an explicit staged pipeline, in order:
 5. **Regulated-intervention flagging** — BPC-157, peptides, GLP-1 agonists, etc. are labeled `is_regulated: true`, never silently recommended
 
 ### Stage 7: Report Generator
-Applies a composite confidence scoring formula, derives each recommendation's **evidence tier** deterministically from the studies actually cited (never asserted by the LLM), generates a plain-language interpretation per abnormal biomarker, ranks surviving recommendations, and assembles the final structured report with citations, safety summary, clinician questions, and a mandatory disclaimer. See [Evidence Grading](#evidence-grading) below.
+Applies a composite confidence scoring formula, derives each recommendation's **evidence tier** deterministically from the studies actually cited (never asserted by the LLM), generates a plain-language interpretation per abnormal biomarker, rolls the 16 internal pathways up into 7 biological systems (see below), ranks surviving recommendations, and assembles the final structured report with citations, safety summary, clinician questions, and a mandatory disclaimer.
+
+---
+
+## Biological Systems & Signal Scoring
+
+Internally, `app/pipeline/pathway_mapper.py` maps abnormal biomarkers to 16 named pathways with a continuous 0-1 evidence-weighted score (used in the confidence-scoring math). But showing a patient 16 pathway codes isn't actionable, so `app/pipeline/biological_systems.py` rolls those 16 pathways up into **7 stable, user-facing systems** and reduces the score to a simple 0-3 scale:
+
+| System | Rolls up these internal pathways |
+|---|---|
+| Inflammation | NF-κB, IL-6/JAK-STAT3 |
+| Metabolic Health | Insulin/PI3K-Akt, GLP-1/Incretins, AMPK |
+| Cardiovascular Risk | Hepatic Lipid, Purine/Uric Acid, Renal Filtration |
+| Liver Detox/Stress | Hepatic Lipid, Nrf2 |
+| Nutrient Status | One-Carbon/Methylation, Iron/Hepcidin, Vitamin D Receptor |
+| Thyroid/Endocrine | Thyroid/HPT, HPA Axis |
+| Oxidative Stress / Mitochondrial Resilience | Nrf2, mTOR/Autophagy, Mitochondrial NAD+ |
+
+A pathway can inform more than one system where clinically justified (e.g. Hepatic Lipid matters for both cardiovascular risk and liver stress) -- systems are lenses on the same 16 pathways, not a disjoint partition.
+
+**Signal score (0-3)**, computed from: biomarker abnormality strength (the pathway's evidence-weighted score) + number of supporting biomarkers, per `app/pipeline/biological_systems.py::_signal_level`:
+
+| Level | Label |
+|---|---|
+| 0 | No Signal |
+| 1 | Mild Signal |
+| 2 | Moderate Signal |
+| 3 | Strong Signal |
+
+Example output shape (this is what `biological_systems` looks like in a `GET /reports/{id}` response):
+```json
+{
+  "system_code": "inflammation",
+  "system_name": "Inflammation",
+  "signal_level": 2,
+  "signal_label": "Moderate Signal",
+  "direction": "elevated",
+  "confidence": "moderate",
+  "drivers": ["CRP"],
+  "pathways": [{"pathway_code": "NF_KB", "pathway_name": "NF-κB Inflammatory Signaling"}]
+}
+```
+
+Wording is deliberate: **"evidence-weighted pathway signal," never "activation score."** HerbaGraph has not measured biological activation directly -- it has inferred a signal from a lab value and published mechanism-of-action literature. `pathway_activations` (the detailed 16-pathway breakdown) is still included in the report response for anyone who wants the detail, but `biological_systems` is the recommended thing to render.
 
 ---
 
@@ -481,6 +537,18 @@ Authorization: Bearer {token}
       "interpretation": "CRP is high (8.2 mg/L), which may be relevant to the biological pathways discussed below. This is a lab-value observation, not a diagnosis."
     }
   ],
+  "biological_systems": [
+    {
+      "system_code": "inflammation",
+      "system_name": "Inflammation",
+      "signal_level": 3,
+      "signal_label": "Strong Signal",
+      "direction": "elevated",
+      "confidence": "high",
+      "drivers": ["CRP"],
+      "pathways": [{"pathway_code": "NF_KB", "pathway_name": "NF-κB Inflammatory Signaling"}]
+    }
+  ],
   "pathway_activations": [
     {
       "pathway_code": "NF_KB",
@@ -840,9 +908,11 @@ make clean        # stop and remove containers + volumes
 
 The seeded knowledge graph includes:
 
-**17 Biomarkers** across categories: inflammatory (CRP, Homocysteine), metabolic (Glucose, HbA1c, Insulin, Uric Acid), lipid (LDL, HDL, Triglycerides), hepatic (ALT, AST), hormonal (Vitamin D, TSH), nutritional (B12, Folate, Magnesium), iron metabolism (Ferritin).
+**25 Biomarkers** -- a deliberately-capped MVP panel of high-value, commonly-available tests (see [MVP Scope](#mvp-scope)):
+- **Core panel (17)**: CRP, HbA1c, Glucose, Fasting Insulin, LDL, HDL, Triglycerides, ApoB, Vitamin D, Ferritin, B12, Folate, TSH, ALT, AST, GGT, Creatinine, eGFR
+- **Optional near-MVP additions (8, counting Uric Acid & Homocysteine)**: Homocysteine, Uric Acid, Lp(a), Free T3, Free T4, Cortisol, DHEA-S
 
-**16 Biological Pathways**: NF-κB, IL-6/JAK-STAT3, AMPK, Insulin/PI3K-Akt, Nrf2, mTOR/Autophagy, HPA Axis, Thyroid/HPT, Hepatic Lipid, One-Carbon/Methylation, GLP-1/Incretins, Mitochondrial NAD+, Iron/Hepcidin, Purine/Uric Acid, Vitamin D Receptor, Renal Filtration.
+**16 Biological Pathways** (internal): NF-κB, IL-6/JAK-STAT3, AMPK, Insulin/PI3K-Akt, Nrf2, mTOR/Autophagy, HPA Axis, Thyroid/HPT, Hepatic Lipid, One-Carbon/Methylation, GLP-1/Incretins, Mitochondrial NAD+, Iron/Hepcidin, Purine/Uric Acid, Vitamin D Receptor, Renal Filtration -- rolled up into **7 user-facing Biological Systems** (Inflammation, Metabolic Health, Cardiovascular Risk, Liver Detox/Stress, Nutrient Status, Thyroid/Endocrine, Oxidative Stress/Mitochondrial Resilience). See [Biological Systems & Signal Scoring](#biological-systems--signal-scoring).
 
 **15 Core Interventions** with full compound/target, safety, and interaction data (36 total once the 8 phytochemical compounds and 13 foods from the [Food → Compound Layer](#food--compound-layer) are included):
 - **Herbs**: Boswellia serrata, Curcumin, Ashwagandha, Milk Thistle

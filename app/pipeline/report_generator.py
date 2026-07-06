@@ -6,6 +6,7 @@ recommendations, and assembles the final structured report.
 
 from app.knowledge_graph.food_seed_data import COMPOUND_TO_FOOD_SOURCES
 from app.models.enums import EVIDENCE_TIER_LABELS, EvidenceLevel, EvidenceTier, SafetyRiskLevel, StudyType
+from app.pipeline.biological_systems import compute_biological_systems
 from app.schemas.evidence import FoodSourceRead
 from app.schemas.pipeline import EvidenceSnippet, NormalizedLabResult, PathwayActivation, SafetyReport, ScoredRecommendation
 
@@ -275,6 +276,7 @@ def generate_report(
         "biomarker_summary": biomarker_summary,
         "biomarker_interpretations": _biomarker_interpretations(normalized_labs),
         "pathway_activations": [p.model_dump(mode="json") for p in pathway_activations],
+        "biological_systems": compute_biological_systems(pathway_activations),
         "recommendations": ranked_recommendations,
         "citations": deduped_citations,
         "clinician_questions": clinician_questions,

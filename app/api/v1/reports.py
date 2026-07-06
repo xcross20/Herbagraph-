@@ -100,6 +100,7 @@ async def generate_recommendation_report(
         biomarker_summary=payload["biomarker_summary"],
         biomarker_interpretations=payload["biomarker_interpretations"],
         pathway_activations=payload["pathway_activations"],
+        biological_systems=payload["biological_systems"],
         clinician_questions=payload["clinician_questions"],
         safety_summary=payload["safety_summary"],
         disclaimer=payload["disclaimer"],
@@ -159,6 +160,7 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         biomarker_summary=report.biomarker_summary,
         biomarker_interpretations=report.biomarker_interpretations,
         pathway_activations=report.pathway_activations,
+        biological_systems=report.biological_systems,
         recommendations=[
             {
                 "rank": r.rank,

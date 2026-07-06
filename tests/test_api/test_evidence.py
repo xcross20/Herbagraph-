@@ -141,11 +141,11 @@ async def test_get_intervention_detail_requires_auth(client, seeded_db):
 # ---------------------------------------------------------------------------
 
 
-async def test_list_biomarkers_returns_17(authed_client, seeded_db):
+async def test_list_biomarkers_returns_25(authed_client, seeded_db):
     resp = await authed_client.get("/api/v1/evidence/biomarkers")
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 17
+    assert len(body) == 25
     names = {b["canonical_name"] for b in body}
     assert "CRP" in names
 

@@ -33,13 +33,13 @@ def activations_by_code(activations):
 
 
 def test_rule_table_has_substantial_size():
-    """README documents ~45 biomarker-to-pathway rules."""
-    assert len(_PATHWAY_CONFIGS) == 45
+    """README documents 50+ biomarker-to-pathway rules across the 25-biomarker panel."""
+    assert len(_PATHWAY_CONFIGS) == 54
 
 
-def test_rule_table_covers_17_biomarkers():
+def test_rule_table_covers_25_biomarkers():
     biomarkers = {rule[0] for rule in _PATHWAY_CONFIGS}
-    assert len(biomarkers) == 17
+    assert len(biomarkers) == 25
 
 
 def test_rule_table_covers_16_pathway_codes():
@@ -123,11 +123,36 @@ _RULE_CASES = [
     ("Folate", LabResultStatus.LOW, {
         "ONE_CARBON_METHYLATION": (0.85, PathwayDirection.SUPPRESSED),
     }),
-    ("Magnesium", LabResultStatus.LOW, {
-        "AMPK": (0.4, PathwayDirection.SUPPRESSED),
-        "INSULIN_PI3K_AKT": (0.4, PathwayDirection.SUPPRESSED),
-        "MTOR_AUTOPHAGY": (0.3, PathwayDirection.SUPPRESSED),
-        "VITAMIN_D_RECEPTOR": (0.2, PathwayDirection.SUPPRESSED),
+    ("ApoB", LabResultStatus.HIGH, {
+        "HEPATIC_LIPID": (0.9, PathwayDirection.ACTIVATED),
+    }),
+    ("GGT", LabResultStatus.HIGH, {
+        "HEPATIC_LIPID": (0.5, PathwayDirection.ACTIVATED),
+        "NRF2": (0.5, PathwayDirection.SUPPRESSED),
+    }),
+    ("Creatinine", LabResultStatus.HIGH, {
+        "RENAL_FILTRATION": (0.85, PathwayDirection.SUPPRESSED),
+    }),
+    ("eGFR", LabResultStatus.LOW, {
+        "RENAL_FILTRATION": (0.9, PathwayDirection.SUPPRESSED),
+    }),
+    ("Lp(a)", LabResultStatus.HIGH, {
+        "HEPATIC_LIPID": (0.6, PathwayDirection.ACTIVATED),
+    }),
+    ("Free T3", LabResultStatus.LOW, {
+        "THYROID_HPT": (0.7, PathwayDirection.SUPPRESSED),
+    }),
+    ("Free T4", LabResultStatus.LOW, {
+        "THYROID_HPT": (0.7, PathwayDirection.SUPPRESSED),
+    }),
+    ("Cortisol", LabResultStatus.HIGH, {
+        "HPA_AXIS": (0.8, PathwayDirection.ACTIVATED),
+    }),
+    ("Cortisol", LabResultStatus.LOW, {
+        "HPA_AXIS": (0.6, PathwayDirection.SUPPRESSED),
+    }),
+    ("DHEA-S", LabResultStatus.LOW, {
+        "HPA_AXIS": (0.4, PathwayDirection.SUPPRESSED),
     }),
     ("Ferritin", LabResultStatus.HIGH, {
         "IRON_HEPCIDIN": (0.85, PathwayDirection.ACTIVATED),
@@ -327,8 +352,16 @@ def test_activation_score_never_exceeds_one_across_full_panel():
         ("TSH", LabResultStatus.CRITICAL_HIGH),
         ("B12", LabResultStatus.CRITICAL_LOW),
         ("Folate", LabResultStatus.CRITICAL_LOW),
-        ("Magnesium", LabResultStatus.CRITICAL_LOW),
         ("Ferritin", LabResultStatus.CRITICAL_HIGH),
+        ("ApoB", LabResultStatus.CRITICAL_HIGH),
+        ("GGT", LabResultStatus.CRITICAL_HIGH),
+        ("Creatinine", LabResultStatus.CRITICAL_HIGH),
+        ("eGFR", LabResultStatus.CRITICAL_LOW),
+        ("Lp(a)", LabResultStatus.CRITICAL_HIGH),
+        ("Free T3", LabResultStatus.CRITICAL_LOW),
+        ("Free T4", LabResultStatus.CRITICAL_LOW),
+        ("Cortisol", LabResultStatus.CRITICAL_HIGH),
+        ("DHEA-S", LabResultStatus.CRITICAL_LOW),
     ]
     labs = [make_lab(name, status) for name, status in biomarker_status_pairs]
     result = map_pathways(labs)

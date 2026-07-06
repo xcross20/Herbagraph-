@@ -3,6 +3,13 @@
 Maps 100+ raw lab test names (aliases, abbreviations, manufacturer variants)
 to a canonical biomarker set, then classifies each result using both the
 lab-provided reference range and HerbaGraph's clinically-validated ranges.
+
+The tracked set is intentionally capped at ~25 high-value, commonly-available
+biomarkers (a "core" panel plus a handful of "optional near-MVP" additions)
+rather than trying to cover every possible lab test -- see README's MVP Scope
+section. Anything outside this set still gets a row and a NORMAL/LOW/HIGH
+classification against its own lab-provided range; it just isn't fed into
+pathway mapping.
 """
 
 import re
@@ -11,67 +18,99 @@ from app.models.enums import LabResultStatus
 from app.schemas.pipeline import NormalizedLabResult, ParsedLabResult
 
 # canonical_name -> {reference_low, reference_high, optimal_low, optimal_high, critical_low, critical_high, category}
+#
+# "Core" panel (17): CRP, HbA1c, Glucose, Insulin, LDL, HDL, Triglycerides, ApoB, Vitamin D,
+# Ferritin, B12, Folate, TSH, ALT, AST, GGT, Creatinine, eGFR.
+# "Optional near-MVP" additions (7): Homocysteine, Uric Acid, Lp(a), Free T3, Free T4, Cortisol, DHEA-S.
 _REFERENCE_DATA: dict[str, dict] = {
     "CRP": {"reference_low": 0.0, "reference_high": 3.0, "optimal_low": 0.0, "optimal_high": 1.0,
             "critical_low": None, "critical_high": 10.0, "category": "inflammatory"},
-    "Homocysteine": {"reference_low": 5.0, "reference_high": 15.0, "optimal_low": 5.0, "optimal_high": 8.0,
-                      "critical_low": None, "critical_high": 30.0, "category": "inflammatory"},
     "Glucose": {"reference_low": 70.0, "reference_high": 99.0, "optimal_low": 70.0, "optimal_high": 85.0,
                 "critical_low": 54.0, "critical_high": 250.0, "category": "metabolic"},
     "HbA1c": {"reference_low": 4.0, "reference_high": 5.6, "optimal_low": 4.0, "optimal_high": 5.3,
               "critical_low": None, "critical_high": 9.0, "category": "metabolic"},
     "Insulin": {"reference_low": 2.6, "reference_high": 24.9, "optimal_low": 2.6, "optimal_high": 6.0,
                 "critical_low": None, "critical_high": 50.0, "category": "metabolic"},
-    "Uric Acid": {"reference_low": 3.5, "reference_high": 7.2, "optimal_low": 3.5, "optimal_high": 6.0,
-                  "critical_low": 2.0, "critical_high": 10.0, "category": "metabolic"},
     "LDL": {"reference_low": 0.0, "reference_high": 99.0, "optimal_low": 0.0, "optimal_high": 80.0,
             "critical_low": None, "critical_high": 190.0, "category": "lipid"},
     "HDL": {"reference_low": 40.0, "reference_high": 100.0, "optimal_low": 60.0, "optimal_high": 100.0,
             "critical_low": 20.0, "critical_high": None, "category": "lipid"},
     "Triglycerides": {"reference_low": 0.0, "reference_high": 149.0, "optimal_low": 0.0, "optimal_high": 100.0,
                        "critical_low": None, "critical_high": 500.0, "category": "lipid"},
-    "ALT": {"reference_low": 7.0, "reference_high": 56.0, "optimal_low": 7.0, "optimal_high": 25.0,
-            "critical_low": None, "critical_high": 200.0, "category": "hepatic"},
-    "AST": {"reference_low": 10.0, "reference_high": 40.0, "optimal_low": 10.0, "optimal_high": 25.0,
-            "critical_low": None, "critical_high": 200.0, "category": "hepatic"},
+    "ApoB": {"reference_low": 40.0, "reference_high": 100.0, "optimal_low": 40.0, "optimal_high": 80.0,
+             "critical_low": None, "critical_high": 160.0, "category": "lipid"},
     "Vitamin D": {"reference_low": 30.0, "reference_high": 100.0, "optimal_low": 50.0, "optimal_high": 80.0,
                   "critical_low": 10.0, "critical_high": 150.0, "category": "hormonal"},
-    "TSH": {"reference_low": 0.4, "reference_high": 4.0, "optimal_low": 0.5, "optimal_high": 2.5,
-            "critical_low": 0.01, "critical_high": 10.0, "category": "hormonal"},
+    "Ferritin": {"reference_low": 20.0, "reference_high": 250.0, "optimal_low": 50.0, "optimal_high": 150.0,
+                 "critical_low": 10.0, "critical_high": 500.0, "category": "iron_metabolism"},
     "B12": {"reference_low": 200.0, "reference_high": 900.0, "optimal_low": 500.0, "optimal_high": 900.0,
             "critical_low": 150.0, "critical_high": None, "category": "nutritional"},
     "Folate": {"reference_low": 2.7, "reference_high": 17.0, "optimal_low": 7.0, "optimal_high": 17.0,
                "critical_low": 2.0, "critical_high": None, "category": "nutritional"},
-    "Magnesium": {"reference_low": 1.7, "reference_high": 2.2, "optimal_low": 2.0, "optimal_high": 2.2,
-                  "critical_low": 1.2, "critical_high": 3.0, "category": "nutritional"},
-    "Ferritin": {"reference_low": 20.0, "reference_high": 250.0, "optimal_low": 50.0, "optimal_high": 150.0,
-                 "critical_low": 10.0, "critical_high": 500.0, "category": "iron_metabolism"},
+    "TSH": {"reference_low": 0.4, "reference_high": 4.0, "optimal_low": 0.5, "optimal_high": 2.5,
+            "critical_low": 0.01, "critical_high": 10.0, "category": "hormonal"},
+    "ALT": {"reference_low": 7.0, "reference_high": 56.0, "optimal_low": 7.0, "optimal_high": 25.0,
+            "critical_low": None, "critical_high": 200.0, "category": "hepatic"},
+    "AST": {"reference_low": 10.0, "reference_high": 40.0, "optimal_low": 10.0, "optimal_high": 25.0,
+            "critical_low": None, "critical_high": 200.0, "category": "hepatic"},
+    "GGT": {"reference_low": 8.0, "reference_high": 61.0, "optimal_low": 8.0, "optimal_high": 30.0,
+            "critical_low": None, "critical_high": 200.0, "category": "hepatic"},
+    "Creatinine": {"reference_low": 0.6, "reference_high": 1.3, "optimal_low": 0.7, "optimal_high": 1.1,
+                   "critical_low": 0.3, "critical_high": 3.0, "category": "renal"},
+    "eGFR": {"reference_low": 90.0, "reference_high": None, "optimal_low": 90.0, "optimal_high": 120.0,
+             "critical_low": 15.0, "critical_high": None, "category": "renal"},
+    # Optional near-MVP additions
+    "Homocysteine": {"reference_low": 5.0, "reference_high": 15.0, "optimal_low": 5.0, "optimal_high": 8.0,
+                      "critical_low": None, "critical_high": 30.0, "category": "inflammatory"},
+    "Uric Acid": {"reference_low": 3.5, "reference_high": 7.2, "optimal_low": 3.5, "optimal_high": 6.0,
+                  "critical_low": 2.0, "critical_high": 10.0, "category": "metabolic"},
+    "Lp(a)": {"reference_low": 0.0, "reference_high": 30.0, "optimal_low": 0.0, "optimal_high": 14.0,
+              "critical_low": None, "critical_high": 100.0, "category": "lipid"},
+    "Free T3": {"reference_low": 2.3, "reference_high": 4.2, "optimal_low": 2.8, "optimal_high": 3.8,
+                "critical_low": 1.0, "critical_high": 6.0, "category": "hormonal"},
+    "Free T4": {"reference_low": 0.8, "reference_high": 1.8, "optimal_low": 1.0, "optimal_high": 1.5,
+                "critical_low": 0.4, "critical_high": 3.0, "category": "hormonal"},
+    "Cortisol": {"reference_low": 6.0, "reference_high": 23.0, "optimal_low": 10.0, "optimal_high": 18.0,
+                 "critical_low": 3.0, "critical_high": 35.0, "category": "hormonal"},
+    "DHEA-S": {"reference_low": 65.0, "reference_high": 380.0, "optimal_low": 100.0, "optimal_high": 300.0,
+               "critical_low": 20.0, "critical_high": None, "category": "hormonal"},
 }
 
 # raw alias (normalized: lowercase, punctuation stripped) -> canonical biomarker name
 _ALIAS_MAP: dict[str, str] = {
     "crp": "CRP", "c reactive protein": "CRP", "hs crp": "CRP", "high sensitivity crp": "CRP",
     "hscrp": "CRP", "c reactive protein hs": "CRP",
-    "homocysteine": "Homocysteine", "hcy": "Homocysteine", "homocyst e ine": "Homocysteine",
     "glucose": "Glucose", "glucose fasting": "Glucose", "fasting glucose": "Glucose",
     "glucose serum": "Glucose", "fasting blood glucose": "Glucose", "fbg": "Glucose",
     "hba1c": "HbA1c", "hemoglobin a1c": "HbA1c", "haemoglobin a1c": "HbA1c", "a1c": "HbA1c",
     "glycohemoglobin": "HbA1c", "glycated hemoglobin": "HbA1c",
     "insulin": "Insulin", "fasting insulin": "Insulin", "insulin fasting": "Insulin",
-    "uric acid": "Uric Acid", "urate": "Uric Acid", "uric acid serum": "Uric Acid",
     "ldl": "LDL", "ldl cholesterol": "LDL", "ldl c": "LDL", "ldl chol calc": "LDL",
     "low density lipoprotein": "LDL", "ldl cholesterol calc": "LDL",
     "hdl": "HDL", "hdl cholesterol": "HDL", "hdl c": "HDL", "high density lipoprotein": "HDL",
     "triglycerides": "Triglycerides", "trig": "Triglycerides", "triglyceride": "Triglycerides",
-    "alt": "ALT", "alt sgpt": "ALT", "sgpt": "ALT", "alanine aminotransferase": "ALT",
-    "ast": "AST", "ast sgot": "AST", "sgot": "AST", "aspartate aminotransferase": "AST",
+    "apob": "ApoB", "apolipoprotein b": "ApoB", "apo b": "ApoB",
     "vitamin d": "Vitamin D", "vitamin d 25 hydroxy": "Vitamin D", "25 oh vitamin d": "Vitamin D",
     "25 hydroxyvitamin d": "Vitamin D", "vitamin d3": "Vitamin D", "vit d": "Vitamin D",
-    "tsh": "TSH", "thyroid stimulating hormone": "TSH", "thyrotropin": "TSH",
+    "ferritin": "Ferritin", "serum ferritin": "Ferritin",
     "vitamin b12": "B12", "b12": "B12", "cobalamin": "B12", "vit b12": "B12",
     "folate": "Folate", "folic acid": "Folate", "folate serum": "Folate", "serum folate": "Folate",
-    "magnesium": "Magnesium", "mg": "Magnesium", "magnesium serum": "Magnesium",
-    "ferritin": "Ferritin", "serum ferritin": "Ferritin",
+    "tsh": "TSH", "thyroid stimulating hormone": "TSH", "thyrotropin": "TSH",
+    "alt": "ALT", "alt sgpt": "ALT", "sgpt": "ALT", "alanine aminotransferase": "ALT",
+    "ast": "AST", "ast sgot": "AST", "sgot": "AST", "aspartate aminotransferase": "AST",
+    "ggt": "GGT", "gamma glutamyl transferase": "GGT", "gamma gt": "GGT", "ggtp": "GGT",
+    "creatinine": "Creatinine", "creatinine serum": "Creatinine", "serum creatinine": "Creatinine",
+    "egfr": "eGFR", "gfr": "eGFR", "estimated gfr": "eGFR", "glomerular filtration rate": "eGFR",
+    "estimated glomerular filtration rate": "eGFR",
+    # Optional near-MVP additions
+    "homocysteine": "Homocysteine", "hcy": "Homocysteine", "homocyst e ine": "Homocysteine",
+    "uric acid": "Uric Acid", "urate": "Uric Acid", "uric acid serum": "Uric Acid",
+    "lp a": "Lp(a)", "lipoprotein a": "Lp(a)", "lpa": "Lp(a)",
+    "free t3": "Free T3", "ft3": "Free T3", "triiodothyronine free": "Free T3",
+    "free t4": "Free T4", "ft4": "Free T4", "thyroxine free": "Free T4",
+    "cortisol": "Cortisol", "cortisol am": "Cortisol", "cortisol morning": "Cortisol",
+    "serum cortisol": "Cortisol", "am cortisol": "Cortisol",
+    "dhea s": "DHEA-S", "dheas": "DHEA-S", "dehydroepiandrosterone sulfate": "DHEA-S",
 }
 
 _NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")

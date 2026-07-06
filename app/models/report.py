@@ -19,6 +19,7 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     biomarker_summary: Mapped[dict] = mapped_column(JSON, default=dict)
     biomarker_interpretations: Mapped[list] = mapped_column(JSON, default=list)
     pathway_activations: Mapped[list] = mapped_column(JSON, default=list)
+    biological_systems: Mapped[list] = mapped_column(JSON, default=list)
     clinician_questions: Mapped[list] = mapped_column(JSON, default=list)
     safety_summary: Mapped[dict] = mapped_column(JSON, default=dict)
     disclaimer: Mapped[str] = mapped_column(Text, nullable=False)

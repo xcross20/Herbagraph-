@@ -1,7 +1,11 @@
 """Stage 3: Pathway Mapper.
 
 Maps each abnormal biomarker to one or more of the 16 biological pathways
-with weighted activation scores, using ~45 biomarker-to-pathway rules.
+with weighted activation scores, using 50+ biomarker-to-pathway rules across
+the 25-biomarker MVP panel. These scores are internal/evidence-weighted
+signals, not direct measurements of biological activation -- see
+app/pipeline/biological_systems.py for the simplified, user-facing rollup
+into 7 biological systems with a 0-3 signal scale.
 """
 
 from app.models.enums import LabResultStatus, PathwayDirection
@@ -113,13 +117,6 @@ _PATHWAY_CONFIGS: list[tuple[str, set[LabResultStatus], str, float, PathwayDirec
     ("Folate", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "ONE_CARBON_METHYLATION", 0.85,
      PathwayDirection.SUPPRESSED),
 
-    ("Magnesium", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "AMPK", 0.4,
-     PathwayDirection.SUPPRESSED),
-    ("Magnesium", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "INSULIN_PI3K_AKT", 0.4,
-     PathwayDirection.SUPPRESSED),
-    ("Magnesium", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "MTOR_AUTOPHAGY", 0.3,
-     PathwayDirection.SUPPRESSED),
-
     ("Ferritin", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "IRON_HEPCIDIN", 0.85,
      PathwayDirection.ACTIVATED),
     ("Ferritin", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "NF_KB", 0.3,
@@ -143,7 +140,41 @@ _PATHWAY_CONFIGS: list[tuple[str, set[LabResultStatus], str, float, PathwayDirec
     ("LDL", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "IL6_JAK_STAT3", 0.2,
      PathwayDirection.ACTIVATED),
 
-    ("Magnesium", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "VITAMIN_D_RECEPTOR", 0.2,
+    # --- Rules for the 8 "optional near-MVP" / core-panel additions (ApoB, GGT, Creatinine,
+    # eGFR, Lp(a), Free T3, Free T4, Cortisol, DHEA-S) ---
+    ("ApoB", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "HEPATIC_LIPID", 0.9,
+     PathwayDirection.ACTIVATED),
+
+    ("GGT", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "HEPATIC_LIPID", 0.5,
+     PathwayDirection.ACTIVATED),
+    ("GGT", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "NRF2", 0.5,
+     PathwayDirection.SUPPRESSED),
+
+    ("Creatinine", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "RENAL_FILTRATION", 0.85,
+     PathwayDirection.SUPPRESSED),
+
+    ("eGFR", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "RENAL_FILTRATION", 0.9,
+     PathwayDirection.SUPPRESSED),
+
+    ("Lp(a)", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "HEPATIC_LIPID", 0.6,
+     PathwayDirection.ACTIVATED),
+
+    ("Free T3", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "THYROID_HPT", 0.7,
+     PathwayDirection.SUPPRESSED),
+    ("Free T3", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "THYROID_HPT", 0.5,
+     PathwayDirection.ACTIVATED),
+
+    ("Free T4", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "THYROID_HPT", 0.7,
+     PathwayDirection.SUPPRESSED),
+    ("Free T4", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "THYROID_HPT", 0.5,
+     PathwayDirection.ACTIVATED),
+
+    ("Cortisol", {LabResultStatus.HIGH, LabResultStatus.CRITICAL_HIGH}, "HPA_AXIS", 0.8,
+     PathwayDirection.ACTIVATED),
+    ("Cortisol", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "HPA_AXIS", 0.6,
+     PathwayDirection.SUPPRESSED),
+
+    ("DHEA-S", {LabResultStatus.LOW, LabResultStatus.CRITICAL_LOW}, "HPA_AXIS", 0.4,
      PathwayDirection.SUPPRESSED),
 ]
 

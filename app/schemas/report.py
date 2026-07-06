@@ -17,11 +17,35 @@ from app.schemas.evidence import FoodSourceRead
 
 
 class PathwayActivationRead(BaseModel):
+    """Detailed/internal 16-pathway breakdown. `activation_score` is an evidence-weighted
+    signal strength (0-1) derived from lab values and pathway-mapping rules, NOT a direct
+    biological measurement. Most consumers should prefer `biological_systems` below, which
+    rolls this up into 7 systems with a simpler 0-3 signal scale."""
+
     pathway_code: str
     pathway_name: str
     activation_score: float
     direction: PathwayDirection
     contributing_biomarkers: list[str] = []
+
+
+class BiologicalSystemPathwayRef(BaseModel):
+    pathway_code: str
+    pathway_name: str
+
+
+class BiologicalSystemRead(BaseModel):
+    """The recommended user-facing view: 7 biological systems with a simple 0-3 signal
+    score, in place of the 16 internal pathways. See app/pipeline/biological_systems.py."""
+
+    system_code: str
+    system_name: str
+    signal_level: int
+    signal_label: str
+    direction: str
+    confidence: str
+    drivers: list[str] = []
+    pathways: list[BiologicalSystemPathwayRef] = []
 
 
 class BiomarkerInterpretation(BaseModel):
@@ -90,6 +114,7 @@ class RecommendationReportRead(BaseModel):
     executive_summary: str
     biomarker_summary: BiomarkerSummary
     biomarker_interpretations: list[BiomarkerInterpretation] = []
+    biological_systems: list[BiologicalSystemRead] = []
     pathway_activations: list[PathwayActivationRead]
     recommendations: list[RecommendationRead]
     citations: list[CitationRead]

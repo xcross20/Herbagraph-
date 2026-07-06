@@ -36,4 +36,4 @@ async def test_authed_client_fixture(authed_client, test_user):
 async def test_seeded_db_evidence_endpoint(authed_client, seeded_db):
     resp = await authed_client.get("/api/v1/evidence/biomarkers")
     assert resp.status_code == 200
-    assert len(resp.json()) == 17
+    assert len(resp.json()) == 25

@@ -64,10 +64,27 @@ class TestAliasResolution:
             ("Folate", "Folate"),
             ("Folic Acid", "Folate"),
             ("Serum Folate", "Folate"),
-            ("Magnesium", "Magnesium"),
-            ("Mg", "Magnesium"),
             ("Ferritin", "Ferritin"),
             ("Serum Ferritin", "Ferritin"),
+            ("ApoB", "ApoB"),
+            ("Apolipoprotein B", "ApoB"),
+            ("GGT", "GGT"),
+            ("Gamma Glutamyl Transferase", "GGT"),
+            ("Creatinine", "Creatinine"),
+            ("Serum Creatinine", "Creatinine"),
+            ("eGFR", "eGFR"),
+            ("GFR", "eGFR"),
+            ("Estimated GFR", "eGFR"),
+            ("Lp(a)", "Lp(a)"),
+            ("Lipoprotein(a)", "Lp(a)"),
+            ("Free T3", "Free T3"),
+            ("FT3", "Free T3"),
+            ("Free T4", "Free T4"),
+            ("FT4", "Free T4"),
+            ("Cortisol", "Cortisol"),
+            ("AM Cortisol", "Cortisol"),
+            ("DHEA-S", "DHEA-S"),
+            ("DHEAS", "DHEA-S"),
         ],
     )
     def test_alias_resolves_to_canonical_name(self, raw_name, expected):
@@ -101,14 +118,19 @@ class TestGetReferenceData:
     def test_unknown_biomarker_returns_none(self):
         assert get_reference_data("Not A Real Biomarker") is None
 
-    def test_all_17_canonical_biomarkers_present(self):
+    def test_all_25_canonical_biomarkers_present(self):
         expected = {
-            "CRP", "Homocysteine", "Glucose", "HbA1c", "Insulin", "Uric Acid",
-            "LDL", "HDL", "Triglycerides", "ALT", "AST", "Vitamin D", "TSH",
-            "B12", "Folate", "Magnesium", "Ferritin",
+            "CRP", "Glucose", "HbA1c", "Insulin", "LDL", "HDL", "Triglycerides",
+            "ApoB", "Vitamin D", "Ferritin", "B12", "Folate", "TSH", "ALT", "AST",
+            "GGT", "Creatinine", "eGFR",
+            "Homocysteine", "Uric Acid", "Lp(a)", "Free T3", "Free T4", "Cortisol", "DHEA-S",
         }
+        assert len(expected) == 25
         for name in expected:
             assert get_reference_data(name) is not None
+
+    def test_magnesium_is_no_longer_a_tracked_biomarker(self):
+        assert get_reference_data("Magnesium") is None
 
     @pytest.mark.parametrize(
         "name,category",
@@ -122,13 +144,21 @@ class TestGetReferenceData:
             ("LDL", "lipid"),
             ("HDL", "lipid"),
             ("Triglycerides", "lipid"),
+            ("ApoB", "lipid"),
+            ("Lp(a)", "lipid"),
             ("ALT", "hepatic"),
             ("AST", "hepatic"),
+            ("GGT", "hepatic"),
+            ("Creatinine", "renal"),
+            ("eGFR", "renal"),
             ("Vitamin D", "hormonal"),
             ("TSH", "hormonal"),
+            ("Free T3", "hormonal"),
+            ("Free T4", "hormonal"),
+            ("Cortisol", "hormonal"),
+            ("DHEA-S", "hormonal"),
             ("B12", "nutritional"),
             ("Folate", "nutritional"),
-            ("Magnesium", "nutritional"),
             ("Ferritin", "iron_metabolism"),
         ],
     )

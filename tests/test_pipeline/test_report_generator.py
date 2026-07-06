@@ -590,3 +590,30 @@ def test_biomarker_interpretations_empty_when_all_normal():
 def test_disclaimer_mentions_discussion_not_replacement():
     assert "discussion" in DISCLAIMER.lower()
     assert "not to replace" in DISCLAIMER.lower()
+
+
+def test_generate_report_includes_biological_systems():
+    safety_report = _base_safety_report([])
+    pathway_activations = [
+        PathwayActivation(
+            pathway_code="NF_KB",
+            pathway_name="NF-kB",
+            activation_score=0.9,
+            direction=PathwayDirection.ACTIVATED,
+            contributing_biomarkers=["CRP"],
+        )
+    ]
+    report = generate_report(
+        normalized_labs=[],
+        pathway_activations=pathway_activations,
+        evidence_snippets=[],
+        safety_report=safety_report,
+        biomarker_pattern_analysis="",
+        clinician_questions=[],
+        intervention_pathways={},
+    )
+    systems = report["biological_systems"]
+    assert len(systems) == 7
+    inflammation = next(s for s in systems if s["system_code"] == "inflammation")
+    assert inflammation["signal_level"] == 3
+    assert inflammation["drivers"] == ["CRP"]
