@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import LabReportStatus, LabResultStatus
+from app.models.enums import LabProcessingStage, LabReportStatus, LabResultStatus, ReportGenerationStage
 
 
 class LabResultRead(BaseModel):
@@ -31,6 +31,10 @@ class LabReportRead(BaseModel):
     original_filename: str
     file_size_bytes: int
     status: LabReportStatus
+    processing_stage: LabProcessingStage | None = None
+    report_stage: ReportGenerationStage | None = None
+    report_error_message: str | None = None
+    latest_report_id: uuid.UUID | None = None
     error_message: str | None = None
     created_at: datetime
     lab_results: list[LabResultRead] = []

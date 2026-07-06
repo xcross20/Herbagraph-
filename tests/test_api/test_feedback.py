@@ -39,8 +39,8 @@ def _patch_pipeline(monkeypatch):
             )
         ],
     )
-    monkeypatch.setattr("app.api.v1.reports.retrieve_evidence", AsyncMock(return_value=evidence))
-    monkeypatch.setattr("app.api.v1.reports.generate_reasoning", AsyncMock(return_value=reasoning))
+    monkeypatch.setattr("app.services.report_generation.retrieve_evidence", AsyncMock(return_value=evidence))
+    monkeypatch.setattr("app.services.report_generation.generate_reasoning", AsyncMock(return_value=reasoning))
 
 
 async def _create_report(authed_client, monkeypatch) -> str:
@@ -50,7 +50,13 @@ async def _create_report(authed_client, monkeypatch) -> str:
     )
     lab_report_id = upload_resp.json()["lab_report_id"]
     gen_resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
-    return gen_resp.json()["id"]
+    assert gen_resp.status_code == 202, gen_resp.text
+    for _ in range(50):
+        lab_resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}")
+        lab = lab_resp.json()
+        if lab.get("report_stage") == "complete" and lab.get("latest_report_id"):
+            return lab["latest_report_id"]
+    pytest.fail("report generation did not complete in time")
 
 
 async def test_submit_feedback_happy_path(authed_client, monkeypatch):
@@ -120,7 +126,15 @@ async def test_list_feedback_404_for_other_users_report(client, db_session, monk
     )
     lab_report_id = upload_resp.json()["lab_report_id"]
     gen_resp = await client.post(f"/api/v1/reports/generate/{lab_report_id}")
-    report_id = gen_resp.json()["id"]
+    assert gen_resp.status_code == 202, gen_resp.text
+    report_id = None
+    for _ in range(50):
+        lab_resp = await client.get(f"/api/v1/labs/{lab_report_id}")
+        lab = lab_resp.json()
+        if lab.get("report_stage") == "complete" and lab.get("latest_report_id"):
+            report_id = lab["latest_report_id"]
+            break
+    assert report_id is not None
     client.headers.pop("Authorization")
 
     resp = await client.get(f"/api/v1/reports/{report_id}/feedback", headers=intruder_headers)

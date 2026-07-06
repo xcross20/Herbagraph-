@@ -4,7 +4,7 @@ from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import LabReportStatus, LabResultStatus
+from app.models.enums import LabProcessingStage, LabReportStatus, LabResultStatus, ReportGenerationStage
 from app.models.mixins import GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
@@ -24,6 +24,16 @@ class LabReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         default=LabReportStatus.PENDING,
         nullable=False,
     )
+    processing_stage: Mapped[LabProcessingStage | None] = mapped_column(
+        Enum(LabProcessingStage, native_enum=False, length=20),
+        nullable=True,
+    )
+    report_stage: Mapped[ReportGenerationStage | None] = mapped_column(
+        Enum(ReportGenerationStage, native_enum=False, length=30),
+        nullable=True,
+    )
+    report_error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    latest_report_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="lab_reports")

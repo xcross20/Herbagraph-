@@ -51,6 +51,10 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
 class HealthProfileUpdate(BaseModel):
     age_range: str | None = None
     biological_sex: str | None = None

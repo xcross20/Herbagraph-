@@ -8,16 +8,12 @@ from app.api.deps import get_current_user, get_db
 from app.models.enums import EVIDENCE_TIER_LABELS, LabReportStatus
 from app.models.feedback import Feedback
 from app.models.lab import LabReport
-from app.models.report import Recommendation, RecommendationReport, ReportCitation
-from app.models.user import HealthProfile, User
-from app.pipeline.biomarker_normalizer import normalized_results_from_lab_report
-from app.pipeline.evidence_retriever import build_intervention_pathway_map, retrieve_evidence
-from app.pipeline.llm_reasoner import generate_reasoning
-from app.pipeline.pathway_mapper import map_pathways
-from app.pipeline.report_generator import generate_report
-from app.pipeline.safety_layer import check_safety
+from app.models.enums import ReportGenerationStage
+from app.models.report import RecommendationReport
+from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
-from app.schemas.report import RecommendationReportRead, RecommendationReportSummary
+from app.schemas.report import RecommendationReportRead, RecommendationReportSummary, ReportGenerationResponse
+from app.workers.tasks import generate_recommendation_report_task
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -32,25 +28,16 @@ async def _get_owned_lab_report(lab_report_id: uuid.UUID, current_user: User, db
     return lab_report
 
 
-def _health_profile_dict(profile: HealthProfile | None) -> dict:
-    if profile is None:
-        return {}
-    return {
-        "age_range": profile.age_range,
-        "biological_sex": profile.biological_sex,
-        "health_goals": profile.health_goals,
-        "current_medications": profile.current_medications,
-        "current_supplements": profile.current_supplements,
-        "known_conditions": profile.known_conditions,
-    }
-
-
-@router.post("/generate/{lab_report_id}", response_model=RecommendationReportRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/generate/{lab_report_id}",
+    response_model=ReportGenerationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def generate_recommendation_report(
     lab_report_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> RecommendationReport:
+) -> ReportGenerationResponse:
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
     if lab_report.status != LabReportStatus.COMPLETE:
         raise HTTPException(
@@ -58,85 +45,32 @@ async def generate_recommendation_report(
             detail=f"Lab report is not ready for report generation (status={lab_report.status.value})",
         )
 
-    await db.refresh(lab_report, attribute_names=["lab_results"])
-    normalized = normalized_results_from_lab_report(lab_report)
-
-    profile_result = await db.execute(select(HealthProfile).where(HealthProfile.user_id == current_user.id))
-    health_profile = _health_profile_dict(profile_result.scalar_one_or_none())
-
-    pathway_activations = map_pathways(normalized)
-    evidence_snippets = await retrieve_evidence(pathway_activations)
-    reasoning = await generate_reasoning(normalized, pathway_activations, evidence_snippets, health_profile)
-    safety_report = check_safety(reasoning.recommendations, health_profile)
-    intervention_pathways = build_intervention_pathway_map()
-
-    payload = generate_report(
-        normalized,
-        pathway_activations,
-        evidence_snippets,
-        safety_report,
-        reasoning.biomarker_pattern_analysis,
-        reasoning.clinician_questions,
-        intervention_pathways,
-    )
-
-    report = RecommendationReport(
-        lab_report_id=lab_report.id,
-        user_id=current_user.id,
-        overall_confidence=payload["overall_confidence"],
-        model_version=payload["model_version"],
-        executive_summary=payload["executive_summary"],
-        biomarker_summary=payload["biomarker_summary"],
-        biomarker_interpretations=payload["biomarker_interpretations"],
-        pathway_activations=payload["pathway_activations"],
-        biological_systems=payload["biological_systems"],
-        clinician_questions=payload["clinician_questions"],
-        safety_summary=payload["safety_summary"],
-        disclaimer=payload["disclaimer"],
-    )
-    db.add(report)
-    await db.flush()
-
-    for rec in payload["recommendations"]:
-        db.add(
-            Recommendation(
-                report_id=report.id,
-                rank=rec["rank"],
-                intervention_name=rec["intervention_name"],
-                category=rec["category"],
-                mechanism=rec["mechanism"],
-                evidence_level=rec["evidence_level"],
-                evidence_tier=rec["evidence_tier"],
-                confidence_score=rec["confidence_score"],
-                typical_dose=rec["typical_dose"],
-                rationale=rec["rationale"],
-                limitations=rec["limitations"],
-                safety_risk=rec["safety_risk"],
-                safety_notes=rec["safety_notes"],
-                interactions=rec["interactions"],
-                is_regulated=rec["is_regulated"],
-                cited_study_ids=rec["cited_study_ids"],
-                cited_urls=rec["cited_urls"],
-                food_sources=rec["food_sources"],
-            )
+    active_stages = {
+        ReportGenerationStage.QUEUED,
+        ReportGenerationStage.PATHWAY_MAPPING,
+        ReportGenerationStage.EVIDENCE_RETRIEVAL,
+        ReportGenerationStage.LLM_REASONING,
+        ReportGenerationStage.SAFETY_CHECK,
+        ReportGenerationStage.REPORT_ASSEMBLY,
+    }
+    if lab_report.report_stage in active_stages:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Report generation is already in progress for this lab report",
         )
 
-    for citation in payload["citations"]:
-        db.add(
-            ReportCitation(
-                report_id=report.id,
-                external_id=citation["id"],
-                source=citation["source"],
-                title=citation["title"],
-                year=citation["year"],
-                study_type=citation["study_type"],
-                quality_score=citation["quality_score"],
-            )
-        )
-
+    lab_report.report_stage = ReportGenerationStage.QUEUED
+    lab_report.report_error_message = None
     await db.commit()
-    await db.refresh(report, attribute_names=["recommendations", "citations"])
-    return _to_report_read(report)
+
+    task = generate_recommendation_report_task.delay(str(lab_report.id), str(current_user.id))
+
+    return ReportGenerationResponse(
+        lab_report_id=lab_report.id,
+        task_id=task.id,
+        report_stage=ReportGenerationStage.QUEUED,
+        message="Report generation has started.",
+    )
 
 
 def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:

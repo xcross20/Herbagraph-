@@ -10,6 +10,7 @@
   hr { margin: 1.5rem 0; }
   section { margin-bottom: 1.5rem; }
   button { font: inherit; padding: 0.4rem 1rem; cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
   input[type=file] { display: block; margin: 0.5rem 0; }
   .status { color: #666; font-style: italic; }
   .error { color: #a00; }
@@ -18,8 +19,16 @@
   th { background: #f0f0f0; }
   .disclaimer { border: 1px solid #a00; padding: 0.75rem; font-size: 0.9em; }
   #report { display: none; }
+  #progress-panel { display: none; margin: 1rem 0; }
+  .progress-track { background: #e8e8e8; border-radius: 4px; height: 10px; overflow: hidden; }
+  .progress-fill { background: #2a6; height: 100%; width: 0%; transition: width 0.4s ease; }
+  .stage-list { list-style: none; padding: 0; margin: 0.75rem 0 0; font-size: 0.9em; }
+  .stage-list li { padding: 0.2rem 0; color: #999; }
+  .stage-list li.active { color: #111; font-weight: bold; }
+  .stage-list li.done { color: #2a6; }
+  .stage-list li.failed { color: #a00; }
   @media print {
-    #upload-section, #status-line, button#download-pdf { display: none !important; }
+    #upload-section, #status-line, #progress-panel, button#download-pdf { display: none !important; }
   }
 </style>
 </head>
@@ -34,6 +43,12 @@
   <input type="file" id="file-input" accept=".pdf,.txt,.csv,.png,.jpg,.jpeg">
   <button id="analyze-btn">Analyze</button>
 </section>
+
+<div id="progress-panel">
+  <p id="progress-label" class="status"></p>
+  <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
+  <ul id="stage-list" class="stage-list"></ul>
+</div>
 
 <p id="status-line" class="status"></p>
 
@@ -69,8 +84,53 @@
 
 <script>
 const API = "";
+const POLL_INTERVAL_MS = 2000;
+const MAX_WAIT_MS = 15 * 60 * 1000; // 15 minutes for OCR + evidence + LLM
+
+const PIPELINE_STAGES = [
+  { id: "upload", label: "Uploading lab file" },
+  { id: "queued", label: "Queued for parsing" },
+  { id: "parsing", label: "Parsing lab report (OCR if needed)" },
+  { id: "normalizing", label: "Normalizing biomarkers" },
+  { id: "pathway_mapping", label: "Mapping biological pathways" },
+  { id: "evidence_retrieval", label: "Retrieving scientific evidence" },
+  { id: "llm_reasoning", label: "Generating evidence-backed reasoning" },
+  { id: "safety_check", label: "Running safety checks" },
+  { id: "report_assembly", label: "Assembling final report" },
+  { id: "complete", label: "Complete" },
+];
+
+function stageIndex(stageId) {
+  const idx = PIPELINE_STAGES.findIndex((s) => s.id === stageId);
+  return idx >= 0 ? idx : 0;
+}
+
+function showProgressPanel(activeStageId) {
+  const panel = document.getElementById("progress-panel");
+  const list = document.getElementById("stage-list");
+  const fill = document.getElementById("progress-fill");
+  const label = document.getElementById("progress-label");
+  panel.style.display = "block";
+
+  const activeIdx = stageIndex(activeStageId);
+  const pct = Math.round((activeIdx / (PIPELINE_STAGES.length - 1)) * 100);
+  fill.style.width = pct + "%";
+  label.textContent = PIPELINE_STAGES[activeIdx]?.label || "Processing...";
+
+  list.innerHTML = PIPELINE_STAGES.map((stage, i) => {
+    let cls = "";
+    if (stage.id === activeStageId) cls = "active";
+    else if (i < activeIdx) cls = "done";
+    return `<li class="${cls}">${stage.label}</li>`;
+  }).join("");
+}
+
+function hideProgressPanel() {
+  document.getElementById("progress-panel").style.display = "none";
+}
 
 async function api(path, method, body) {
+  await ensureAuth();
   const headers = { "Content-Type": "application/json" };
   if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
   const resp = await fetch(API + path, {
@@ -78,6 +138,20 @@ async function api(path, method, body) {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (resp.status === 401 && window.hgRefreshToken) {
+    await refreshAccessToken();
+    headers["Authorization"] = "Bearer " + window.hgToken;
+    const retry = await fetch(API + path, {
+      method: method || "GET",
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!retry.ok) {
+      const text = await retry.text();
+      throw new Error(`${method || "GET"} ${path} failed (${retry.status}): ${text}`);
+    }
+    return retry.status === 204 ? null : retry.json();
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`${method || "GET"} ${path} failed (${resp.status}): ${text}`);
@@ -86,11 +160,22 @@ async function api(path, method, body) {
 }
 
 async function apiUpload(path, file) {
+  await ensureAuth();
   const form = new FormData();
   form.append("file", file);
   const headers = {};
   if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
   const resp = await fetch(API + path, { method: "POST", headers, body: form });
+  if (resp.status === 401 && window.hgRefreshToken) {
+    await refreshAccessToken();
+    headers["Authorization"] = "Bearer " + window.hgToken;
+    const retry = await fetch(API + path, { method: "POST", headers, body: form });
+    if (!retry.ok) {
+      const text = await retry.text();
+      throw new Error(`upload failed (${retry.status}): ${text}`);
+    }
+    return retry.json();
+  }
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`upload failed (${resp.status}): ${text}`);
@@ -98,19 +183,60 @@ async function apiUpload(path, file) {
   return resp.json();
 }
 
-// A brand-new browser gets a throwaway local account transparently, so the UI itself
-// never shows a login step -- matches the bare-bones "Upload -> Analyze" flow.
+async function refreshAccessToken() {
+  if (!window.hgRefreshToken) throw new Error("Session expired. Reload the page to start again.");
+  const resp = await fetch(API + "/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: window.hgRefreshToken }),
+  });
+  if (!resp.ok) throw new Error("Session expired. Reload the page to start again.");
+  const tokens = await resp.json();
+  window.hgToken = tokens.access_token;
+  window.hgRefreshToken = tokens.refresh_token;
+  localStorage.setItem("hg_tokens", JSON.stringify({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+  }));
+}
+
 async function ensureAuth() {
   let creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
   if (!creds) {
     const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
     const password = `Guest${Math.random().toString(36).slice(2)}A1`;
     creds = { email, password };
-    await api("/api/v1/auth/register", "POST", creds);
+    await apiWithoutAuth("/api/v1/auth/register", "POST", creds);
     localStorage.setItem("hg_creds", JSON.stringify(creds));
   }
-  const login = await api("/api/v1/auth/login", "POST", creds);
+
+  const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
+  if (stored?.access_token && stored?.refresh_token) {
+    window.hgToken = stored.access_token;
+    window.hgRefreshToken = stored.refresh_token;
+    return;
+  }
+
+  const login = await apiWithoutAuth("/api/v1/auth/login", "POST", creds);
   window.hgToken = login.access_token;
+  window.hgRefreshToken = login.refresh_token;
+  localStorage.setItem("hg_tokens", JSON.stringify({
+    access_token: login.access_token,
+    refresh_token: login.refresh_token,
+  }));
+}
+
+async function apiWithoutAuth(path, method, body) {
+  const resp = await fetch(API + path, {
+    method: method || "GET",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${method || "GET"} ${path} failed (${resp.status}): ${text}`);
+  }
+  return resp.json();
 }
 
 function setStatus(msg, isError) {
@@ -123,15 +249,51 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForLabComplete(labReportId) {
-  for (let i = 0; i < 40; i++) {
-    const lab = await api(`/api/v1/labs/${labReportId}`);
-    if (lab.status === "complete") return lab;
-    if (lab.status === "failed") throw new Error("Lab processing failed: " + (lab.error_message || "unknown error"));
-    setStatus(`Processing lab report... (${lab.status})`);
-    await sleep(1000);
+function currentStageFromLab(lab) {
+  if (lab.report_stage && lab.report_stage !== "complete" && lab.report_stage !== "failed") {
+    return lab.report_stage;
   }
-  throw new Error("Timed out waiting for lab processing to finish.");
+  if (lab.processing_stage && lab.processing_stage !== "complete" && lab.processing_stage !== "failed") {
+    return lab.processing_stage;
+  }
+  if (lab.status === "processing" || lab.status === "pending") return "queued";
+  if (lab.report_stage === "complete") return "complete";
+  if (lab.status === "complete" && !lab.report_stage) return "normalizing";
+  return lab.status;
+}
+
+async function waitForLabComplete(labReportId) {
+  const deadline = Date.now() + MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    const lab = await api(`/api/v1/labs/${labReportId}`);
+    const stage = currentStageFromLab(lab);
+    showProgressPanel(stage);
+    setStatus(`Processing lab report... (${stage.replace(/_/g, " ")})`);
+
+    if (lab.status === "complete") return lab;
+    if (lab.status === "failed") {
+      throw new Error("Lab processing failed: " + (lab.error_message || "unknown error"));
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+  throw new Error("Timed out waiting for lab processing to finish. Large PDFs with OCR can take several minutes — try again or use a text export.");
+}
+
+async function waitForReportComplete(labReportId) {
+  const deadline = Date.now() + MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    const lab = await api(`/api/v1/labs/${labReportId}`);
+    const stage = currentStageFromLab(lab);
+    showProgressPanel(stage);
+    setStatus(`Generating report... (${stage.replace(/_/g, " ")})`);
+
+    if (lab.report_stage === "complete" && lab.latest_report_id) return lab;
+    if (lab.report_stage === "failed") {
+      throw new Error("Report generation failed: " + (lab.report_error_message || "unknown error"));
+    }
+    await sleep(POLL_INTERVAL_MS);
+  }
+  throw new Error("Timed out waiting for report generation to finish. Evidence retrieval and LLM reasoning can take several minutes.");
 }
 
 function renderPatientSummary(report) {
@@ -208,22 +370,30 @@ function escapeHtml(s) {
 
 async function analyze() {
   const fileInput = document.getElementById("file-input");
+  const analyzeBtn = document.getElementById("analyze-btn");
   if (!fileInput.files.length) {
     setStatus("Choose a file first.", true);
     return;
   }
   document.getElementById("report").style.display = "none";
+  analyzeBtn.disabled = true;
   try {
     setStatus("Signing in...");
     await ensureAuth();
 
+    showProgressPanel("upload");
     setStatus("Uploading lab report...");
     const upload = await apiUpload("/api/v1/labs/upload", fileInput.files[0]);
 
     await waitForLabComplete(upload.lab_report_id);
 
-    setStatus("Generating report (retrieving evidence, running safety checks)...");
-    const report = await api(`/api/v1/reports/generate/${upload.lab_report_id}`, "POST");
+    showProgressPanel("pathway_mapping");
+    setStatus("Starting report generation...");
+    await api(`/api/v1/reports/generate/${upload.lab_report_id}`, "POST");
+
+    const lab = await waitForReportComplete(upload.lab_report_id);
+    showProgressPanel("complete");
+    const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
 
     renderPatientSummary(report);
     renderBiologicalSystems(report);
@@ -234,7 +404,10 @@ async function analyze() {
     document.getElementById("report").style.display = "block";
     setStatus("Done.");
   } catch (err) {
+    showProgressPanel("failed");
     setStatus(err.message, true);
+  } finally {
+    analyzeBtn.disabled = false;
   }
 }
 

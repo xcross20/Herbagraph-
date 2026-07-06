@@ -9,6 +9,7 @@ from app.models.enums import (
     InterventionCategory,
     LabResultStatus,
     PathwayDirection,
+    ReportGenerationStage,
     SafetyRiskLevel,
     StudySource,
     StudyType,
@@ -131,3 +132,10 @@ class RecommendationReportSummary(BaseModel):
     lab_report_id: uuid.UUID
     overall_confidence: float
     created_at: datetime
+
+
+class ReportGenerationResponse(BaseModel):
+    lab_report_id: uuid.UUID
+    task_id: str
+    report_stage: ReportGenerationStage
+    message: str

@@ -16,6 +16,29 @@ class LabReportStatus(str, enum.Enum):
     FAILED = "failed"
 
 
+class LabProcessingStage(str, enum.Enum):
+    """Granular progress for Stage 1–2 (lab parse + biomarker normalization)."""
+
+    QUEUED = "queued"
+    PARSING = "parsing"
+    NORMALIZING = "normalizing"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class ReportGenerationStage(str, enum.Enum):
+    """Granular progress for Stage 3–7 (pathways through final report)."""
+
+    QUEUED = "queued"
+    PATHWAY_MAPPING = "pathway_mapping"
+    EVIDENCE_RETRIEVAL = "evidence_retrieval"
+    LLM_REASONING = "llm_reasoning"
+    SAFETY_CHECK = "safety_check"
+    REPORT_ASSEMBLY = "report_assembly"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
 class LabResultStatus(str, enum.Enum):
     CRITICAL_LOW = "critical_low"
     LOW = "low"

@@ -4,7 +4,7 @@ import pytest
 
 from app import database
 from app.core.file_storage import save_lab_file
-from app.models.enums import LabReportStatus
+from app.models.enums import LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
 from app.workers.tasks import process_lab_report, process_lab_report_task
 
@@ -39,6 +39,7 @@ async def test_process_lab_report_happy_path_parses_and_persists(db_session, tes
     try:
         persisted = sync_session.get(LabReport, str(lab_report.id))
         assert persisted.status == LabReportStatus.COMPLETE
+        assert persisted.processing_stage == LabProcessingStage.COMPLETE
         from app.models.lab import LabResult
 
         results = sync_session.query(LabResult).filter_by(lab_report_id=lab_report.id).all()

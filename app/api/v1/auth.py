@@ -1,13 +1,23 @@
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.core.security import create_access_token, create_refresh_token, hash_password, verify_password
+from app.core.security import (
+    InvalidTokenError,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
 from app.models.user import HealthProfile, User
 from app.schemas.auth import (
     HealthProfileRead,
     HealthProfileUpdate,
+    RefreshTokenRequest,
     Token,
     UserCreate,
     UserLogin,
@@ -48,6 +58,25 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> Token
 
     subject = str(user.id)
     return Token(access_token=create_access_token(subject), refresh_token=create_refresh_token(subject))
+
+
+@router.post("/refresh", response_model=Token)
+async def refresh_tokens(payload: RefreshTokenRequest, db: AsyncSession = Depends(get_db)) -> Token:
+    try:
+        subject = decode_token(payload.refresh_token, expected_type="refresh")
+        user_id = uuid.UUID(subject)
+    except (InvalidTokenError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token") from exc
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+    return Token(
+        access_token=create_access_token(str(user.id)),
+        refresh_token=create_refresh_token(str(user.id)),
+    )
 
 
 @router.get("/me", response_model=UserRead)
