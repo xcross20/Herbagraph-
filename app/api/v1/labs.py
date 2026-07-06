@@ -59,8 +59,9 @@ async def upload_lab_report(
         status=LabReportStatus.PROCESSING,
         processing_stage=LabProcessingStage.QUEUED,
     )
-    lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
     db.add(lab_report)
+    await db.flush()  # assign lab_report.id before persisting the encrypted file to disk
+    lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
     await db.commit()
     await db.refresh(lab_report)
 

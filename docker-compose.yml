@@ -25,6 +25,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/srv
+      - uploads:/tmp/herbagraph/uploads
 
   worker:
     build: .
@@ -35,6 +36,8 @@ services:
     command: celery -A app.workers.celery_app worker --loglevel=info
     volumes:
       - .:/srv
+      - uploads:/tmp/herbagraph/uploads
 
 volumes:
   pgdata:
+  uploads:

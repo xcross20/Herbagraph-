@@ -32,6 +32,25 @@ async def test_upload_happy_path_returns_201(authed_client):
     assert body["status"] == "processing"
 
 
+async def test_upload_saves_file_with_lab_report_id_not_none(authed_client):
+    import os
+
+    from app.config import settings
+
+    resp = await authed_client.post("/api/v1/labs/upload", files=_lab_file())
+    assert resp.status_code == 201, resp.text
+    lab_report_id = resp.json()["lab_report_id"]
+
+    get_resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["status"] == "complete"
+
+    stored_names = os.listdir(settings.upload_dir)
+    assert stored_names
+    assert not any("None" in name for name in stored_names)
+    assert any(lab_report_id in name for name in stored_names)
+
+
 async def test_upload_unsupported_extension_returns_400(authed_client):
     resp = await authed_client.post(
         "/api/v1/labs/upload", files={"file": ("labs.exe", b"whatever", "application/octet-stream")}

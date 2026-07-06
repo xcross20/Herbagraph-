@@ -10,6 +10,8 @@ ALLOWED_EXTENSIONS = {".pdf", ".txt", ".csv", ".png", ".jpg", ".jpeg"}
 
 def save_lab_file(file_bytes: bytes, lab_report_id: uuid.UUID, original_filename: str) -> str:
     """Encrypt and persist an uploaded lab file to disk; return the Fernet-encrypted path token."""
+    if lab_report_id is None:
+        raise ValueError("lab_report_id must be assigned before saving the uploaded file")
     os.makedirs(settings.upload_dir, exist_ok=True)
     ext = pathlib.Path(original_filename).suffix.lower()
     plain_path = os.path.join(settings.upload_dir, f"{lab_report_id}{ext}.enc")
