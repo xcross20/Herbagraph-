@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.config import settings
 from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, save_lab_file
-from app.models.enums import LabReportStatus
+from app.models.enums import LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
 from app.models.patient import Patient
 from app.models.user import User
@@ -56,7 +56,8 @@ async def upload_lab_report(
         original_filename=file.filename or "upload",
         encrypted_file_path="",
         file_size_bytes=len(file_bytes),
-        status=LabReportStatus.PENDING,
+        status=LabReportStatus.PROCESSING,
+        processing_stage=LabProcessingStage.QUEUED,
     )
     lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
     db.add(lab_report)
