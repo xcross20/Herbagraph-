@@ -217,3 +217,12 @@ def map_pathways(normalized_results: list[NormalizedLabResult]) -> list[PathwayA
 
     activations.sort(key=lambda a: a.activation_score, reverse=True)
     return activations
+
+
+def get_pathways_for_biomarker(biomarker_name: str) -> set[str]:
+    """All pathway codes this biomarker can contribute to, regardless of status/direction.
+
+    Used by app.pipeline.response_analysis to figure out which biological systems a
+    biomarker's baseline->follow-up change should be attributed to.
+    """
+    return {code for name, _statuses, code, _weight, _direction in _PATHWAY_CONFIGS if name == biomarker_name}

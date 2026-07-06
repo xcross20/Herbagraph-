@@ -190,3 +190,23 @@ def normalize_lab_result(parsed: ParsedLabResult) -> NormalizedLabResult:
 
 def normalize_lab_results(parsed_results: list[ParsedLabResult]) -> list[NormalizedLabResult]:
     return [normalize_lab_result(p) for p in parsed_results]
+
+
+def normalized_result_from_lab_result(lab_result) -> NormalizedLabResult:
+    """Convert a persisted LabResult ORM row back into a NormalizedLabResult, for stages
+    (report generation, response tracking) that operate on already-normalized/stored results
+    rather than freshly parsed ones."""
+    return NormalizedLabResult(
+        biomarker_name=lab_result.biomarker_name,
+        raw_test_name=lab_result.raw_test_name or lab_result.biomarker_name,
+        value=lab_result.value,
+        unit=lab_result.unit,
+        reference_range_low=lab_result.reference_range_low,
+        reference_range_high=lab_result.reference_range_high,
+        status=lab_result.status,
+        category=(get_reference_data(lab_result.biomarker_name) or {}).get("category"),
+    )
+
+
+def normalized_results_from_lab_report(lab_report) -> list[NormalizedLabResult]:
+    return [normalized_result_from_lab_result(r) for r in lab_report.lab_results]

@@ -10,14 +10,13 @@ from app.models.feedback import Feedback
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile, User
-from app.pipeline.biomarker_normalizer import get_reference_data
+from app.pipeline.biomarker_normalizer import normalized_results_from_lab_report
 from app.pipeline.evidence_retriever import build_intervention_pathway_map, retrieve_evidence
 from app.pipeline.llm_reasoner import generate_reasoning
 from app.pipeline.pathway_mapper import map_pathways
 from app.pipeline.report_generator import generate_report
 from app.pipeline.safety_layer import check_safety
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
-from app.schemas.pipeline import NormalizedLabResult
 from app.schemas.report import RecommendationReportRead, RecommendationReportSummary
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -60,19 +59,7 @@ async def generate_recommendation_report(
         )
 
     await db.refresh(lab_report, attribute_names=["lab_results"])
-    normalized = [
-        NormalizedLabResult(
-            biomarker_name=r.biomarker_name,
-            raw_test_name=r.raw_test_name or r.biomarker_name,
-            value=r.value,
-            unit=r.unit,
-            reference_range_low=r.reference_range_low,
-            reference_range_high=r.reference_range_high,
-            status=r.status,
-            category=(get_reference_data(r.biomarker_name) or {}).get("category"),
-        )
-        for r in lab_report.lab_results
-    ]
+    normalized = normalized_results_from_lab_report(lab_report)
 
     profile_result = await db.execute(select(HealthProfile).where(HealthProfile.user_id == current_user.id))
     health_profile = _health_profile_dict(profile_result.scalar_one_or_none())

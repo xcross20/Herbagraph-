@@ -719,6 +719,86 @@ Content-Type: application/json
 {"rating": 4, "comment": "The dosing context was helpful."}
 ```
 
+### Response Tracking (Biological Response Engine)
+
+HerbaGraph's core pipeline (above) answers "here's information about this biomarker/pathway." The **Response Validation Module** adds a time dimension so it can also answer "did this biological system change between two lab snapshots for the same tracked intervention?"
+
+Flow: `Baseline Labs → Intervention → Follow-up Labs → Biological Response Report`. A `ResponseTracking` record links a baseline `LabReport` to a later follow-up `LabReport` for one named intervention.
+
+This is **pure arithmetic, not ML or an LLM call**: each biomarker's baseline and follow-up values are compared by distance to that biomarker's own optimal range (not a naive "went up/down," since biomarkers like Ferritin or TSH are unhealthy in both directions), then rolled up into the same 7 biological systems used elsewhere in the app. It never claims the tracked intervention *caused* any change -- every response report carries an explicit non-causality disclaimer, and any evidence shown alongside it is read-only context about the intervention, not a causal claim.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/tracking` | Start tracking: intervention name + baseline lab report (+ optional patient, start date) |
+| `GET` | `/tracking` | List tracking records owned by the current account |
+| `GET` | `/tracking/{id}` | Get a single tracking record |
+| `DELETE` | `/tracking/{id}` | Delete a tracking record |
+| `POST` | `/tracking/{id}/follow-up` | Attach a follow-up lab report once it's available |
+| `GET` | `/tracking/{id}/response` | Generate the Biological Response Report (409 until a follow-up is attached) |
+
+```http
+POST /api/v1/tracking
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{"intervention_name": "Curcumin", "baseline_lab_report_id": "uuid"}
+```
+
+```http
+POST /api/v1/tracking/{id}/follow-up
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{"follow_up_lab_report_id": "uuid"}
+```
+
+```http
+GET /api/v1/tracking/{id}/response
+Authorization: Bearer {token}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "intervention_name": "Curcumin",
+  "baseline_date": "2024-01-01T00:00:00Z",
+  "follow_up_date": "2024-02-26T00:00:00Z",
+  "duration_days": 56,
+  "biomarker_changes": [
+    {
+      "biomarker_name": "CRP",
+      "baseline_value": 3.6,
+      "follow_up_value": 1.2,
+      "unit": "mg/L",
+      "percent_change": -66.7,
+      "direction": "improved",
+      "direction_label": "Improved"
+    }
+  ],
+  "system_responses": [
+    {
+      "system_code": "inflammation",
+      "system_name": "Inflammation",
+      "response": "improved",
+      "response_label": "Improved",
+      "confidence": "high",
+      "contributing_biomarkers": ["CRP", "Ferritin"]
+    }
+  ],
+  "evidence_context": [
+    {
+      "intervention_name": "Curcumin",
+      "summary": "RCTs suggest curcumin supplementation has been associated with reductions in inflammatory markers in some populations.",
+      "evidence_level": "moderate",
+      "pmid": "12345678"
+    }
+  ],
+  "disclaimer": "The biomarker changes below are observed differences between two lab snapshots. This platform presents those changes alongside relevant published evidence about the tracked intervention, but it does not infer causality -- it cannot determine whether the intervention caused any change, whether another factor was responsible, or what would have happened without it."
+}
+```
+
+Together, the two products complement each other: the existing pipeline is an **Evidence Intelligence Engine** (upload labs, understand biomarkers, map pathways, review evidence, assess safety), and Response Tracking is a **Biological Response Engine** (compare baseline/follow-up biomarkers, quantify change over time, relate that change to published evidence for the tracked intervention -- without ever claiming the intervention caused it).
+
 ---
 
 ## Privacy Design

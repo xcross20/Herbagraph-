@@ -8,6 +8,7 @@ from app.models.lab import LabReport, LabResult
 from app.models.patient import Patient
 from app.models.pathway import Pathway
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
+from app.models.response_tracking import ResponseTracking
 from app.models.safety import DrugInteraction, SafetyFlag
 from app.models.user import HealthProfile, User
 
@@ -27,6 +28,7 @@ __all__ = [
     "Recommendation",
     "RecommendationReport",
     "ReportCitation",
+    "ResponseTracking",
     "DrugInteraction",
     "SafetyFlag",
     "HealthProfile",
