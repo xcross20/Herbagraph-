@@ -1,7 +1,7 @@
 """Unit tests for Stage 5: llm_reasoner.
 
 Covers parse_llm_response (pure JSON parsing + citation/intervention sanitization)
-and generate_reasoning (async orchestration around a mocked AsyncAnthropic client),
+and generate_reasoning (async orchestration around a mocked AsyncOpenAI client),
 including the de-identification of the outbound payload and the empty-evidence
 short-circuit that must never call the network.
 """
@@ -415,7 +415,7 @@ def test_build_payload_deidentifies_health_profile_strings():
 
 async def test_generate_reasoning_short_circuits_on_empty_evidence():
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock()
+    mock_client.chat.completions.create = AsyncMock()
 
     result = await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -428,7 +428,7 @@ async def test_generate_reasoning_short_circuits_on_empty_evidence():
     assert isinstance(result, LLMReasoningOutput)
     assert result.recommendations == []
     assert result.biomarker_pattern_analysis
-    mock_client.messages.create.assert_not_called()
+    mock_client.chat.completions.create.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -438,14 +438,14 @@ async def test_generate_reasoning_short_circuits_on_empty_evidence():
 
 def _fake_response(json_text: str):
     resp = Mock()
-    resp.content = [Mock(text=json_text)]
+    resp.choices = [Mock(message=Mock(content=json_text))]
     return resp
 
 
 async def test_generate_reasoning_calls_client_and_returns_parsed_output():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(make_llm_json()))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(make_llm_json()))
 
     result = await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -455,7 +455,7 @@ async def test_generate_reasoning_calls_client_and_returns_parsed_output():
         client=mock_client,
     )
 
-    mock_client.messages.create.assert_awaited_once()
+    mock_client.chat.completions.create.assert_awaited_once()
     assert isinstance(result, LLMReasoningOutput)
     assert len(result.recommendations) == 1
     assert result.recommendations[0].intervention_name == "Curcumin"
@@ -464,7 +464,7 @@ async def test_generate_reasoning_calls_client_and_returns_parsed_output():
 async def test_generate_reasoning_sends_expected_payload_keys():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(make_llm_json()))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(make_llm_json()))
 
     await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -474,8 +474,8 @@ async def test_generate_reasoning_sends_expected_payload_keys():
         client=mock_client,
     )
 
-    _, kwargs = mock_client.messages.create.call_args
-    sent_payload = json.loads(kwargs["messages"][0]["content"])
+    _, kwargs = mock_client.chat.completions.create.call_args
+    sent_payload = json.loads(kwargs["messages"][1]["content"])
     assert set(sent_payload.keys()) == {
         "abnormal_biomarkers",
         "pathway_activations",
@@ -490,7 +490,7 @@ async def test_generate_reasoning_sends_expected_payload_keys():
 async def test_generate_reasoning_deidentifies_outbound_payload():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(make_llm_json()))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(make_llm_json()))
 
     await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -500,15 +500,15 @@ async def test_generate_reasoning_deidentifies_outbound_payload():
         client=mock_client,
     )
 
-    _, kwargs = mock_client.messages.create.call_args
-    sent_payload = json.loads(kwargs["messages"][0]["content"])
+    _, kwargs = mock_client.chat.completions.create.call_args
+    sent_payload = json.loads(kwargs["messages"][1]["content"])
     assert "Jane Doe" not in sent_payload["health_profile"]["notes"]
 
 
 async def test_generate_reasoning_uses_configured_model_and_system_prompt():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(make_llm_json()))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(make_llm_json()))
 
     await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -518,16 +518,18 @@ async def test_generate_reasoning_uses_configured_model_and_system_prompt():
         client=mock_client,
     )
 
-    _, kwargs = mock_client.messages.create.call_args
+    _, kwargs = mock_client.chat.completions.create.call_args
     assert kwargs["max_tokens"] == 4096
-    assert "HerbaGraph" in kwargs["system"]
+    assert kwargs["messages"][0]["role"] == "system"
+    assert "HerbaGraph" in kwargs["messages"][0]["content"]
+    assert kwargs["response_format"] == {"type": "json_object"}
     assert "model" in kwargs
 
 
 async def test_generate_reasoning_raises_llm_reasoning_error_on_malformed_json():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response("this is not json"))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response("this is not json"))
 
     with pytest.raises(LLMReasoningError):
         await generate_reasoning(
@@ -549,7 +551,7 @@ async def test_generate_reasoning_sanitizes_bad_citations_from_llm():
         ]
     )
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(raw))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(raw))
 
     result = await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -570,7 +572,7 @@ async def test_generate_reasoning_drops_recommendation_for_unlisted_intervention
         ]
     )
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(raw))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(raw))
 
     result = await generate_reasoning(
         normalized_labs=[make_lab()],
@@ -586,7 +588,7 @@ async def test_generate_reasoning_drops_recommendation_for_unlisted_intervention
 async def test_generate_reasoning_does_not_close_externally_provided_client():
     evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
     mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=_fake_response(make_llm_json()))
+    mock_client.chat.completions.create = AsyncMock(return_value=_fake_response(make_llm_json()))
     mock_client.close = AsyncMock()
 
     await generate_reasoning(

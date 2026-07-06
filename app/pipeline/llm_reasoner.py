@@ -1,15 +1,15 @@
 """Stage 5: LLM Reasoning.
 
-Sends a de-identified payload to Claude and asks it to reason *only* from the
-evidence snippets retrieved in Stage 4. The response is parsed as strict JSON
-and any recommendation citing an ID that wasn't actually retrieved is
-discarded — the model cannot free-invent citations that survive into the
-final report.
+Sends a de-identified payload to an OpenAI model and asks it to reason *only*
+from the evidence snippets retrieved in Stage 4. The response is parsed as
+strict JSON and any recommendation citing an ID that wasn't actually
+retrieved is discarded — the model cannot free-invent citations that survive
+into the final report.
 """
 
 import json
 
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
 from app.config import settings
 from app.core.privacy import deidentify_payload
@@ -108,7 +108,7 @@ def _sanitize_recommendations(
 
 
 def parse_llm_response(raw_text: str, evidence_snippets: list[EvidenceSnippet]) -> LLMReasoningOutput:
-    """Parse and safety-filter the raw JSON text returned by Claude."""
+    """Parse and safety-filter the raw JSON text returned by the LLM."""
     try:
         data = json.loads(raw_text)
     except json.JSONDecodeError as exc:
@@ -132,9 +132,9 @@ async def generate_reasoning(
     pathway_activations: list[PathwayActivation],
     evidence_snippets: list[EvidenceSnippet],
     health_profile: dict,
-    client: AsyncAnthropic | None = None,
+    client: AsyncOpenAI | None = None,
 ) -> LLMReasoningOutput:
-    """Stage 5 entry point: call Claude and return a citation-verified LLMReasoningOutput."""
+    """Stage 5 entry point: call the LLM and return a citation-verified LLMReasoningOutput."""
     if not evidence_snippets:
         return LLMReasoningOutput(
             biomarker_pattern_analysis="No supporting evidence was retrieved for the activated pathways.",
@@ -144,20 +144,23 @@ async def generate_reasoning(
         )
 
     owns_client = client is None
-    client = client or AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = client or AsyncOpenAI(api_key=settings.openai_api_key)
 
     payload = _build_payload(normalized_labs, pathway_activations, evidence_snippets, health_profile)
 
     try:
-        response = await client.messages.create(
+        response = await client.chat.completions.create(
             model=settings.llm_model,
             max_tokens=4096,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": json.dumps(payload)}],
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(payload)},
+            ],
         )
     finally:
         if owns_client and hasattr(client, "close"):
             await client.close()
 
-    raw_text = response.content[0].text
+    raw_text = response.choices[0].message.content
     return parse_llm_response(raw_text, evidence_snippets)

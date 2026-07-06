@@ -2,7 +2,7 @@
 
 > **A privacy-first biomarker intelligence platform for botanicals, nutraceuticals, peptides, and longevity therapies.**
 
-HerbaGraph bridges the gap between a patient's lab results and the published scientific literature. It parses any standard lab report (Quest, LabCorp, Cleveland HeartLab), maps abnormal biomarkers to disrupted biological pathways, retrieves and scores evidence from PubMed, ClinicalTrials.gov, and Europe PMC, then uses a Claude LLM with a structured reasoning chain to synthesize evidence-backed intervention recommendations — all with a rigorous safety and drug-interaction layer.
+HerbaGraph bridges the gap between a patient's lab results and the published scientific literature. It parses any standard lab report (Quest, LabCorp, Cleveland HeartLab), maps abnormal biomarkers to disrupted biological pathways, retrieves and scores evidence from PubMed, ClinicalTrials.gov, and Europe PMC, then uses an OpenAI LLM with a structured reasoning chain to synthesize evidence-backed intervention recommendations — all with a rigorous safety and drug-interaction layer.
 
 ---
 
@@ -61,7 +61,7 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
   4. Evidence Retriever   ──► EvidenceSnippet[]         │
        │  (PubMed + ClinicalTrials + EuropePMC)        │
   5. LLM Reasoner         ──► LLMReasoningOutput        │
-       │  (Claude claude-sonnet-4-6, de-identified)          │
+       │  (OpenAI gpt-4o, de-identified)               │
   6. Safety Layer         ──► SafetyReport              │
   7. Report Generator     ──► FinalReport               │
        │                                               │
@@ -101,7 +101,7 @@ Maps each abnormal biomarker to one or more of 16 internal biological pathways (
 Builds intervention-specific PubMed queries from activated pathways. Concurrently fetches studies from PubMed (ESearch + EFetch), ClinicalTrials.gov v2, and Europe PMC. Deduplicates by PMID/NCTID and ranks by study quality (meta-analysis → RCT → cohort → preclinical).
 
 ### Stage 5: LLM Reasoning
-Sends a de-identified payload to Claude (claude-sonnet-4-6). The LLM reasons **only** from retrieved evidence snippets — it cannot free-invent claims. The system prompt is written to reduce liability by design: it forbids directive language ("take 500mg"), requires every recommendation to state *why it was surfaced* (`rationale`) and *what the evidence doesn't show* (`limitations`), and instructs the model to frame everything as input to a discussion with a clinician, never as a decision made on the reader's behalf. Returns a structured JSON with: biomarker pattern analysis, pathway summaries, ranked recommendations with dose/mechanism/citations/rationale/limitations, and questions to ask a clinician.
+Sends a de-identified payload to an OpenAI model (gpt-4o by default). The LLM reasons **only** from retrieved evidence snippets — it cannot free-invent claims. The system prompt is written to reduce liability by design: it forbids directive language ("take 500mg"), requires every recommendation to state *why it was surfaced* (`rationale`) and *what the evidence doesn't show* (`limitations`), and instructs the model to frame everything as input to a discussion with a clinician, never as a decision made on the reader's behalf. Returns a structured JSON with: biomarker pattern analysis, pathway summaries, ranked recommendations with dose/mechanism/citations/rationale/limitations, and questions to ask a clinician.
 
 ### Stage 6: Safety Layer
 Runs every recommendation through an explicit staged pipeline, in order:
@@ -276,7 +276,7 @@ Each compound carries the same safety rigor as any other intervention — for ex
 | Database | PostgreSQL 15 + pgvector extension |
 | Migrations | Alembic (async) |
 | Task Queue | Celery + Redis |
-| LLM | Anthropic Claude (claude-sonnet-4-6) |
+| LLM | OpenAI (gpt-4o by default) |
 | OCR | pdfplumber + pytesseract |
 | HTTP client | httpx + tenacity (retries) |
 | PHI encryption | cryptography (Fernet) |
@@ -291,7 +291,7 @@ Each compound carries the same safety rigor as any other intervention — for ex
 ### Prerequisites
 - Docker & Docker Compose
 - Python 3.11+
-- An [Anthropic API key](https://console.anthropic.com/)
+- An [OpenAI API key](https://platform.openai.com/api-keys)
 
 ### 1. Clone and configure
 
@@ -310,7 +310,7 @@ python scripts/generate_encryption_key.py
 
 Edit `.env`:
 ```
-ANTHROPIC_API_KEY=your_api_key_here
+OPENAI_API_KEY=your_api_key_here
 ENCRYPTION_KEY=your_generated_fernet_key
 SECRET_KEY=a_long_random_string_at_least_32_chars
 ```
@@ -351,8 +351,8 @@ docker-compose exec api python scripts/seed_db.py
 | `DATABASE_URL` | `postgresql+asyncpg://...` | Async PostgreSQL connection string |
 | `SECRET_KEY` | *(change in prod)* | JWT signing key — generate with `openssl rand -hex 32` |
 | `ENCRYPTION_KEY` | — | Fernet key for PHI encryption (required) |
-| `ANTHROPIC_API_KEY` | — | Anthropic API key (required) |
-| `LLM_MODEL` | `claude-sonnet-4-6` | Claude model identifier |
+| `OPENAI_API_KEY` | — | OpenAI API key (required) |
+| `LLM_MODEL` | `gpt-4o` | OpenAI model identifier |
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker URL |
 | `NCBI_API_KEY` | — | NCBI Entrez API key (optional; increases rate limit to 10 req/s) |
 | `NCBI_EMAIL` | `dev@herbagraph.io` | Required by NCBI Entrez API terms of service |
@@ -360,7 +360,7 @@ docker-compose exec api python scripts/seed_db.py
 | `MAX_FILE_SIZE_MB` | `10` | Maximum lab file upload size |
 | `DEBUG` | `false` | Enables verbose logging and relaxed CORS |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | JWT access token lifetime |
-| `DEIDENTIFY_BEFORE_LLM` | `true` | Strip PHI before sending to Claude |
+| `DEIDENTIFY_BEFORE_LLM` | `true` | Strip PHI before sending to the LLM |
 | `AUTH_PROVIDER` | `local` | `local` \| `clerk` \| `firebase` -- see [Auth & Multi-Patient Mode](#auth--multi-patient-mode) |
 | `CLERK_SECRET_KEY` | — | Required if `AUTH_PROVIDER=clerk` |
 | `FIREBASE_PROJECT_ID` | — | Required if `AUTH_PROVIDER=firebase` |
@@ -736,7 +736,7 @@ HerbaGraph follows the **HHS Safe Harbor de-identification method** (45 CFR §16
 - The encryption key is loaded from the environment, never committed to source control.
 
 ### De-identification Before LLM
-When the pipeline sends data to Claude:
+When the pipeline sends data to the LLM:
 - Names, exact dates, MRNs, addresses, phone numbers, and SSNs are stripped by regex before transmission.
 - Only `age_range` (e.g. "35-45"), biological sex, health goals, medications, and lab values (without any identifiers) are sent.
 - Controlled by `DEIDENTIFY_BEFORE_LLM=true`.
@@ -837,7 +837,7 @@ pytest tests/test_pipeline/
 ### Test Architecture
 - **Unit tests** (`@pytest.mark.unit`): No database, no network. All external services mocked.
 - **Integration tests** (`tests/test_api/`): Use SQLite in-memory database via test dependency override. HTTP clients use `respx` mock interceptors.
-- **No real API calls** are made during testing. PubMed, Anthropic, PubChem, and ClinicalTrials.gov are all mocked with `respx` or `unittest.mock.AsyncMock`.
+- **No real API calls** are made during testing. PubMed, OpenAI, PubChem, and ClinicalTrials.gov are all mocked with `respx` or `unittest.mock.AsyncMock`.
 
 ---
 

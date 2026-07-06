@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production-0123456789")
 os.environ.setdefault("ENCRYPTION_KEY", Fernet.generate_key().decode())
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-anthropic-api-key")
+os.environ.setdefault("OPENAI_API_KEY", "test-openai-api-key")
 os.environ.setdefault("NCBI_EMAIL", "test@herbagraph.io")
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="herbagraph-test-uploads-"))
 os.environ.setdefault("DEBUG", "false")

@@ -1,7 +1,7 @@
 """Orchestrates the full 7-stage HerbaGraph pipeline end to end."""
 
 import httpx
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 
 from app.pipeline.biomarker_normalizer import normalize_lab_results
 from app.pipeline.evidence_retriever import build_intervention_pathway_map, retrieve_evidence
@@ -19,7 +19,7 @@ async def run_pipeline(
     raw_text: str | None = None,
     health_profile: dict,
     http_client: httpx.AsyncClient | None = None,
-    anthropic_client: AsyncAnthropic | None = None,
+    llm_client: AsyncOpenAI | None = None,
 ) -> dict:
     """Run all 7 pipeline stages and return the final report payload (pre-persistence).
 
@@ -36,7 +36,7 @@ async def run_pipeline(
     pathway_activations = map_pathways(normalized)
     evidence_snippets = await retrieve_evidence(pathway_activations, client=http_client)
     reasoning = await generate_reasoning(
-        normalized, pathway_activations, evidence_snippets, health_profile, client=anthropic_client
+        normalized, pathway_activations, evidence_snippets, health_profile, client=llm_client
     )
     safety_report = check_safety(reasoning.recommendations, health_profile)
     intervention_pathways = build_intervention_pathway_map()
