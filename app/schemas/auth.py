@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 
+from app.models.enums import UserRole
+
 _UPPERCASE_RE = re.compile(r"[A-Z]")
 _DIGIT_RE = re.compile(r"\d")
 
@@ -11,6 +13,8 @@ _DIGIT_RE = re.compile(r"\d")
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    role: UserRole = UserRole.INDIVIDUAL
+    clinic_name: str | None = None
 
     @field_validator("password")
     @classmethod
@@ -36,6 +40,8 @@ class UserRead(BaseModel):
     email: str
     is_active: bool
     is_verified: bool
+    role: UserRole
+    clinic_name: str | None = None
     created_at: datetime
 
 

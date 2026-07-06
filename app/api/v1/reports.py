@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.models.enums import EVIDENCE_TIER_LABELS, LabReportStatus
+from app.models.feedback import Feedback
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile, User
@@ -15,6 +16,7 @@ from app.pipeline.llm_reasoner import generate_reasoning
 from app.pipeline.pathway_mapper import map_pathways
 from app.pipeline.report_generator import generate_report
 from app.pipeline.safety_layer import check_safety
+from app.schemas.feedback import FeedbackCreate, FeedbackRead
 from app.schemas.pipeline import NormalizedLabResult
 from app.schemas.report import RecommendationReportRead, RecommendationReportSummary
 
@@ -246,3 +248,33 @@ async def delete_report(
     report = await _get_owned_report(report_id, current_user, db)
     await db.delete(report)
     await db.commit()
+
+
+@router.post("/{report_id}/feedback", response_model=FeedbackRead, status_code=status.HTTP_201_CREATED)
+async def submit_feedback(
+    report_id: uuid.UUID,
+    payload: FeedbackCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Feedback:
+    report = await _get_owned_report(report_id, current_user, db)
+    feedback = Feedback(
+        report_id=report.id, user_id=current_user.id, rating=payload.rating, comment=payload.comment
+    )
+    db.add(feedback)
+    await db.commit()
+    await db.refresh(feedback)
+    return feedback
+
+
+@router.get("/{report_id}/feedback", response_model=list[FeedbackRead])
+async def list_feedback(
+    report_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[Feedback]:
+    report = await _get_owned_report(report_id, current_user, db)
+    result = await db.execute(
+        select(Feedback).where(Feedback.report_id == report.id).order_by(Feedback.created_at.desc())
+    )
+    return list(result.scalars().all())

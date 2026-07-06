@@ -31,6 +31,7 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 - [Development Guide](#development-guide)
 - [Knowledge Graph](#knowledge-graph)
 - [Safety Layer](#safety-layer)
+- [Auth & Multi-Patient Mode](#auth--multi-patient-mode)
 
 ---
 
@@ -360,6 +361,9 @@ docker-compose exec api python scripts/seed_db.py
 | `DEBUG` | `false` | Enables verbose logging and relaxed CORS |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `30` | JWT access token lifetime |
 | `DEIDENTIFY_BEFORE_LLM` | `true` | Strip PHI before sending to Claude |
+| `AUTH_PROVIDER` | `local` | `local` \| `clerk` \| `firebase` -- see [Auth & Multi-Patient Mode](#auth--multi-patient-mode) |
+| `CLERK_SECRET_KEY` | — | Required if `AUTH_PROVIDER=clerk` |
+| `FIREBASE_PROJECT_ID` | — | Required if `AUTH_PROVIDER=firebase` |
 
 ---
 
@@ -679,6 +683,44 @@ Authorization: Bearer {token}
 
 ---
 
+### Patients (Clinic Mode)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/patients` | Create a Patient under the current account |
+| `GET` | `/patients` | List Patients owned by the current account |
+| `GET` | `/patients/{id}` | Get a single Patient |
+| `DELETE` | `/patients/{id}` | Delete a Patient |
+
+A **Patient** is only needed in clinic mode -- a `clinician` account managing multiple patients (see [Auth & Multi-Patient Mode](#auth--multi-patient-mode) below). Individual self-service users never need to create one; `POST /labs/upload` works exactly as documented above with no `patient_id`.
+
+```http
+POST /api/v1/patients
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{"age": 42, "biological_sex": "F"}
+```
+
+To attach a lab upload to a Patient, pass `patient_id` as an additional multipart form field on `POST /labs/upload`.
+
+### Feedback
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/reports/{report_id}/feedback` | Submit a 1-5 rating (+ optional comment) on a report |
+| `GET` | `/reports/{report_id}/feedback` | List feedback submitted for a report |
+
+```http
+POST /api/v1/reports/{report_id}/feedback
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{"rating": 4, "comment": "The dosing context was helpful."}
+```
+
+---
+
 ## Privacy Design
 
 HerbaGraph follows the **HHS Safe Harbor de-identification method** (45 CFR §164.514(b)):
@@ -952,6 +994,53 @@ Unlike the exclusions above, a liver-disease condition on the patient's health p
 
 ### Regulated / Emerging Interventions
 Peptides (BPC-157, TB-500), GLP-1 receptor agonists, and similar compounds are clearly labeled with `is_regulated: true` and a regulation note. The system never recommends prescription-only compounds — it only surfaces them in the evidence context with appropriate labeling.
+
+---
+
+## Auth & Multi-Patient Mode
+
+Two pieces of infrastructure exist for scaling past a single-person self-service tool, both additive and both fully optional -- the default individual-user flow documented everywhere above is completely unaffected by either.
+
+### Pluggable auth providers
+
+**Don't build authentication yourself in production -- use a provider like Clerk or Firebase Auth.** HerbaGraph's default (`AUTH_PROVIDER=local`, unset by default) is its own JWT + bcrypt implementation, which is what every test and every flow in this README runs against. `app/core/auth_providers.py` is the integration point for switching to a real provider:
+
+```
+AUTH_PROVIDER=clerk
+CLERK_SECRET_KEY=sk_...
+```
+or
+```
+AUTH_PROVIDER=firebase
+FIREBASE_PROJECT_ID=...
+```
+
+Selecting `clerk` or `firebase` without the matching credential raises a clear `501` configuration error (`"AUTH_PROVIDER=clerk but CLERK_SECRET_KEY is not set..."`) rather than silently falling back to local auth. Even with the credential set, actual token verification against Clerk/Firebase is a documented stub, not yet implemented -- wiring it up (verify the session token via the provider's backend SDK, then map the returned external user id to a local `User` row) is the next step once real provider credentials exist. Until then, leave `AUTH_PROVIDER` unset and everything works exactly as documented.
+
+### Multi-patient (clinic) mode
+
+The `users` table gained two columns matching a clinic-account shape:
+
+| Column | Description |
+|---|---|
+| `role` | `individual` (default) or `clinician` |
+| `clinic_name` | Optional display name for a clinician's practice |
+
+A new **`Patient`** table sits between `User` and `LabReport` for the clinic case -- a clinician account managing multiple patients. Like `HealthProfile`, a `Patient` carries no name or other direct identifier, just a random UUID plus non-identifying `age`/`biological_sex`. `LabReport.patient_id` is a nullable FK to it: individual users never set it (their reports belong directly to their own `User` row, exactly as before this column existed); a clinician passes `patient_id` on `POST /labs/upload` to attach it to one of their Patients instead.
+
+```
+Users
+  ↓ (role=clinician)
+Patients (random UUID, age, sex -- no name)
+  ↓
+LabReports (patient_id optional)
+  ↓
+LabResults
+  ↓
+RecommendationReports
+  ↓
+Feedback (rating 1-5 + optional comment)
+```
 
 ---
 

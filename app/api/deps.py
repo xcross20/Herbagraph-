@@ -6,6 +6,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.core.auth_providers import AuthConfigurationError, verify_external_token
 from app.core.security import InvalidTokenError, decode_token
 from app.database import AsyncSessionLocal
 from app.models.user import User
@@ -24,6 +26,15 @@ async def get_current_user(
 ) -> User:
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    if settings.auth_provider != "local":
+        # Phase 3 integration point -- see app/core/auth_providers.py. Not implemented
+        # yet, so this always raises 501 rather than silently falling back to local
+        # auth or pretending a token verified.
+        try:
+            await verify_external_token(credentials.credentials)
+        except AuthConfigurationError as exc:
+            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
 
     try:
         subject = decode_token(credentials.credentials, expected_type="access")

@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     deidentify_before_llm: bool = True
 
+    # Pluggable auth (Phase 3 infrastructure). Default "local" is the built-in JWT +
+    # bcrypt implementation and is fully functional/tested with no external account.
+    # "clerk"/"firebase" are documented integration points, not implemented yet --
+    # see app/core/auth_providers.py.
+    auth_provider: str = "local"
+    clerk_secret_key: str = ""
+    firebase_project_id: str = ""
+
     @property
     def max_file_size_bytes(self) -> int:
         return self.max_file_size_mb * 1024 * 1024

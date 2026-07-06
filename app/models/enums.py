@@ -1,6 +1,14 @@
 import enum
 
 
+class UserRole(str, enum.Enum):
+    """Distinguishes a self-service individual account from a clinic account that
+    manages multiple Patients (Phase 4 infrastructure -- see app/models/patient.py)."""
+
+    INDIVIDUAL = "individual"
+    CLINICIAN = "clinician"
+
+
 class LabReportStatus(str, enum.Enum):
     PENDING = "pending"
     PROCESSING = "processing"

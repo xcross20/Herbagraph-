@@ -12,6 +12,10 @@ class LabReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "lab_reports"
 
     user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False)
+    # Optional: only set in clinic mode, when a clinician User uploads on behalf of one
+    # of their Patients. Individual self-service users leave this null -- their reports
+    # belong directly to their own User row exactly as before this field was added.
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("patients.id"), nullable=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     encrypted_file_path: Mapped[str] = mapped_column(Text, nullable=False)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -23,6 +27,7 @@ class LabReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="lab_reports")
+    patient: Mapped["Patient | None"] = relationship(back_populates="lab_reports")
     lab_results: Mapped[list["LabResult"]] = relationship(
         back_populates="lab_report", cascade="all, delete-orphan"
     )

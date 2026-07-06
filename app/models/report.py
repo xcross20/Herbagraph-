@@ -32,6 +32,7 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     citations: Mapped[list["ReportCitation"]] = relationship(
         back_populates="report", cascade="all, delete-orphan"
     )
+    feedback: Mapped[list["Feedback"]] = relationship(back_populates="report", cascade="all, delete-orphan")
 
 
 class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):

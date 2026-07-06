@@ -277,3 +277,42 @@ async def test_put_profile_partial_update_keeps_other_fields(authed_client):
     body = resp.json()
     assert body["age_range"] == "40-49"
     assert body["biological_sex"] == "male"
+
+
+# ---------------------------------------------------------------------------
+# role / clinic_name (Phase 4: distinguishing individual vs. clinician accounts)
+# ---------------------------------------------------------------------------
+
+
+async def test_register_defaults_to_individual_role(client):
+    resp = await client.post(
+        "/api/v1/auth/register", json={"email": "solo@example.com", "password": "SecurePass1"}
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["role"] == "individual"
+    assert body["clinic_name"] is None
+
+
+async def test_register_as_clinician_with_clinic_name(client):
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "doc@example.com",
+            "password": "SecurePass1",
+            "role": "clinician",
+            "clinic_name": "Riverside Wellness Clinic",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["role"] == "clinician"
+    assert body["clinic_name"] == "Riverside Wellness Clinic"
+
+
+async def test_register_rejects_invalid_role(client):
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "bad@example.com", "password": "SecurePass1", "role": "superadmin"},
+    )
+    assert resp.status_code == 422

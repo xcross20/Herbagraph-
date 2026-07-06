@@ -1,7 +1,7 @@
 import pathlib
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,7 @@ from app.config import settings
 from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, save_lab_file
 from app.models.enums import LabReportStatus
 from app.models.lab import LabReport
+from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.lab import LabReportRead, LabReportSummary, LabUploadResponse
 from app.workers.tasks import process_lab_report_task
@@ -20,15 +21,27 @@ router = APIRouter(prefix="/labs", tags=["labs"])
 @router.post("/upload", response_model=LabUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_lab_report(
     file: UploadFile,
+    patient_id: uuid.UUID | None = Form(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabUploadResponse:
+    """`patient_id` is optional and only used in clinic mode, when a clinician User
+    uploads on behalf of one of their own Patients (see app/models/patient.py).
+    Individual self-service users omit it entirely -- the report belongs directly
+    to their own account exactly as before this field was added."""
     ext = pathlib.Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unsupported file type '{ext}'. Allowed: {sorted(ALLOWED_EXTENSIONS)}",
         )
+
+    if patient_id is not None:
+        patient_result = await db.execute(
+            select(Patient).where(Patient.id == patient_id, Patient.user_id == current_user.id)
+        )
+        if patient_result.scalar_one_or_none() is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
 
     file_bytes = await file.read()
     if len(file_bytes) > settings.max_file_size_bytes:
@@ -39,6 +52,7 @@ async def upload_lab_report(
 
     lab_report = LabReport(
         user_id=current_user.id,
+        patient_id=patient_id,
         original_filename=file.filename or "upload",
         encrypted_file_path="",
         file_size_bytes=len(file_bytes),

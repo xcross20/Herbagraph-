@@ -23,7 +23,12 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)) -> U
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
-    user = User(email=payload.email, hashed_password=hash_password(payload.password))
+    user = User(
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        clinic_name=payload.clinic_name,
+    )
     db.add(user)
     await db.flush()
     db.add(HealthProfile(user_id=user.id))
