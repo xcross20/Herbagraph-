@@ -1,0 +1,12 @@
+QUEST DIAGNOSTICS - FOLLOW-UP DEMO (PAIR WITH demo_01 OR demo_03)
+Specimen Collected: 04/20/2026
+
+CRP                    1.50  mg/L   (0.00-3.00)
+Glucose                92.00  mg/dL   (70.00-99.00)
+HbA1c                   5.40  %       (4.00-5.60)
+LDL Cholesterol Calc   98.00  mg/dL   (0.00-99.00)
+HDL Cholesterol        48.00  mg/dL   (40.00-100.00)
+Triglycerides         118.00  mg/dL   (0.00-149.00)
+Vitamin D, 25-Hydroxy  38.00  ng/mL   (30.00-100.00)
+Ferritin              120.00  ng/mL   (20.00-250.00)
+Homocysteine            9.20  umol/L   (5.00-15.00)

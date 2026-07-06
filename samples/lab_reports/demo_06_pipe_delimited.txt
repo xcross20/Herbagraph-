@@ -1,0 +1,8 @@
+SYNTHETIC DEMO - PIPE-DELIMITED FORMAT
+
+Test Name | Value | Unit | Low-High
+CRP | 9.40 | mg/L | 0-3
+Homocysteine | 18.2 | umol/L | 5-15
+Glucose | 99 | mg/dL | 70-99
+Insulin | 16.5 | uIU/mL | 2.6-24.9
+Vitamin D 25-OH | 19 | ng/mL | 30-100

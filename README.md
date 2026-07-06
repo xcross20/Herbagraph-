@@ -338,6 +338,7 @@ docker-compose exec api python scripts/seed_db.py
 ### 5. Explore the API or the bare-bones frontend
 
 - Frontend: [http://localhost:8000/](http://localhost:8000/) -- a deliberately plain, single-page HTML/JS UI (`frontend/index.html`, served by the API itself, no build step): choose a lab file, click Analyze, and it walks through upload -> processing -> report generation -> a Patient Summary / Biological Systems / Recommendations / Evidence & Citations view, with a "Download PDF" button (browser print-to-PDF). It transparently creates a throwaway local account in `localStorage` on first visit, so there's no login screen.
+- **Demo lab files:** synthetic Quest/LabCorp/CSV samples in [`samples/lab_reports/`](samples/lab_reports/) — start with `demo_01_inflammatory_quest.txt` or `demo_03_comprehensive_quest.txt` (see that folder's README).
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
 - Health check: [http://localhost:8000/health](http://localhost:8000/health)

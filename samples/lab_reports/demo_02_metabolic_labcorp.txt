@@ -1,0 +1,17 @@
+LABCORP - SYNTHETIC DEMO REPORT (NOT REAL PATIENT DATA)
+Date Collected: 02/01/2026
+
+COMPREHENSIVE METABOLIC PANEL
+
+Glucose   108  mg/dL  H  70-99
+HbA1c   6.1  %  H  4.0-5.6
+Insulin   18.2   uIU/mL   H   2.6-24.9
+LDL Cholesterol   155  mg/dL  H  0-99
+HDL Cholesterol   36  mg/dL  L  40-100
+Triglycerides   192  mg/dL  H  0-149
+ApoB   118  mg/dL  H  40-100
+ALT   62  U/L  H  7-56
+GGT   78  U/L  H  8-61
+Uric Acid   7.9  mg/dL  H  3.5-7.2
+TSH   2.1  mIU/L  0.4-4.0
+Creatinine   0.88  mg/dL  0.6-1.3

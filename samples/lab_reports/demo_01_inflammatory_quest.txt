@@ -1,0 +1,15 @@
+QUEST DIAGNOSTICS - SYNTHETIC DEMO REPORT (NOT REAL PATIENT DATA)
+Specimen Collected: 01/15/2026 08:30
+Report Generated: 01/16/2026
+
+INFLAMMATORY / METABOLIC PANEL
+
+CRP                    8.20  mg/L   (0.00-3.00)
+Glucose               102.00  mg/dL   (70.00-99.00)
+HbA1c                   5.90  %       (4.00-5.60)
+LDL Cholesterol Calc  142.00  mg/dL   (0.00-99.00)
+HDL Cholesterol        38.00  mg/dL   (40.00-100.00)
+Triglycerides         168.00  mg/dL   (0.00-149.00)
+Vitamin D, 25-Hydroxy  22.00  ng/mL   (30.00-100.00)
+Ferritin              285.00  ng/mL   (20.00-250.00)
+Homocysteine           16.80  umol/L   (5.00-15.00)
