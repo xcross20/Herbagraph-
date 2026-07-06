@@ -52,6 +52,25 @@ async def test_upload_requires_auth(client):
     assert resp.status_code == 401
 
 
+async def test_upload_csv_extension_accepted(authed_client):
+    resp = await authed_client.post(
+        "/api/v1/labs/upload", files=_lab_file(b"CRP,8.20,mg/L,0,3\n", filename="labs.csv")
+    )
+    assert resp.status_code == 201, resp.text
+
+
+async def test_upload_empty_file_completes_with_zero_results(authed_client):
+    resp = await authed_client.post("/api/v1/labs/upload", files=_lab_file(b""))
+    assert resp.status_code == 201
+    lab_report_id = resp.json()["lab_report_id"]
+
+    get_resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}")
+    assert get_resp.status_code == 200
+    body = get_resp.json()
+    assert body["status"] == "complete"
+    assert body["lab_results"] == []
+
+
 async def test_upload_then_processing_completes_with_lab_results(authed_client):
     upload_resp = await authed_client.post("/api/v1/labs/upload", files=_lab_file())
     assert upload_resp.status_code == 201
@@ -117,6 +136,25 @@ async def test_list_lab_reports_empty_for_new_user(authed_client):
     resp = await authed_client.get("/api/v1/labs")
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+async def test_list_lab_reports_summary_shape_omits_lab_results(authed_client):
+    await authed_client.post("/api/v1/labs/upload", files=_lab_file())
+    resp = await authed_client.get("/api/v1/labs")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert "lab_results" not in body[0]
+    assert set(body[0].keys()) == {"id", "original_filename", "status", "created_at"}
+
+
+async def test_list_lab_reports_multiple_uploads_all_present(authed_client):
+    await authed_client.post("/api/v1/labs/upload", files=_lab_file(filename="a.txt"))
+    await authed_client.post("/api/v1/labs/upload", files=_lab_file(filename="b.txt"))
+    resp = await authed_client.get("/api/v1/labs")
+    assert resp.status_code == 200
+    filenames = {r["original_filename"] for r in resp.json()}
+    assert filenames == {"a.txt", "b.txt"}
 
 
 # ---------------------------------------------------------------------------

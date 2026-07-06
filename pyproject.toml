@@ -10,10 +10,22 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
+[tool.coverage.run]
+concurrency = ["greenlet", "thread"]
+
 [tool.ruff]
 line-length = 110
 target-version = "py311"
 
+[tool.ruff.lint.per-file-ignores]
+# SQLAlchemy 2.0 `Mapped["ClassName"]` forward refs resolve via the shared declarative
+# registry at mapper-configure time, not via module-local name lookup -- ruff can't see that.
+"app/models/*.py" = ["F821"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "app.models.*"
+disable_error_code = ["name-defined"]

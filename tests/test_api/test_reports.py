@@ -147,6 +147,64 @@ async def test_generate_report_requires_auth(client):
     assert resp.status_code == 401
 
 
+async def test_generate_report_with_no_recommendations_still_201(authed_client, monkeypatch):
+    monkeypatch.setattr("app.api.v1.reports.retrieve_evidence", AsyncMock(return_value=[]))
+    monkeypatch.setattr(
+        "app.api.v1.reports.generate_reasoning",
+        AsyncMock(
+            return_value=LLMReasoningOutput(
+                biomarker_pattern_analysis="No supporting evidence was retrieved.",
+                pathway_summaries=[],
+                recommendations=[],
+                clinician_questions=[],
+            )
+        ),
+    )
+    lab_report_id = await _upload_and_complete(authed_client)
+
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["recommendations"] == []
+    assert body["citations"] == []
+    assert body["clinician_questions"] == []
+
+
+async def test_generate_report_calls_mocked_pipeline_functions(authed_client, monkeypatch):
+    evidence_mock = AsyncMock(return_value=_evidence_snippets())
+    reasoning_mock = AsyncMock(return_value=_reasoning_output())
+    monkeypatch.setattr("app.api.v1.reports.retrieve_evidence", evidence_mock)
+    monkeypatch.setattr("app.api.v1.reports.generate_reasoning", reasoning_mock)
+
+    lab_report_id = await _upload_and_complete(authed_client)
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert resp.status_code == 201
+
+    evidence_mock.assert_awaited_once()
+    reasoning_mock.assert_awaited_once()
+
+
+async def test_generate_report_recommendations_have_sequential_ranks(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    ranks = sorted(r["rank"] for r in resp.json()["recommendations"])
+    assert ranks == list(range(1, len(ranks) + 1))
+
+
+async def test_generate_report_twice_creates_two_distinct_reports(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+    first = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    second = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+
+    list_resp = await authed_client.get("/api/v1/reports")
+    assert len(list_resp.json()) == 2
+
+
 async def test_generate_report_happy_path_full_shape(authed_client, monkeypatch):
     _patch_pipeline(monkeypatch)
     lab_report_id = await _upload_and_complete(authed_client)
@@ -291,6 +349,35 @@ async def test_get_report_404_for_other_users_report(client, db_session, monkeyp
 async def test_get_report_requires_auth(client):
     resp = await client.get(f"/api/v1/reports/{uuid.uuid4()}")
     assert resp.status_code == 401
+
+
+async def test_get_report_matches_generate_response(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+    gen_resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    report_id = gen_resp.json()["id"]
+
+    get_resp = await authed_client.get(f"/api/v1/reports/{report_id}")
+    assert get_resp.status_code == 200
+    gen_body, get_body = gen_resp.json(), get_resp.json()
+    # created_at may round-trip through sqlite with/without an explicit "Z" suffix depending on
+    # whether it was read from the just-inserted in-memory object vs. a fresh row fetch; compare
+    # everything else exactly and the timestamp as a parsed instant.
+    gen_created_at, get_created_at = gen_body.pop("created_at"), get_body.pop("created_at")
+    assert gen_body == get_body
+    assert gen_created_at.rstrip("Z") == get_created_at.rstrip("Z")
+
+
+async def test_list_reports_summary_shape_omits_recommendations(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+    await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+
+    resp = await authed_client.get("/api/v1/reports")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1
+    assert set(body[0].keys()) == {"id", "lab_report_id", "overall_confidence", "created_at"}
 
 
 async def test_delete_report_removes_it(authed_client, monkeypatch):

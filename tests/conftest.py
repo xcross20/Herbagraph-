@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # no
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 from app import database  # noqa: E402
-from app.api.deps import get_current_user, get_db  # noqa: E402
+from app.api.deps import get_db  # noqa: E402
 from app.core.security import create_access_token  # noqa: E402
 from app.database import Base  # noqa: E402
 from app.knowledge_graph.seeder import seed_knowledge_graph  # noqa: E402

@@ -82,6 +82,34 @@ async def test_register_invalid_email_returns_422(client):
     assert resp.status_code == 422
 
 
+async def test_register_missing_email_field_returns_422(client):
+    resp = await client.post("/api/v1/auth/register", json={"password": "SecurePass1"})
+    assert resp.status_code == 422
+
+
+async def test_register_boundary_8_char_valid_password_succeeds(client):
+    resp = await client.post(
+        "/api/v1/auth/register", json={"email": "boundary@example.com", "password": "Abcdefg1"}
+    )
+    assert resp.status_code == 201, resp.text
+
+
+async def test_register_frees_up_email_after_deletion(client):
+    payload = {"email": "reusable@example.com", "password": "SecurePass1"}
+    first = await client.post("/api/v1/auth/register", json=payload)
+    assert first.status_code == 201
+
+    login_resp = await client.post("/api/v1/auth/login", json=payload)
+    token = login_resp.json()["access_token"]
+    delete_resp = await client.delete(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert delete_resp.status_code == 204
+
+    second = await client.post("/api/v1/auth/register", json=payload)
+    assert second.status_code == 201
+
+
 # ---------------------------------------------------------------------------
 # login
 # ---------------------------------------------------------------------------
@@ -120,6 +148,21 @@ async def test_login_nonexistent_email_returns_401(client):
     assert "incorrect" in resp.json()["detail"].lower()
 
 
+async def test_login_missing_password_field_returns_422(client):
+    resp = await client.post("/api/v1/auth/login", json={"email": "nobody@example.com"})
+    assert resp.status_code == 422
+
+
+async def test_login_response_token_type_is_bearer(client):
+    await client.post(
+        "/api/v1/auth/register", json={"email": "bearer-check@example.com", "password": "SecurePass1"}
+    )
+    resp = await client.post(
+        "/api/v1/auth/login", json={"email": "bearer-check@example.com", "password": "SecurePass1"}
+    )
+    assert resp.json()["token_type"] == "bearer"
+
+
 # ---------------------------------------------------------------------------
 # me
 # ---------------------------------------------------------------------------
@@ -132,6 +175,25 @@ async def test_get_me_requires_auth(client):
 
 async def test_get_me_with_invalid_token_returns_401(client):
     resp = await client.get("/api/v1/auth/me", headers={"Authorization": "Bearer not-a-real-token"})
+    assert resp.status_code == 401
+
+
+async def test_get_me_with_malformed_auth_header_returns_401(client, auth_headers):
+    token = auth_headers["Authorization"].split(" ", 1)[1]
+    # Missing the "Bearer " scheme prefix entirely.
+    resp = await client.get("/api/v1/auth/me", headers={"Authorization": token})
+    assert resp.status_code == 401
+
+
+async def test_get_me_with_refresh_token_rejected(client):
+    from app.core.security import create_refresh_token
+
+    register_resp = await client.post(
+        "/api/v1/auth/register", json={"email": "refresh-me@example.com", "password": "SecurePass1"}
+    )
+    user_id = register_resp.json()["id"]
+    refresh_token = create_refresh_token(user_id)
+    resp = await client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {refresh_token}"})
     assert resp.status_code == 401
 
 
