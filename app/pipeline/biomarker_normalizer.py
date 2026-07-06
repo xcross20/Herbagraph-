@@ -52,7 +52,7 @@ _REFERENCE_DATA: dict[str, dict] = {
 _ALIAS_MAP: dict[str, str] = {
     "crp": "CRP", "c reactive protein": "CRP", "hs crp": "CRP", "high sensitivity crp": "CRP",
     "hscrp": "CRP", "c reactive protein hs": "CRP",
-    "homocysteine": "Homocysteine", "hcy": "Homocysteine", "homocyst(e)ine": "Homocysteine",
+    "homocysteine": "Homocysteine", "hcy": "Homocysteine", "homocyst e ine": "Homocysteine",
     "glucose": "Glucose", "glucose fasting": "Glucose", "fasting glucose": "Glucose",
     "glucose serum": "Glucose", "fasting blood glucose": "Glucose", "fbg": "Glucose",
     "hba1c": "HbA1c", "hemoglobin a1c": "HbA1c", "haemoglobin a1c": "HbA1c", "a1c": "HbA1c",
