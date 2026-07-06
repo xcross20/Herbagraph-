@@ -110,3 +110,57 @@ async def test_seed_is_not_idempotent_double_seed_raises_or_duplicates(db_sessio
     await seed_knowledge_graph(db_session)
     with pytest.raises(Exception):
         await seed_knowledge_graph(db_session)
+
+
+# ---------------------------------------------------------------------------
+# Compound / Target layer (Intervention -> Compound -> Target)
+# ---------------------------------------------------------------------------
+
+
+async def test_seed_creates_compound_rows(db_session):
+    from app.models.compound import Compound
+
+    await seed_knowledge_graph(db_session)
+    count = (await db_session.execute(select(func.count()).select_from(Compound))).scalar()
+    assert count > 0
+
+
+async def test_boswellia_compound_has_primary_target(db_session):
+    from sqlalchemy.orm import selectinload
+
+    from app.models.compound import InterventionCompound
+
+    await seed_knowledge_graph(db_session)
+    result = await db_session.execute(
+        select(Intervention)
+        .where(Intervention.name == "Boswellia serrata")
+        .options(selectinload(Intervention.compounds).selectinload(InterventionCompound.compound))
+    )
+    boswellia = result.scalar_one()
+    assert len(boswellia.compounds) == 1
+    akba = boswellia.compounds[0].compound
+    assert "AKBA" in akba.name
+    assert akba.primary_target == "5-LOX (5-lipoxygenase)"
+    assert akba.pubchem_cid is None
+
+
+async def test_lifestyle_interventions_have_no_compounds(db_session):
+    from sqlalchemy.orm import selectinload
+
+    from app.models.compound import InterventionCompound
+
+    await seed_knowledge_graph(db_session)
+    result = await db_session.execute(
+        select(Intervention)
+        .where(Intervention.name == "HIIT")
+        .options(selectinload(Intervention.compounds).selectinload(InterventionCompound.compound))
+    )
+    hiit = result.scalar_one()
+    assert hiit.compounds == []
+
+
+async def test_new_ontology_categories_are_seeded(db_session):
+    await seed_knowledge_graph(db_session)
+    result = await db_session.execute(select(Intervention.category, func.count()).group_by(Intervention.category))
+    categories = {cat.value for cat, _ in result.all()}
+    assert {"supplement", "exercise", "sleep", "stress_reduction", "behavior", "food", "phytochemical", "herb"} <= categories

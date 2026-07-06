@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.models.enums import LabReportStatus
+from app.models.enums import EVIDENCE_TIER_LABELS, LabReportStatus
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile, User
@@ -98,6 +98,7 @@ async def generate_recommendation_report(
         model_version=payload["model_version"],
         executive_summary=payload["executive_summary"],
         biomarker_summary=payload["biomarker_summary"],
+        biomarker_interpretations=payload["biomarker_interpretations"],
         pathway_activations=payload["pathway_activations"],
         clinician_questions=payload["clinician_questions"],
         safety_summary=payload["safety_summary"],
@@ -115,8 +116,11 @@ async def generate_recommendation_report(
                 category=rec["category"],
                 mechanism=rec["mechanism"],
                 evidence_level=rec["evidence_level"],
+                evidence_tier=rec["evidence_tier"],
                 confidence_score=rec["confidence_score"],
                 typical_dose=rec["typical_dose"],
+                rationale=rec["rationale"],
+                limitations=rec["limitations"],
                 safety_risk=rec["safety_risk"],
                 safety_notes=rec["safety_notes"],
                 interactions=rec["interactions"],
@@ -153,6 +157,7 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         model_version=report.model_version,
         executive_summary=report.executive_summary,
         biomarker_summary=report.biomarker_summary,
+        biomarker_interpretations=report.biomarker_interpretations,
         pathway_activations=report.pathway_activations,
         recommendations=[
             {
@@ -161,8 +166,12 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
                 "category": r.category,
                 "mechanism": r.mechanism,
                 "evidence_level": r.evidence_level,
+                "evidence_tier": r.evidence_tier,
+                "evidence_tier_label": EVIDENCE_TIER_LABELS[r.evidence_tier],
                 "confidence_score": r.confidence_score,
                 "typical_dose": r.typical_dose,
+                "rationale": r.rationale,
+                "limitations": r.limitations,
                 "safety_risk": r.safety_risk,
                 "safety_notes": r.safety_notes,
                 "interactions": r.interactions,

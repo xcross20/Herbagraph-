@@ -15,17 +15,17 @@ async def test_list_interventions_requires_auth(client, seeded_db):
     assert resp.status_code == 401
 
 
-async def test_list_interventions_returns_all_34(authed_client, seeded_db):
+async def test_list_interventions_returns_all_36(authed_client, seeded_db):
     resp = await authed_client.get("/api/v1/evidence/interventions", params={"limit": 200})
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body) == 34
+    assert len(body) == 36
 
 
 async def test_list_interventions_default_limit(authed_client, seeded_db):
     resp = await authed_client.get("/api/v1/evidence/interventions")
     assert resp.status_code == 200
-    assert len(resp.json()) == 34  # default limit (50) exceeds total seeded count
+    assert len(resp.json()) == 36  # default limit (50) exceeds total seeded count
 
 
 async def test_list_interventions_filtered_by_category_herb(authed_client, seeded_db):
@@ -97,6 +97,33 @@ async def test_get_intervention_detail_happy_path(authed_client, seeded_db):
     assert "is_regulated" in body
     assert isinstance(body["safety_flags"], list)
     assert isinstance(body["drug_interactions"], list)
+
+
+async def test_get_intervention_detail_includes_compounds_with_target(authed_client, seeded_db):
+    list_resp = await authed_client.get(
+        "/api/v1/evidence/interventions", params={"search": "Boswellia"}
+    )
+    intervention_id = list_resp.json()[0]["id"]
+
+    resp = await authed_client.get(f"/api/v1/evidence/interventions/{intervention_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["compounds"]) == 1
+    compound = body["compounds"][0]["compound"]
+    assert "AKBA" in compound["name"]
+    assert compound["primary_target"] == "5-LOX (5-lipoxygenase)"
+    assert compound["pubchem_cid"] is None
+
+
+async def test_get_intervention_detail_empty_compounds_for_behavior_intervention(authed_client, seeded_db):
+    list_resp = await authed_client.get(
+        "/api/v1/evidence/interventions", params={"search": "Intermittent Fasting"}
+    )
+    intervention_id = list_resp.json()[0]["id"]
+
+    resp = await authed_client.get(f"/api/v1/evidence/interventions/{intervention_id}")
+    assert resp.status_code == 200
+    assert resp.json()["compounds"] == []
 
 
 async def test_get_intervention_detail_404_for_bad_id(authed_client, seeded_db):

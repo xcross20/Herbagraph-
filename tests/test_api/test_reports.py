@@ -401,3 +401,55 @@ async def test_delete_report_404_for_nonexistent_id(authed_client):
 async def test_delete_report_requires_auth(client):
     resp = await client.delete(f"/api/v1/reports/{uuid.uuid4()}")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# evidence tier / limitations / biomarker interpretations (Phase 1 additions)
+# ---------------------------------------------------------------------------
+
+
+async def test_generate_report_includes_evidence_tier_and_limitations(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+
+    for rec in body["recommendations"]:
+        assert rec["evidence_tier"] in (
+            "established", "emerging", "preclinical", "research_hypothesis",
+            "traditional_use", "historical_ethnobotanical",
+        )
+        assert rec["evidence_tier_label"]
+        # Each mocked recommendation cites exactly one RCT -> Emerging Evidence.
+        assert rec["evidence_tier"] == "emerging"
+        assert rec["evidence_tier_label"] == "Emerging Evidence"
+        assert "rationale" in rec
+        assert "limitations" in rec
+
+
+async def test_generate_report_includes_biomarker_interpretations(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+
+    assert "biomarker_interpretations" in body
+    interpretations = body["biomarker_interpretations"]
+    assert len(interpretations) == 1
+    assert interpretations[0]["biomarker_name"] == "CRP"
+    assert interpretations[0]["status"] == "high"
+    assert "CRP" in interpretations[0]["interpretation"]
+
+
+async def test_disclaimer_supports_discussion_not_replacement(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+
+    resp = await authed_client.post(f"/api/v1/reports/generate/{lab_report_id}")
+    assert resp.status_code == 201, resp.text
+    disclaimer = resp.json()["disclaimer"].lower()
+    assert "not to replace" in disclaimer

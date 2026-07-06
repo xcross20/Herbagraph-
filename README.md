@@ -8,7 +8,7 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 
 ## ⚠️ Important Disclaimer
 
-**HerbaGraph is a clinical decision support and research tool, not a medical device.** All outputs are for educational and research purposes only. They do not constitute medical advice, diagnosis, or treatment. Always consult a qualified healthcare provider before starting, modifying, or stopping any supplement, medication, or lifestyle intervention.
+**HerbaGraph is a clinical decision support and research tool, not a medical device.** All outputs are for educational and research purposes only. They do not constitute medical advice, diagnosis, or treatment. Every recommendation is evidence-graded and framed to support a discussion with a qualified healthcare provider — never as a directive to take or do something on its own. Always consult a qualified healthcare provider before starting, modifying, or stopping any supplement, medication, or lifestyle intervention.
 
 ---
 
@@ -16,12 +16,14 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 
 - [Architecture](#architecture)
 - [Pipeline Overview](#pipeline-overview)
+- [Intervention Ontology](#intervention-ontology)
 - [Food → Compound Layer](#food--compound-layer)
 - [Tech Stack](#tech-stack)
 - [Quick Start](#quick-start)
 - [Environment Variables](#environment-variables)
 - [API Reference](#api-reference)
 - [Privacy Design](#privacy-design)
+- [Evidence Grading](#evidence-grading)
 - [Confidence Scoring](#confidence-scoring)
 - [Running Tests](#running-tests)
 - [Development Guide](#development-guide)
@@ -85,23 +87,60 @@ Maps each abnormal biomarker to one or more biological pathways (NF-κB, AMPK, N
 Builds intervention-specific PubMed queries from activated pathways. Concurrently fetches studies from PubMed (ESearch + EFetch), ClinicalTrials.gov v2, and Europe PMC. Deduplicates by PMID/NCTID and ranks by study quality (meta-analysis → RCT → cohort → preclinical).
 
 ### Stage 5: LLM Reasoning
-Sends a de-identified payload to Claude (claude-sonnet-4-6). The LLM reasons **only** from retrieved evidence snippets — it cannot free-invent claims. Returns a structured JSON with: biomarker pattern analysis, pathway summaries, ranked recommendations with dose/mechanism/citations, and questions to ask a clinician.
+Sends a de-identified payload to Claude (claude-sonnet-4-6). The LLM reasons **only** from retrieved evidence snippets — it cannot free-invent claims. The system prompt is written to reduce liability by design: it forbids directive language ("take 500mg"), requires every recommendation to state *why it was surfaced* (`rationale`) and *what the evidence doesn't show* (`limitations`), and instructs the model to frame everything as input to a discussion with a clinician, never as a decision made on the reader's behalf. Returns a structured JSON with: biomarker pattern analysis, pathway summaries, ranked recommendations with dose/mechanism/citations/rationale/limitations, and questions to ask a clinician.
 
 ### Stage 6: Safety Layer
-Checks every recommendation against:
-- Drug-herb interaction database (warfarin, metformin, SSRIs, cyclosporine, and more)
-- Contraindication database (pregnancy, severe kidney disease, autoimmune conditions)
-- Regulated/emerging intervention flags (BPC-157, peptides, GLP-1 agonists)
-- Removes contraindicated interventions from the final report
+Runs every recommendation through an explicit staged pipeline, in order:
+1. **Drug interaction check** — drug-herb interaction database (warfarin, metformin, SSRIs, cyclosporine, and more)
+2. **Contraindication check** — pregnancy, severe kidney disease, autoimmune conditions on immunosuppressants; matched recommendations are removed from the final report entirely
+3. **Pregnancy check** — evaluated first/independently within the contraindication check
+4. **Kidney/Liver warning** — a softer flag (not an exclusion) for interventions with a liver-safety signal when the patient's profile indicates liver disease
+5. **Regulated-intervention flagging** — BPC-157, peptides, GLP-1 agonists, etc. are labeled `is_regulated: true`, never silently recommended
 
 ### Stage 7: Report Generator
-Applies a composite confidence scoring formula, ranks surviving recommendations, assembles the final structured report with citations, safety summary, clinician questions, and a mandatory disclaimer.
+Applies a composite confidence scoring formula, derives each recommendation's **evidence tier** deterministically from the studies actually cited (never asserted by the LLM), generates a plain-language interpretation per abnormal biomarker, ranks surviving recommendations, and assembles the final structured report with citations, safety summary, clinician questions, and a mandatory disclaimer. See [Evidence Grading](#evidence-grading) below.
+
+---
+
+## Intervention Ontology
+
+HerbaGraph doesn't model "herbs" and "foods" and "exercise" as separate systems — everything the graph reasons about is an **Intervention**, distinguished only by `category`:
+
+| Category | Examples |
+|---|---|
+| `food` | Broccoli Sprouts, Garlic, Cooked Tomatoes |
+| `herb` | Boswellia serrata, Curcumin, Ashwagandha, Milk Thistle |
+| `phytochemical` | Sulforaphane, Anthocyanins, EGCG, Quercetin |
+| `supplement` | Berberine, Omega-3, Magnesium, Vitamin D, CoQ10 |
+| `exercise` | HIIT |
+| `sleep` | Sleep Hygiene Optimization |
+| `stress_reduction` | Mindfulness-Based Stress Reduction |
+| `medication` | (regulated; surfaced for evidence context only) |
+| `peptide` | BPC-157, TB-500 (regulated) |
+| `hormone` | GLP-1/GIP receptor agonists (regulated) |
+| `environmental` | — |
+| `behavior` | Intermittent Fasting |
+
+None of these is treated as inherently more "medical" than another — they differ only in their evidence base and safety profile, both of which the pipeline evaluates identically regardless of category.
+
+### The full graph
+
+```
+Intervention  →  Compound  →  Target  →  Pathway  →  Biomarker  →  Clinical Outcome
+```
+
+- **Intervention → Compound**: a herb/food/supplement's chemical constituents (`app/models/compound.py`'s `InterventionCompound` join). E.g. Boswellia serrata → AKBA.
+- **Compound → Target**: each `Compound.primary_target` is the molecular target it acts on (a receptor, enzyme, or transcription factor) — e.g. AKBA → 5-LOX, Curcumin → NF-κB, Berberine → AMPK. `pubchem_cid` is intentionally left unset in static seed data — it's resolved on demand via `app/integrations/pubchem.py` rather than hardcoded, so it can't silently go stale.
+- **Target → Pathway → Biomarker**: comes from the parent intervention's own `EvidenceClaim`s, since the retrieved clinical evidence is almost always about the whole herb/food, not an isolated constituent studied alone.
+- **→ Clinical Outcome**: the abnormal biomarker itself is the proxy for the clinical outcome being reasoned about (e.g. ↓CRP as a proxy for reduced systemic inflammation).
+
+This is why the reasoning layer never says "eat blueberries" — it reasons about the compound (Anthocyanins), which carries the same Target/Pathway/Biomarker/evidence machinery as any herb, and then attaches `food_sources` so the food is just one of several ways to obtain it (see below).
 
 ---
 
 ## Food → Compound Layer
 
-Most nutrition apps organize around **products**: calories, macros, "eat this food." HerbaGraph organizes around **biology** instead — food is just another intervention type in the same graph as herbs, nutraceuticals, and lifestyle levers.
+Most nutrition apps organize around **products**: calories, macros, "eat this food." HerbaGraph organizes around **biology** instead — food is just another intervention type in the same graph as herbs, supplements, and other levers.
 
 ```
 Food                          Compound (phytochemical)         Pathway / Biomarker
@@ -140,8 +179,8 @@ Someone who doesn't like broccoli can choose Brussels sprouts. Someone who avoid
 
 ### Data model
 
-- **`Intervention`** (existing table) gained two new `InterventionCategory` values: `food` and `phytochemical`. A phytochemical compound (e.g. Sulforaphane) is a first-class Intervention row with its own `mechanism`, `EvidenceClaim`s, `SafetyFlag`s, and `DrugInteraction`s — identical treatment to any herb.
-- **`FoodCompoundSource`** (new table) is the many-to-many join: `food_intervention_id` ↔ `compound_intervention_id`, with a `richness` (`high` \| `moderate` \| `low`), `typical_serving`, and an optional bioavailability note (e.g. "cooking with oil increases lycopene absorption").
+- **`Intervention`** includes `food` and `phytochemical` among its `InterventionCategory` values (see [Intervention Ontology](#intervention-ontology) for the full set). A phytochemical compound (e.g. Sulforaphane) is a first-class Intervention row with its own `mechanism`, `EvidenceClaim`s, `SafetyFlag`s, and `DrugInteraction`s — identical treatment to any herb.
+- **`FoodCompoundSource`** is the many-to-many join: `food_intervention_id` ↔ `compound_intervention_id`, with a `richness` (`high` \| `moderate` \| `low`), `typical_serving`, and an optional bioavailability note (e.g. "cooking with oil increases lycopene absorption"). This is a *food-specific* join distinct from `InterventionCompound` (which links a herb/supplement to its chemical *constituents* — see [Intervention Ontology](#intervention-ontology)); both exist because "Anthocyanins in blueberries" and "AKBA in Boswellia" are conceptually different relationships (a food is a dietary *source* of a compound; a herb extract *contains* a compound as an active constituent).
 - A **static, zero-latency lookup dict** (`COMPOUND_TO_FOOD_SOURCES` in `app/knowledge_graph/food_seed_data.py`) mirrors the DB table so the pipeline can attach `food_sources` to a recommendation without a database round-trip — the same pattern already used for pathway→intervention mapping.
 
 ### Seeded compounds
@@ -435,6 +474,13 @@ Authorization: Bearer {token}
     "normal_count": 8,
     "categories_affected": {"inflammatory": 2, "metabolic": 1, "hepatic": 1}
   },
+  "biomarker_interpretations": [
+    {
+      "biomarker_name": "CRP",
+      "status": "high",
+      "interpretation": "CRP is high (8.2 mg/L), which may be relevant to the biological pathways discussed below. This is a lab-value observation, not a diagnosis."
+    }
+  ],
   "pathway_activations": [
     {
       "pathway_code": "NF_KB",
@@ -451,8 +497,12 @@ Authorization: Bearer {token}
       "category": "herb",
       "mechanism": "Selectively inhibits 5-LOX, reducing leukotriene B4 synthesis",
       "evidence_level": "moderate",
+      "evidence_tier": "emerging",
+      "evidence_tier_label": "Emerging Evidence",
       "confidence_score": 0.74,
-      "typical_dose": "300mg AKBA-standardized extract 2x daily with food",
+      "typical_dose": "300mg AKBA-standardized extract 2x daily with food, per the cited trial",
+      "rationale": "Directly addresses the elevated CRP finding via NF-κB inhibition.",
+      "limitations": "Based on a single randomized trial in knee osteoarthritis patients; may not generalize to other causes of elevated CRP.",
       "safety_risk": "low",
       "safety_notes": ["Take with food to minimize GI upset"],
       "interactions": [],
@@ -498,9 +548,46 @@ Authorization: Bearer {token}
 | `GET` | `/evidence/foods/{food_name}/compounds` | Compounds a given food is a source of |
 
 **Query params for `/evidence/interventions`:**
-- `category`: `herb \| nutraceutical \| lifestyle \| peptide \| nad_precursor \| food \| phytochemical \| medication \| hormone \| environmental \| behavior`
+- `category`: `food \| herb \| phytochemical \| supplement \| exercise \| sleep \| stress_reduction \| medication \| peptide \| hormone \| environmental \| behavior` (see [Intervention Ontology](#intervention-ontology))
 - `search`: Full-text name search
 - `limit`: Max results (default 50, max 200)
+
+#### Get Intervention Detail
+```http
+GET /api/v1/evidence/interventions/{intervention_id}
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "id": "uuid",
+  "name": "Boswellia serrata",
+  "category": "herb",
+  "description": "Indian frankincense resin extract standardized for boswellic acids.",
+  "mechanism": "Selectively inhibits 5-LOX, reducing leukotriene B4 synthesis and downstream NF-κB activation.",
+  "is_regulated": false,
+  "regulation_note": null,
+  "safety_flags": [
+    {"condition": "pregnancy", "severity": "contraindication", "note": "Insufficient safety data in pregnancy; avoid."}
+  ],
+  "drug_interactions": [
+    {"drug_name": "Warfarin", "severity": "moderate", "mechanism": "May potentiate anticoagulant effect.", "note": "Monitor INR if co-administered."}
+  ],
+  "compounds": [
+    {
+      "role": "primary active constituent",
+      "compound": {
+        "id": "uuid",
+        "name": "AKBA (acetyl-11-keto-beta-boswellic acid)",
+        "description": null,
+        "primary_target": "5-LOX (5-lipoxygenase)",
+        "pubchem_cid": null
+      }
+    }
+  ]
+}
+```
 
 #### Get Food Sources for a Compound
 ```http
@@ -545,6 +632,25 @@ When the pipeline sends data to Claude:
 
 ### No Free-form LLM Invention
 The LLM is instructed to reason **only from evidence snippets retrieved in the current session**. It cannot hallucinate citations — all cited PMIDs are verified at retrieval time.
+
+---
+
+## Evidence Grading
+
+Every recommendation carries an explicit **evidence tier** (`evidence_tier` / `evidence_tier_label`) so the platform never implies all evidence is equally strong. Unlike `evidence_level` (a per-claim strength rating baked into confidence scoring), the tier is a user-facing label **derived deterministically from the studies actually cited** for that recommendation — never asserted by the LLM, so it can't drift from what was really retrieved (see `report_generator.determine_evidence_tier`).
+
+| Tier | Label | Criteria |
+|---|---|---|
+| `established` | **Established Evidence** | A cited meta-analysis or systematic review, or ≥2 cited RCTs |
+| `emerging` | **Emerging Evidence** | A single cited RCT, or cited cohort/case-control (human observational) studies |
+| `preclinical` | **Preclinical Evidence** | Only animal/cell-culture (preclinical) studies cited |
+| `research_hypothesis` | **Research Hypothesis** | No citation could be resolved against retrieved evidence — should not normally occur, since Stage 5 already requires ≥1 valid citation per recommendation, but this is the safety-net default |
+| `traditional_use` | Traditional Use (Ayurveda/TCM) | Reserved for a future traditional-medicine evidence source |
+| `historical_ethnobotanical` | Historical/Ethnobotanical Use | Reserved for a future ethnobotanical evidence source |
+
+**HerbaGraph today only ever assigns the first four tiers.** The evidence hierarchy conceptually extends to traditional/historical use (Ayurveda, TCM, ethnobotanical records), but the platform does not currently retrieve from or label anything as traditional-medicine evidence — PubMed, ClinicalTrials.gov, and Europe PMC are all modern clinical/preclinical literature sources. Rather than blur that distinction, those two tiers exist in the schema but are never produced automatically; wiring up a traditional-medicine corpus is a natural Phase 2 extension.
+
+Every recommendation also states its own limits in plain language via `limitations` (e.g. "based on a single small RCT; short follow-up"), and `rationale` states why it was surfaced (which abnormal biomarker/pathway it addresses) — "show your work," not a black-box verdict.
 
 ---
 
@@ -686,18 +792,18 @@ herbagraph/
 ### Adding a New Intervention
 
 1. Add to `app/knowledge_graph/seed_data.py` → `INTERVENTIONS` with:
-   - `name`, `category`, `description`, `mechanism`
-   - `compounds` (active constituents with PubChem CIDs where known)
+   - `name`, `category` (one of the [Intervention Ontology](#intervention-ontology) values), `description`, `mechanism`
+   - `compounds`: a list of `{"name", "primary_target", "role", "pubchem_cid"}` dicts (the Compound/Target layer -- leave `pubchem_cid` as `None`; it resolves on demand via `app/integrations/pubchem.py`)
    - `safety_flags` (pregnancy, kidney, liver, autoimmune, etc.)
    - `drug_interactions` (with severity and mechanism)
-2. Add to the pathway-to-intervention mapping in `app/pipeline/evidence_retriever.py` → `_PATHWAY_QUERIES`.
+2. Add to the pathway-to-intervention mapping in `app/pipeline/evidence_retriever.py` → `_PATHWAY_INTERVENTIONS`.
 3. If interactions are not in the database, add them to `app/pipeline/safety_layer.py` → `_DRUG_HERB_INTERACTIONS`.
 4. Run `python scripts/seed_db.py`.
 
 ### Adding a New Pathway
 
 1. Add to `app/pipeline/pathway_mapper.py` → `_PATHWAY_CONFIGS` with weight map.
-2. Add the query templates to `app/pipeline/evidence_retriever.py` → `_PATHWAY_QUERIES`.
+2. Add the intervention mapping to `app/pipeline/evidence_retriever.py` → `_PATHWAY_INTERVENTIONS`.
 3. Add to `app/knowledge_graph/seed_data.py` → `PATHWAYS`.
 
 ### Database Migrations
@@ -738,21 +844,24 @@ The seeded knowledge graph includes:
 
 **16 Biological Pathways**: NF-κB, IL-6/JAK-STAT3, AMPK, Insulin/PI3K-Akt, Nrf2, mTOR/Autophagy, HPA Axis, Thyroid/HPT, Hepatic Lipid, One-Carbon/Methylation, GLP-1/Incretins, Mitochondrial NAD+, Iron/Hepcidin, Purine/Uric Acid, Vitamin D Receptor, Renal Filtration.
 
-**13 Interventions** with full compound, safety, and interaction data:
+**15 Core Interventions** with full compound/target, safety, and interaction data (36 total once the 8 phytochemical compounds and 13 foods from the [Food → Compound Layer](#food--compound-layer) are included):
 - **Herbs**: Boswellia serrata, Curcumin, Ashwagandha, Milk Thistle
-- **Nutraceuticals**: Berberine, Omega-3, Alpha Lipoic Acid, Magnesium, Vitamin D, NAD+ Precursors (NR/NMN), CoQ10
-- **Lifestyle**: Intermittent Fasting, HIIT
+- **Supplements**: Berberine, Omega-3, Alpha Lipoic Acid, Magnesium, Vitamin D, NAD+ Precursors (NR/NMN), CoQ10
+- **Exercise**: HIIT
+- **Behavior**: Intermittent Fasting
+- **Stress Reduction**: Mindfulness-Based Stress Reduction
+- **Sleep**: Sleep Hygiene Optimization
 
 ---
 
 ## Safety Layer
 
-The safety layer checks every LLM-generated recommendation before it appears in the final report.
+The safety layer checks every LLM-generated recommendation before it appears in the final report, in the explicit staged order described in [Stage 6](#stage-6-safety-layer).
 
 ### Drug-Herb Interactions Tracked
 | Drug/Class | Flagged Herbs |
 |---|---|
-| Warfarin | Boswellia, Berberine, Curcumin, Omega-3, CoQ10, St. John's Wort, Ginkgo |
+| Warfarin | Boswellia, Berberine, Curcumin, Omega-3, CoQ10, St. John's Wort, Ginkgo, Allicin/Garlic |
 | Metformin | Berberine |
 | SSRIs/SNRIs | St. John's Wort |
 | Cyclosporine | Berberine, St. John's Wort |
@@ -762,10 +871,13 @@ The safety layer checks every LLM-generated recommendation before it appears in 
 | Statins | Milk Thistle |
 | Chemotherapy | Curcumin, Quercetin |
 
-### Automatic Exclusions
+### Automatic Exclusions (Contraindication Check)
 - **Pregnancy**: Berberine, Ashwagandha, high-dose Curcumin, Boswellia
 - **Severe CKD**: Magnesium, Potassium, high-dose Vitamin D
 - **Autoimmune disease (on immunosuppressants)**: Ashwagandha, Echinacea
+
+### Kidney/Liver Warning (Soft Flag, Not an Exclusion)
+Unlike the exclusions above, a liver-disease condition on the patient's health profile adds a visible caution note rather than removing the recommendation outright — e.g. concentrated EGCG extract's rare hepatotoxicity signal at high doses is surfaced as a `MODERATE` safety-risk note, not a hard block.
 
 ### Regulated / Emerging Interventions
 Peptides (BPC-157, TB-500), GLP-1 receptor agonists, and similar compounds are clearly labeled with `is_regulated: true` and a regulation note. The system never recommends prescription-only compounds — it only surfaces them in the evidence context with appropriate labeling.

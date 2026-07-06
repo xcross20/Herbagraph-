@@ -4,7 +4,7 @@ from sqlalchemy import JSON, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import EvidenceLevel, InterventionCategory, SafetyRiskLevel
+from app.models.enums import EvidenceLevel, EvidenceTier, InterventionCategory, SafetyRiskLevel
 from app.models.mixins import GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
@@ -17,6 +17,7 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     model_version: Mapped[str] = mapped_column(String(30), nullable=False)
     executive_summary: Mapped[str] = mapped_column(Text, nullable=False)
     biomarker_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    biomarker_interpretations: Mapped[list] = mapped_column(JSON, default=list)
     pathway_activations: Mapped[list] = mapped_column(JSON, default=list)
     clinician_questions: Mapped[list] = mapped_column(JSON, default=list)
     safety_summary: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -49,6 +50,7 @@ class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     typical_dose: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
     safety_risk: Mapped[SafetyRiskLevel] = mapped_column(
         Enum(SafetyRiskLevel, native_enum=False, length=20), nullable=False
     )
@@ -58,6 +60,10 @@ class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     cited_study_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     cited_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
     food_sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    limitations: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_tier: Mapped[EvidenceTier] = mapped_column(
+        Enum(EvidenceTier, native_enum=False, length=30), default=EvidenceTier.RESEARCH_HYPOTHESIS
+    )
 
     report: Mapped["RecommendationReport"] = relationship(back_populates="recommendations")
 

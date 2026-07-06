@@ -4,6 +4,7 @@ import pytest
 
 from app.models.enums import (
     EvidenceLevel,
+    EvidenceTier,
     InterventionCategory,
     LabResultStatus,
     PathwayDirection,
@@ -11,7 +12,7 @@ from app.models.enums import (
     StudySource,
     StudyType,
 )
-from app.pipeline.report_generator import DISCLAIMER, generate_report, score_confidence
+from app.pipeline.report_generator import DISCLAIMER, determine_evidence_tier, generate_report, score_confidence
 from app.schemas.pipeline import (
     EvidenceSnippet,
     NormalizedLabResult,
@@ -40,13 +41,13 @@ def make_scored_rec(
     )
 
 
-def make_evidence(external_id, quality_score, url=None):
+def make_evidence(external_id, quality_score, url=None, study_type=StudyType.RCT):
     return EvidenceSnippet(
         source=StudySource.PUBMED,
         external_id=external_id,
         title=f"Study {external_id}",
         year=2020,
-        study_type=StudyType.RCT,
+        study_type=study_type,
         quality_score=quality_score,
         url=url,
         intervention_name="Curcumin",
@@ -457,3 +458,135 @@ def test_clinician_questions_passed_through_unmodified():
         intervention_pathways={},
     )
     assert report["clinician_questions"] == questions
+
+
+# ---------------------------------------------------------------------------
+# determine_evidence_tier
+# ---------------------------------------------------------------------------
+
+
+def test_evidence_tier_established_for_meta_analysis():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 1.0, study_type=StudyType.META_ANALYSIS)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.ESTABLISHED
+
+
+def test_evidence_tier_established_for_systematic_review():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 0.9, study_type=StudyType.SYSTEMATIC_REVIEW)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.ESTABLISHED
+
+
+def test_evidence_tier_established_for_multiple_rcts():
+    rec = make_scored_rec(cited_study_ids=["S1", "S2"])
+    evidence_by_id = {
+        "S1": make_evidence("S1", 0.85, study_type=StudyType.RCT),
+        "S2": make_evidence("S2", 0.85, study_type=StudyType.RCT),
+    }
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.ESTABLISHED
+
+
+def test_evidence_tier_emerging_for_single_rct():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 0.85, study_type=StudyType.RCT)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.EMERGING
+
+
+def test_evidence_tier_emerging_for_cohort_study():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 0.6, study_type=StudyType.COHORT)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.EMERGING
+
+
+def test_evidence_tier_emerging_for_case_control():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 0.45, study_type=StudyType.CASE_CONTROL)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.EMERGING
+
+
+def test_evidence_tier_preclinical_when_only_preclinical_cited():
+    rec = make_scored_rec(cited_study_ids=["S1"])
+    evidence_by_id = {"S1": make_evidence("S1", 0.2, study_type=StudyType.PRECLINICAL)}
+    assert determine_evidence_tier(rec, evidence_by_id) == EvidenceTier.PRECLINICAL
+
+
+def test_evidence_tier_research_hypothesis_when_no_citations_resolve():
+    rec = make_scored_rec(cited_study_ids=["UNKNOWN"])
+    assert determine_evidence_tier(rec, {}) == EvidenceTier.RESEARCH_HYPOTHESIS
+
+
+def test_generate_report_attaches_evidence_tier_and_label():
+    rec = make_scored_rec(cited_study_ids=["S1"], evidence_level=EvidenceLevel.HIGH)
+    evidence = [make_evidence("S1", 1.0, study_type=StudyType.META_ANALYSIS)]
+    safety_report = _base_safety_report([rec])
+    report = generate_report(
+        normalized_labs=[],
+        pathway_activations=[],
+        evidence_snippets=evidence,
+        safety_report=safety_report,
+        biomarker_pattern_analysis="",
+        clinician_questions=[],
+        intervention_pathways={},
+    )
+    scored = report["recommendations"][0]
+    assert scored["evidence_tier"] == "established"
+    assert scored["evidence_tier_label"] == "Established Evidence"
+
+
+# ---------------------------------------------------------------------------
+# biomarker_interpretations
+# ---------------------------------------------------------------------------
+
+
+def test_biomarker_interpretations_only_include_abnormal_biomarkers():
+    labs = [
+        NormalizedLabResult(
+            biomarker_name="CRP", raw_test_name="CRP", value=8.2, unit="mg/L",
+            status=LabResultStatus.HIGH, category="inflammatory",
+        ),
+        NormalizedLabResult(
+            biomarker_name="Glucose", raw_test_name="Glucose", value=85, unit="mg/dL",
+            status=LabResultStatus.OPTIMAL, category="metabolic",
+        ),
+    ]
+    safety_report = _base_safety_report([])
+    report = generate_report(
+        normalized_labs=labs,
+        pathway_activations=[],
+        evidence_snippets=[],
+        safety_report=safety_report,
+        biomarker_pattern_analysis="",
+        clinician_questions=[],
+        intervention_pathways={},
+    )
+    interpretations = report["biomarker_interpretations"]
+    assert len(interpretations) == 1
+    assert interpretations[0]["biomarker_name"] == "CRP"
+    assert interpretations[0]["status"] == "high"
+    assert "CRP" in interpretations[0]["interpretation"]
+    assert "8.2" in interpretations[0]["interpretation"]
+
+
+def test_biomarker_interpretations_empty_when_all_normal():
+    labs = [
+        NormalizedLabResult(
+            biomarker_name="Glucose", raw_test_name="Glucose", value=85, unit="mg/dL",
+            status=LabResultStatus.NORMAL, category="metabolic",
+        ),
+    ]
+    safety_report = _base_safety_report([])
+    report = generate_report(
+        normalized_labs=labs,
+        pathway_activations=[],
+        evidence_snippets=[],
+        safety_report=safety_report,
+        biomarker_pattern_analysis="",
+        clinician_questions=[],
+        intervention_pathways={},
+    )
+    assert report["biomarker_interpretations"] == []
+
+
+def test_disclaimer_mentions_discussion_not_replacement():
+    assert "discussion" in DISCLAIMER.lower()
+    assert "not to replace" in DISCLAIMER.lower()

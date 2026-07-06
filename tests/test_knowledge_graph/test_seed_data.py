@@ -10,7 +10,7 @@ from app.knowledge_graph.seed_data import BIOMARKERS, EVIDENCE_CLAIMS, INTERVENT
 
 pytestmark = pytest.mark.unit
 
-VALID_INTERVENTION_CATEGORIES = {"herb", "nutraceutical", "lifestyle"}
+VALID_INTERVENTION_CATEGORIES = {"herb", "supplement", "exercise", "behavior", "stress_reduction", "sleep"}
 
 DOCUMENTED_PATHWAY_CODES = {
     "NF_KB",
@@ -141,7 +141,7 @@ def test_pathways_required_keys_present():
 
 
 def test_interventions_count():
-    assert len(INTERVENTIONS) == 13
+    assert len(INTERVENTIONS) == 15
 
 
 def test_interventions_unique_names():

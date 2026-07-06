@@ -38,12 +38,33 @@ class InterventionSummary(BaseModel):
     description: str | None = None
 
 
+class CompoundRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    description: str | None = None
+    primary_target: str | None = None
+    pubchem_cid: int | None = None
+
+
+class InterventionCompoundRead(BaseModel):
+    """A compound this intervention is constituted of (the Intervention -> Compound -> Target
+    step of the graph); `compound.primary_target` is the Target node."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    role: str | None = None
+    compound: CompoundRead
+
+
 class InterventionDetail(InterventionSummary):
     mechanism: str | None = None
     is_regulated: bool
     regulation_note: str | None = None
     safety_flags: list[SafetyFlagRead] = []
     drug_interactions: list[DrugInteractionRead] = []
+    compounds: list[InterventionCompoundRead] = []
 
 
 class BiomarkerRead(BaseModel):

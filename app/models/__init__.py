@@ -1,4 +1,5 @@
 from app.models.biomarker import Biomarker
+from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
 from app.models.food_compound_source import FoodCompoundSource
 from app.models.intervention import Intervention
@@ -10,6 +11,8 @@ from app.models.user import HealthProfile, User
 
 __all__ = [
     "Biomarker",
+    "Compound",
+    "InterventionCompound",
     "Citation",
     "EvidenceClaim",
     "FoodCompoundSource",

@@ -219,7 +219,14 @@ PATHWAYS: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
-# 13 Core Interventions
+# 15 Core Interventions
+#
+# `compounds` entries are {name, primary_target, role, pubchem_cid}. `pubchem_cid` is
+# intentionally left None in static seed data -- resolve it on demand via
+# app.integrations.pubchem instead of hardcoding an identifier that can drift out of date.
+# `primary_target` is the molecular target/enzyme/receptor (the "Target" node in the
+# Intervention -> Compound -> Target -> Pathway -> Biomarker graph); Pathway/Biomarker
+# linkage for the compound comes from the parent intervention's own EVIDENCE_CLAIMS below.
 # ---------------------------------------------------------------------------
 INTERVENTIONS: list[dict] = [
     {
@@ -228,7 +235,10 @@ INTERVENTIONS: list[dict] = [
         "description": "Indian frankincense resin extract standardized for boswellic acids.",
         "mechanism": "Selectively inhibits 5-LOX, reducing leukotriene B4 synthesis and downstream NF-κB activation.",
         "is_regulated": False,
-        "compounds": ["AKBA (acetyl-11-keto-beta-boswellic acid)"],
+        "compounds": [
+            {"name": "AKBA (acetyl-11-keto-beta-boswellic acid)", "primary_target": "5-LOX (5-lipoxygenase)",
+             "role": "primary active constituent", "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "pregnancy", "severity": "contraindication",
              "note": "Insufficient safety data in pregnancy; avoid."},
@@ -245,7 +255,12 @@ INTERVENTIONS: list[dict] = [
         "description": "Primary curcuminoid of turmeric (Curcuma longa), typically taken with piperine or as a phytosome for bioavailability.",
         "mechanism": "Inhibits NF-κB nuclear translocation and downregulates COX-2 and pro-inflammatory cytokines.",
         "is_regulated": False,
-        "compounds": ["Curcumin", "Demethoxycurcumin"],
+        "compounds": [
+            {"name": "Curcumin", "primary_target": "NF-κB", "role": "primary active constituent",
+             "pubchem_cid": None},
+            {"name": "Demethoxycurcumin", "primary_target": "NF-κB", "role": "minor active constituent",
+             "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "pregnancy", "severity": "caution",
              "note": "High-dose supplemental curcumin (above culinary amounts) is not well studied in pregnancy."},
@@ -264,7 +279,10 @@ INTERVENTIONS: list[dict] = [
         "description": "Withania somnifera root/leaf extract, an adaptogen standardized for withanolides.",
         "mechanism": "Modulates HPA axis activity, lowering cortisol and supporting GABAergic signaling.",
         "is_regulated": False,
-        "compounds": ["Withanolides"],
+        "compounds": [
+            {"name": "Withanolides", "primary_target": "HPA axis / GABA-A receptor",
+             "role": "primary active constituent class", "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "pregnancy", "severity": "contraindication",
              "note": "Associated with abortifacient risk in animal studies; avoid."},
@@ -284,7 +302,12 @@ INTERVENTIONS: list[dict] = [
         "description": "Silybum marianum seed extract standardized for silymarin.",
         "mechanism": "Silymarin stabilizes hepatocyte membranes and upregulates Nrf2-mediated antioxidant defenses.",
         "is_regulated": False,
-        "compounds": ["Silymarin", "Silybin"],
+        "compounds": [
+            {"name": "Silymarin", "primary_target": "Nrf2", "role": "primary active constituent complex",
+             "pubchem_cid": None},
+            {"name": "Silybin", "primary_target": "Nrf2", "role": "most bioactive silymarin flavonolignan",
+             "pubchem_cid": None},
+        ],
         "safety_flags": [],
         "drug_interactions": [
             {"drug_name": "Statins", "severity": "low",
@@ -294,11 +317,14 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Berberine",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Isoquinoline alkaloid found in Berberis species, used for metabolic support.",
         "mechanism": "Activates AMPK, improving insulin sensitivity and hepatic lipid metabolism.",
         "is_regulated": False,
-        "compounds": ["Berberine hydrochloride"],
+        "compounds": [
+            {"name": "Berberine hydrochloride", "primary_target": "AMPK",
+             "role": "primary active constituent", "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "pregnancy", "severity": "contraindication",
              "note": "Crosses the placenta and may cause kernicterus; avoid."},
@@ -318,11 +344,16 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Omega-3",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "EPA/DHA marine or algal oil.",
         "mechanism": "Incorporates into cell membranes, resolving inflammation via specialized pro-resolving mediators and reducing NF-κB activation.",
         "is_regulated": False,
-        "compounds": ["EPA", "DHA"],
+        "compounds": [
+            {"name": "EPA", "primary_target": "Pro-resolving mediator synthesis (resolvins/protectins)",
+             "role": "primary active constituent", "pubchem_cid": None},
+            {"name": "DHA", "primary_target": "Membrane phospholipid remodeling",
+             "role": "primary active constituent", "pubchem_cid": None},
+        ],
         "safety_flags": [],
         "drug_interactions": [
             {"drug_name": "Warfarin", "severity": "moderate",
@@ -332,11 +363,14 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Alpha Lipoic Acid",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Mitochondrial cofactor and antioxidant, also known as ALA.",
         "mechanism": "Regenerates glutathione and other antioxidants; activates AMPK and improves insulin signaling.",
         "is_regulated": False,
-        "compounds": ["R-alpha lipoic acid"],
+        "compounds": [
+            {"name": "R-alpha lipoic acid", "primary_target": "AMPK / glutathione synthesis",
+             "role": "primary active constituent", "pubchem_cid": None},
+        ],
         "safety_flags": [],
         "drug_interactions": [
             {"drug_name": "Levothyroxine", "severity": "low",
@@ -348,11 +382,16 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Magnesium",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Essential mineral cofactor for over 300 enzymatic reactions (glycinate/citrate forms preferred for absorption).",
         "mechanism": "Cofactor for ATP-dependent enzymes; modulates NMDA receptor activity and vascular tone.",
         "is_regulated": False,
-        "compounds": ["Magnesium glycinate", "Magnesium citrate"],
+        "compounds": [
+            {"name": "Magnesium glycinate", "primary_target": "NMDA receptor / ATP-dependent enzymes",
+             "role": "highly bioavailable form", "pubchem_cid": None},
+            {"name": "Magnesium citrate", "primary_target": "NMDA receptor / ATP-dependent enzymes",
+             "role": "bioavailable form", "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "severe_ckd", "severity": "contraindication",
              "note": "Impaired renal clearance risks hypermagnesemia."},
@@ -361,11 +400,14 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Vitamin D",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Cholecalciferol (D3) supplementation.",
         "mechanism": "Binds the vitamin D receptor (VDR), regulating calcium homeostasis and innate/adaptive immune function.",
         "is_regulated": False,
-        "compounds": ["Cholecalciferol (D3)"],
+        "compounds": [
+            {"name": "Cholecalciferol (D3)", "primary_target": "Vitamin D receptor (VDR)",
+             "role": "primary active constituent", "pubchem_cid": None},
+        ],
         "safety_flags": [
             {"condition": "severe_ckd", "severity": "caution",
              "note": "High-dose D3 may worsen hyperphosphatemia in advanced CKD; use active forms under nephrology guidance."},
@@ -374,21 +416,31 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "NAD+ Precursors (NR/NMN)",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Nicotinamide riboside and nicotinamide mononucleotide, precursors to cellular NAD+.",
         "mechanism": "Replenish intracellular NAD+ pools, supporting sirtuin activity and mitochondrial function.",
         "is_regulated": False,
-        "compounds": ["Nicotinamide Riboside", "Nicotinamide Mononucleotide"],
+        "compounds": [
+            {"name": "Nicotinamide Riboside", "primary_target": "NAD+ salvage pathway (NRK1)",
+             "role": "NAD+ precursor", "pubchem_cid": None},
+            {"name": "Nicotinamide Mononucleotide", "primary_target": "NAD+ salvage pathway",
+             "role": "NAD+ precursor", "pubchem_cid": None},
+        ],
         "safety_flags": [],
         "drug_interactions": [],
     },
     {
         "name": "CoQ10",
-        "category": "nutraceutical",
+        "category": "supplement",
         "description": "Coenzyme Q10 (ubiquinone/ubiquinol), a mitochondrial electron transport chain cofactor.",
         "mechanism": "Facilitates mitochondrial ATP production and acts as a lipophilic antioxidant, often depleted by statin therapy.",
         "is_regulated": False,
-        "compounds": ["Ubiquinone", "Ubiquinol"],
+        "compounds": [
+            {"name": "Ubiquinone", "primary_target": "Mitochondrial electron transport chain (Complex I/II)",
+             "role": "oxidized form", "pubchem_cid": None},
+            {"name": "Ubiquinol", "primary_target": "Mitochondrial electron transport chain (Complex I/II)",
+             "role": "reduced, more bioavailable form", "pubchem_cid": None},
+        ],
         "safety_flags": [],
         "drug_interactions": [
             {"drug_name": "Warfarin", "severity": "low",
@@ -398,7 +450,7 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "Intermittent Fasting",
-        "category": "lifestyle",
+        "category": "behavior",
         "description": "Time-restricted eating protocol (commonly 16:8).",
         "mechanism": "Extends the post-absorptive state, activating AMPK and autophagy while suppressing mTOR signaling.",
         "is_regulated": False,
@@ -411,9 +463,29 @@ INTERVENTIONS: list[dict] = [
     },
     {
         "name": "HIIT",
-        "category": "lifestyle",
+        "category": "exercise",
         "description": "High-intensity interval training.",
         "mechanism": "Acutely activates AMPK and mitochondrial biogenesis programs; improves insulin sensitivity.",
+        "is_regulated": False,
+        "compounds": [],
+        "safety_flags": [],
+        "drug_interactions": [],
+    },
+    {
+        "name": "Mindfulness-Based Stress Reduction",
+        "category": "stress_reduction",
+        "description": "Structured meditation/breathwork practice (e.g. MBSR) shown to modulate the stress response.",
+        "mechanism": "Reduces HPA axis reactivity and downstream cortisol output; associated with reduced sympathetic tone.",
+        "is_regulated": False,
+        "compounds": [],
+        "safety_flags": [],
+        "drug_interactions": [],
+    },
+    {
+        "name": "Sleep Hygiene Optimization",
+        "category": "sleep",
+        "description": "Structured behavioral protocol to improve sleep duration/quality (consistent schedule, light exposure, wind-down routine).",
+        "mechanism": "Restores normal HPA axis rhythm and insulin sensitivity that are disrupted by short/poor-quality sleep.",
         "is_regulated": False,
         "compounds": [],
         "safety_flags": [],
@@ -474,4 +546,10 @@ EVIDENCE_CLAIMS: list[dict] = [
     {"intervention_name": "HIIT", "biomarker_name": "HbA1c", "pathway_code": "AMPK",
      "effect": "decreases", "evidence_level": "moderate", "pmid": "29143705",
      "summary": "Meta-analysis showing HIIT improves glycemic control comparably to moderate continuous exercise."},
+    {"intervention_name": "Mindfulness-Based Stress Reduction", "biomarker_name": None,
+     "pathway_code": "HPA_AXIS", "effect": "decreases", "evidence_level": "moderate", "pmid": "24395196",
+     "summary": "Meta-analysis of RCTs showing MBSR programs reduce cortisol and perceived stress."},
+    {"intervention_name": "Sleep Hygiene Optimization", "biomarker_name": "Glucose",
+     "pathway_code": "HPA_AXIS", "effect": "decreases", "evidence_level": "low", "pmid": "26194461",
+     "summary": "Observational evidence linking sleep-extension interventions to improved insulin sensitivity."},
 ]

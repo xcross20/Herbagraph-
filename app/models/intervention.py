@@ -27,3 +27,6 @@ class Intervention(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     drug_interactions: Mapped[list["DrugInteraction"]] = relationship(
         back_populates="intervention", cascade="all, delete-orphan"
     )
+    compounds: Mapped[list["InterventionCompound"]] = relationship(
+        back_populates="intervention", cascade="all, delete-orphan"
+    )

@@ -598,3 +598,33 @@ async def test_generate_reasoning_does_not_close_externally_provided_client():
     )
 
     mock_client.close.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# limitations field (Phase 1: "show your work" -- every recommendation states its limits)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_llm_response_preserves_limitations_field():
+    raw = make_llm_json(
+        recommendations=[
+            {**make_raw_recommendation(), "limitations": "Based on a single small RCT; short follow-up."}
+        ]
+    )
+    evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
+    result = parse_llm_response(raw, evidence)
+    assert result.recommendations[0].limitations == "Based on a single small RCT; short follow-up."
+
+
+def test_parse_llm_response_defaults_limitations_to_none_when_absent():
+    raw = make_llm_json(recommendations=[make_raw_recommendation()])
+    evidence = [make_evidence(intervention_name="Curcumin", external_id="PMID:111")]
+    result = parse_llm_response(raw, evidence)
+    assert result.recommendations[0].limitations is None
+
+
+def test_system_prompt_forbids_directive_dosing_language():
+    from app.pipeline.llm_reasoner import _SYSTEM_PROMPT
+
+    assert "never write" in _SYSTEM_PROMPT.lower() or "not to replace" in _SYSTEM_PROMPT.lower()
+    assert "limitations" in _SYSTEM_PROMPT.lower()

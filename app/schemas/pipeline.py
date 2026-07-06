@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import (
     EvidenceLevel,
+    EvidenceTier,
     InterventionCategory,
     LabResultStatus,
     PathwayDirection,
@@ -63,7 +64,12 @@ class EvidenceSnippet(BaseModel):
 
 
 class LLMRecommendation(BaseModel):
-    """A single recommendation as returned by Stage 5 (llm_reasoner), pre-safety-check."""
+    """A single recommendation as returned by Stage 5 (llm_reasoner), pre-safety-check.
+
+    `rationale` answers "why was this surfaced" and `limitations` answers "what this
+    evidence does NOT show" -- both are required so every recommendation "shows its work"
+    rather than presenting as a black-box verdict.
+    """
 
     intervention_name: str
     category: InterventionCategory
@@ -72,6 +78,7 @@ class LLMRecommendation(BaseModel):
     typical_dose: str | None = None
     cited_study_ids: list[str] = []
     rationale: str | None = None
+    limitations: str | None = None
 
 
 class LLMReasoningOutput(BaseModel):
@@ -84,7 +91,12 @@ class LLMReasoningOutput(BaseModel):
 
 
 class ScoredRecommendation(LLMRecommendation):
-    """A recommendation after Stage 6 (safety_layer) and Stage 7 (report_generator) scoring."""
+    """A recommendation after Stage 6 (safety_layer) and Stage 7 (report_generator) scoring.
+
+    `evidence_tier`/`evidence_tier_label` are computed deterministically from the actual
+    cited studies (see report_generator.determine_evidence_tier) rather than asserted by the
+    LLM, so the tier a user sees can't drift from what's really been retrieved.
+    """
 
     safety_risk: SafetyRiskLevel = SafetyRiskLevel.LOW
     safety_notes: list[str] = []
@@ -93,6 +105,8 @@ class ScoredRecommendation(LLMRecommendation):
     cited_urls: list[str] = []
     confidence_score: float | None = None
     food_sources: list[FoodSourceRead] | None = None
+    evidence_tier: EvidenceTier = EvidenceTier.RESEARCH_HYPOTHESIS
+    evidence_tier_label: str = "Research Hypothesis"
 
 
 class SafetyReport(BaseModel):

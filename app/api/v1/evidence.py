@@ -3,11 +3,13 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user, get_db
 from app.knowledge_graph.food_seed_data import COMPOUND_TO_FOOD_SOURCES, FOOD_TO_COMPOUNDS
 from app.models.biomarker import Biomarker
 from app.models.enums import InterventionCategory
+from app.models.compound import InterventionCompound
 from app.models.intervention import Intervention
 from app.models.pathway import Pathway
 from app.models.user import User
@@ -47,7 +49,11 @@ async def get_intervention(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Intervention:
-    result = await db.execute(select(Intervention).where(Intervention.id == intervention_id))
+    result = await db.execute(
+        select(Intervention)
+        .where(Intervention.id == intervention_id)
+        .options(selectinload(Intervention.compounds).selectinload(InterventionCompound.compound))
+    )
     intervention = result.scalar_one_or_none()
     if intervention is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intervention not found")

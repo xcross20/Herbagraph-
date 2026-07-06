@@ -157,7 +157,7 @@ def test_pregnancy_detection_is_case_insensitive_and_matches_substring():
 )
 def test_severe_ckd_excludes_expected_interventions(intervention_name):
     report = check_safety(
-        [make_rec(intervention_name, category=InterventionCategory.NUTRACEUTICAL)],
+        [make_rec(intervention_name, category=InterventionCategory.SUPPLEMENT)],
         profile(conditions=["severe chronic kidney disease"]),
     )
     excluded = excluded_by_name(report)
@@ -167,7 +167,7 @@ def test_severe_ckd_excludes_expected_interventions(intervention_name):
 
 def test_ckd_abbreviation_alone_is_detected():
     report = check_safety(
-        [make_rec("Magnesium", category=InterventionCategory.NUTRACEUTICAL)],
+        [make_rec("Magnesium", category=InterventionCategory.SUPPLEMENT)],
         profile(conditions=["CKD"]),
     )
     excluded = excluded_by_name(report)
@@ -210,7 +210,7 @@ def test_immunosuppressant_medication_alone_without_autoimmune_condition_does_no
 
 def test_unrelated_intervention_is_not_excluded_by_contraindications():
     report = check_safety(
-        [make_rec("Vitamin C", category=InterventionCategory.NUTRACEUTICAL)],
+        [make_rec("Vitamin C", category=InterventionCategory.SUPPLEMENT)],
         profile(conditions=["Pregnancy"]),
     )
     approved = approved_by_name(report)
@@ -292,3 +292,60 @@ def test_empty_recommendations_returns_empty_report():
     assert report.approved_recommendations == []
     assert report.excluded_recommendations == []
     assert report.requires_clinician_review is False
+
+
+# ---------------------------------------------------------------------------
+# Liver/kidney warning stage (soft caution, not an exclusion)
+# ---------------------------------------------------------------------------
+
+
+def test_egcg_gets_liver_caution_note_with_liver_disease():
+    report = check_safety(
+        [make_rec("EGCG", category=InterventionCategory.PHYTOCHEMICAL)],
+        profile(conditions=["liver disease"]),
+    )
+    approved = approved_by_name(report)
+    assert "EGCG" in approved
+    rec = approved["EGCG"]
+    assert rec.safety_risk == SafetyRiskLevel.MODERATE
+    assert any("hepatotoxicity" in note.lower() for note in rec.safety_notes)
+    assert report.requires_clinician_review is True
+
+
+def test_egcg_not_flagged_without_liver_disease():
+    report = check_safety(
+        [make_rec("EGCG", category=InterventionCategory.PHYTOCHEMICAL)],
+        profile(conditions=[]),
+    )
+    approved = approved_by_name(report)
+    assert approved["EGCG"].safety_risk == SafetyRiskLevel.LOW
+    assert approved["EGCG"].safety_notes == []
+
+
+def test_liver_caution_does_not_exclude_the_recommendation():
+    report = check_safety(
+        [make_rec("EGCG", category=InterventionCategory.PHYTOCHEMICAL)],
+        profile(conditions=["hepatitis"]),
+    )
+    assert len(report.approved_recommendations) == 1
+    assert len(report.excluded_recommendations) == 0
+
+
+def test_liver_caution_only_applies_to_flagged_interventions():
+    report = check_safety(
+        [make_rec("Vitamin C", category=InterventionCategory.SUPPLEMENT)],
+        profile(conditions=["cirrhosis"]),
+    )
+    approved = approved_by_name(report)
+    assert approved["Vitamin C"].safety_risk == SafetyRiskLevel.LOW
+    assert approved["Vitamin C"].safety_notes == []
+
+
+def test_liver_caution_does_not_downgrade_an_existing_higher_risk():
+    report = check_safety(
+        [make_rec("Berberine", category=InterventionCategory.SUPPLEMENT)],
+        profile(medications=["cyclosporine"], conditions=["fatty liver"]),
+    )
+    approved = approved_by_name(report)
+    # Berberine+Cyclosporine is HIGH severity; liver caution (MODERATE) must not downgrade it.
+    assert approved["Berberine"].safety_risk == SafetyRiskLevel.HIGH

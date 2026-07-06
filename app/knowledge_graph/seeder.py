@@ -11,6 +11,7 @@ from app.knowledge_graph.food_seed_data import (
 )
 from app.knowledge_graph.seed_data import BIOMARKERS, EVIDENCE_CLAIMS, INTERVENTIONS, PATHWAYS
 from app.models.biomarker import Biomarker
+from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import EvidenceClaim
 from app.models.food_compound_source import FoodCompoundSource
 from app.models.intervention import Intervention
@@ -18,7 +19,7 @@ from app.models.pathway import Pathway
 from app.models.safety import DrugInteraction, SafetyFlag
 
 
-def _build_intervention(data: dict) -> Intervention:
+def _build_intervention(data: dict, compound_by_name: dict[str, Compound]) -> Intervention:
     intervention = Intervention(
         name=data["name"],
         category=data["category"],
@@ -40,6 +41,16 @@ def _build_intervention(data: dict) -> Intervention:
                 note=interaction.get("note"),
             )
         )
+    for compound_data in data.get("compounds", []):
+        compound = compound_by_name.get(compound_data["name"])
+        if compound is None:
+            compound = Compound(
+                name=compound_data["name"],
+                primary_target=compound_data.get("primary_target"),
+                pubchem_cid=compound_data.get("pubchem_cid"),
+            )
+            compound_by_name[compound_data["name"]] = compound
+        intervention.compounds.append(InterventionCompound(compound=compound, role=compound_data.get("role")))
     return intervention
 
 
@@ -60,8 +71,9 @@ async def seed_knowledge_graph(db: AsyncSession) -> dict[str, int]:
         db.add(Pathway(**pathway))
 
     intervention_by_name: dict[str, Intervention] = {}
+    compound_by_name: dict[str, Compound] = {}
     for data in [*INTERVENTIONS, *PHYTOCHEMICAL_COMPOUNDS, *FOOD_INTERVENTIONS]:
-        intervention = _build_intervention(data)
+        intervention = _build_intervention(data, compound_by_name)
         db.add(intervention)
         intervention_by_name[data["name"]] = intervention
 

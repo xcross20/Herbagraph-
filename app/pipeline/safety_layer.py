@@ -1,8 +1,15 @@
 """Stage 6: Safety Layer.
 
-Checks every LLM-generated recommendation against a drug-herb interaction
-database, a contraindication database, and a regulated/emerging-intervention
-list. Contraindicated recommendations are removed from the final report.
+Runs every LLM-generated recommendation through an explicit staged safety pipeline, in order:
+
+    1. Drug interaction check   (_matched_drug_interactions)
+    2. Contraindication check   (_active_contraindication_keys / _CONTRAINDICATIONS)
+    3. Pregnancy check          (folded into step 2, but always evaluated first within it)
+    4. Kidney/Liver warning     (_matched_liver_caution -- a soft flag, not an exclusion)
+    5. Regulated-intervention flagging (_REGULATED_INTERVENTIONS)
+
+Recommendations that fail step 2 are removed from the final report entirely (excluded_recommendations);
+everything else is annotated and passed through to Stage 7 (report_generator) for evidence grading.
 """
 
 import re
@@ -94,6 +101,14 @@ _CONTRAINDICATIONS: dict[str, list[str]] = {
     "autoimmune_on_immunosuppressants": ["ashwagandha", "echinacea"],
 }
 
+# intervention name (lowercase) -> caution note surfaced (not excluded) when the patient's
+# health profile indicates liver disease. Softer than _CONTRAINDICATIONS: these compounds
+# aren't unsafe outright, but warrant a visible warning per the "Kidney/Liver warning" stage.
+_LIVER_CAUTION_INTERVENTIONS: dict[str, str] = {
+    "egcg": "Concentrated EGCG extract (not brewed green tea) carries a rare hepatotoxicity "
+    "signal at high doses; use caution with pre-existing liver disease.",
+}
+
 # intervention name (lowercase) -> regulation note
 _REGULATED_INTERVENTIONS: dict[str, str] = {
     "bpc-157": "BPC-157 is an investigational peptide with no FDA-approved indication. "
@@ -114,9 +129,14 @@ _AUTOIMMUNE_CONDITION_RE = re.compile(
 _IMMUNOSUPPRESSANT_RE = re.compile(
     r"\b(immunosuppressant|cyclosporine|tacrolimus|azathioprine|methotrexate|biologic)", re.IGNORECASE
 )
+_LIVER_CONDITION_RE = re.compile(
+    r"\b(liver\s+disease|hepatitis|cirrhosis|nafld|fatty\s+liver|hepatic\s+impairment)", re.IGNORECASE
+)
 
 
 def _active_contraindication_keys(health_profile: dict) -> set[str]:
+    """Step 2 (contraindication check) + step 3 (pregnancy check): which exclusion categories
+    apply to this patient. Pregnancy is checked first/independently, per the safety pipeline."""
     conditions = " ".join(health_profile.get("known_conditions", []) or [])
     medications = " ".join(health_profile.get("current_medications", []) or [])
 
@@ -128,6 +148,14 @@ def _active_contraindication_keys(health_profile: dict) -> set[str]:
     if _AUTOIMMUNE_CONDITION_RE.search(conditions) and _IMMUNOSUPPRESSANT_RE.search(medications):
         active.add("autoimmune_on_immunosuppressants")
     return active
+
+
+def _matched_liver_caution(intervention_name: str, health_profile: dict) -> str | None:
+    """Step 4 (kidney/liver warning): a soft caution note, not an exclusion."""
+    conditions = " ".join(health_profile.get("known_conditions", []) or [])
+    if not _LIVER_CONDITION_RE.search(conditions):
+        return None
+    return _LIVER_CAUTION_INTERVENTIONS.get(intervention_name.lower())
 
 
 def _matched_drug_interactions(intervention_name: str, medications: list[str]) -> list[dict]:
@@ -195,6 +223,12 @@ def check_safety(recommendations: list[LLMRecommendation], health_profile: dict)
             f"{i['drug_name']}: {i['mechanism']}" + (f" ({i['note']})" if i.get("note") else "")
             for i in interactions
         ]
+
+        liver_caution = _matched_liver_caution(rec.intervention_name, health_profile)
+        if liver_caution:
+            safety_notes.append(liver_caution)
+            if _SEVERITY_ORDER.index(SafetyRiskLevel.MODERATE) > _SEVERITY_ORDER.index(safety_risk):
+                safety_risk = SafetyRiskLevel.MODERATE
 
         if safety_risk in (SafetyRiskLevel.MODERATE, SafetyRiskLevel.HIGH):
             high_risk_names.append(rec.intervention_name)

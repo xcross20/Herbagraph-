@@ -5,7 +5,9 @@ from pydantic import BaseModel, ConfigDict
 
 from app.models.enums import (
     EvidenceLevel,
+    EvidenceTier,
     InterventionCategory,
+    LabResultStatus,
     PathwayDirection,
     SafetyRiskLevel,
     StudySource,
@@ -22,6 +24,15 @@ class PathwayActivationRead(BaseModel):
     contributing_biomarkers: list[str] = []
 
 
+class BiomarkerInterpretation(BaseModel):
+    """Plain-language interpretation of a single abnormal biomarker (the "Biomarker
+    interpretation" output, distinct from the aggregate BiomarkerSummary counts)."""
+
+    biomarker_name: str
+    status: LabResultStatus
+    interpretation: str
+
+
 class RecommendationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,8 +41,12 @@ class RecommendationRead(BaseModel):
     category: InterventionCategory
     mechanism: str | None = None
     evidence_level: EvidenceLevel
+    evidence_tier: EvidenceTier
+    evidence_tier_label: str
     confidence_score: float
     typical_dose: str | None = None
+    rationale: str | None = None
+    limitations: str | None = None
     safety_risk: SafetyRiskLevel
     safety_notes: list[str] = []
     interactions: list[str] = []
@@ -74,6 +89,7 @@ class RecommendationReportRead(BaseModel):
     model_version: str
     executive_summary: str
     biomarker_summary: BiomarkerSummary
+    biomarker_interpretations: list[BiomarkerInterpretation] = []
     pathway_activations: list[PathwayActivationRead]
     recommendations: list[RecommendationRead]
     citations: list[CitationRead]
