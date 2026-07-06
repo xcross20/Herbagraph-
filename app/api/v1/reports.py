@@ -45,6 +45,13 @@ async def generate_recommendation_report(
             detail=f"Lab report is not ready for report generation (status={lab_report.status.value})",
         )
 
+    await db.refresh(lab_report, attribute_names=["lab_results"])
+    if not lab_report.lab_results:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Lab report has no parsed biomarkers. Re-upload the file or wait for processing to finish.",
+        )
+
     active_stages = {
         ReportGenerationStage.QUEUED,
         ReportGenerationStage.PATHWAY_MAPPING,

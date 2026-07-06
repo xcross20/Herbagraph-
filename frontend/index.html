@@ -299,9 +299,20 @@ async function waitForReportComplete(labReportId) {
 function renderPatientSummary(report) {
   const bs = report.biomarker_summary;
   const interpretations = report.biomarker_interpretations || [];
+  const measured = bs.measured_biomarkers || [];
   let html = `<p>${escapeHtml(report.executive_summary)}</p>`;
-  html += `<p>${bs.total_biomarkers} biomarkers measured, ${bs.abnormal_count} outside reference range.</p>`;
-  if (interpretations.length) {
+  html += `<p>${bs.total_biomarkers} key biomarkers measured, ${bs.abnormal_count} outside reference range.</p>`;
+  if (measured.length) {
+    html += "<table><tr><th>Biomarker</th><th>Value</th><th>Status</th><th>Reference Range</th></tr>";
+    for (const m of measured) {
+      const range = (m.reference_range_low != null && m.reference_range_high != null)
+        ? `${m.reference_range_low} - ${m.reference_range_high}`
+        : (m.reference_range_low != null ? `> ${m.reference_range_low}` : (m.reference_range_high != null ? `< ${m.reference_range_high}` : "-"));
+      html += `<tr><td>${escapeHtml(m.biomarker_name)}</td><td>${m.value}${m.unit ? " " + escapeHtml(m.unit) : ""}</td>` +
+        `<td>${escapeHtml(m.status)}</td><td>${escapeHtml(range)}</td></tr>`;
+    }
+    html += "</table>";
+  } else if (interpretations.length) {
     html += "<table><tr><th>Biomarker</th><th>Status</th><th>Interpretation</th></tr>";
     for (const i of interpretations) {
       html += `<tr><td>${escapeHtml(i.biomarker_name)}</td><td>${escapeHtml(i.status)}</td><td>${escapeHtml(i.interpretation)}</td></tr>`;
@@ -326,7 +337,11 @@ function renderBiologicalSystems(report) {
 function renderRecommendations(report) {
   const recs = report.recommendations || [];
   if (!recs.length) {
-    document.getElementById("recommendations-body").innerHTML = "<p>No recommendations were surfaced from the available evidence.</p>";
+    const bs = report.biomarker_summary || {};
+    const msg = bs.abnormal_count === 0 && bs.total_biomarkers > 0
+      ? "Your tracked biomarkers are within range. HerbaGraph surfaces evidence-backed recommendations when abnormal values activate biological pathways — nothing was flagged in this panel."
+      : "No recommendations were surfaced. The lab file may not have parsed correctly — try re-uploading or use a demo sample from samples/lab_reports/.";
+    document.getElementById("recommendations-body").innerHTML = `<p>${escapeHtml(msg)}</p>`;
     return;
   }
   let html = "";

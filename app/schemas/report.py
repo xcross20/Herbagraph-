@@ -92,11 +92,21 @@ class CitationRead(BaseModel):
     quality_score: float | None = None
 
 
+class MeasuredBiomarkerRead(BaseModel):
+    biomarker_name: str
+    value: float
+    unit: str | None = None
+    status: LabResultStatus
+    reference_range_low: float | None = None
+    reference_range_high: float | None = None
+
+
 class BiomarkerSummary(BaseModel):
     total_biomarkers: int
     abnormal_count: int
     normal_count: int
     categories_affected: dict[str, int] = {}
+    measured_biomarkers: list[MeasuredBiomarkerRead] = []
 
 
 class SafetySummary(BaseModel):

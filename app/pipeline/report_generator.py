@@ -144,9 +144,33 @@ def _attach_food_sources(recommendation: ScoredRecommendation) -> list[FoodSourc
     return [FoodSourceRead(**s) for s in sources]
 
 
+def _mvp_tracked_labs(normalized_labs: list[NormalizedLabResult]) -> list[NormalizedLabResult]:
+    from app.pipeline.biomarker_normalizer import get_reference_data
+
+    return [lab for lab in normalized_labs if get_reference_data(lab.biomarker_name)]
+
+
+def _measured_biomarker_rows(tracked_labs: list[NormalizedLabResult]) -> list[dict]:
+    rows = []
+    for lab in sorted(tracked_labs, key=lambda x: x.biomarker_name):
+        rows.append(
+            {
+                "biomarker_name": lab.biomarker_name,
+                "value": lab.value,
+                "unit": lab.unit,
+                "status": lab.status.value,
+                "reference_range_low": lab.reference_range_low,
+                "reference_range_high": lab.reference_range_high,
+            }
+        )
+    return rows
+
+
 def _biomarker_summary(normalized_labs: list[NormalizedLabResult]) -> dict:
-    total = len(normalized_labs)
-    abnormal = [lab for lab in normalized_labs if lab.status.value not in ("normal", "optimal")]
+    tracked = _mvp_tracked_labs(normalized_labs)
+    total = len(tracked) if tracked else len(normalized_labs)
+    source = tracked if tracked else normalized_labs
+    abnormal = [lab for lab in source if lab.status.value not in ("normal", "optimal")]
     normal = total - len(abnormal)
     categories: dict[str, int] = {}
     for lab in abnormal:
@@ -157,6 +181,7 @@ def _biomarker_summary(normalized_labs: list[NormalizedLabResult]) -> dict:
         "abnormal_count": len(abnormal),
         "normal_count": normal,
         "categories_affected": categories,
+        "measured_biomarkers": _measured_biomarker_rows(tracked),
     }
 
 
@@ -186,8 +211,13 @@ def _biomarker_interpretations(normalized_labs: list[NormalizedLabResult]) -> li
 def _executive_summary(biomarker_pattern_analysis: str, biomarker_summary: dict) -> str:
     if biomarker_pattern_analysis:
         return biomarker_pattern_analysis
+    if biomarker_summary["abnormal_count"] == 0 and biomarker_summary["total_biomarkers"] > 0:
+        return (
+            f"Parsed {biomarker_summary['total_biomarkers']} key biomarkers from your lab report. "
+            "All tracked values are within reference ranges — no pathway-specific interventions were flagged."
+        )
     if biomarker_summary["abnormal_count"] == 0:
-        return "All measured biomarkers fell within normal reference ranges."
+        return "No biomarkers were parsed from this lab report."
     return (
         f"Your labs show {biomarker_summary['abnormal_count']} of {biomarker_summary['total_biomarkers']} "
         "biomarkers outside their reference range, implicating one or more biological pathways addressed below."

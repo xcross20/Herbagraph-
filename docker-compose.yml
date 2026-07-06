@@ -33,7 +33,7 @@ services:
     depends_on:
       - db
       - redis
-    command: celery -A app.workers.celery_app worker --loglevel=info
+    command: celery -A app.workers.celery_app worker --loglevel=info --autoreload
     volumes:
       - .:/srv
       - uploads:/tmp/herbagraph/uploads

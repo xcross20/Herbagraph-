@@ -136,8 +136,22 @@ async def generate_reasoning(
 ) -> LLMReasoningOutput:
     """Stage 5 entry point: call the LLM and return a citation-verified LLMReasoningOutput."""
     if not evidence_snippets:
+        abnormal = [lab for lab in normalized_labs if lab.status.value not in ("normal", "optimal")]
+        if not abnormal:
+            analysis = (
+                "Your tracked biomarkers are within reference ranges. No abnormal pathway signals "
+                "were detected, so evidence-backed intervention recommendations were not generated. "
+                "See the measured biomarker panel below for your parsed lab values."
+            )
+        elif not pathway_activations:
+            analysis = (
+                "Abnormal biomarkers were detected but did not map to pathway rules in the MVP panel. "
+                "No supporting evidence was retrieved."
+            )
+        else:
+            analysis = "No supporting evidence was retrieved for the activated pathways."
         return LLMReasoningOutput(
-            biomarker_pattern_analysis="No supporting evidence was retrieved for the activated pathways.",
+            biomarker_pattern_analysis=analysis,
             pathway_summaries=[],
             recommendations=[],
             clinician_questions=[],
