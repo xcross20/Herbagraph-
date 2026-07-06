@@ -42,6 +42,21 @@ _PATTERN_CSV = re.compile(
     rf"(?P<unit>[^,]*?)\s*,\s*(?P<low>{_NUM})\s*,\s*(?P<high>{_NUM})\s*$"
 )
 
+# Pattern 5: Quest PDF export "GLUCOSE 76 Reference Range: 65-99 mg/dL"
+_PATTERN_QUEST_REF = re.compile(
+    rf"^(?P<name>[A-Za-z][A-Za-z0-9/(),.'%\- ]{{1,60}}?)\s+"
+    rf"(?P<value>{_NUM})\s+"
+    rf"Reference Range:\s*(?P<range>.+?)\s*$",
+    re.IGNORECASE,
+)
+
+_RANGE_DASH = re.compile(
+    rf"^(?P<low>{_NUM})\s*[-–]\s*(?P<high>{_NUM})\s*(?P<unit>.*)$",
+    re.IGNORECASE,
+)
+_RANGE_GT = re.compile(rf"^>\s*(?:=?\s*)?(?P<low>{_NUM})\s*(?P<unit>.*)$", re.IGNORECASE)
+_RANGE_LT = re.compile(rf"^<\s*(?:=?\s*)?(?P<high>{_NUM})\s*(?P<unit>.*)$", re.IGNORECASE)
+
 _PATTERNS = (_PATTERN_PAREN_RANGE, _PATTERN_PLAIN_RANGE, _PATTERN_PIPE, _PATTERN_CSV)
 
 
@@ -49,11 +64,76 @@ def _to_float(raw: str) -> float:
     return float(raw.strip().lstrip("<>").strip())
 
 
+def _clean_unit(raw: str | None) -> str | None:
+    if not raw:
+        return None
+    unit = raw.strip()
+    unit = re.sub(r"\s*\(calc\)\s*$", "", unit, flags=re.IGNORECASE)
+    unit = re.sub(r"\s*calc\s*$", "", unit, flags=re.IGNORECASE)
+    unit = unit.strip()
+    return unit or None
+
+
+def _parse_quest_reference_range(range_part: str) -> tuple[float | None, float | None, str | None] | None:
+    """Parse Quest 'Reference Range:' tail into (low, high, unit)."""
+    cleaned = range_part.strip()
+    if not cleaned or cleaned.upper() in {"NEGATIVE", "NON-REACTIVE", "REACTIVE", "CLEAR", "YELLOW", "NONE SEEN"}:
+        return None
+
+    for pattern, parser in (
+        (_RANGE_DASH, lambda m: (m.group("low"), m.group("high"), m.group("unit"))),
+        (_RANGE_GT, lambda m: (m.group("low"), None, m.group("unit"))),
+        (_RANGE_LT, lambda m: (None, m.group("high"), m.group("unit"))),
+    ):
+        match = pattern.match(cleaned)
+        if not match:
+            continue
+        low_raw, high_raw, unit_raw = parser(match)
+        try:
+            low = _to_float(low_raw) if low_raw is not None else 0.0
+            high = _to_float(high_raw) if high_raw is not None else low * 10 if low > 0 else 9999.0
+        except ValueError:
+            continue
+        return low, high, _clean_unit(unit_raw)
+
+    return None
+
+
+def _parse_quest_ref_line(line: str) -> ParsedLabResult | None:
+    match = _PATTERN_QUEST_REF.match(line.strip())
+    if not match:
+        return None
+    groups = match.groupdict()
+    try:
+        value = _to_float(groups["value"])
+    except ValueError:
+        return None
+    parsed_range = _parse_quest_reference_range(groups["range"])
+    if parsed_range is None:
+        return None
+    low, high, unit = parsed_range
+    name = groups["name"].strip().rstrip(":").strip()
+    if not name:
+        return None
+    return ParsedLabResult(
+        raw_test_name=name,
+        value=value,
+        unit=unit,
+        reference_range_low=low,
+        reference_range_high=high,
+        raw_line=line.strip(),
+    )
+
+
 def parse_lab_line(line: str) -> ParsedLabResult | None:
     """Attempt to parse a single line of lab report text against the four layered patterns."""
     stripped = line.strip()
     if not stripped:
         return None
+
+    quest = _parse_quest_ref_line(stripped)
+    if quest is not None:
+        return quest
 
     for pattern in _PATTERNS:
         match = pattern.match(stripped)

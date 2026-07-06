@@ -1,0 +1,198 @@
+LEWIS,IMMANUEL
+DOB: 01/07/1992 Age: 33 Specimen: DZ337904P Collected: 03/28/2025 11:53 Client #: 10903989
+Sex: M Fasting: Y Requisition: 0020897 Received: 03/28/2025 11:59 REGI,GISHA
+Phone: (626) 975-8100 Lab Reference ID: 77861CE22586 Reported: 04/02/2025 00:05 LIVINGSPRING FAM MED CTR
+Patient ID: 6507 Report Status: FINAL / SEE REPORT 3807 E BROAD ST STE 101
+MANSFIELD, TX 76063-5623
+Phone: (817) 717-9597
+Fax: (833) 992-1938
+FASTING:YES ; PATIENT NOT FASTING; ADVISED TO RETURN FOR COLLECTION.
+URINALYSIS, COMPLETE W/REFLEX TO CULTURE
+Analyte Value
+COLOR DARK YELLOW Reference Range: YELLOW
+APPEARANCE CLEAR Reference Range: CLEAR
+SPECIFIC GRAVITY 1.022 Reference Range: 1.001-1.035
+PH 7.0 Reference Range: 5.0-8.0
+GLUCOSE NEGATIVE Reference Range: NEGATIVE
+BILIRUBIN NEGATIVE Reference Range: NEGATIVE
+KETONES 1+ Reference Range: NEGATIVE
+OCCULT BLOOD NEGATIVE Reference Range: NEGATIVE
+PROTEIN NEGATIVE Reference Range: NEGATIVE
+NITRITE NEGATIVE Reference Range: NEGATIVE
+LEUKOCYTE ESTERASE NEGATIVE Reference Range: NEGATIVE
+WBC NONE SEEN Reference Range: < OR = 5 /HPF
+RBC NONE SEEN Reference Range: < OR = 2 /HPF
+SQUAMOUS EPITHELIAL CELLS NONE SEEN Reference Range: < OR = 5 /HPF
+BACTERIA NONE SEEN Reference Range: NONE SEEN /HPF
+HYALINE CAST NONE SEEN Reference Range: NONE SEEN /LPF
+NOTE
+This urine was analyzed for the presence of WBC,
+RBC, bacteria, casts, and other formed elements.
+Only those elements seen were reported.
+REFLEXIVE URINE CULTURE
+NO CULTURE INDICATED
+HEPATITIS PANEL, ACUTE W/REFLEX TO CONFIRMATION
+Analyte Value
+HEPATITIS A IGM NON-REACTIVE Reference Range: NON-REACTIVE
+COMMENT See Note 1
+HEPATITIS B SURFACE ANTIGEN NON-REACTIVE Reference Range: NON-REACTIVE
+COMMENT See Note 1
+HEPATITIS B CORE ANTIBODY (IGM) NON-REACTIVE Reference Range: NON-REACTIVE
+COMMENT See Note 1
+LEWIS,IMMANUEL (DZ337904P) 1 / 5 7/6/26
+HEPATITIS C ANTIBODY NON-REACTIVE Reference Range: NON-REACTIVE
+HCV antibody was non-reactive. There is no laboratory evidence of HCV infection.
+In most cases, no further action is required. However, if recent HCV exposure is suspected, a test for HCV
+RNA (test code 35645) is suggested.
+For additional information please refer to http://education.questdiagnostics.com/faq/FAQ22v1 (This link is
+being provided for informational/ educational purposes only.)
+COMPREHENSIVE METABOLIC PANEL
+Analyte Value
+GLUCOSE 76 Reference Range: 65-99 mg/dL
+Fasting reference interval
+UREA NITROGEN (BUN) 12 Reference Range: 7-25 mg/dL
+CREATININE 0.87 Reference Range: 0.60-1.26 mg/dL
+EGFR 117 Reference Range: > OR = 60 mL/min/1.73m2
+BUN/CREATININE RATIO SEE NOTE: Reference Range: 6-22 (calc)
+Not Reported: BUN and Creatinine are within
+reference range.
+SODIUM 139 Reference Range: 135-146 mmol/L
+POTASSIUM 4.0 Reference Range: 3.5-5.3 mmol/L
+CHLORIDE 101 Reference Range: 98-110 mmol/L
+CARBON DIOXIDE 30 Reference Range: 20-32 mmol/L
+CALCIUM 9.6 Reference Range: 8.6-10.3 mg/dL
+PROTEIN, TOTAL 7.1 Reference Range: 6.1-8.1 g/dL
+ALBUMIN 4.7 Reference Range: 3.6-5.1 g/dL
+GLOBULIN 2.4 Reference Range: 1.9-3.7 g/dL (calc)
+ALBUMIN/GLOBULIN RATIO 2.0 Reference Range: 1.0-2.5 (calc)
+BILIRUBIN, TOTAL 0.9 Reference Range: 0.2-1.2 mg/dL
+ALKALINE PHOSPHATASE 76 Reference Range: 36-130 U/L
+AST 23 Reference Range: 10-40 U/L
+ALT 24 Reference Range: 9-46 U/L
+CHLAMYDIA/N. GONORRHOEAE RNA, TMA, UROGENITAL
+Analyte Value
+CHLAMYDIA TRACHOMATIS RNA, TMA, UROGENITAL NOT DETECTED Reference Range: NOT DETECTED
+NEISSERIA GONORRHOEAE RNA, TMA, NOT DETECTED Reference Range: NOT DETECTED
+UROGENITAL
+COMMENT
+The analytical performance characteristics of this
+assay, when used to test SurePath(TM) specimens have been
+determined by Quest Diagnostics. The modifications have
+not been cleared or approved by the FDA. This assay has
+been validated pursuant to the CLIA regulations and is
+used for clinical purposes.
+For additional information, please refer to
+https://education.questdiagnostics.com/faq/FAQ154
+(This link is being provided for information/
+educational purposes only.)
+HIV 1/2 ANTIGEN/ANTIBODY,FOURTH GENERATION W/RFL
+LEWIS,IMMANUEL (DZ337904P) 2 / 5 7/6/26
+HIV 1/2 ANTIGEN/ANTIBODY,FOURTH GENERATION W/RFL
+Analyte Value
+HIV AG/AB, 4TH GEN NON-REACTIVE Reference Range: NON-REACTIVE
+HIV-1 antigen and HIV-1/HIV-2 antibodies were not detected. There is no
+laboratory evidence of HIV infection.
+PLEASE NOTE: This information has been disclosed to you from records whose
+confidentiality may be protected by state law. If your state requires such
+protection, then the state law prohibits you from making any further disclosure
+of the information without the specific written consent of the person to whom
+it pertains, or as otherwise permitted by law. A general authorization for the
+release of medical or other information is NOT sufficient for this purpose.
+CARDIO IQ® LIPID PANEL
+CARDIO IQ® CHOLESTEROL, TOTAL
+Analyte Value
+CHOLESTEROL, TOTAL 126 Reference Range: <200 mg/dL
+CARDIO IQ® HDL CHOLESTEROL
+Analyte Value
+HDL CHOLESTEROL 56 Reference Range: >39 mg/dL
+CARDIO IQ® TRIGLYCERIDES
+Analyte Value
+TRIGLYCERIDES 47 Reference Range: <150 mg/dL
+CARDIO IQ® NON-HDL AND CALCULATED COMPONENTS
+Analyte Value
+LDL-CHOLESTEROL 57 Reference Range: <100 mg/dL (calc)
+Desirable range <100 mg/dL for primary prevention; <70 mg/dL for patients with CHD or diabetic patients
+with>= 2 CHD risk factors. LDL-C is now calculated using the Martin-Hopkins calculation, which is a
+validated novel method providing better accuracy than the Friedewald equation in the estimation of LDL-C.
+Martin SS et al. JAMA. 2013;310(19): 2061-2068 (http://education.QuestDiagnostics.com/faq/FAQ164)
+LDL-C is now calculated using the Martin-Hopkins calculation, which is a validated novel method providing
+better accuracy than the Friedewald equation in the estimation of LDL-C. Martin SS et al. JAMA.
+2013;310(19): 2061-2068 (http://education.QuestDiagnostics.com/faq/FAQ164)
+CHOL/HDLC RATIO 2.3 Reference Range: <5.0 calc
+NON HDL CHOLESTEROL 70 Reference Range: <130 mg/dL (calc)
+For patients with diabetes plus 1 major ASCVD risk factor, treating to a non-HDL-C goal of <100 mg/dL (LDL-C
+of <70 mg/dL) is considered a therapeutic option.
+For patients with diabetes plus 1 major ASCVD risk factor, treating to a non-HDL-C goal of <100 mg/dL (LDL-C
+of <70 mg/dL) is considered a therapeutic option.
+CBC (INCLUDES DIFF/PLT)
+Analyte Value
+WHITE BLOOD CELL COUNT 4.4 Reference Range: 3.8-10.8 Thousand/uL
+RED BLOOD CELL COUNT 5.23 Reference Range: 4.20-5.80 Million/uL
+HEMOGLOBIN 14.9 Reference Range: 13.2-17.1 g/dL
+HEMATOCRIT 45.5 Reference Range: 38.5-50.0 %
+MCV 87.0 Reference Range: 80.0-100.0 fL
+MCH 28.5 Reference Range: 27.0-33.0 pg
+LEWIS,IMMANUEL (DZ337904P) 3 / 5 7/6/26
+MCHC 32.7 Reference Range: 32.0-36.0 g/dL
+For adults, a slight decrease in the calculated MCHC
+value (in the range of 30 to 32 g/dL) is most likely
+not clinically significant; however, it should be
+interpreted with caution in correlation with other
+red cell parameters and the patient's clinical
+condition.
+RDW 11.9 Reference Range: 11.0-15.0 %
+PLATELET COUNT 259 Reference Range: 140-400 Thousand/uL
+MPV 10.1 Reference Range: 7.5-12.5 fL
+ABSOLUTE NEUTROPHILS 2024 Reference Range: 1500-7800 cells/uL
+ABSOLUTE LYMPHOCYTES 1707 Reference Range: 850-3900 cells/uL
+ABSOLUTE MONOCYTES 440 Reference Range: 200-950 cells/uL
+ABSOLUTE EOSINOPHILS 220 Reference Range: 15-500 cells/uL
+ABSOLUTE BASOPHILS 9 Reference Range: 0-200 cells/uL
+NEUTROPHILS 46 %
+LYMPHOCYTES 38.8 %
+MONOCYTES 10.0 %
+EOSINOPHILS 5.0 %
+BASOPHILS 0.2 %
+TSH W/REFLEX TO FT4
+Analyte Value
+TSH W/REFLEX TO FT4 0.55 Reference Range: 0.40-4.50 mIU/L
+HEMOGLOBIN A1c
+Analyte Value
+HEMOGLOBIN A1c 5.3 Reference Range: <5.7 % of total Hgb
+For the purpose of screening for the presence of
+diabetes:
+<5.7% Consistent with the absence of diabetes
+5.7-6.4% Consistent with increased risk for diabetes
+(prediabetes)
+> or =6.5% Consistent with diabetes
+This assay result is consistent with a decreased risk
+of diabetes.
+Currently, no consensus exists regarding use of
+hemoglobin A1c for diagnosis of diabetes in children.
+According to American Diabetes Association (ADA)
+guidelines, hemoglobin A1c <7.0% represents optimal
+control in non-pregnant diabetic patients. Different
+metrics may apply to specific patient populations.
+Standards of Medical Care in Diabetes(ADA).
+RPR (DX) W/REFL TITER AND T. PALLIDUM AB, IA
+Analyte Value
+RPR (DX) W/REFL TITER AND CONFIRMATORY NON-REACTIVE Reference Range: NON-REACTIVE
+TESTING
+No laboratory evidence of syphilis. If recent exposure
+is suspected, submit a new sample in 2-4 weeks.
+LEWIS,IMMANUEL (DZ337904P) 4 / 5 7/6/26
+Note 1 For additional information, please refer to
+http://education.questdiagnostics.com/faq/FAQ202 (This link is being provided for
+informational/ educational purposes only.)
+Performing Sites
+IG Quest Diagnostics-Dallas Lab, 4770 Regent Blvd, Irving, TX 75063-2445 Laboratory Director: Clare McCormick-Baw MD, PhD
+Z4M Cleveland HeartLab Inc.-Cleveland HeartLab Inc., 6701 Carnegie Ave, Suite 500, Cleveland, OH 44103-4638 Laboratory Director: Mohammad Q
+Ansari
+Key
+Priority Out of Range Out of Range
+These results have been sent to the person who ordered the tests. Your receipt of these results should not be viewed as medical advice and is not meant to replace discussion with your
+doctor or other healthcare professional.
+Quest, Quest Diagnostics, the associated logo, Nichols Institute, Interactive Insights and all associated Quest Diagnostics marks are the registered trademarks of Quest Diagnostics. All third
+party marks - '®' and '™' - are the property of their respective owners. Privacy policy can be found at: http://questdiagnostics.com/home/privacy-policy/online-privacy.html. © 2022 Quest
+Diagnostics Incorporated. All rights reserved.
+LEWIS,IMMANUEL (DZ337904P) 5 / 5 7/6/26

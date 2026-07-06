@@ -37,6 +37,18 @@ def process_lab_report(lab_report_id: str) -> dict:
             file_bytes = load_lab_file(lab_report.encrypted_file_path)
             parsed = parse_lab_file(file_bytes, lab_report.original_filename)
 
+            if not parsed:
+                from app.pipeline.lab_parser import extract_text_from_pdf
+
+                filename = (lab_report.original_filename or "").lower()
+                if filename.endswith(".pdf"):
+                    extracted = extract_text_from_pdf(file_bytes)
+                    if len(extracted.strip()) > 500:
+                        raise ValueError(
+                            "Lab report text was extracted but no biomarker rows matched the parser. "
+                            "The PDF layout may be unsupported — try the demo .txt samples or contact support."
+                        )
+
             _set_processing_stage(session, lab_report, LabProcessingStage.NORMALIZING)
             normalized = normalize_lab_results(parsed)
 

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.pipeline.lab_parser import parse_lab_file, parse_lab_line, parse_lab_text
@@ -105,6 +107,56 @@ class TestPipeDelimitedPattern:
         assert result is not None
         assert result.raw_test_name == "Magnesium"
         assert result.value == 1.9
+
+
+class TestQuestReferenceRangePattern:
+    """Pattern 5: Quest PDF 'Name value Reference Range: low-high unit'."""
+
+    def test_quest_dash_range_with_unit(self):
+        result = parse_lab_line("GLUCOSE 76 Reference Range: 65-99 mg/dL")
+        assert result is not None
+        assert result.raw_test_name == "GLUCOSE"
+        assert result.value == 76.0
+        assert result.reference_range_low == 65.0
+        assert result.reference_range_high == 99.0
+        assert result.unit == "mg/dL"
+
+    def test_quest_greater_than_range(self):
+        result = parse_lab_line("HDL CHOLESTEROL 56 Reference Range: >39 mg/dL")
+        assert result is not None
+        assert result.value == 56.0
+        assert result.reference_range_low == 39.0
+
+    def test_quest_less_than_range(self):
+        result = parse_lab_line("LDL-CHOLESTEROL 57 Reference Range: <100 mg/dL (calc)")
+        assert result is not None
+        assert result.raw_test_name == "LDL-CHOLESTEROL"
+        assert result.reference_range_high == 100.0
+        assert result.unit == "mg/dL"
+
+    def test_quest_tsh_with_reflex_in_name(self):
+        result = parse_lab_line("TSH W/REFLEX TO FT4 0.55 Reference Range: 0.40-4.50 mIU/L")
+        assert result is not None
+        assert result.value == 0.55
+        assert result.unit == "mIU/L"
+
+    def test_quest_qualitative_line_skipped(self):
+        assert parse_lab_line("GLUCOSE NEGATIVE Reference Range: NEGATIVE") is None
+
+    def test_real_quest_fixture_parses_core_panel(self):
+        fixture = (
+            Path(__file__).resolve().parent.parent / "fixtures" / "quest_labreport_excerpt.txt"
+        )
+        if not fixture.exists():
+            pytest.skip("quest fixture not present")
+        text = fixture.read_text()
+        results = parse_lab_text(text)
+        names = {r.raw_test_name.upper() for r in results}
+        assert "GLUCOSE" in names
+        assert "CREATININE" in names
+        assert "HDL CHOLESTEROL" in names
+        assert "LDL-CHOLESTEROL" in names
+        assert len(results) >= 10
 
 
 class TestCsvPattern:
