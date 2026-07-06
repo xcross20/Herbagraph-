@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HerbaGraph</title>
+<style>
+  body { font-family: monospace, sans-serif; max-width: 700px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: 0; }
+  .tag { color: #666; margin-top: 0; }
+  hr { margin: 1.5rem 0; }
+  section { margin-bottom: 1.5rem; }
+  button { font: inherit; padding: 0.4rem 1rem; cursor: pointer; }
+  input[type=file] { display: block; margin: 0.5rem 0; }
+  .status { color: #666; font-style: italic; }
+  .error { color: #a00; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; }
+  .disclaimer { border: 1px solid #a00; padding: 0.75rem; font-size: 0.9em; }
+  #report { display: none; }
+  @media print {
+    #upload-section, #status-line, button#download-pdf { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<h1>HerbaGraph</h1>
+<p class="tag">Evidence-based biomarker intelligence -- research tool, not medical advice.</p>
+<hr>
+
+<section id="upload-section">
+  <p><strong>Upload Lab PDF</strong></p>
+  <input type="file" id="file-input" accept=".pdf,.txt,.csv,.png,.jpg,.jpeg">
+  <button id="analyze-btn">Analyze</button>
+</section>
+
+<p id="status-line" class="status"></p>
+
+<div id="report">
+  <hr>
+
+  <section id="patient-summary">
+    <h2>Patient Summary</h2>
+    <div id="patient-summary-body"></div>
+  </section>
+
+  <section id="biological-systems">
+    <h2>Biological Systems</h2>
+    <div id="biological-systems-body"></div>
+  </section>
+
+  <section id="recommendations">
+    <h2>Recommendations</h2>
+    <div id="recommendations-body"></div>
+  </section>
+
+  <section id="evidence">
+    <h2>Evidence &amp; Citations</h2>
+    <div id="evidence-body"></div>
+  </section>
+
+  <section id="disclaimer">
+    <div class="disclaimer" id="disclaimer-body"></div>
+  </section>
+
+  <button id="download-pdf">Download PDF</button>
+</div>
+
+<script>
+const API = "";
+
+async function api(path, method, body) {
+  const headers = { "Content-Type": "application/json" };
+  if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
+  const resp = await fetch(API + path, {
+    method: method || "GET",
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${method || "GET"} ${path} failed (${resp.status}): ${text}`);
+  }
+  return resp.status === 204 ? null : resp.json();
+}
+
+async function apiUpload(path, file) {
+  const form = new FormData();
+  form.append("file", file);
+  const headers = {};
+  if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
+  const resp = await fetch(API + path, { method: "POST", headers, body: form });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`upload failed (${resp.status}): ${text}`);
+  }
+  return resp.json();
+}
+
+// A brand-new browser gets a throwaway local account transparently, so the UI itself
+// never shows a login step -- matches the bare-bones "Upload -> Analyze" flow.
+async function ensureAuth() {
+  let creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
+  if (!creds) {
+    const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
+    const password = `Guest${Math.random().toString(36).slice(2)}A1`;
+    creds = { email, password };
+    await api("/api/v1/auth/register", "POST", creds);
+    localStorage.setItem("hg_creds", JSON.stringify(creds));
+  }
+  const login = await api("/api/v1/auth/login", "POST", creds);
+  window.hgToken = login.access_token;
+}
+
+function setStatus(msg, isError) {
+  const el = document.getElementById("status-line");
+  el.textContent = msg;
+  el.className = isError ? "error" : "status";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForLabComplete(labReportId) {
+  for (let i = 0; i < 40; i++) {
+    const lab = await api(`/api/v1/labs/${labReportId}`);
+    if (lab.status === "complete") return lab;
+    if (lab.status === "failed") throw new Error("Lab processing failed: " + (lab.error_message || "unknown error"));
+    setStatus(`Processing lab report... (${lab.status})`);
+    await sleep(1000);
+  }
+  throw new Error("Timed out waiting for lab processing to finish.");
+}
+
+function renderPatientSummary(report) {
+  const bs = report.biomarker_summary;
+  const interpretations = report.biomarker_interpretations || [];
+  let html = `<p>${escapeHtml(report.executive_summary)}</p>`;
+  html += `<p>${bs.total_biomarkers} biomarkers measured, ${bs.abnormal_count} outside reference range.</p>`;
+  if (interpretations.length) {
+    html += "<table><tr><th>Biomarker</th><th>Status</th><th>Interpretation</th></tr>";
+    for (const i of interpretations) {
+      html += `<tr><td>${escapeHtml(i.biomarker_name)}</td><td>${escapeHtml(i.status)}</td><td>${escapeHtml(i.interpretation)}</td></tr>`;
+    }
+    html += "</table>";
+  }
+  document.getElementById("patient-summary-body").innerHTML = html;
+}
+
+function renderBiologicalSystems(report) {
+  const systems = report.biological_systems || [];
+  let html = "<table><tr><th>System</th><th>Signal</th><th>Direction</th><th>Confidence</th><th>Drivers</th></tr>";
+  for (const s of systems) {
+    html += `<tr><td>${escapeHtml(s.system_name)}</td><td>${escapeHtml(s.signal_label)}</td>` +
+      `<td>${escapeHtml(s.direction)}</td><td>${escapeHtml(s.confidence)}</td>` +
+      `<td>${escapeHtml((s.drivers || []).join(", ") || "-")}</td></tr>`;
+  }
+  html += "</table>";
+  document.getElementById("biological-systems-body").innerHTML = html;
+}
+
+function renderRecommendations(report) {
+  const recs = report.recommendations || [];
+  if (!recs.length) {
+    document.getElementById("recommendations-body").innerHTML = "<p>No recommendations were surfaced from the available evidence.</p>";
+    return;
+  }
+  let html = "";
+  for (const r of recs) {
+    html += `<div style="margin-bottom:1rem;">`;
+    html += `<p><strong>#${r.rank} ${escapeHtml(r.intervention_name)}</strong> (${escapeHtml(r.category)}) -- ${escapeHtml(r.evidence_tier_label)}, confidence ${r.confidence_score}</p>`;
+    if (r.mechanism) html += `<p>Mechanism: ${escapeHtml(r.mechanism)}</p>`;
+    if (r.rationale) html += `<p>Rationale: ${escapeHtml(r.rationale)}</p>`;
+    if (r.limitations) html += `<p>Limitations: ${escapeHtml(r.limitations)}</p>`;
+    if (r.typical_dose) html += `<p>Typical dose (per cited research): ${escapeHtml(r.typical_dose)}</p>`;
+    html += `<p>Safety risk: ${escapeHtml(r.safety_risk)}${r.is_regulated ? " (regulated substance)" : ""}</p>`;
+    if ((r.safety_notes || []).length) html += `<p>Safety notes: ${escapeHtml(r.safety_notes.join("; "))}</p>`;
+    if ((r.interactions || []).length) html += `<p>Interactions: ${escapeHtml(r.interactions.join("; "))}</p>`;
+    if (r.food_sources && r.food_sources.length) {
+      html += `<p>Food sources: ${escapeHtml(r.food_sources.map((f) => f.food).join(", "))}</p>`;
+    }
+    html += `</div>`;
+  }
+  document.getElementById("recommendations-body").innerHTML = html;
+}
+
+function renderEvidence(report) {
+  const citations = report.citations || [];
+  let html = `<p>${(report.clinician_questions || []).length ? "Questions to ask a clinician: " + escapeHtml(report.clinician_questions.join(" / ")) : ""}</p>`;
+  if (citations.length) {
+    html += "<table><tr><th>ID</th><th>Title</th><th>Year</th><th>Type</th></tr>";
+    for (const c of citations) {
+      html += `<tr><td>${escapeHtml(c.id)}</td><td>${escapeHtml(c.title)}</td><td>${c.year || "-"}</td><td>${escapeHtml(c.study_type || "-")}</td></tr>`;
+    }
+    html += "</table>";
+  } else {
+    html += "<p>No citations.</p>";
+  }
+  document.getElementById("evidence-body").innerHTML = html;
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function analyze() {
+  const fileInput = document.getElementById("file-input");
+  if (!fileInput.files.length) {
+    setStatus("Choose a file first.", true);
+    return;
+  }
+  document.getElementById("report").style.display = "none";
+  try {
+    setStatus("Signing in...");
+    await ensureAuth();
+
+    setStatus("Uploading lab report...");
+    const upload = await apiUpload("/api/v1/labs/upload", fileInput.files[0]);
+
+    await waitForLabComplete(upload.lab_report_id);
+
+    setStatus("Generating report (retrieving evidence, running safety checks)...");
+    const report = await api(`/api/v1/reports/generate/${upload.lab_report_id}`, "POST");
+
+    renderPatientSummary(report);
+    renderBiologicalSystems(report);
+    renderRecommendations(report);
+    renderEvidence(report);
+    document.getElementById("disclaimer-body").textContent = report.disclaimer;
+
+    document.getElementById("report").style.display = "block";
+    setStatus("Done.");
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+}
+
+document.getElementById("analyze-btn").addEventListener("click", analyze);
+document.getElementById("download-pdf").addEventListener("click", () => window.print());
+</script>
+</body>
+</html>
