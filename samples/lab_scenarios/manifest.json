@@ -299,16 +299,17 @@
     },
     {
       "scenario_id": "format_quest_hdl_ldl_flags",
-      "description": "Compact flag + range formats (HDL L, LDL NEAR OPTIMAL)",
-      "tags": ["signaling", "format_flag_range"],
+      "description": "Compact flag + range formats (HDL L, LDL NEAR OPTIMAL, Quest PDF F-column bleed)",
+      "tags": ["signaling", "format_flag_range", "format_pdf_column_prefix"],
       "raw_file": "raw/format_quest_hdl_ldl_flags.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": { "min_rows": 5 },
         "normalize": {
           "must_include": [
             { "biomarker_name": "HDL" },
             { "biomarker_name": "LDL", "status": "high" }
-          ]
+          ],
+          "must_track_in_catalog": ["HDL", "LDL"]
         },
         "routing": { "primary_tree": "signaling", "min_abnormal": 1 },
         "pathways": {

@@ -1012,6 +1012,28 @@
       ]
     },
     {
+      "id": "SLICE-110",
+      "title": "IMP-052: Quest PDF F-column prefix strip (F HDL, F LDL Cholesterol Calc)",
+      "status": "done",
+      "priority": 1,
+      "problem": "Quest PDF exports bled a Final/flag column into analyte names (F HDL, F LDL Cholesterol Calc), so abnormal lipids never mapped to catalog and fired zero pathway signals.",
+      "acceptance": [
+        "clean_parsed_test_name strips leading F/H/L/* column prefixes when remainder resolves",
+        "F HDL and F LDL Cholesterol Calc resolve to HDL and LDL in audit_alias_resolution",
+        "format_quest_hdl_ldl_flags scenario includes F-prefixed rows with must_track_in_catalog",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["LLM alias resolver for unresolved abnormals"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["false-positive strip on rare analyte names starting with F/H/L + space"],
+      "artifacts": [
+        "app/pipeline/user_biomarker_profile.py",
+        "app/pipeline/lab_parser.py",
+        "samples/lab_scenarios/raw/format_quest_hdl_ldl_flags.txt",
+        "tests/test_pipeline/test_ocr_alias_resolution.py"
+      ]
+    },
+    {
       "id": "SLICE-109",
       "title": "Raise scenario coverage MIN_* thresholds to 70",
       "status": "done",
@@ -2568,6 +2590,31 @@
       "title": "MCV portal alias rows in nutritional_portal_aliases",
       "rationale": "Isolated MCV high/low and combined CBC indices scenarios exist; portal matrix still lacks MCV alias coverage.",
       "priority": "low",
+      "status": "proposed"
+    },
+    {
+      "id": "IMP-052",
+      "suggested_at": "2026-07-07",
+      "title": "Quest PDF F-column prefix strip for HDL/LDL",
+      "rationale": "Production reports showed unresolved F HDL and F LDL Cholesterol Calc blocking all pathway signals.",
+      "priority": "high",
+      "status": "done",
+      "completed_in": "SLICE-110"
+    },
+    {
+      "id": "IMP-053",
+      "suggested_at": "2026-07-07",
+      "title": "LLM alias resolver for unresolved abnormal biomarkers",
+      "rationale": "Parser/alias fixes handle known permutations; LLM batch normalizer catches novel OCR garbling after Stage 2.",
+      "priority": "high",
+      "status": "proposed"
+    },
+    {
+      "id": "IMP-054",
+      "suggested_at": "2026-07-07",
+      "title": "Direct Iron biomarker nutritional_repletion evidence claim",
+      "rationale": "Iron intervention claims tie to Ferritin/TIBC/Hemoglobin but not serum Iron; low Iron, Total panels need explicit claim.",
+      "priority": "medium",
       "status": "proposed"
     }
   ]

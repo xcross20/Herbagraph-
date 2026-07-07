@@ -9,7 +9,12 @@ LabCorp, and generic tabular/CSV/pipe-delimited formats.
 import io
 import re
 
+from app.pipeline.user_biomarker_profile import clean_parsed_test_name
 from app.schemas.pipeline import ParsedLabResult
+
+
+def _parsed_test_name(raw: str) -> str:
+    return clean_parsed_test_name(raw.strip().rstrip(":").strip())
 
 _NUM = r"[<>]?\s*-?\d+\.?\d*"
 # Quest/LabCorp analyte names may start with % (e.g. "% Saturation").
@@ -178,7 +183,7 @@ def _parse_culture_line(line: str) -> ParsedLabResult | None:
     match = _PATTERN_CULTURE.match(stripped)
     if not match:
         return None
-    name = match.group("name").strip().rstrip(":").strip()
+    name = _parsed_test_name(match.group("name"))
     result = match.group("result").strip()
     if not name or not result:
         return None
@@ -214,7 +219,7 @@ def _parse_pgx_line(line: str) -> ParsedLabResult | None:
     )
     canonical_suffix = " Genotype" if "genotype" not in name.lower() else ""
     return ParsedLabResult(
-        raw_test_name=f"{name}{canonical_suffix}".strip(),
+        raw_test_name=_parsed_test_name(f"{name}{canonical_suffix}"),
         value=1.0 if actionable else 0.0,
         unit=label,
         reference_range_low=0.0,
@@ -230,7 +235,7 @@ def _parse_quest_qualitative_line(line: str) -> ParsedLabResult | None:
     if not match:
         return None
     groups = match.groupdict()
-    name = groups["name"].strip().rstrip(":").strip()
+    name = _parsed_test_name(groups["name"])
     if not name:
         return None
     result_label = _normalize_qualitative_label(groups["result"])
@@ -259,7 +264,7 @@ def _parse_flag_range_line(line: str) -> ParsedLabResult | None:
             high = _to_float(groups["high"])
         except ValueError:
             continue
-        name = groups["name"].strip().rstrip(":").strip()
+        name = _parsed_test_name(groups["name"])
         if not name:
             continue
         unit = _clean_unit(groups.get("unit"))
@@ -287,7 +292,7 @@ def _parse_quest_ref_line(line: str) -> ParsedLabResult | None:
     if parsed_range is None:
         return None
     low, high, unit = parsed_range
-    name = groups["name"].strip().rstrip(":").strip()
+    name = _parsed_test_name(groups["name"])
     if not name:
         return None
     return ParsedLabResult(
@@ -337,7 +342,7 @@ def parse_lab_line(line: str) -> ParsedLabResult | None:
             high = _to_float(groups["high"])
         except ValueError:
             continue
-        name = groups["name"].strip().rstrip(":").strip()
+        name = _parsed_test_name(groups["name"])
         if not name:
             continue
         unit = (groups.get("unit") or "").strip() or None

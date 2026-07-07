@@ -142,6 +142,40 @@ def test_low_electrolyte_portal_names_fire_nutrient_pathways(raw_name, canonical
     assert "NUTRIENT_DEFICIENCY" in codes
 
 
+@pytest.mark.parametrize(
+    "raw,canonical",
+    [
+        ("F HDL", "HDL"),
+        ("F LDL Cholesterol Calc", "LDL"),
+        ("f hdl", "HDL"),
+        ("H HDL", "HDL"),
+    ],
+)
+def test_pdf_column_prefix_names_resolve(raw, canonical):
+    assert resolve_canonical_name(raw) == canonical
+
+
+def test_f_prefixed_hdl_ldl_lines_parse_to_catalog_and_fire_pathways():
+    from app.models.enums import LabResultStatus
+    from app.pipeline.biomarker_normalizer import normalize_lab_result
+    from app.pipeline.lab_parser import parse_lab_line
+    from app.pipeline.pathway_mapper import map_pathways
+
+    for line, expected_raw, expected_canonical, expected_status in (
+        ("F HDL 48.0 L 60.00 - 180.00 (mg/dL)", "HDL", "HDL", None),
+        ("F LDL Cholesterol Calc 142.00 H 0.00 - 99.00", "LDL Cholesterol Calc", "LDL", LabResultStatus.HIGH),
+    ):
+        parsed = parse_lab_line(line)
+        assert parsed is not None, line
+        assert parsed.raw_test_name == expected_raw, line
+        normalized = normalize_lab_result(parsed)
+        assert normalized.biomarker_name == expected_canonical, line
+        if expected_status is not None:
+            assert normalized.status == expected_status, line
+            codes = {p.pathway_code for p in map_pathways([normalized])}
+            assert "HEPATIC_LIPID" in codes, line
+
+
 def test_low_transferrin_saturation_portal_name_fires_iron_pathway():
     from app.pipeline.biomarker_normalizer import classify_lab_value, get_reference_data
     from app.pipeline.pathway_mapper import map_pathways

@@ -19,6 +19,8 @@ _PORTAL_COMMA_SUFFIX_RE = re.compile(
     r"\s*,\s*(total|serum|plasma|rbc|whole\s+blood)\s*$",
     re.IGNORECASE,
 )
+# Quest/LabCorp PDF exports sometimes bleed a Final/flag column into the analyte name.
+_LEADING_COLUMN_PREFIX_RE = re.compile(r"^[FHL*]\s+", re.IGNORECASE)
 _PAREN_RE = re.compile(r"^\(([^)]+)\)$")
 _KNOWN_ABBREVS = frozenset({
     "mch", "mcv", "rdw", "rbc", "wbc", "mchc", "hgb", "hb", "hct", "plt", "anc", "alc",
@@ -85,6 +87,27 @@ def _strip_portal_suffixes(raw_name: str) -> str:
     # Quest/LabCorp: "Iron, Total" / "Copper, Serum" → analyte name only.
     cleaned = _PORTAL_COMMA_SUFFIX_RE.sub("", cleaned).strip()
     return cleaned
+
+
+def _leading_column_prefix_variants(raw_name: str) -> list[str]:
+    """Return name variants with Quest/LabCorp PDF column prefixes (F/H/L/*) removed."""
+    stripped = _strip_portal_suffixes(raw_name)
+    match = _LEADING_COLUMN_PREFIX_RE.match(stripped)
+    if not match:
+        return []
+    without_prefix = _LEADING_COLUMN_PREFIX_RE.sub("", stripped, count=1).strip()
+    return [without_prefix] if without_prefix and without_prefix != stripped else []
+
+
+def clean_parsed_test_name(raw_name: str) -> str:
+    """Normalize a parsed analyte label before persistence (column bleed, portal suffixes)."""
+    stripped = _strip_portal_suffixes(raw_name)
+    for variant in _leading_column_prefix_variants(stripped):
+        if resolve_canonical_name(variant, custom_biomarkers=None):
+            return variant
+        if not resolve_canonical_name(stripped, custom_biomarkers=None):
+            return variant
+    return stripped
 
 
 def _clean(raw_name: str) -> str:
@@ -154,6 +177,12 @@ _SUPPLEMENTAL_ALIASES: dict[str, str] = {
     "vitamin c plasma": "Vitamin C",
     "prealbumin serum": "Prealbumin",
     "soluble transferrin receptor serum": "Soluble Transferrin Receptor",
+    # Quest PDF column bleed: Final/flag column prefixed to analyte name.
+    "f hdl": "HDL",
+    "f ldl cholesterol calc": "LDL",
+    "f ldl chol calc": "LDL",
+    "h hdl": "HDL",
+    "l ldl cholesterol calc": "LDL",
 }
 
 
@@ -192,7 +221,15 @@ def prune_custom_biomarkers_overlapping_catalog(
 def resolve_canonical_name(raw_name: str, custom_biomarkers: list[dict] | None = None) -> str | None:
     alias_map = build_alias_map(custom_biomarkers)
     stripped = _strip_portal_suffixes(raw_name)
-    candidates = [raw_name, stripped, *_fix_ocr_reversed_variants(raw_name), *_fix_ocr_reversed_variants(stripped)]
+    prefix_variants = _leading_column_prefix_variants(raw_name) + _leading_column_prefix_variants(stripped)
+    candidates = [
+        raw_name,
+        stripped,
+        *prefix_variants,
+        *_fix_ocr_reversed_variants(raw_name),
+        *_fix_ocr_reversed_variants(stripped),
+        *(_fix_ocr_reversed_variants(v) for v in prefix_variants),
+    ]
     seen: set[str] = set()
     for candidate in candidates:
         key = _clean(candidate)
