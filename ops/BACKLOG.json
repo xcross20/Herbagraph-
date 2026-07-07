@@ -1,0 +1,2574 @@
+{
+  "version": 1,
+  "project": "herbagraph",
+  "description": "Vertical slices for production-grade biomarker intelligence. Consumed by the herbagraph-ops Grok skill.",
+  "updated_at": "2026-07-07",
+  "definition_of_done": [
+    "pytest exits 0 (full suite)",
+    "scripts/validate_pathway_coverage.py exits 0 (266/266 biomarkers mapped)",
+    "scripts/audit_alias_resolution.py exits 0 (catalog aliases + format variants)",
+    "scripts/audit_evidence_gaps.py exits 0 (27 priority pathways >= 3 routable claims)",
+    "scripts/validate_lab_scenarios.py exits 0 (CI scenarios)",
+    "scripts/validate_sample_labs.py exits 0 (demo lab files parse)",
+    "scripts/validate_seed_counts.py exits 0",
+    "ruff check app tests exits 0",
+    "Slice acceptance claims verified with new or updated tests",
+    "BACKLOG.json slice status updated",
+    "If catalog/evidence/food links changed: bash scripts/ops_reseed.sh run when Docker up",
+    "Improvement queue reviewed; at least one IMP-* proposed when gaps found"
+  ],
+  "slices": [
+    {
+      "id": "SLICE-000",
+      "title": "Ops scaffold: skill + backlog + CI gates",
+      "status": "done",
+      "priority": 0,
+      "problem": "Solo operator cannot run disagree-with-yourself pipeline without artifacts and hard gates.",
+      "acceptance": [
+        ".grok/skills/herbagraph-ops/SKILL.md exists and is invocable via /herbagraph-ops",
+        "ops/BACKLOG.json exists with slice schema",
+        "scripts/ci_gates.sh runs all mandatory gates",
+        ".github/workflows/ci.yml runs on push and PR"
+      ],
+      "non_goals": ["Playwright browser E2E in CI (slice SLICE-003)"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["gates too slow", "skill too verbose to follow"],
+      "artifacts": ["ops/BACKLOG.json", ".grok/skills/herbagraph-ops/SKILL.md", "scripts/ci_gates.sh"]
+    },
+    {
+      "id": "SLICE-001",
+      "title": "Pathway coverage for full biomarker catalog",
+      "status": "done",
+      "priority": 1,
+      "problem": "Abnormal catalog biomarkers without pathway rules produce empty biological systems and no recommendations.",
+      "acceptance": [
+        "Every REFERENCE_DATA biomarker has >=1 pathway rule (validate_pathway_coverage.py)",
+        "tests/test_pipeline/test_pathway_coverage.py passes"
+      ],
+      "non_goals": ["Per-biomarker clinical validation of pathway weights"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["category defaults too generic", "false-positive nutrient signals"],
+      "artifacts": ["app/pipeline/pathway_mapping_catalog.py", "scripts/validate_pathway_coverage.py"]
+    },
+    {
+      "id": "SLICE-002",
+      "title": "Alias resolution + persisted lab re-resolution",
+      "status": "done",
+      "priority": 1,
+      "problem": "Users see abnormal labs in Patient Summary but No Signal because stored names (mean-cell, OCR garbled) never hit pathway rules.",
+      "acceptance": [
+        "Mean Cell Volume (MCV) resolves to MCV",
+        "OCR garbled emuloV lleC naeM resolves to MCV",
+        "normalized_result_from_lab_result re-resolves on report load",
+        "scripts/remap_lab_result_biomarkers.py remaps stale rows",
+        "Macrocytic scenario: Nutrient Status signal + B12/Folate/Iron routed"
+      ],
+      "non_goals": ["Perfect OCR for all PDF layouts"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["boundaries: parser vs normalizer", "guest localStorage session", "DB biomarker_name drift"],
+      "artifacts": ["app/pipeline/user_biomarker_profile.py", "app/pipeline/biomarker_normalizer.py", "samples/lab_scenarios/raw/nutritional_macrocytic_cbc.txt"]
+    },
+    {
+      "id": "SLICE-003",
+      "title": "E2E API contract: upload → report → systems + recommendations",
+      "status": "done",
+      "priority": 1,
+      "problem": "Unit tests pass while UI/API integration still shows empty recommendations for real uploads.",
+      "acceptance": [
+        "Integration test uploads macrocytic CBC fixture, waits for report complete",
+        "Assert biological_systems contains nutrient_status with signal_level >= 2",
+        "Assert recommendations include B12, Folate, and Iron",
+        "Test runs in CI without OPENAI_API_KEY (mock LLM or catalog-only path)"
+      ],
+      "non_goals": ["Full browser Playwright in first pass"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["LLM non-determinism", "Celery async timing", "shared state: lab_results table"],
+      "artifacts": [
+        "tests/test_api/test_macrocytic_e2e.py",
+        "app/pipeline/catalog_evidence.py",
+        "app/pipeline/llm_reasoner.py",
+        "tests/test_pipeline/test_llm_reasoner_catalog_mode.py"
+      ]
+    },
+    {
+      "id": "SLICE-004",
+      "title": "Scenario matrix: assert recommendations per routing tree",
+      "status": "done",
+      "priority": 2,
+      "problem": "Lab scenarios validate parse/route but not that evidence-backed recommendations surface.",
+      "acceptance": [
+        "manifest.json scenarios include expect.recommendations for etiological, celiac, nutritional, allergy",
+        "lab_scenario_loader validates pathway activations and min recommendation count where specified",
+        "At least 12 CI scenarios with recommendation assertions"
+      ],
+      "non_goals": ["Live PubMed in scenario CI"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["evidence retrieval flakiness"],
+      "artifacts": [
+        "app/pipeline/lab_scenario_loader.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_lab_scenario_matrix.py"
+      ]
+    },
+    {
+      "id": "SLICE-005",
+      "title": "Alias audit fuzzer for lab naming variants",
+      "status": "done",
+      "priority": 2,
+      "problem": "New lab formats create custom profile entries and silent pathway misses.",
+      "acceptance": [
+        "scripts/audit_alias_resolution.py tests 100+ variant strings from real Quest/LabCorp patterns",
+        "Fails CI on any catalog biomarker whose primary alias does not resolve",
+        "Outputs suggested supplemental aliases for failures"
+      ],
+      "non_goals": ["ML-based alias learning"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["alias collisions"],
+      "artifacts": ["scripts/audit_alias_resolution.py", "scripts/ci_gates.sh"]
+    },
+    {
+      "id": "SLICE-006",
+      "title": "Evidence gap filler: pathway → intervention claims",
+      "status": "done",
+      "priority": 2,
+      "problem": "Pathways activate but no catalog evidence routes interventions when biomarker-direct claims missing.",
+      "acceptance": [
+        "scripts/audit_evidence_gaps.py lists pathways with activations but zero routable claims",
+        "Top 20 clinical pathways have >=3 nutritional_repletion or primary claims",
+        "tier_a_evidence.py updated; reseed count assertions still pass"
+      ],
+      "non_goals": ["Inventing PMIDs"],
+      "reversibility": "one-way",
+      "risk_hotspots": ["evidence quality", "reseed migration"],
+      "artifacts": [
+        "scripts/audit_evidence_gaps.py",
+        "app/knowledge_graph/tier_a_evidence.py"
+      ]
+    },
+    {
+      "id": "SLICE-007",
+      "title": "Catalog expansion sprint (biomarkers, compounds, foods)",
+      "status": "done",
+      "priority": 3,
+      "problem": "Production intelligence requires broader panel + food-compound links without breaking seed counts.",
+      "acceptance": [
+        "Biomarker catalog grows with aliases; pathway coverage script still passes",
+        "Intervention count >= expected_seeded_intervention_count after reseed",
+        "Food-compound links >= 200; lifestyle methods >= 10 per category",
+        "New entries have at least one evidence claim or documented deferral"
+      ],
+      "non_goals": ["200 new biomarkers in one slice"],
+      "reversibility": "mostly two-way",
+      "risk_hotspots": ["seed count drift", "duplicate canonical names"],
+      "artifacts": [
+        "scripts/generate_biomarker_catalog.py",
+        "app/knowledge_graph/biomarker_catalog.py",
+        "app/knowledge_graph/food_compound_links.py",
+        "scripts/validate_seed_counts.py",
+        "scripts/ops_reseed.sh"
+      ]
+    },
+    {
+      "id": "SLICE-008",
+      "title": "UI smoke: biological systems + recommendations visibility",
+      "status": "done",
+      "priority": 2,
+      "problem": "API has data but users see only Patient Summary when viewing stale report or guest session issues.",
+      "acceptance": [
+        "frontend documents Regenerate Report + hard refresh flow",
+        "API test asserts latest_report_id matches newest recommendation_report",
+        "Optional: Playwright smoke for macrocytic fixture (local gate)"
+      ],
+      "non_goals": ["Full visual regression"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["guest localStorage", "cached report id"],
+      "artifacts": [
+        "frontend/index.html",
+        "tests/test_api/test_reports.py"
+      ]
+    },
+    {
+      "id": "SLICE-009",
+      "title": "Broad routing matrix + niche evidence (lactoferrin, biofilm, PGx)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Niche emerging research (lactoferrin for iron/biofilm, D-mannose UTI) and PGx/exposure trees lack catalog evidence routing and scenario asserts.",
+      "acceptance": [
+        "Lactoferrin and D-Mannose in tier_a_catalog with PMID-linked claims",
+        "catalog_evidence.py surfaces CONTEXT_ONLY for pgx_context tree",
+        "Scenarios assert recommendations for exposure, pgx, iron repletion, biofilm niche",
+        "culture_urine_positive routes D-Mannose and Lactoferrin",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Live PubMed retrieval for niche compounds"],
+      "reversibility": "mostly two-way",
+      "risk_hotspots": ["preclinical biofilm claims overstated", "PGx context surfaced as treatment"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/catalog_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_catalog_evidence_context_trees.py"
+      ]
+    },
+    {
+      "id": "SLICE-010",
+      "title": "Trend-pair QA + etiological pathway evidence expansion",
+      "status": "done",
+      "priority": 2,
+      "problem": "Follow-up panels validate normalization but not that recommendations disappear when biomarkers normalize; niche etiological pathways lack routable claims.",
+      "acceptance": [
+        "lab_scenario_loader validates trend_pair blocks against paired_with baseline",
+        "trend_followup_improved asserts baseline >=3 recs and follow-up 0",
+        "RESPIRATORY_PATHOGEN and HEPATOTROPIC_VIRAL have >=3 routable claims in audit",
+        "Lactoferrin phytochemical + Kefir/Greek Yogurt food-compound links",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Causal trend attribution in recommendations"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["trend_pair double-parses scenarios", "audit pathway list growth"],
+      "artifacts": [
+        "app/pipeline/lab_scenario_loader.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/knowledge_graph/phytochemical_catalog.py",
+        "app/knowledge_graph/food_compound_links.py",
+        "scripts/audit_evidence_gaps.py",
+        "tests/test_pipeline/test_trend_pair_scenarios.py"
+      ]
+    },
+    {
+      "id": "SLICE-011",
+      "title": "Zero-routable pathway fill: PURINE, MTOR, RENAL + hyperuricemia/renal scenarios",
+      "status": "done",
+      "priority": 2,
+      "problem": "PURINE_URIC_ACID, MTOR_AUTOPHAGY, and RENAL_FILTRATION activate on common metabolic panels but have zero tier-A routable claims; hyperuricemia and CKD-risk panels lack scenario asserts.",
+      "acceptance": [
+        "tier_a_evidence.py adds PMID-verified primary claims for PURINE_URIC_ACID, MTOR_AUTOPHAGY, RENAL_FILTRATION",
+        "audit_evidence_gaps.py priority list includes all three; each has >=3 routable claims",
+        "signaling_hyperuricemia and signaling_renal_egfr_low scenarios assert Quercetin and Omega-3",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["DRUG_METABOLISM_VARIANT primary claims (PGx stays context_only)", "Bulk PMID remediation across legacy claims"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["preclinical berberine uric acid claim", "negative omega-3 renal trials mis-cited"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "scripts/audit_evidence_gaps.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/signaling_hyperuricemia.txt",
+        "samples/lab_scenarios/raw/signaling_renal_egfr_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-012",
+      "title": "Sputum culture scenario + respiratory pathogen evidence routing",
+      "status": "done",
+      "priority": 2,
+      "problem": "Lower respiratory culture panels activate RESPIRATORY_PATHOGEN but lack Sputum Culture biomarker-direct claims and CI scenario asserts.",
+      "acceptance": [
+        "tier_a_evidence.py adds Sputum Culture claims for Berberine, NAC, Lactoferrin",
+        "culture_sputum_positive scenario asserts Lactoferrin and NAC recommendations",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Antibiotic stewardship directives"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["preclinical claims overstated as treatment"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/culture_sputum_positive.txt"
+      ]
+    },
+    {
+      "id": "SLICE-013",
+      "title": "Fecal lactoferrin etiological routing (IMP-011)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Elevated fecal lactoferrin activates pathogen/biofilm pathways but routes signaling primary, blunting etiological evidence for GI inflammation niches.",
+      "acceptance": [
+        "gi_stool / Fecal Lactoferrin routes etiological primary in test_type_router",
+        "niche_fecal_lactoferrin_elevated asserts etiological primary + Lactoferrin and Colostrum",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["New RecommendationTree enum for GI-inflammation"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["gi_stool category over-broad etiological routing"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-014",
+      "title": "Autoimmune rheumatoid panel scenario (RF + Anti-CCP)",
+      "status": "done",
+      "priority": 3,
+      "problem": "Autoimmune routing matrix only asserts ANA; RF/CCP patterns common in rheumatology panels lack scenario coverage.",
+      "acceptance": [
+        "autoimmune_rheumatoid_rf_positive scenario routes autoimmune primary",
+        "Assert Omega-3 and Curcumin recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["DMARD or biologic medication context"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["alias resolution for RF/Anti-CCP lab strings"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/autoimmune_rheumatoid_rf_positive.txt"
+      ]
+    },
+    {
+      "id": "SLICE-015",
+      "title": "MTOR metabolic panel scenario (insulin resistance)",
+      "status": "done",
+      "priority": 2,
+      "problem": "MTOR_AUTOPHAGY pathway evidence was added in SLICE-011 but no CI scenario asserts insulin-high metabolic routing to Intermittent Fasting.",
+      "acceptance": [
+        "signaling_mtor_metabolic scenario normalizes Insulin and Glucose as high",
+        "Pathways include MTOR_AUTOPHAGY and INSULIN_PI3K_AKT",
+        "Intermittent Fasting in recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Pharmacologic antidiabetic directives"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["Insulin ref-range edge cases (value must exceed catalog high)"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/signaling_mtor_metabolic.txt"
+      ]
+    },
+    {
+      "id": "SLICE-016",
+      "title": "Fecal calprotectin GI inflammation scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Elevated fecal calprotectin is a common IBD screen but lacks biomarker-direct evidence claims and CI scenario asserts.",
+      "acceptance": [
+        "tier_a_evidence.py adds PMID-verified Fecal Calprotectin claims for Curcumin, Colostrum, Glutamine",
+        "niche_fecal_calprotectin_elevated scenario routes etiological primary",
+        "Fecal Calprotectin in _GI_INFLAMMATION_MARKERS",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["IBD treatment protocols or biologic context"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["preclinical GI claims overstated"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/test_type_router.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/niche_fecal_calprotectin_elevated.txt",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-017",
+      "title": "PMID integrity audit gate (IMP-012)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Legacy tier_a_evidence PMIDs cite unrelated PubMed articles (e.g. Berberine → curcumin liver review), undermining trust.",
+      "acceptance": [
+        "scripts/audit_pmid_integrity.py validates PMID ↔ intervention alignment",
+        "ci_gates.sh runs PMID audit as mandatory gate",
+        "KNOWN_MISMATCHES denylist catches Berberine/19811613",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Bulk remediation of all legacy wrong PMIDs in one slice"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["network flakiness in CI", "keyword heuristic false positives"],
+      "artifacts": [
+        "scripts/audit_pmid_integrity.py",
+        "scripts/ci_gates.sh",
+        "app/knowledge_graph/tier_a_evidence.py"
+      ]
+    },
+    {
+      "id": "SLICE-018",
+      "title": "Biological systems expects on signaling + GI niche scenarios",
+      "status": "done",
+      "priority": 2,
+      "problem": "Scenario matrix asserts pathways and recommendations but not biological_systems rollups — macrocytic-only coverage misses metabolic and inflammation signal regressions.",
+      "acceptance": [
+        "signaling_mtor_metabolic, signaling_hyperuricemia, niche_fecal_calprotectin_elevated, signaling_inflammatory_quest include biological_systems must_include",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["All 29 scenarios get biological_systems blocks"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["signal_level threshold drift when pathway weights change"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-019",
+      "title": "Thyroid hypothyroid panel scenario (TSH + Free T4)",
+      "status": "done",
+      "priority": 2,
+      "problem": "THYROID_HPT pathway activates on common thyroid panels but no CI scenario asserts endocrine biological_systems or recommendations.",
+      "acceptance": [
+        "signaling_thyroid_hypothyroid scenario normalizes TSH high and Free T4 low",
+        "Pathways include THYROID_HPT; biological_systems thyroid_endocrine >= 2",
+        "Ashwagandha in recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Levothyroxine prescribing directives"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["Ashwagandha HPA routing vs thyroid-specific evidence"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/signaling_thyroid_hypothyroid.txt",
+        "app/knowledge_graph/tier_a_evidence.py"
+      ]
+    },
+    {
+      "id": "SLICE-020",
+      "title": "Pancreatic elastase exocrine insufficiency nutritional routing",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low fecal pancreatic elastase indicates exocrine insufficiency but gi_stool category routed etiological, blocking enzyme replacement recommendations.",
+      "acceptance": [
+        "Pancreatin added to tier_a_catalog with PMID-verified elastase claims",
+        "Pancreatic Elastase low routes nutritional_repletion primary",
+        "nutritional_pancreatic_elastase_low scenario asserts Pancreatin and Vitamin D",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Pancreatic enzyme dosing protocols"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["gi_stool category routing precedence"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_pancreatic_elastase_low.txt",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-021",
+      "title": "PMID batch remediation: NAC, Quercetin, Intermittent Fasting (IMP-013)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Strict PMID audit surfaced legacy wrong citations for high-traffic interventions (NAC biofilm, Quercetin allergy, IF insulin).",
+      "acceptance": [
+        "tier_a_evidence.py replaces 22052330, 22332023, 31082617 with PubMed-verified PMIDs",
+        "audit_pmid_integrity.py denylist extended for remediated triple",
+        "tests/test_scripts/test_audit_pmid_integrity.py passes",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Full 145-title strict audit remediation"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["context-specific PMID per biomarker claim"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py",
+        "tests/test_scripts/test_audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-022",
+      "title": "Biological systems + pathway asserts on renal, autoimmune, culture, hepatitis scenarios",
+      "status": "done",
+      "priority": 2,
+      "problem": "High-traffic etiological and autoimmune scenarios lack biological_systems regression guards.",
+      "acceptance": [
+        "signaling_renal_egfr_low, autoimmune_rheumatoid_rf_positive, culture_sputum_positive, etiological_hepatitis_b_surf_positive include pathways and biological_systems blocks",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full 31-scenario biological_systems coverage"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["signal_level threshold drift"],
+      "artifacts": ["samples/lab_scenarios/manifest.json"]
+    },
+    {
+      "id": "SLICE-023",
+      "title": "Selenium thyroid evidence + diagnostics PMID/scenario stats",
+      "status": "done",
+      "priority": 2,
+      "problem": "Thyroid panels lack selenium evidence routing; pipeline_diagnostics omits PMID gate and biological_systems coverage stats.",
+      "acceptance": [
+        "tier_a_evidence.py adds Selenium + TSH + THYROID_HPT claim with PMID 42197013",
+        "signaling_thyroid_hypothyroid asserts Selenium recommendation",
+        "pipeline_diagnostics.py runs PMID audit and reports biological_systems scenario count",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Iodine tier-A claims"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["selenium toxicity at high doses"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "scripts/pipeline_diagnostics.py"
+      ]
+    },
+    {
+      "id": "SLICE-024",
+      "title": "Biological systems rollup expansion + ANA/celiac/allergy/UTI scenario asserts",
+      "status": "done",
+      "priority": 2,
+      "problem": "FOOD_ANTIGEN_EXPOSURE and IGE_SENSITIZATION pathways never rolled into biological_systems, so celiac/allergy scenarios could not assert inflammation signals.",
+      "acceptance": [
+        "biological_systems.py maps immune/pathogen pathways into inflammation and nutrient_status",
+        "autoimmune_ana_positive, celiac_ttg_iga_positive, allergy_peanut_ige_high, culture_urine_positive include pathways and biological_systems blocks",
+        "tests/test_pipeline/test_biological_systems.py covers new rollups",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["New eighth biological system"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["inflammation system score inflation on pathogen panels"],
+      "artifacts": [
+        "app/pipeline/biological_systems.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_biological_systems.py"
+      ]
+    },
+    {
+      "id": "SLICE-025",
+      "title": "Lifestyle PMID remediation: HIIT/SIT + sleep/light cluster (IMP-013)",
+      "status": "done",
+      "priority": 2,
+      "problem": "lifestyle_evidence.py cites unrelated PMIDs for sprint interval training and circadian light interventions.",
+      "acceptance": [
+        "lifestyle_evidence.py replaces 20181910, 19139357, 29299576 clusters with verified PMIDs",
+        "audit_pmid_integrity.py denylist extended",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full lifestyle_evidence strict audit"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["shared PMID across related sleep interventions"],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-026",
+      "title": "Biological systems on exposure/PGx/throat/lactoferrin scenarios",
+      "status": "done",
+      "priority": 2,
+      "problem": "Remaining etiological/exposure scenarios lack pathway and biological_systems regression guards.",
+      "acceptance": [
+        "exposure_h_pylori_igg, pgx_cyp2d6_intermediate, culture_throat_strep_positive, niche_fecal_lactoferrin_elevated include pathway asserts",
+        "biological_systems blocks on exposure/throat/lactoferrin scenarios",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["PGx biological_systems (DRUG_METABOLISM_VARIANT stays context-only)"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["samples/lab_scenarios/manifest.json"]
+    },
+    {
+      "id": "SLICE-027",
+      "title": "CI catalog reseed hint on PR (IMP-009 partial)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Operators forget ops_reseed.sh after catalog/evidence PRs; CI has no reminder.",
+      "acceptance": [
+        "scripts/ci_catalog_reseed_hint.sh detects changed seed catalog files",
+        ".github/workflows/ci.yml runs hint step on pull_request",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Automated Postgres reseed in GitHub Actions"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["false positives on doc-only edits in catalog files"],
+      "artifacts": [
+        "scripts/ci_catalog_reseed_hint.sh",
+        ".github/workflows/ci.yml"
+      ]
+    },
+    {
+      "id": "SLICE-028",
+      "title": "Nutritional scenario biological_systems + reseed hint test",
+      "status": "done",
+      "priority": 2,
+      "problem": "Isolated nutritional scenarios lack nutrient_status regression guards; reseed hint script untested.",
+      "acceptance": [
+        "nutritional_vitd_low and nutritional_iron_low_ferritin include biological_systems nutrient_status asserts",
+        "tests/test_scripts/test_ci_catalog_reseed_hint.py passes",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full scenario biological_systems coverage"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_scripts/test_ci_catalog_reseed_hint.py"
+      ]
+    },
+    {
+      "id": "SLICE-029",
+      "title": "HEPATOTROPIC_VIRAL liver_detox_stress rollup",
+      "status": "done",
+      "priority": 2,
+      "problem": "Hepatitis B scenarios activate HEPATOTROPIC_VIRAL but liver_detox_stress only mapped HEPATIC_LIPID and NRF2.",
+      "acceptance": [
+        "biological_systems.py maps HEPATOTROPIC_VIRAL into liver_detox_stress",
+        "test_hepatotropic_viral_rolls_into_liver_detox_stress passes",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["New biological system for viral hepatitis"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["app/pipeline/biological_systems.py", "tests/test_pipeline/test_biological_systems.py"]
+    },
+    {
+      "id": "SLICE-030",
+      "title": "Format + comprehensive scenario biological_systems asserts",
+      "status": "done",
+      "priority": 2,
+      "problem": "Parser format scenarios and comprehensive Quest demo lack biological_systems regression guards.",
+      "acceptance": [
+        "signaling_labcorp_hl_flags, signaling_comprehensive_quest, format_csv_mixed_panel, format_pipe_delimited, format_quest_hdl_ldl_flags include biological_systems blocks",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["kitchen_sink scenario"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["signal_level threshold drift"],
+      "artifacts": ["samples/lab_scenarios/manifest.json"]
+    },
+    {
+      "id": "SLICE-031",
+      "title": "PMID batch 3: Tabata, Mastic, medications, radon (IMP-013)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Third cluster of legacy wrong PMIDs in lifestyle_evidence and tier_a Mastic Gum claims.",
+      "acceptance": [
+        "Replaces 8887515, 12415774, 12633146, 11719700, 11788644, 14518967 with verified PMIDs",
+        "audit denylist extended",
+        "scripts/ci_gates.sh passes; ops_reseed when Docker up"
+      ],
+      "non_goals": ["Full strict audit remediation"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["context_only medication claims"],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-032",
+      "title": "Kitchen sink Quest excerpt pathways + biological_systems",
+      "status": "done",
+      "priority": 2,
+      "problem": "Parser stress-test scenario validates H. pylori routing but not pathway/system rollups.",
+      "acceptance": [
+        "kitchen_sink_quest_excerpt includes GASTRIC_COLONIZATION pathways and inflammation biological_systems",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full kitchen_sink recommendation matrix"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["samples/lab_scenarios/manifest.json"]
+    },
+    {
+      "id": "SLICE-033",
+      "title": "Scenario matrix coverage audit gate",
+      "status": "done",
+      "priority": 2,
+      "problem": "No CI gate enforces minimum pathway/biological_systems/recommendation assertion coverage across scenarios.",
+      "acceptance": [
+        "scripts/audit_scenario_coverage.py reports and enforces coverage thresholds",
+        "scripts/ci_gates.sh runs scenario coverage as gate 7/10",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["100% scenario coverage"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["threshold drift as scenarios added"],
+      "artifacts": ["scripts/audit_scenario_coverage.py", "scripts/ci_gates.sh"]
+    },
+    {
+      "id": "SLICE-034",
+      "title": "Pathway asserts on remaining signaling/format scenarios",
+      "status": "done",
+      "priority": 2,
+      "problem": "audit_scenario_coverage flagged 6 scenarios missing pathway asserts.",
+      "acceptance": [
+        "signaling_inflammatory_quest, signaling_labcorp_hl_flags, signaling_comprehensive_quest, format_csv, format_pipe include pathway must_include",
+        "MIN_PATHWAY_SCENARIOS raised to 26",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["custom_unknown_biomarker pathways"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["samples/lab_scenarios/manifest.json", "scripts/audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-035",
+      "title": "custom_unknown pathways + culture negative-control docs",
+      "status": "done",
+      "priority": 2,
+      "problem": "custom_unknown_biomarker and culture_urine_no_growth were the last scenario-coverage gaps without documented intent.",
+      "acceptance": [
+        "custom_unknown_biomarker includes NF_KB/IL6_JAK_STAT3 pathways and inflammation biological_systems",
+        "culture_urine_no_growth documents negative_control with max_abnormal 0",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Lp(a) Mass HEPATIC_LIPID pathway alias"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["samples/lab_scenarios/manifest.json"]
+    },
+    {
+      "id": "SLICE-036",
+      "title": "IMP-013 batch 4: lifestyle PMID remediation (8 claims)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Eight lifestyle_evidence PMIDs mapped to unrelated PubMed articles (Atorvastatin, CALERIE, Losartan, Omeprazole, COC, Hydrocortisone, Mold, Low-VOC).",
+      "acceptance": [
+        "lifestyle_evidence.py PMIDs replaced with PubMed-verified titles",
+        "audit_pmid_integrity.py denylist extended for retired PMIDs",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full strict-audit remediation"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["PubMed title keyword drift"],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-037",
+      "title": "format_quest_hdl_ldl pathways + recommendations",
+      "status": "done",
+      "priority": 2,
+      "problem": "format_quest_hdl_ldl_flags had biological_systems but no pathway or recommendation asserts; coverage thresholds at 28.",
+      "acceptance": [
+        "format_quest_hdl_ldl_flags includes HEPATIC_LIPID pathways and Berberine/Omega-3 recommendations",
+        "MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS, MIN_RECOMMENDATION_SCENARIOS raised to 28",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["pgx_cyp2d6 biological_systems"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "scripts/audit_scenario_coverage.py"
+      ]
+    },
+    {
+      "id": "SLICE-038",
+      "title": "IMP-013 batch 5: exercise/sleep/diet lifestyle PMIDs",
+      "status": "done",
+      "priority": 2,
+      "problem": "Strict audit flagged 39 lifestyle PMID title mismatches in exercise, sleep, diet, and medication-context rows.",
+      "acceptance": [
+        "12 lifestyle_evidence PMIDs replaced with PubMed-verified titles",
+        "HIIT and Norwegian 4×4 keyword mappings added to audit_pmid_integrity.py",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Tier-a peptide strict remediation"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["Shared PMIDs across related interventions"],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-039",
+      "title": "IMP-013 batch 6: medication-context lifestyle PMIDs",
+      "status": "done",
+      "priority": 2,
+      "problem": "Metformin, Empagliflozin, Ezetimibe, Levothyroxine, Aspirin, and Insulin lifestyle rows cited unrelated PubMed articles.",
+      "acceptance": [
+        "Seven medication-context PMIDs replaced with title-verified articles",
+        "audit_pmid_integrity.py denylist extended",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full tier_a strict remediation"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-040",
+      "title": "IMP-013 batch 7: breathing/environment/hormone lifestyle PMIDs",
+      "status": "done",
+      "priority": 2,
+      "problem": "Final lifestyle strict-audit cluster: breathing, HEPA, GLP-1 class, digital CBT-I, nature, hormone therapy, water filtration.",
+      "acceptance": [
+        "14 lifestyle PMID rows remediated or keyword-mapped",
+        "Lifestyle strict mismatches reduced to near-zero",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Tier-a peptide PMID batch"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "app/knowledge_graph/lifestyle_evidence.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-041",
+      "title": "Lp(a) Mass custom biomarker HEPATIC_LIPID pathway",
+      "status": "done",
+      "priority": 2,
+      "problem": "Custom profile canonical Lp(a) Mass did not activate HEPATIC_LIPID because pathway rules only keyed on Lp(a).",
+      "acceptance": [
+        "pathway_mapper aliases Lp(a) Mass to Lp(a) for HEPATIC_LIPID activation",
+        "custom_unknown_biomarker asserts HEPATIC_LIPID and cardiovascular_risk",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": [],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_pathway_mapper.py"
+      ]
+    },
+    {
+      "id": "SLICE-042",
+      "title": "Nutrient portal alias resolution + low-mineral pathways",
+      "status": "done",
+      "priority": 1,
+      "problem": "Quest/LabCorp names like Iron, Total and Vitamin D, 25-OH did not resolve to catalog biomarkers, so low iron/vitamins fired zero pathway signals and triggered the UI error.",
+      "acceptance": [
+        "Portal comma suffixes and supplemental aliases resolve iron/vitamin/mineral panel names",
+        "Low Magnesium activates NUTRIENT_DEFICIENCY and nutrient_status signal",
+        "nutritional_portal_aliases scenario passes with pathways, systems, and recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["PDF OCR for garbled nutrient names"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["saturation alias ambiguity"],
+      "artifacts": [
+        "app/pipeline/user_biomarker_profile.py",
+        "app/knowledge_graph/biomarker_catalog.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json",
+        "frontend/index.html"
+      ]
+    },
+    {
+      "id": "SLICE-043",
+      "title": "IMP-013 tier_a/peptide PMID batch 8–10 remediation",
+      "status": "done",
+      "priority": 1,
+      "problem": "Legacy tier_a and peptide PMIDs cited unrelated PubMed articles; strict HERBAGRAPH_PMID_AUDIT_STRICT=1 surfaced 69+ title mismatches undermining evidence trust.",
+      "acceptance": [
+        "tier_a_evidence.py and peptide_catalog.py legacy PMIDs replaced with verified articles",
+        "scripts/audit_pmid_integrity.py denylist extended for superseded PMIDs",
+        "HERBAGRAPH_PMID_AUDIT_STRICT=1 reports 0 title mismatches",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Re-validating every preclinical peptide claim clinically"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["PubMed title keyword false negatives", "peptide preclinical keyword gaps"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/knowledge_graph/peptide_catalog.py",
+        "scripts/audit_pmid_integrity.py"
+      ]
+    },
+    {
+      "id": "SLICE-044",
+      "title": "Low calcium activates NUTRIENT_DEFICIENCY pathway",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low serum calcium on nutrient panels did not fire NUTRIENT_DEFICIENCY, leaving nutrient_status silent alongside other mineral deficiencies.",
+      "acceptance": [
+        "Low Calcium activates NUTRIENT_DEFICIENCY in pathway_mapper",
+        "Unit test asserts calcium deficiency pathway activation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Ionized calcium vs total calcium parsing variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["hypercalcemia false positives"],
+      "artifacts": ["app/pipeline/pathway_mapper.py", "tests/test_pipeline/test_pathway_mapper.py"]
+    },
+    {
+      "id": "SLICE-045",
+      "title": "nutritional_calcium_low scenario + calcium evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low calcium fired NUTRIENT_DEFICIENCY after SLICE-044 but had no end-to-end scenario, tier_a evidence, or nutritional_repletion routing to surface Calcium recommendations.",
+      "acceptance": [
+        "Calcium supplement in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "Calcium in _NUTRITIONAL_MARKERS routes nutritional_repletion primary tree",
+        "nutritional_calcium_low scenario passes with pathways, systems, and Calcium recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Ionized calcium panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["portal Calcium, Total alias"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "app/pipeline/test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-046",
+      "title": "IMP-014: DRUG_METABOLISM_VARIANT PGx evidence audit coverage",
+      "status": "done",
+      "priority": 2,
+      "problem": "audit_evidence_gaps reported zero routable claims for DRUG_METABOLISM_VARIANT while PGx scenarios relied on a single Berberine context_only claim.",
+      "acceptance": [
+        ">=3 context_only tier_a claims for CYP2D6/CYP2C19/DPYD genotype biomarkers",
+        "DRUG_METABOLISM_VARIANT in PRIORITY_PATHWAYS with >=3 routable claims in audit",
+        "pgx_cyp2d6_intermediate scenario still passes",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["PGx biological_systems asserts"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["over-broad supplement CYP warnings"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "scripts/audit_evidence_gaps.py"
+      ]
+    },
+    {
+      "id": "SLICE-047",
+      "title": "nutritional_potassium_low scenario + potassium evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low potassium on electrolyte panels did not route to nutritional_repletion or surface Potassium recommendations despite catalog biomarker coverage.",
+      "acceptance": [
+        "Low Potassium activates NUTRIENT_DEFICIENCY in pathway_mapper",
+        "Potassium tier_a evidence + nutritional_repletion routing",
+        "nutritional_potassium_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["RBC vs serum potassium reference range splitting"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["hyperkalemia safety flags"],
+      "artifacts": [
+        "app/pipeline/pathway_mapper.py",
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-048",
+      "title": "Portal aliases: calcium + potassium electrolyte panel",
+      "status": "done",
+      "priority": 2,
+      "problem": "Quest-style Calcium, Total and Potassium, Serum were not in the nutritional_portal_aliases matrix after SLICE-045/047, leaving electrolyte portal naming unguarded.",
+      "acceptance": [
+        "Calcium, Total and Potassium, Serum resolve to catalog biomarkers",
+        "nutritional_portal_aliases extended with low Ca/K + recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Ionized calcium variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["comma-suffix strip ambiguity"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "app/pipeline/user_biomarker_profile.py",
+        "tests/test_pipeline/test_ocr_alias_resolution.py"
+      ]
+    },
+    {
+      "id": "SLICE-049",
+      "title": "IMP-009: GHA Postgres reseed on main when catalogs change",
+      "status": "done",
+      "priority": 2,
+      "problem": "Operators on main branch could merge catalog changes without reseeding staging/prod-adjacent DBs; only a PR hint existed.",
+      "acceptance": [
+        "scripts/ci_reseed_postgres.sh reseeds when catalog globs change",
+        ".github/workflows/ci.yml reseed job runs on main push with Postgres service",
+        "tests/test_scripts/test_ci_catalog_reseed_hint.py covers skip path",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Reseed on every PR"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["GHA postgres startup flake"],
+      "artifacts": [
+        "scripts/ci_reseed_postgres.sh",
+        ".github/workflows/ci.yml",
+        "tests/test_scripts/test_ci_catalog_reseed_hint.py"
+      ]
+    },
+    {
+      "id": "SLICE-050",
+      "title": "IMP-015: Magnesium tier_a evidence + portal scenario recommendation",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases fired low Magnesium but Magnesium was absent from must_include recommendations because tier_a lacked a nutritional_repletion claim.",
+      "acceptance": [
+        "Magnesium NUTRIENT_DEFICIENCY tier_a evidence claim with PMID 27530471",
+        "nutritional_portal_aliases must_include Magnesium recommendation",
+        "scripts/ci_gates.sh passes with 253 evidence claims"
+      ],
+      "non_goals": ["Dedicated nutritional_magnesium_low scenario"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["Magnesium, RBC vs serum reference ranges"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt"
+      ]
+    },
+    {
+      "id": "SLICE-109",
+      "title": "Raise scenario coverage MIN_* thresholds to 70",
+      "status": "done",
+      "priority": 2,
+      "problem": "CI matrix at 72 assertion blocks while MIN_* floor remained at 65.",
+      "acceptance": [
+        "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 70",
+        "scripts/ci_gates.sh passes with 74 CI scenarios"
+      ],
+      "non_goals": [],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-108",
+      "title": "nutritional_cbc_indices_high combined CBC scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "MCV/MCH/RDW high together lacked a dedicated scenario distinct from macrocytic_cbc and isolated index rows.",
+      "acceptance": [
+        "nutritional_cbc_indices_high scenario passes with B12, Folate, and Iron recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Portal alias rows for MCV/MCH/RDW"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_cbc_indices_high.txt"
+      ]
+    },
+    {
+      "id": "SLICE-107",
+      "title": "nutritional_mcv_low isolated CBC scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low MCV (microcytic pattern) was not covered as an isolated CBC nutritional indicator.",
+      "acceptance": [
+        "nutritional_mcv_low scenario passes with Iron recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MCV portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_mcv_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-106",
+      "title": "IMP-050: nutritional_mcv_high isolated CBC scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "MCH and RDW had isolated scenarios; MCV high remained the lone uncovered CBC nutritional indicator.",
+      "acceptance": [
+        "nutritional_mcv_high scenario passes with B12 and Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MCV portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_mcv_high.txt"
+      ]
+    },
+    {
+      "id": "SLICE-105",
+      "title": "IMP-049: nutritional_mch_high isolated CBC scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "MCH high was only covered in multi-index macrocytic panels, not as an isolated CBC nutritional indicator.",
+      "acceptance": [
+        "nutritional_mch_high scenario passes with B12 and Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MCH portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_mch_high.txt"
+      ]
+    },
+    {
+      "id": "SLICE-104",
+      "title": "nutritional_rdw_high isolated CBC scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "RDW was in macrocytic panels but lacked an isolated high-RDW nutritional routing scenario.",
+      "acceptance": [
+        "nutritional_rdw_high scenario passes with Iron recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["RDW portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_rdw_high.txt"
+      ]
+    },
+    {
+      "id": "SLICE-103",
+      "title": "IMP-008: Frontend HTML contract + optional Playwright smoke script",
+      "status": "done",
+      "priority": 2,
+      "problem": "SLICE-008 API contract existed but no CI guard for frontend biological-systems/recommendations DOM hooks.",
+      "acceptance": [
+        "tests/test_frontend/test_index_html_contract.py passes in pytest",
+        "scripts/playwright_macrocytic_smoke.sh skips unless HERBAGRAPH_PLAYWRIGHT=1",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Playwright in GitHub Actions"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "tests/test_frontend/test_index_html_contract.py",
+        "scripts/playwright_macrocytic_smoke.sh"
+      ]
+    },
+    {
+      "id": "SLICE-102",
+      "title": "IMP-047: nutritional_micronutrient_quest_excerpt scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Portal matrix included iron/one-carbon rows; no lighter Quest micronutrient excerpt guarded vitamin-only routing.",
+      "acceptance": [
+        "nutritional_micronutrient_quest_excerpt scenario passes with 17 abnormal rows",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Iron panel rows"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation count cap at 17 abnormalities"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_micronutrient_quest_excerpt.txt"
+      ]
+    },
+    {
+      "id": "SLICE-101",
+      "title": "IMP-048: Raise scenario coverage MIN_* thresholds to 65",
+      "status": "done",
+      "priority": 2,
+      "problem": "CI matrix exceeded 66 assertion blocks while MIN_* floor remained at 60.",
+      "acceptance": [
+        "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 65",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": [],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-099",
+      "title": "nutritional_anemia_iron_macrocytic combined panel",
+      "status": "done",
+      "priority": 2,
+      "problem": "Iron, macrocytic, and B12 scenarios were isolated; real anemia workups combine low Hgb/ferritin/iron with macrocytosis.",
+      "acceptance": [
+        "nutritional_anemia_iron_macrocytic scenario passes with Iron, B12, Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Reticulocyte count"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["mixed micro/macrocytic patterns"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_anemia_iron_macrocytic.txt"
+      ]
+    },
+    {
+      "id": "SLICE-098",
+      "title": "Portal aliases hemoglobin row",
+      "status": "done",
+      "priority": 2,
+      "problem": "Portal matrix had ferritin and iron indices but omitted low Hemoglobin Quest row.",
+      "acceptance": [
+        "Hemoglobin row in nutritional_portal_aliases",
+        "Matrix extended to 26 abnormal rows",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Hematocrit row"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-097",
+      "title": "IMP-005: OCR post-processor hook in lab_parser",
+      "status": "done",
+      "priority": 2,
+      "problem": "OCR garbling was fixed only at alias resolution; parser stored reversed analyte names and broke eGFR-style legitimate mixed-case tokens.",
+      "acceptance": [
+        "postprocess_ocr_lab_text runs before parse_lab_text with catalog-aware guard",
+        "format_ocr_garbled_cbc scenario passes; eGFR rows are not reversed",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full PDF layout OCR models"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["false-positive token reversal on valid analyte names"],
+      "artifacts": [
+        "app/pipeline/lab_parser.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_lab_parser.py"
+      ]
+    },
+    {
+      "id": "SLICE-096",
+      "title": "pipeline_diagnostics scenario coverage gate",
+      "status": "done",
+      "priority": 2,
+      "problem": "pipeline_diagnostics omitted audit_scenario_coverage and under-counted assertion blocks.",
+      "acceptance": [
+        "pipeline_diagnostics.py runs audit_scenario_coverage.py",
+        "Pathway/recommendation/system counts use must_include blocks",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Auto-bump MIN_* thresholds"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/pipeline_diagnostics.py"]
+    },
+    {
+      "id": "SLICE-095",
+      "title": "nutritional_vitamin_c_zinc_low combined panel",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin C and zinc had isolated scenarios but no combined antioxidant + trace mineral panel.",
+      "acceptance": [
+        "nutritional_vitamin_c_zinc_low scenario passes with Vitamin C and Zinc recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Selenium in same panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_vitamin_c_zinc_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-094",
+      "title": "format_ocr_garbled_cbc parser + scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "OCR-reversed mean-cell CBC strings had alias coverage but no CI scenario asserting parser post-process + end-to-end routing.",
+      "acceptance": [
+        "format_ocr_garbled_cbc scenario passes with MCV/MCH normalization and B12/Folate/Iron recs",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Full OCR PDF fixture in CI"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["eGFR false reversal"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/format_ocr_garbled_cbc.txt"
+      ]
+    },
+    {
+      "id": "SLICE-093",
+      "title": "nutritional_hemoglobin_low + CBC routing",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low hemoglobin activated IRON_HEPCIDIN but was not in CBC nutritional indicators for isolated anemia repletion routing.",
+      "acceptance": [
+        "Hemoglobin in _CBC_NUTRITIONAL_INDICATORS",
+        "nutritional_hemoglobin_low scenario passes with Iron recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Reticulocyte count panels"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["non-iron anemia false positives"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-092",
+      "title": "IMP-046: Raise scenario coverage MIN_* thresholds to 60",
+      "status": "done",
+      "priority": 2,
+      "problem": "CI matrix exceeded 62 assertion blocks while MIN_* floor remained at 55.",
+      "acceptance": [
+        "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 60",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": [],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-091",
+      "title": "IMP-045: Full B-complex low panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "B1/B2/B6 and B12/folate had separate combined panels but no five-marker B-complex Quest export scenario.",
+      "acceptance": [
+        "nutritional_b_complex_low scenario passes with B1, B2, B6, B12, Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Biotin or niacin markers"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation count cap with five B vitamins"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_b_complex_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-090",
+      "title": "nutritional_macrocytic_one_carbon combined panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Macrocytic CBC and one-carbon markers had separate scenarios but no combined hematologic + Hcy + B12/folate panel.",
+      "acceptance": [
+        "nutritional_macrocytic_one_carbon scenario passes with B12, Folate, Iron recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MMA in same panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["mixed-panel signaling deferral"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_macrocytic_one_carbon.txt"
+      ]
+    },
+    {
+      "id": "SLICE-089",
+      "title": "IMP-043: UIBC portal row in nutritional_portal_aliases",
+      "status": "done",
+      "priority": 2,
+      "problem": "UIBC scenario existed but Quest Unsaturated Iron Binding Capacity name was absent from the portal matrix.",
+      "acceptance": [
+        "Unsaturated Iron Binding Capacity resolves in portal panel",
+        "nutritional_portal_aliases extended to 25 abnormal rows",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["UIBC vs TIBC mutual exclusivity"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["duplicate iron indices in portal panel"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-088",
+      "title": "IMP-042: Raise scenario coverage MIN_* thresholds to 55",
+      "status": "done",
+      "priority": 2,
+      "problem": "Matrix grew past 57 asserted scenarios while MIN_* floor remained at 50.",
+      "acceptance": [
+        "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 55",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Dynamic threshold from scenario count"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-087",
+      "title": "IMP-041: Combined fat-soluble + vitamin D panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Fat-soluble and vitamin D had isolated/combined gaps — no four-vitamin A/D/E/K panel scenario.",
+      "acceptance": [
+        "nutritional_fat_soluble_vitd_low scenario passes with Vitamin D, A, E, K2 recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Beta-carotene lab naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation ranking with four vitamins"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_fat_soluble_vitd_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-086",
+      "title": "IMP-040: Combined B12 + folate low panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "B12 and folate had isolated scenarios but no combined one-carbon dual-deficiency panel.",
+      "acceptance": [
+        "nutritional_b12_folate_low scenario passes with B12 and Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MTHFR genotype"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_b12_folate_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-085",
+      "title": "IMP-039b: UIBC high iron deficiency routing + scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "UIBC was in catalog but high values did not route nutritional_repletion or surface Iron recommendations.",
+      "acceptance": [
+        "UIBC in _NUTRITIONAL_HIGH_MARKERS with IRON_HEPCIDIN pathway rule",
+        "Iron tier_a claim links UIBC biomarker",
+        "nutritional_uibc_high scenario passes",
+        "scripts/ci_gates.sh passes with 270 evidence claims"
+      ],
+      "non_goals": ["UIBC portal row in nutritional_portal_aliases"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["TIBC vs UIBC alias collision"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/pipeline/pathway_mapper.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-084",
+      "title": "IMP-039: Combined trace mineral panel scenario (Zn+Cu+Se)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Zinc, copper, and selenium had isolated scenarios but no combined trace mineral panel asserting all three recommendations.",
+      "acceptance": [
+        "nutritional_trace_mineral_panel scenario passes with Zinc, Copper, Selenium recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Manganese or molybdenum"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["copper-zinc interaction ranking"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_trace_mineral_panel.txt"
+      ]
+    },
+    {
+      "id": "SLICE-083",
+      "title": "IMP-038: negative_control gap skip in scenario coverage audit",
+      "status": "done",
+      "priority": 2,
+      "problem": "culture_urine_no_growth and trend_followup_improved are documented negative controls but still surfaced in coverage gap reports.",
+      "acceptance": [
+        "audit_scenario_coverage.py skips gap reporting when expect.negative_control or max_abnormal=0",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["New negative-control scenarios"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": ["scripts/audit_scenario_coverage.py"]
+    },
+    {
+      "id": "SLICE-082",
+      "title": "IMP-037: Combined electrolyte panel scenario (Ca+K+Mg)",
+      "status": "done",
+      "priority": 2,
+      "problem": "Calcium, potassium, and magnesium had isolated scenarios but no combined electrolyte panel asserting all three recommendations together.",
+      "acceptance": [
+        "nutritional_electrolyte_panel scenario passes with Calcium, Potassium, Magnesium recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Sodium or chloride electrolytes"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation count caps with multi-mineral panel"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_electrolyte_panel.txt"
+      ]
+    },
+    {
+      "id": "SLICE-081",
+      "title": "IMP-036: Combined Quest iron comprehensive panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Iron markers had isolated scenarios but no combined Quest panel asserting all five abnormal iron indices route Iron together.",
+      "acceptance": [
+        "nutritional_iron_comprehensive scenario passes with 5 abnormal iron markers",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Hemoglobin in iron panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["duplicate iron evidence ranking"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_iron_comprehensive.txt"
+      ]
+    },
+    {
+      "id": "SLICE-080",
+      "title": "IMP-035: TIBC high nutritional routing + portal row",
+      "status": "done",
+      "priority": 2,
+      "problem": "Iron Binding Capacity resolved via alias but high TIBC did not activate IRON_HEPCIDIN, route nutritional_repletion, or appear in portal matrix.",
+      "acceptance": [
+        "TIBC in _NUTRITIONAL_HIGH_MARKERS with IRON_HEPCIDIN pathway rule",
+        "Iron tier_a claim links TIBC biomarker",
+        "nutritional_tibc_high scenario and portal row pass",
+        "scripts/ci_gates.sh passes with 269 evidence claims"
+      ],
+      "non_goals": ["UIBC panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["TIBC vs UIBC alias collision"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/pipeline/pathway_mapper.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt"
+      ]
+    },
+    {
+      "id": "SLICE-079",
+      "title": "IMP-034: Raise scenario coverage MIN_* thresholds to 50",
+      "status": "done",
+      "priority": 2,
+      "problem": "Coverage mins at 29 left too much headroom as CI matrix grew past 55 scenarios.",
+      "acceptance": [
+        "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 50",
+        "tests/test_scripts/test_audit_scenario_coverage.py guards floor",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["100% scenario assertion coverage"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["threshold drift on negative-control scenarios"],
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "tests/test_scripts/test_audit_scenario_coverage.py"
+      ]
+    },
+    {
+      "id": "SLICE-077",
+      "title": "IMP-033: Combined one-carbon panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Homocysteine and MMA had isolated scenarios but no combined functional B12 deficiency panel asserting collateral B12 and folate routing together.",
+      "acceptance": [
+        "nutritional_one_carbon_panel scenario passes with B12 and Folate recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MTHFR genotype routing"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation ranking with multiple one-carbon contributors"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_one_carbon_panel.txt"
+      ]
+    },
+    {
+      "id": "SLICE-076",
+      "title": "IMP-032: PGx biological_systems_skip documentation",
+      "status": "done",
+      "priority": 2,
+      "problem": "pgx_cyp2d6_intermediate was the only CI scenario flagged as missing biological_systems despite intentional PGx context-only design.",
+      "acceptance": [
+        "pgx_cyp2d6_intermediate documents biological_systems_skip in manifest",
+        "audit_scenario_coverage.py ignores documented skips in gap report",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["DRUG_METABOLISM_VARIANT biological system rollup"],
+      "reversibility": "two-way",
+      "risk_hotspots": [],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "scripts/audit_scenario_coverage.py"
+      ]
+    },
+    {
+      "id": "SLICE-075",
+      "title": "nutritional_folate_low isolated scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low folate had portal and macrocytic coverage but no isolated CI scenario for one-carbon repletion routing.",
+      "acceptance": [
+        "nutritional_folate_low scenario passes with Folate recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["RBC folate panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["folate optimal band vs normal status asserts"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_folate_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-074",
+      "title": "nutritional_b12_low isolated scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low B12 had portal and macrocytic coverage but no isolated CI scenario for one-carbon repletion routing.",
+      "acceptance": [
+        "nutritional_b12_low scenario passes with B12 recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Active B12 vs serum B12 naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["B12 optimal band vs normal status asserts"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_b12_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-073",
+      "title": "nutritional_magnesium_low isolated scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Magnesium had tier_a evidence and portal coverage but no isolated CI scenario guarding low-serum repletion routing.",
+      "acceptance": [
+        "nutritional_magnesium_low scenario passes with Magnesium recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Magnesium RBC vs serum reference splitting"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["magnesium rbc alias confusion"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_magnesium_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-072",
+      "title": "nutritional_zinc_low isolated scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Zinc had tier_a evidence and portal coverage but no isolated CI scenario guarding low-plasma repletion routing.",
+      "acceptance": [
+        "nutritional_zinc_low scenario passes with Zinc recommendation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["RBC zinc panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["copper-zinc interaction messaging"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_zinc_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-071",
+      "title": "IMP-029: Portal aliases MMA one-carbon row",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases guarded homocysteine but not Quest Methylmalonic Acid, Serum after SLICE-068 isolated MMA scenario.",
+      "acceptance": [
+        "Methylmalonic Acid, Serum parses and resolves in portal panel",
+        "nutritional_portal_aliases extended to 23 abnormal rows",
+        "ONE_CARBON_METHYLATION pathway assert holds",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["MMA urine panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["long analyte name parsing"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json",
+        "app/pipeline/user_biomarker_profile.py",
+        "scripts/audit_alias_resolution.py"
+      ]
+    },
+    {
+      "id": "SLICE-070",
+      "title": "IMP-028: Portal aliases homocysteine row",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases had low B12/folate but not elevated Homocysteine, Plasma alongside one-carbon markers.",
+      "acceptance": [
+        "Homocysteine, Plasma parses and resolves in portal panel",
+        "nutritional_portal_aliases extended to 22 abnormal rows",
+        "ONE_CARBON_METHYLATION pathway assert added",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Homocyst(e)ine OCR garble variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["mixed-panel signaling deferral with many low nutrients"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json",
+        "app/pipeline/user_biomarker_profile.py",
+        "scripts/audit_alias_resolution.py"
+      ]
+    },
+    {
+      "id": "SLICE-069",
+      "title": "IMP-027: Portal aliases sTfR iron row",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases had % Saturation but not Soluble Transferrin Receptor, Serum after SLICE-068 isolated scenario.",
+      "acceptance": [
+        "Soluble Transferrin Receptor, Serum parses and resolves in portal panel",
+        "nutritional_portal_aliases extended to 21 abnormal rows",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["TIBC row"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["long analyte name line wrap"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-068",
+      "title": "Elevated sTfR iron deficiency scenario + routing",
+      "status": "done",
+      "priority": 2,
+      "problem": "High soluble transferrin receptor signals functional iron deficiency but had no nutritional_repletion routing, Iron biomarker claim, or CI scenario.",
+      "acceptance": [
+        "Soluble Transferrin Receptor in _NUTRITIONAL_HIGH_MARKERS",
+        "Iron tier_a claim links sTfR biomarker with decreases effect",
+        "nutritional_stfr_high scenario passes with normal ferritin",
+        "scripts/ci_gates.sh passes with 268 evidence claims"
+      ],
+      "non_goals": ["TIBC panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["long Quest analyte name parsing"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-067",
+      "title": "Portal aliases: vitamin C + prealbumin rows",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases after SLICE-066 still omitted Vitamin C, Plasma and Prealbumin, Serum Quest display names.",
+      "acceptance": [
+        "Portal panel extended to 20 abnormal rows with Vitamin C and Prealbumin",
+        "Glutamine and Vitamin C in recommendation asserts",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["sTfR portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["20-abnormal recommendation cap"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json",
+        "app/pipeline/user_biomarker_profile.py"
+      ]
+    },
+    {
+      "id": "SLICE-066",
+      "title": "IMP-026: Portal aliases fat-soluble + B-vitamin rows",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases guarded iron/electrolytes/trace minerals but not Quest vitamin A/E/K or thiamine/riboflavin/pyridoxine portal names.",
+      "acceptance": [
+        "Thiamine/Riboflavin/Pyridoxine and vitamin A/E/K portal names resolve and parse",
+        "nutritional_portal_aliases extended to 18 abnormal rows",
+        "16 vitamin/mineral recommendations asserted",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Vitamin C portal row"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["comma-suffix strip on vitamin names"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "app/pipeline/user_biomarker_profile.py",
+        "app/pipeline/pathway_mapper.py",
+        "tests/test_pipeline/test_ocr_alias_resolution.py"
+      ]
+    },
+    {
+      "id": "SLICE-065",
+      "title": "IMP-025: Combined B-vitamin panel scenario (B1+B2+B6)",
+      "status": "done",
+      "priority": 2,
+      "problem": "B1/B2/B6 had isolated scenarios but no combined panel asserting all three recommendations together.",
+      "acceptance": [
+        "nutritional_b_vitamins_low scenario passes with B1, B2, and B6 recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["B12/folate in same panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation ranking when many B vitamins abnormal"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_b_vitamins_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-064",
+      "title": "IMP-024: Combined fat-soluble vitamin panel scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamins A/E/K had isolated scenarios but no combined panel asserting multi-vitamin recommendations in one upload.",
+      "acceptance": [
+        "nutritional_fat_soluble_low scenario passes with A, E, and K2 recommendations",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["Vitamin D in same panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["recommendation count caps per pathway route"],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "samples/lab_scenarios/raw/nutritional_fat_soluble_low.txt"
+      ]
+    },
+    {
+      "id": "SLICE-063",
+      "title": "IMP-023: Vitamin K low scenario + Vitamin K2 tier_a catalog",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin K was the last fat-soluble nutritional catalog biomarker without tier_a evidence or CI scenario after A/E coverage.",
+      "acceptance": [
+        "Vitamin K2 in tier_a_catalog with Vitamin K biomarker NUTRIENT_DEFICIENCY claim",
+        "nutritional_vitamin_k_low scenario passes with Vitamin K2 recommendation",
+        "scripts/ci_gates.sh passes with 267 evidence claims"
+      ],
+      "non_goals": ["Warfarin interaction UI surfacing"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["vitamin K vs warfarin contraindication flags"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-062",
+      "title": "Vitamin E nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin E is in the nutritional biomarker catalog but lacked tier_a catalog/evidence and CI scenario coverage.",
+      "acceptance": [
+        "Vitamin E in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "nutritional_vitamin_e_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 266 evidence claims"
+      ],
+      "non_goals": ["Vitamin K coupling"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["anticoagulant interaction safety flags"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-061",
+      "title": "Vitamin A nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin A is in the nutritional biomarker catalog but lacked tier_a catalog/evidence and CI scenario coverage.",
+      "acceptance": [
+        "Vitamin A in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "nutritional_vitamin_a_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 265 evidence claims"
+      ],
+      "non_goals": ["Beta-carotene vs retinol lab naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["pregnancy teratogenicity safety flags"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-060",
+      "title": "IMP-022: Vitamin B2 (riboflavin) nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin B2 completed the B-vitamin catalog gap after B1/B6/B12/Folate but had no tier_a evidence or CI scenario.",
+      "acceptance": [
+        "Vitamin B2 in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "nutritional_vitamin_b2_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 264 evidence claims"
+      ],
+      "non_goals": ["FAD/FMN lab analyte naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["riboflavin vs vitamin B2 display names"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-059",
+      "title": "Vitamin B1 (thiamine) nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin B1 is in the biomarker catalog but missing from _NUTRITIONAL_MARKERS, tier_a catalog/evidence, and CI scenarios.",
+      "acceptance": [
+        "Vitamin B1 in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "Low Vitamin B1 activates NUTRIENT_DEFICIENCY and routes nutritional_repletion",
+        "nutritional_vitamin_b1_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 263 evidence claims"
+      ],
+      "non_goals": ["Benfotiamine variant naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["thiamine vs thiamin spelling in lab exports"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-058",
+      "title": "Vitamin B6 nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin B6 is in the biomarker catalog but absent from _NUTRITIONAL_MARKERS, tier_a catalog/evidence, and CI scenarios.",
+      "acceptance": [
+        "Vitamin B6 in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "Low Vitamin B6 activates NUTRIENT_DEFICIENCY and routes nutritional_repletion",
+        "nutritional_vitamin_b6_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 262 evidence claims"
+      ],
+      "non_goals": ["Pyridoxal phosphate vs pyridoxine lab naming"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["high-dose B6 neuropathy safety flags"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "app/pipeline/test_type_router.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-057",
+      "title": "IMP-021: Prealbumin low glutamine protein repletion scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low prealbumin activated NUTRIENT_DEFICIENCY via category rules but was not in _NUTRITIONAL_MARKERS and had no protein-repletion tier_a claim or CI scenario.",
+      "acceptance": [
+        "Prealbumin in _NUTRITIONAL_MARKERS routes nutritional_repletion",
+        "Glutamine tier_a NUTRIENT_DEFICIENCY claim links Prealbumin biomarker",
+        "nutritional_prealbumin_low scenario passes with Glutamine recommendation",
+        "scripts/ci_gates.sh passes with 261 evidence claims"
+      ],
+      "non_goals": ["Albumin hepatic panel routing"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["glutamine vs whey protein intervention choice"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "app/pipeline/test_type_router.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_pathway_mapper.py"
+      ]
+    },
+    {
+      "id": "SLICE-056",
+      "title": "IMP-020: Portal aliases % Saturation iron row",
+      "status": "done",
+      "priority": 2,
+      "problem": "nutritional_portal_aliases guarded Iron, Total and Ferritin but not Quest % Saturation after SLICE-054 parser fix.",
+      "acceptance": [
+        "% Saturation row parses and resolves to Transferrin Saturation",
+        "nutritional_portal_aliases extended to 12 abnormal rows including low transferrin saturation",
+        "scripts/ci_gates.sh passes"
+      ],
+      "non_goals": ["TIBC / iron binding capacity rows"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["duplicate iron signals from Iron + % Saturation"],
+      "artifacts": [
+        "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-055",
+      "title": "IMP-019: Homocysteine high nutritional_repletion + B12/Folate scenario",
+      "status": "done",
+      "priority": 2,
+      "problem": "Elevated homocysteine activated ONE_CARBON_METHYLATION but routed signaling-only, so B12/Folate recommendations were not asserted in CI despite functional deficiency context.",
+      "acceptance": [
+        "Homocysteine in _NUTRITIONAL_HIGH_MARKERS routes nutritional_repletion",
+        "B12 and Folate tier_a claims link Homocysteine biomarker with decreases effect",
+        "nutritional_homocysteine_high scenario passes with B12 and Folate recommendations",
+        "scripts/ci_gates.sh passes with 260 evidence claims"
+      ],
+      "non_goals": ["MTHFR genotype routing"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["inflammatory category vs nutritional tree overlap"],
+      "artifacts": [
+        "app/pipeline/test_type_router.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-054",
+      "title": "IMP-018: Transferrin saturation low scenario + parser % prefix",
+      "status": "done",
+      "priority": 2,
+      "problem": "Low % Saturation is a common Quest iron panel signal but the lab parser rejected analyte names starting with % and no CI scenario asserted Iron without low ferritin.",
+      "acceptance": [
+        "lab_parser accepts % Saturation Quest-style rows",
+        "Iron tier_a claim links Transferrin Saturation biomarker",
+        "nutritional_transferrin_saturation_low scenario passes with normal ferritin",
+        "scripts/ci_gates.sh passes with 258 evidence claims"
+      ],
+      "non_goals": ["TIBC / iron binding capacity panel variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["% prefix regex ambiguity with units"],
+      "artifacts": [
+        "app/pipeline/lab_parser.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_lab_parser.py",
+        "tests/test_pipeline/test_ocr_alias_resolution.py"
+      ]
+    },
+    {
+      "id": "SLICE-053",
+      "title": "IMP-017: Methylmalonic Acid high scenario + B12 collateral evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Elevated MMA is a functional B12 deficiency signal in _NUTRITIONAL_MARKERS but had no tier_a biomarker-linked B12 claim or CI scenario.",
+      "acceptance": [
+        "B12 tier_a claim links Methylmalonic Acid biomarker with decreases effect",
+        "High MMA activates ONE_CARBON_METHYLATION and NUTRIENT_DEFICIENCY in pathway_mapper core",
+        "nutritional_mma_high scenario passes with B12 recommendation",
+        "scripts/ci_gates.sh passes with 257 evidence claims"
+      ],
+      "non_goals": ["Homocysteine paired MMA panel"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["normal serum B12 with high MMA clinical nuance"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "app/pipeline/test_type_router.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_pathway_mapper.py",
+        "tests/test_pipeline/test_test_type_router.py"
+      ]
+    },
+    {
+      "id": "SLICE-052",
+      "title": "IMP-016: Vitamin C nutritional repletion scenario + evidence",
+      "status": "done",
+      "priority": 2,
+      "problem": "Vitamin C was in _NUTRITIONAL_MARKERS but lacked tier_a catalog/evidence and a CI scenario, so low ascorbate panels never surfaced Vitamin C recommendations.",
+      "acceptance": [
+        "Vitamin C in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claim",
+        "Low Vitamin C activates NUTRIENT_DEFICIENCY in pathway_mapper core rules",
+        "nutritional_vitamin_c_low scenario passes end-to-end",
+        "scripts/ci_gates.sh passes with 256 evidence claims"
+      ],
+      "non_goals": ["Vitamin C portal alias variants"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["mg/dL vs umol/L unit confusion"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json"
+      ]
+    },
+    {
+      "id": "SLICE-051",
+      "title": "Copper + Selenium nutritional repletion scenarios and portal aliases",
+      "status": "done",
+      "priority": 2,
+      "problem": "Copper and Selenium were in _NUTRITIONAL_MARKERS and portal alias resolution but lacked tier_a catalog/evidence and CI scenarios, so low values never surfaced recommendations.",
+      "acceptance": [
+        "Copper and Selenium in tier_a_catalog with NUTRIENT_DEFICIENCY evidence claims",
+        "Low Copper/Selenium activate NUTRIENT_DEFICIENCY in pathway_mapper core rules",
+        "nutritional_copper_low and nutritional_selenium_low scenarios pass end-to-end",
+        "nutritional_portal_aliases extended with Copper, Serum and Selenium, Serum",
+        "scripts/ci_gates.sh passes with 255 evidence claims"
+      ],
+      "non_goals": ["Manganese or molybdenum trace minerals"],
+      "reversibility": "two-way",
+      "risk_hotspots": ["zinc-induced copper deficiency messaging", "selenium toxicity at high dose"],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_catalog.py",
+        "app/knowledge_graph/tier_a_evidence.py",
+        "app/pipeline/pathway_mapper.py",
+        "samples/lab_scenarios/manifest.json",
+        "tests/test_pipeline/test_pathway_mapper.py"
+      ]
+    }
+  ],
+  "improvement_queue": [
+    {
+      "id": "IMP-001",
+      "suggested_at": "2026-07-07",
+      "title": "Persist canonical biomarker_name at upload time (not only on report load)",
+      "rationale": "Remap script fixes DB retroactively; normalizing at Celery Stage 2 prevents drift and simplifies debugging.",
+      "priority": "high",
+      "status": "done",
+      "completed_in": "SLICE-003"
+    },
+    {
+      "id": "IMP-002",
+      "suggested_at": "2026-07-07",
+      "title": "Registered user sessions instead of ephemeral guest accounts",
+      "rationale": "Guest localStorage creates new users on clear; users lose reports and think UI is broken.",
+      "priority": "high",
+      "status": "proposed"
+    },
+    {
+      "id": "IMP-003",
+      "suggested_at": "2026-07-07",
+      "title": "Mock LLM path for CI report generation",
+      "rationale": "E2E report tests cannot depend on OPENAI_API_KEY; catalog-only reasoning is enough to verify routing.",
+      "priority": "high",
+      "status": "done",
+      "completed_in": "SLICE-003"
+    },
+    {
+      "id": "IMP-004",
+      "suggested_at": "2026-07-07",
+      "title": "Scenario expect.pathways and expect.biological_systems blocks",
+      "rationale": "Catches macrocytic-class bugs without manual DB inspection.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-004"
+    },
+    {
+      "id": "IMP-005",
+      "suggested_at": "2026-07-07",
+      "title": "PDF OCR post-processor hook in lab_parser",
+      "rationale": "Per-token reversal in alias layer works but parser-level fix reduces custom profile pollution.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-097"
+    },
+    {
+      "id": "IMP-006",
+      "suggested_at": "2026-07-07",
+      "title": "pipeline_diagnostics.py one-command health report",
+      "rationale": "Operator can run single script before demo: counts, coverage, last scenario run.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-006-session"
+    },
+    {
+      "id": "IMP-007",
+      "suggested_at": "2026-07-07",
+      "title": "Strip lab-portal suffixes (calc, quest) before alias resolution",
+      "rationale": "Quest/LabCorp append (calc) and vendor tags; strip without breaking LDL Chol Calc analyte names.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-005-session"
+    },
+    {
+      "id": "IMP-008",
+      "suggested_at": "2026-07-07",
+      "title": "Playwright local smoke for macrocytic fixture UI",
+      "rationale": "SLICE-008 API contract is done; browser-level smoke would catch frontend render regressions.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-103",
+      "note": "CI HTML contract test + optional HERBAGRAPH_PLAYWRIGHT=1 script"
+    },
+    {
+      "id": "IMP-009",
+      "suggested_at": "2026-07-07",
+      "title": "CI job reseed on main branch when seed catalogs change",
+      "rationale": "ops_reseed.sh works locally; GitHub Actions could run reseed against test Postgres on catalog file diffs.",
+      "priority": "low",
+      "status": "done",
+      "started_in": "SLICE-027",
+      "completed_in": "SLICE-049",
+      "note": "PR reseed hint (SLICE-027) + main-branch GHA Postgres reseed job (SLICE-049)"
+    },
+    {
+      "id": "IMP-010",
+      "suggested_at": "2026-07-07",
+      "title": "Trend-pair scenarios assert recommendation delta when baseline abnormal",
+      "rationale": "trend_followup_improved validates normalization only; paired baseline+follow-up should assert recommendation count drops when CRP normalizes.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-010"
+    },
+    {
+      "id": "IMP-011",
+      "suggested_at": "2026-07-07",
+      "title": "Fecal lactoferrin etiological tree routing when PATHOGEN_BURDEN primary",
+      "rationale": "Elevated fecal lactoferrin activates pathogen/biofilm pathways but still routes signaling primary; dedicated GI-inflammation tree would sharpen niche cases.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-013"
+    },
+    {
+      "id": "IMP-012",
+      "suggested_at": "2026-07-07",
+      "title": "PMID integrity audit for tier_a_evidence and lifestyle_evidence",
+      "rationale": "PubMed eutils spot-checks found multiple legacy PMIDs map to unrelated articles (e.g. Berberine claims citing curcumin liver review); automated esummary validation would prevent drift.",
+      "priority": "medium",
+      "status": "done",
+      "completed_in": "SLICE-017"
+    },
+    {
+      "id": "IMP-013",
+      "suggested_at": "2026-07-07",
+      "title": "Strict PMID title-keyword audit + batch remediation",
+      "rationale": "Denylist gate fixed Berberine/19811613; HERBAGRAPH_PMID_AUDIT_STRICT=1 surfaces 145+ lifestyle/tier_a title mismatches needing verified PMID replacement.",
+      "priority": "medium",
+      "status": "done",
+      "started_in": "SLICE-021",
+      "completed_in": "SLICE-043",
+      "note": "Lifestyle batches 1-7 + tier_a/peptide batches 8-10 done; HERBAGRAPH_PMID_AUDIT_STRICT=1 reports 0 title mismatches"
+    },
+    {
+      "id": "IMP-014",
+      "suggested_at": "2026-07-07",
+      "title": "DRUG_METABOLISM_VARIANT routable PGx evidence claims",
+      "rationale": "audit_evidence_gaps.py reports zero routable claims for DRUG_METABOLISM_VARIANT; pgx_cyp2d6_intermediate scenario asserts pathway but recommendations stay empty by design until context_only claims become routable PGx interaction evidence.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-046"
+    },
+    {
+      "id": "IMP-015",
+      "suggested_at": "2026-07-07",
+      "title": "Magnesium tier_a evidence + portal scenario recommendation",
+      "rationale": "nutritional_portal_aliases fires low Magnesium but Magnesium is absent from must_include recommendations; tier_a repletion claim would close the loop.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-050"
+    },
+    {
+      "id": "IMP-016",
+      "suggested_at": "2026-07-07",
+      "title": "Vitamin C tier_a nutritional_repletion evidence + scenario",
+      "rationale": "Vitamin C is in _NUTRITIONAL_MARKERS but has no tier_a repletion claim or CI scenario; low ascorbate panels would not surface recommendations.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-052"
+    },
+    {
+      "id": "IMP-017",
+      "suggested_at": "2026-07-07",
+      "title": "Methylmalonic Acid B12 collateral routing + scenario",
+      "rationale": "MMA is in _NUTRITIONAL_MARKERS as a functional B12 deficiency signal but has no dedicated scenario or collateral B12 recommendation assert when MMA is high.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-053"
+    },
+    {
+      "id": "IMP-018",
+      "suggested_at": "2026-07-07",
+      "title": "Transferrin Saturation iron panel scenario",
+      "rationale": "Transferrin Saturation is in _NUTRITIONAL_MARKERS and portal aliases resolve % Saturation, but no isolated low-% scenario asserts Iron recommendation without ferritin.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-054"
+    },
+    {
+      "id": "IMP-019",
+      "suggested_at": "2026-07-07",
+      "title": "Homocysteine high nutritional_repletion routing + B12/Folate scenario",
+      "rationale": "Elevated homocysteine activates ONE_CARBON_METHYLATION but routes signaling-only; no CI scenario asserts B12/Folate when Hcy is high with normal B12/folate.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-055"
+    },
+    {
+      "id": "IMP-020",
+      "suggested_at": "2026-07-07",
+      "title": "Extend nutritional_portal_aliases with % Saturation iron row",
+      "rationale": "SLICE-054 added an isolated transferrin saturation scenario but the 11-marker portal matrix still omits % Saturation, leaving the most common Quest iron alias unguarded in the combined panel.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-056"
+    },
+    {
+      "id": "IMP-021",
+      "suggested_at": "2026-07-07",
+      "title": "Prealbumin low nutritional_repletion scenario",
+      "rationale": "Prealbumin is a nutritional category biomarker with low-status NUTRIENT_DEFICIENCY routing but no tier_a protein repletion claim or CI scenario.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-057"
+    },
+    {
+      "id": "IMP-022",
+      "suggested_at": "2026-07-07",
+      "title": "Vitamin B2 (riboflavin) nutritional_repletion scenario",
+      "rationale": "Vitamin B2 is in the nutritional biomarker catalog but has no tier_a evidence or CI scenario; completes B-vitamin repletion coverage after B1/B6/B12/Folate.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-060"
+    },
+    {
+      "id": "IMP-023",
+      "suggested_at": "2026-07-07",
+      "title": "Vitamin K nutritional_repletion scenario + K2 catalog entry",
+      "rationale": "Vitamin K is the remaining fat-soluble vitamin in the nutritional catalog without tier_a evidence or CI scenario after A/D/E coverage.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-063"
+    },
+    {
+      "id": "IMP-024",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_fat_soluble_panel multi-vitamin scenario",
+      "rationale": "A/D/E/K now have isolated scenarios but no combined low fat-soluble panel asserts multiple vitamin recommendations in one upload.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-064"
+    },
+    {
+      "id": "IMP-025",
+      "suggested_at": "2026-07-07",
+      "title": "B-vitamin panel scenario (B1+B2+B6 low combined)",
+      "rationale": "B vitamins now have isolated scenarios; a combined panel would guard multi-abnormal B-vitamin routing and recommendation surfacing.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-065"
+    },
+    {
+      "id": "IMP-026",
+      "suggested_at": "2026-07-07",
+      "title": "Extend nutritional_portal_aliases with fat-soluble + B-vitamin rows",
+      "rationale": "Portal matrix covers iron/electrolytes/trace minerals but not Quest-style vitamin A/E/K or B1/B2/B6 display names.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-066"
+    },
+    {
+      "id": "IMP-027",
+      "suggested_at": "2026-07-07",
+      "title": "Add sTfR row to nutritional_portal_aliases iron panel",
+      "rationale": "SLICE-068 added isolated sTfR scenario but the 20-row portal matrix still omits Soluble Transferrin Receptor, Serum alongside % Saturation.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-069"
+    },
+    {
+      "id": "IMP-028",
+      "suggested_at": "2026-07-07",
+      "title": "Homocysteine portal alias row in nutritional_portal_aliases",
+      "rationale": "Homocysteine high has isolated scenario but Quest panels often include plasma homocysteine alongside B vitamins in the portal matrix.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-070"
+    },
+    {
+      "id": "IMP-029",
+      "suggested_at": "2026-07-07",
+      "title": "Methylmalonic Acid portal alias row in nutritional_portal_aliases",
+      "rationale": "MMA high has isolated scenario but the 22-row portal matrix still omitted Quest Methylmalonic Acid, Serum alongside homocysteine and B vitamins.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-071"
+    },
+    {
+      "id": "IMP-030",
+      "suggested_at": "2026-07-07",
+      "title": "Isolated zinc and magnesium nutritional scenarios",
+      "rationale": "Zinc and Magnesium had tier_a evidence and portal rows but lacked dedicated single-marker CI scenarios like copper/selenium.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-072,SLICE-073"
+    },
+    {
+      "id": "IMP-031",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_folate_low and nutritional_b12_low isolated scenarios",
+      "rationale": "B12/folate are covered by macrocytic and portal panels but lack single-marker repletion scenarios for regression isolation.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-074,SLICE-075"
+    },
+    {
+      "id": "IMP-032",
+      "suggested_at": "2026-07-07",
+      "title": "pgx_cyp2d6_intermediate biological_systems assert or documented negative_control",
+      "rationale": "audit_scenario_coverage still flags pgx_cyp2d6_intermediate as the only CI scenario missing biological_systems block.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-076"
+    },
+    {
+      "id": "IMP-033",
+      "suggested_at": "2026-07-07",
+      "title": "Combined one-carbon panel scenario (Hcy+MMA+B12 low)",
+      "rationale": "Homocysteine and MMA have isolated scenarios and portal rows but no combined functional B12 deficiency panel asserting collateral B12 routing.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-077"
+    },
+    {
+      "id": "IMP-034",
+      "suggested_at": "2026-07-07",
+      "title": "Raise MIN_* scenario coverage thresholds to match 33+ nutritional matrix",
+      "rationale": "Scenario count grew to 55 CI scenarios; coverage mins at 29 leave headroom but no pressure as nutritional matrix expands.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-079"
+    },
+    {
+      "id": "IMP-035",
+      "suggested_at": "2026-07-07",
+      "title": "TIBC high iron deficiency routing + portal row",
+      "rationale": "Iron Binding Capacity alias existed but high TIBC had no pathway rule, evidence claim, scenario, or portal matrix row.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-080"
+    },
+    {
+      "id": "IMP-036",
+      "suggested_at": "2026-07-07",
+      "title": "Combined Quest iron comprehensive panel scenario",
+      "rationale": "Isolated iron scenarios cover single markers; combined five-abnormal iron panel guards multi-index routing in one upload.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-081"
+    },
+    {
+      "id": "IMP-037",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_electrolyte_panel combined Ca+K+Mg scenario",
+      "rationale": "Calcium, potassium, and magnesium have isolated scenarios but no combined electrolyte panel assert.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-082"
+    },
+    {
+      "id": "IMP-038",
+      "suggested_at": "2026-07-07",
+      "title": "audit_scenario_coverage honors expect.negative_control gap skip",
+      "rationale": "culture_urine_no_growth and trend_followup_improved are documented negative controls but still appear in ad-hoc gap scripts.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-083"
+    },
+    {
+      "id": "IMP-039",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_trace_mineral_panel combined Cu+Se+Zn scenario",
+      "rationale": "Trace minerals have isolated scenarios and portal rows but no combined panel asserting all three recommendations.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-084"
+    },
+    {
+      "id": "IMP-040",
+      "suggested_at": "2026-07-07",
+      "title": "Combined B12 + folate low panel scenario",
+      "rationale": "Isolated B12 and folate scenarios exist but macrocytic/portal panels do not isolate dual low B12+folate routing.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-086"
+    },
+    {
+      "id": "IMP-041",
+      "suggested_at": "2026-07-07",
+      "title": "Combined fat-soluble + vitamin D panel scenario",
+      "rationale": "nutritional_fat_soluble_low omitted vitamin D; common Quest panels include 25-OH D with A/E/K.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-087"
+    },
+    {
+      "id": "IMP-042",
+      "suggested_at": "2026-07-07",
+      "title": "Raise scenario coverage MIN_* thresholds to 55",
+      "rationale": "CI matrix exceeded 57 asserted scenarios; floor at 50 no longer exercises growth pressure.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-088"
+    },
+    {
+      "id": "IMP-043",
+      "suggested_at": "2026-07-07",
+      "title": "UIBC portal row in nutritional_portal_aliases",
+      "rationale": "TIBC portal row exists but Unsaturated Iron Binding Capacity Quest name is unguarded in the 24-row matrix.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-089"
+    },
+    {
+      "id": "IMP-044",
+      "suggested_at": "2026-07-07",
+      "title": "Macrocytic CBC + one-carbon combined panel scenario",
+      "rationale": "Macrocytic and homocysteine/B12/folate scenarios were isolated; combined panel guards real-world anemia workups.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-090"
+    },
+    {
+      "id": "IMP-045",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_b_vitamins_plus_b12_folate extended panel",
+      "rationale": "B1/B2/B6 panel and B12/folate panel exist separately; full B-complex low panel is a common Quest export.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-091"
+    },
+    {
+      "id": "IMP-046",
+      "suggested_at": "2026-07-07",
+      "title": "Raise MIN_* scenario coverage thresholds to 60",
+      "rationale": "CI matrix now exceeds 63 scenarios with 60+ assertion blocks; floor at 55 will need another bump soon.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-092"
+    },
+    {
+      "id": "IMP-047",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_full_micronutrient_quest_excerpt scenario",
+      "rationale": "Portal matrix has 25 rows; a trimmed Quest excerpt scenario would guard parser stress without full kitchen_sink weight.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-102"
+    },
+    {
+      "id": "IMP-048",
+      "suggested_at": "2026-07-07",
+      "title": "Raise MIN_* scenario coverage thresholds to 65",
+      "rationale": "CI matrix at 67 scenarios with 65 pathway asserts; floor at 60 leaves thin headroom.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-101"
+    },
+    {
+      "id": "IMP-049",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_mch_high isolated CBC scenario",
+      "rationale": "RDW isolated scenario added; MCH high remains only covered in multi-index macrocytic panels.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-105"
+    },
+    {
+      "id": "IMP-050",
+      "suggested_at": "2026-07-07",
+      "title": "nutritional_mcv_high isolated CBC scenario",
+      "rationale": "MCH and RDW have isolated scenarios; MCV high is the remaining lone CBC nutritional indicator.",
+      "priority": "low",
+      "status": "done",
+      "completed_in": "SLICE-106"
+    },
+    {
+      "id": "IMP-051",
+      "suggested_at": "2026-07-07",
+      "title": "MCV portal alias rows in nutritional_portal_aliases",
+      "rationale": "Isolated MCV high/low and combined CBC indices scenarios exist; portal matrix still lacks MCV alias coverage.",
+      "priority": "low",
+      "status": "proposed"
+    }
+  ]
+}

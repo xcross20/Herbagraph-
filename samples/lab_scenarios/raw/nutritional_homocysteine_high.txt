@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Homocysteine             16.80  umol/L   (5.00-15.00)
+Vitamin B-12              420.00  pg/mL    (200.00-900.00)
+Folate (Folic Acid), Serum  8.00  ng/mL    (2.70-17.00)

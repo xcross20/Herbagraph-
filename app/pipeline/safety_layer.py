@@ -119,6 +119,11 @@ _REGULATED_INTERVENTIONS: dict[str, str] = {
     "Surfaced for evidence context only; requires a physician's prescription.",
     "tirzepatide": "Tirzepatide is a prescription-only GIP/GLP-1 receptor agonist. "
     "Surfaced for evidence context only; requires a physician's prescription.",
+    "liraglutide": "Liraglutide is a prescription-only GLP-1 receptor agonist.",
+    "exenatide": "Exenatide is a prescription-only GLP-1 receptor agonist.",
+    "dulaglutide": "Dulaglutide is a prescription-only GLP-1 receptor agonist.",
+    "tesamorelin": "Tesamorelin is a prescription-only GHRH analog.",
+    "bremelanotide": "Bremelanotide is a prescription-only melanocortin agonist.",
 }
 
 _PREGNANCY_CONDITION_RE = re.compile(r"\bpregnan", re.IGNORECASE)

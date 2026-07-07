@@ -1,0 +1,7 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Vitamin D, 25-OH         18.00  ng/mL    (30.00-100.00)
+Vitamin A, Serum         22.00  ug/dL    (30.00-95.00)
+Vitamin E, Serum          3.00  mg/L     (5.00-20.00)
+Vitamin K, Plasma         0.05  ng/mL    (0.10-2.20)
+B12                      480.00  pg/mL    (200.00-900.00)

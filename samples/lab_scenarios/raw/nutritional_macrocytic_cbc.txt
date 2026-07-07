@@ -1,0 +1,7 @@
+SYNTHETIC MACROCYTIC CBC PANEL (NOT REAL PATIENT DATA)
+
+Mean Cell Hemoglobin (MCH)    36.5  pg    (27.00-32.00)
+Mean Cell Volume (MCV)    109.6  fL    (80.00-100.00)
+Red Cell Distribution Width (RDW)    16.0  %    (11.50-14.50)
+White Blood Cell (WBC)    6.9  K/cmL    (4.80-10.80)
+Red Blood Cell (RBC)    4.8  M/cmL    (4.10-7.60)

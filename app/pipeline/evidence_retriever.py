@@ -1,8 +1,7 @@
 """Stage 4: Evidence Retriever.
 
-Builds intervention-specific queries from activated pathways, concurrently
-fetches studies from PubMed, ClinicalTrials.gov, and Europe PMC, deduplicates
-by external ID, and ranks by study quality.
+Builds intervention-specific queries from activated pathways and test-type routing,
+concurrently fetches studies from PubMed, ClinicalTrials.gov, and Europe PMC.
 """
 
 import asyncio
@@ -12,29 +11,23 @@ import httpx
 from app.integrations.clinicaltrials import search_clinicaltrials
 from app.integrations.europepmc import search_europepmc
 from app.integrations.pubmed import search_pubmed
-from app.schemas.pipeline import EvidenceSnippet, PathwayActivation
+from app.pipeline.catalog_evidence import build_catalog_evidence_snippets
+from app.pipeline.intervention_catalog import (
+    build_intervention_pathway_map as _catalog_intervention_pathway_map,
+    build_interventions_for_routing,
+    build_pathway_intervention_map,
+)
+from app.pipeline.test_type_router import RecommendationRoutingContext
+from app.schemas.pipeline import EvidenceSnippet, NormalizedLabResult, PathwayActivation
 
-# pathway_code -> intervention names pulled into evidence retrieval for that pathway.
-# Mixes core herbs/nutraceuticals/lifestyle (seed_data.INTERVENTIONS) with
-# food-layer phytochemical compounds (food_seed_data.PHYTOCHEMICAL_COMPOUNDS).
-_PATHWAY_INTERVENTIONS: dict[str, list[str]] = {
-    "NF_KB": ["Boswellia serrata", "Curcumin", "Omega-3", "Sulforaphane", "Allicin", "Quercetin"],
-    "IL6_JAK_STAT3": ["Curcumin", "Omega-3"],
-    "AMPK": ["Berberine", "Alpha Lipoic Acid", "Intermittent Fasting", "HIIT", "EGCG"],
-    "INSULIN_PI3K_AKT": ["Berberine", "Magnesium", "Alpha Lipoic Acid", "Intermittent Fasting", "HIIT"],
-    "NRF2": ["Milk Thistle", "Sulforaphane", "Anthocyanins", "Ellagic Acid", "Lycopene", "Beta-Carotene"],
-    "MTOR_AUTOPHAGY": ["Intermittent Fasting"],
-    "HPA_AXIS": ["Ashwagandha"],
-    "THYROID_HPT": [],
-    "HEPATIC_LIPID": ["Berberine", "Omega-3", "Milk Thistle", "Allicin", "Lycopene"],
-    "ONE_CARBON_METHYLATION": [],
-    "GLP1_INCRETINS": [],
-    "MITOCHONDRIAL_NAD": ["NAD+ Precursors (NR/NMN)", "CoQ10"],
-    "IRON_HEPCIDIN": [],
-    "PURINE_URIC_ACID": ["Quercetin"],
-    "VITAMIN_D_RECEPTOR": ["Vitamin D"],
-    "RENAL_FILTRATION": [],
-}
+
+def build_intervention_pathway_map(
+    routing: RecommendationRoutingContext | None = None,
+    pathway_activations: list[PathwayActivation] | None = None,
+    normalized_labs: list[NormalizedLabResult] | None = None,
+) -> dict[str, list[str]]:
+    """Re-export for report pipeline consumers."""
+    return _catalog_intervention_pathway_map(routing, pathway_activations, normalized_labs)
 
 
 def build_query(intervention_name: str, pathway_name: str) -> str:
@@ -42,20 +35,20 @@ def build_query(intervention_name: str, pathway_name: str) -> str:
     return f'("{intervention_name}"[Title/Abstract]) AND ("{pathway_name}" OR clinical) AND (trial OR randomized)'
 
 
-def build_intervention_pathway_map() -> dict[str, list[str]]:
-    """Invert _PATHWAY_INTERVENTIONS into intervention_name -> [pathway_code, ...]."""
-    mapping: dict[str, list[str]] = {}
-    for pathway_code, intervention_names in _PATHWAY_INTERVENTIONS.items():
-        for name in intervention_names:
-            mapping.setdefault(name, []).append(pathway_code)
-    return mapping
+def interventions_for_activations(
+    pathway_activations: list[PathwayActivation],
+    routing: RecommendationRoutingContext | None = None,
+    normalized_labs: list[NormalizedLabResult] | None = None,
+) -> dict[str, list[str]]:
+    """Map each activated pathway to intervention names for evidence search."""
+    if routing and normalized_labs is not None:
+        routed = build_interventions_for_routing(routing, pathway_activations, normalized_labs)
+        return {k: v for k, v in routed.items() if v}
 
-
-def interventions_for_activations(pathway_activations: list[PathwayActivation]) -> dict[str, list[str]]:
-    """Map each activated pathway to the intervention names that should be evidence-searched for it."""
+    pathway_map = build_pathway_intervention_map()
     mapping: dict[str, list[str]] = {}
     for activation in pathway_activations:
-        interventions = _PATHWAY_INTERVENTIONS.get(activation.pathway_code, [])
+        interventions = pathway_map.get(activation.pathway_code, [])
         if interventions:
             mapping[activation.pathway_code] = interventions
     return mapping
@@ -93,13 +86,18 @@ async def retrieve_evidence(
     pathway_activations: list[PathwayActivation],
     client: httpx.AsyncClient | None = None,
     max_results_per_source: int = 5,
+    *,
+    routing: RecommendationRoutingContext | None = None,
+    normalized_labs: list[NormalizedLabResult] | None = None,
 ) -> list[EvidenceSnippet]:
-    """Retrieve, deduplicate, and rank evidence for every intervention implicated by activated pathways."""
+    """Retrieve, deduplicate, and rank evidence for routed interventions."""
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=15.0)
 
     try:
-        pathway_to_interventions = interventions_for_activations(pathway_activations)
+        pathway_to_interventions = interventions_for_activations(
+            pathway_activations, routing=routing, normalized_labs=normalized_labs
+        )
         pathway_names = {a.pathway_code: a.pathway_name for a in pathway_activations}
 
         seen_interventions: set[str] = set()
@@ -111,16 +109,30 @@ async def retrieve_evidence(
                 seen_interventions.add(intervention_name)
                 tasks.append(
                     _fetch_for_intervention(
-                        intervention_name, pathway_names[pathway_code], client, max_results_per_source
+                        intervention_name, pathway_names.get(pathway_code, pathway_code), client, max_results_per_source
                     )
                 )
 
+        abnormal_biomarkers = {
+            lab.biomarker_name
+            for lab in (normalized_labs or [])
+            if lab.status.value in ("critical_low", "low", "high", "critical_high")
+        }
+        pathway_codes = {a.pathway_code for a in pathway_activations}
+
+        catalog_snippets = build_catalog_evidence_snippets(
+            seen_interventions,
+            abnormal_biomarkers=abnormal_biomarkers,
+            pathway_codes=pathway_codes,
+            routing=routing,
+        )
+
         if not tasks:
-            return []
+            return _dedupe_and_rank(catalog_snippets)
 
         results = await asyncio.gather(*tasks)
-        all_snippets = [snippet for group in results for snippet in group]
-        return _dedupe_and_rank(all_snippets)
+        live_snippets = [snippet for group in results for snippet in group]
+        return _dedupe_and_rank([*catalog_snippets, *live_snippets])
     finally:
         if owns_client:
             await client.aclose()

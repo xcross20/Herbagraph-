@@ -1,4 +1,5 @@
 import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -105,7 +106,7 @@ async def test_process_lab_report_persists_reference_ranges_and_units(db_session
         sync_session.close()
 
 
-async def test_process_lab_report_no_parseable_lines_completes_with_zero_biomarkers(db_session, test_user):
+async def test_process_lab_report_no_parseable_lines_fails_after_llm_fallback(db_session, test_user):
     encrypted_path = save_lab_file(b"this file has no parseable lab lines at all\n", uuid.uuid4(), "labs.txt")
     lab_report = LabReport(
         user_id=test_user.id,
@@ -118,12 +119,53 @@ async def test_process_lab_report_no_parseable_lines_completes_with_zero_biomark
     await db_session.commit()
     await db_session.refresh(lab_report)
 
-    result = process_lab_report(str(lab_report.id))
-    assert result == {
-        "status": "complete",
-        "lab_report_id": str(lab_report.id),
-        "biomarker_count": 0,
-    }
+    with patch("app.pipeline.llm_lab_parser.parse_lab_text_with_llm", return_value=[]):
+        with patch("app.pipeline.llm_lab_parser.parse_lab_pdf_with_vision", return_value=[]):
+            result = process_lab_report(str(lab_report.id))
+
+    assert result["status"] == "failed"
+    assert "No biomarker rows" in result["error"]
+
+    sync_session = database.get_sync_db()
+    try:
+        persisted = sync_session.get(LabReport, str(lab_report.id))
+        assert persisted.status == LabReportStatus.FAILED
+    finally:
+        sync_session.close()
+
+
+async def test_process_lab_report_llm_fallback_persists_rows(db_session, test_user):
+    from app.schemas.pipeline import ParsedLabResult
+
+    messy = b"Quest Diagnostics\nGlucose 102 mg/dL Reference Range 70-99\n"
+    encrypted_path = save_lab_file(messy, uuid.uuid4(), "messy.pdf")
+    lab_report = LabReport(
+        user_id=test_user.id,
+        original_filename="messy.pdf",
+        encrypted_file_path=encrypted_path,
+        file_size_bytes=len(messy),
+        status=LabReportStatus.PENDING,
+    )
+    db_session.add(lab_report)
+    await db_session.commit()
+    await db_session.refresh(lab_report)
+
+    llm_rows = [
+        ParsedLabResult(
+            raw_test_name="Glucose",
+            value=102.0,
+            unit="mg/dL",
+            reference_range_low=70.0,
+            reference_range_high=99.0,
+        )
+    ]
+
+    with patch("app.pipeline.lab_parser.extract_text_from_pdf", return_value="unstructured layout text"):
+        with patch("app.pipeline.llm_lab_parser.parse_lab_text_with_llm", return_value=llm_rows):
+            result = process_lab_report(str(lab_report.id))
+
+    assert result["status"] == "complete"
+    assert result["biomarker_count"] == 1
 
 
 async def test_process_lab_report_bad_file_sets_status_failed(db_session, test_user):

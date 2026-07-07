@@ -1,0 +1,5 @@
+SYNTHETIC QUEST-STYLE IRON PANEL (NOT REAL PATIENT DATA)
+
+Soluble Transferrin Receptor, Serum  2.50  mg/L   (0.80-1.80)
+Ferritin, Serum                      45.00  ng/mL  (20.00-250.00)
+Iron, Total                          85.00  mcg/dL (50.00-180.00)

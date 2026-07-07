@@ -1,0 +1,7 @@
+PATIENT LAB SUMMARY (INTENTIONALLY UNSTRUCTURED — LLM FALLBACK QA)
+
+Collected: 03/15/2026. Fasting: yes.
+The patient's inflammation marker C-reactive protein came back elevated at 7.8 mg/L (lab says normal under 3).
+Fasting glucose was 104 mg/dL with a reference interval of 70-99 mg/dL.
+Vitamin D 25-hydroxy: 24 ng/mL (want at least 30).
+Note: formatting does not match standard Quest/LabCorp regex rows.

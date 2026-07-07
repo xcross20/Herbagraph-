@@ -164,7 +164,15 @@ async def test_list_lab_reports_summary_shape_omits_lab_results(authed_client):
     body = resp.json()
     assert len(body) == 1
     assert "lab_results" not in body[0]
-    assert set(body[0].keys()) == {"id", "original_filename", "status", "created_at"}
+    assert set(body[0].keys()) == {
+        "id",
+        "original_filename",
+        "status",
+        "report_stage",
+        "latest_report_id",
+        "error_message",
+        "created_at",
+    }
 
 
 async def test_list_lab_reports_multiple_uploads_all_present(authed_client):

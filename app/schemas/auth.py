@@ -55,6 +55,17 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 
+class CustomBiomarkerRead(BaseModel):
+    canonical_name: str
+    aliases: list[str] = []
+    unit: str | None = None
+    reference_low: float | None = None
+    reference_high: float | None = None
+    category: str | None = None
+    source: str | None = None
+    added_at: str | None = None
+
+
 class HealthProfileUpdate(BaseModel):
     age_range: str | None = None
     biological_sex: str | None = None
@@ -62,6 +73,7 @@ class HealthProfileUpdate(BaseModel):
     current_medications: list[str] | None = None
     current_supplements: list[str] | None = None
     known_conditions: list[str] | None = None
+    custom_biomarkers: list[CustomBiomarkerRead] | None = None
 
 
 class HealthProfileRead(BaseModel):
@@ -73,3 +85,4 @@ class HealthProfileRead(BaseModel):
     current_medications: list[str] = []
     current_supplements: list[str] = []
     known_conditions: list[str] = []
+    custom_biomarkers: list[dict] = []

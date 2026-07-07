@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Mean Cell Volume (MCV)   102.00  fL      (80.00-100.00)
+Vitamin B-12              420.00  pg/mL    (200.00-900.00)
+Ferritin, Serum           45.00  ng/mL    (20.00-250.00)

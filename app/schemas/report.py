@@ -79,6 +79,7 @@ class RecommendationRead(BaseModel):
     cited_study_ids: list[str] = []
     cited_urls: list[str] = []
     food_sources: list[FoodSourceRead] | None = None
+    intervention_narrative: str | None = None
 
 
 class CitationRead(BaseModel):
@@ -97,8 +98,13 @@ class MeasuredBiomarkerRead(BaseModel):
     value: float
     unit: str | None = None
     status: LabResultStatus
+    category: str | None = None
+    qualitative_label: str | None = None
+    expected_label: str | None = None
     reference_range_low: float | None = None
     reference_range_high: float | None = None
+    in_catalog: bool = True
+    in_profile: bool = False
 
 
 class BiomarkerSummary(BaseModel):
@@ -113,6 +119,36 @@ class SafetySummary(BaseModel):
     overall_note: str
     requires_clinician_review: bool
     high_risk_interventions: list[str] = []
+
+
+class MedicationContextRead(BaseModel):
+    has_medications: bool = False
+    medications: list[str] = []
+    supplements: list[str] = []
+    notes: list[str] = []
+    biomarker_specific_notes: list[dict] = []
+
+
+class LabTrendEntry(BaseModel):
+    biomarker_name: str
+    prior_value: float
+    current_value: float
+    unit: str | None = None
+    delta: float
+    direction: str
+    prior_status: str
+    current_status: str
+
+
+class LabTrendsRead(BaseModel):
+    has_prior_labs: bool = False
+    prior_report_date: str | None = None
+    compared_biomarkers: int = 0
+    improved_count: int = 0
+    worsened_count: int = 0
+    unchanged_count: int = 0
+    trends: list[LabTrendEntry] = []
+    summary: str = ""
 
 
 class RecommendationReportRead(BaseModel):
@@ -131,6 +167,8 @@ class RecommendationReportRead(BaseModel):
     citations: list[CitationRead]
     clinician_questions: list[str]
     safety_summary: SafetySummary
+    medication_context: MedicationContextRead = MedicationContextRead()
+    lab_trends: LabTrendsRead = LabTrendsRead()
     disclaimer: str
     created_at: datetime
 

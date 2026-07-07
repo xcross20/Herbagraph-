@@ -209,6 +209,19 @@ async def test_generate_report_recommendations_have_sequential_ranks(authed_clie
     assert ranks == list(range(1, len(ranks) + 1))
 
 
+async def test_latest_report_id_points_to_newest_report(authed_client, monkeypatch):
+    _patch_pipeline(monkeypatch)
+    lab_report_id = await _upload_and_complete(authed_client)
+    first = await _generate_and_fetch_report(authed_client, lab_report_id)
+    second = await _generate_and_fetch_report(authed_client, lab_report_id)
+
+    lab_resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}")
+    assert lab_resp.status_code == 200
+    body = lab_resp.json()
+    assert body["latest_report_id"] == second.json()["id"]
+    assert body["latest_report_id"] != first.json()["id"]
+
+
 async def test_generate_report_twice_creates_two_distinct_reports(authed_client, monkeypatch):
     _patch_pipeline(monkeypatch)
     lab_report_id = await _upload_and_complete(authed_client)
@@ -265,6 +278,8 @@ async def test_generate_report_happy_path_full_shape(authed_client, monkeypatch)
     assert sulforaphane_rec["food_sources"] is not None
     food_names = {fs["food"] for fs in sulforaphane_rec["food_sources"]}
     assert "Broccoli Sprouts" in food_names
+    assert sulforaphane_rec.get("intervention_narrative")
+    assert "Broccoli Sprouts" in sulforaphane_rec["intervention_narrative"] or "food-first" in sulforaphane_rec["intervention_narrative"].lower()
 
     # citations
     assert len(body["citations"]) >= 1

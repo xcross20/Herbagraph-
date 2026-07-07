@@ -1,0 +1,6 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Vitamin B1                55.00  nmol/L   (70.00-180.00)
+Vitamin B2                80.00  nmol/L   (106.00-428.00)
+Vitamin B6                 3.00  ng/mL    (5.00-50.00)
+B12                      480.00  pg/mL    (200.00-900.00)

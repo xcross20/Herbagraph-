@@ -1,0 +1,4 @@
+SYNTHETIC GI STOOL PANEL (NOT REAL PATIENT DATA)
+
+Fecal Lactoferrin       85.00  ug/mL   (0.00-7.25)
+CRP                     4.20  mg/L   (0.00-3.00)

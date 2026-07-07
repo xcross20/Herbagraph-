@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Calcium, Total          7.80  mg/dL   (8.60-10.30)
+Vitamin D, 25-OH        42.00  ng/mL   (30.00-100.00)
+B12                     520.00  pg/mL   (200.00-900.00)

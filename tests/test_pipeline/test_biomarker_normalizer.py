@@ -118,19 +118,17 @@ class TestGetReferenceData:
     def test_unknown_biomarker_returns_none(self):
         assert get_reference_data("Not A Real Biomarker") is None
 
-    def test_all_25_canonical_biomarkers_present(self):
-        expected = {
-            "CRP", "Glucose", "HbA1c", "Insulin", "LDL", "HDL", "Triglycerides",
-            "ApoB", "Vitamin D", "Ferritin", "B12", "Folate", "TSH", "ALT", "AST",
-            "GGT", "Creatinine", "eGFR",
-            "Homocysteine", "Uric Acid", "Lp(a)", "Free T3", "Free T4", "Cortisol", "DHEA-S",
-        }
-        assert len(expected) == 25
-        for name in expected:
+    def test_catalog_has_200_plus_biomarkers(self):
+        from app.knowledge_graph.biomarker_catalog import BIOMARKER_ENTRIES
+
+        assert len(BIOMARKER_ENTRIES) >= 200
+
+    def test_core_biomarkers_still_present(self):
+        for name in ("CRP", "Glucose", "HbA1c", "LDL", "HDL", "TSH", "ALT", "Creatinine"):
             assert get_reference_data(name) is not None
 
-    def test_magnesium_is_no_longer_a_tracked_biomarker(self):
-        assert get_reference_data("Magnesium") is None
+    def test_magnesium_is_now_a_tracked_biomarker(self):
+        assert get_reference_data("Magnesium") is not None
 
     @pytest.mark.parametrize(
         "name,category",

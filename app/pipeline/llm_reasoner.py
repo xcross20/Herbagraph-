@@ -8,15 +8,18 @@ into the final report.
 """
 
 import json
+import os
 
 from openai import AsyncOpenAI
 
 from app.config import settings
 from app.core.privacy import deidentify_payload
+from app.pipeline.catalog_evidence import build_catalog_reasoning_output, ensure_primary_recommendations
+from app.pipeline.test_type_router import RecommendationRoutingContext
 from app.schemas.pipeline import EvidenceSnippet, LLMReasoningOutput, LLMRecommendation, NormalizedLabResult, PathwayActivation
 
 _SYSTEM_PROMPT = """You are the evidence-reasoning engine for HerbaGraph, a research-support platform \
-covering botanicals, phytochemicals, nutraceuticals/supplements, functional foods, and other interventions. \
+covering botanicals, phytochemicals, nutraceuticals/supplements, functional foods, clinically evidenced peptides, and other interventions. \
 You are NOT a clinician and this is NOT a diagnosis or prescription. You will be given a patient's abnormal \
 biomarkers, activated biological pathways, and a list of evidence snippets (each with an external_id such as \
 "PMID:12345").
@@ -26,21 +29,28 @@ Evidence rules:
    in the provided evidence list.
 2. Every recommendation's cited_study_ids MUST be a subset of the external_id values given in the evidence.
 3. Only recommend interventions that appear as `intervention_name` in the evidence snippets.
+4. When both a herb and its corresponding phytochemical appear in the evidence (e.g. Curcumin vs turmeric compounds), \
+   prefer the **phytochemical** category so the food-compound layer can attach whole-food sources.
+5. For activated inflammatory or metabolic pathways, include at least one **phytochemical** or **food** recommendation \
+   when the evidence list contains one — these connect to whole-food sources in the report.
+6. When `routing.primary_tree` is etiological, celiac, culture, allergy, or nutritional_repletion, prioritize \
+   biomarker-direct **primary** interventions for the detected condition (e.g. Mastic Gum for active H. pylori, \
+   DGL Licorice for gastric mucosal support) over generic inflammatory pathway supplements.
 
 Liability and tone rules -- this is the most important part of your job:
-4. Never phrase a recommendation as an instruction to take/do something (e.g. never write "Take 500mg" or \
+7. Never phrase a recommendation as an instruction to take/do something (e.g. never write "Take 500mg" or \
    "You should start..."). Instead, describe what the cited evidence found, in language like: "Based on the \
    available evidence, X has been studied in populations with elevated Y. This information is intended to \
    support a discussion with a qualified healthcare professional, not to replace one."
-5. For `rationale`, answer "why was this surfaced" -- name the specific abnormal biomarker(s) or pathway(s) \
+8. For `rationale`, answer "why was this surfaced" -- name the specific abnormal biomarker(s) or pathway(s) \
    it addresses.
-6. For `limitations`, always state what the cited evidence does NOT show -- e.g. small sample sizes, short \
+9. For `limitations`, always state what the cited evidence does NOT show -- e.g. small sample sizes, short \
    study duration, a surrogate endpoint rather than a hard clinical outcome, animal/in-vitro-only evidence, \
    or a population that may not match this patient. Never leave `limitations` null if evidence_level is \
    "low" or "preclinical".
-7. `typical_dose`, if given, must describe the dose *used in the cited research* (e.g. "300mg AKBA-\
+10. `typical_dose`, if given, must describe the dose *used in the cited research* (e.g. "300mg AKBA-\
    standardized extract twice daily, per the cited trial"), not a personal directive to the reader.
-8. Do not present any output as a settled medical fact. Every recommendation is provisional and contingent \
+11. Do not present any output as a settled medical fact. Every recommendation is provisional and contingent \
    on the cited evidence and the reader's own clinician review.
 
 Respond with a single JSON object and nothing else, matching this shape:
@@ -68,11 +78,23 @@ class LLMReasoningError(Exception):
     pass
 
 
+def _use_catalog_only_reasoning() -> bool:
+    """CI and local tests use catalog-backed reasoning when no production API key is set."""
+    flag = os.environ.get("HERBAGRAPH_CATALOG_ONLY_REASONING", "").lower()
+    if flag in ("1", "true", "yes"):
+        return True
+    key = settings.openai_api_key
+    if not key:
+        return True
+    return key.startswith("test-")
+
+
 def _build_payload(
     normalized_labs: list[NormalizedLabResult],
     pathway_activations: list[PathwayActivation],
     evidence_snippets: list[EvidenceSnippet],
     health_profile: dict,
+    routing: RecommendationRoutingContext | None = None,
 ) -> dict:
     payload = {
         "abnormal_biomarkers": [
@@ -82,6 +104,11 @@ def _build_payload(
         "evidence": [e.model_dump(mode="json") for e in evidence_snippets],
         "health_profile": health_profile,
     }
+    if routing is not None:
+        payload["routing"] = {
+            "primary_tree": routing.primary_tree.value if routing.primary_tree else None,
+            "trees": [tree.value for tree in routing.trees],
+        }
     return deidentify_payload(payload)
 
 
@@ -133,6 +160,8 @@ async def generate_reasoning(
     evidence_snippets: list[EvidenceSnippet],
     health_profile: dict,
     client: AsyncOpenAI | None = None,
+    *,
+    routing: RecommendationRoutingContext | None = None,
 ) -> LLMReasoningOutput:
     """Stage 5 entry point: call the LLM and return a citation-verified LLMReasoningOutput."""
     if not evidence_snippets:
@@ -157,10 +186,26 @@ async def generate_reasoning(
             clinician_questions=[],
         )
 
+    abnormal_biomarkers = {
+        lab.biomarker_name
+        for lab in normalized_labs
+        if lab.status.value in ("critical_low", "low", "high", "critical_high")
+    }
+
+    if client is None and _use_catalog_only_reasoning():
+        return build_catalog_reasoning_output(
+            evidence_snippets,
+            abnormal_biomarkers=abnormal_biomarkers,
+            pathway_activations=pathway_activations,
+            routing=routing,
+        )
+
     owns_client = client is None
     client = client or AsyncOpenAI(api_key=settings.openai_api_key)
 
-    payload = _build_payload(normalized_labs, pathway_activations, evidence_snippets, health_profile)
+    payload = _build_payload(
+        normalized_labs, pathway_activations, evidence_snippets, health_profile, routing=routing
+    )
 
     try:
         response = await client.chat.completions.create(
@@ -177,4 +222,10 @@ async def generate_reasoning(
             await client.close()
 
     raw_text = response.choices[0].message.content
-    return parse_llm_response(raw_text, evidence_snippets)
+    output = parse_llm_response(raw_text, evidence_snippets)
+    return ensure_primary_recommendations(
+        output,
+        evidence_snippets,
+        abnormal_biomarkers=abnormal_biomarkers,
+        routing=routing,
+    )

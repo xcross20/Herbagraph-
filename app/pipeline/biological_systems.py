@@ -20,11 +20,28 @@ from app.schemas.pipeline import PathwayActivation
 # NRF2 matters for both liver stress and oxidative/mitochondrial resilience) -- systems
 # are lenses on the same 16 pathways, not a disjoint partition of them.
 SYSTEM_PATHWAYS: dict[str, list[str]] = {
-    "inflammation": ["NF_KB", "IL6_JAK_STAT3"],
+    "inflammation": [
+        "NF_KB",
+        "IL6_JAK_STAT3",
+        "FOOD_ANTIGEN_EXPOSURE",
+        "IGE_SENSITIZATION",
+        "AUTOIMMUNE_TARGETING",
+        "PATHOGEN_BURDEN",
+        "URINARY_PATHOGEN",
+        "RESPIRATORY_PATHOGEN",
+        "BIOFILM_ADHESION",
+        "GASTRIC_COLONIZATION",
+    ],
     "metabolic_health": ["INSULIN_PI3K_AKT", "GLP1_INCRETINS", "AMPK"],
     "cardiovascular_risk": ["HEPATIC_LIPID", "PURINE_URIC_ACID", "RENAL_FILTRATION"],
-    "liver_detox_stress": ["HEPATIC_LIPID", "NRF2"],
-    "nutrient_status": ["ONE_CARBON_METHYLATION", "IRON_HEPCIDIN", "VITAMIN_D_RECEPTOR"],
+    "liver_detox_stress": ["HEPATIC_LIPID", "NRF2", "HEPATOTROPIC_VIRAL"],
+    "nutrient_status": [
+        "ONE_CARBON_METHYLATION",
+        "IRON_HEPCIDIN",
+        "VITAMIN_D_RECEPTOR",
+        "NUTRIENT_DEFICIENCY",
+        "GI_MUCOSAL_BARRIER",
+    ],
     "thyroid_endocrine": ["THYROID_HPT", "HPA_AXIS"],
     "oxidative_stress_mitochondrial": ["NRF2", "MTOR_AUTOPHAGY", "MITOCHONDRIAL_NAD"],
 }

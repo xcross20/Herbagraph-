@@ -4,10 +4,12 @@ Applies the composite confidence scoring formula, ranks surviving
 recommendations, and assembles the final structured report.
 """
 
-from app.knowledge_graph.food_seed_data import COMPOUND_TO_FOOD_SOURCES
+from app.pipeline.food_source_resolver import attach_food_sources
+from app.pipeline.intervention_catalog import intent_for_intervention
+from app.pipeline.intervention_narrative import build_intervention_narrative
+from app.pipeline.test_type_router import RecommendationRoutingContext
 from app.models.enums import EVIDENCE_TIER_LABELS, EvidenceLevel, EvidenceTier, SafetyRiskLevel, StudyType
 from app.pipeline.biological_systems import compute_biological_systems
-from app.schemas.evidence import FoodSourceRead
 from app.schemas.pipeline import EvidenceSnippet, NormalizedLabResult, PathwayActivation, SafetyReport, ScoredRecommendation
 
 DISCLAIMER = (
@@ -137,40 +139,39 @@ def determine_evidence_tier(
     return EvidenceTier.RESEARCH_HYPOTHESIS
 
 
-def _attach_food_sources(recommendation: ScoredRecommendation) -> list[FoodSourceRead] | None:
-    sources = COMPOUND_TO_FOOD_SOURCES.get(recommendation.intervention_name)
-    if not sources:
-        return None
-    return [FoodSourceRead(**s) for s in sources]
+def _measured_biomarker_rows(
+    normalized_labs: list[NormalizedLabResult],
+    custom_biomarkers: list[dict] | None = None,
+) -> list[dict]:
+    from app.pipeline.user_biomarker_profile import is_catalog_biomarker, is_profile_biomarker
 
-
-def _mvp_tracked_labs(normalized_labs: list[NormalizedLabResult]) -> list[NormalizedLabResult]:
-    from app.pipeline.biomarker_normalizer import get_reference_data
-
-    return [lab for lab in normalized_labs if get_reference_data(lab.biomarker_name)]
-
-
-def _measured_biomarker_rows(tracked_labs: list[NormalizedLabResult]) -> list[dict]:
     rows = []
-    for lab in sorted(tracked_labs, key=lambda x: x.biomarker_name):
+    for lab in sorted(normalized_labs, key=lambda x: x.biomarker_name):
+        in_catalog = is_catalog_biomarker(lab.biomarker_name)
         rows.append(
             {
                 "biomarker_name": lab.biomarker_name,
                 "value": lab.value,
                 "unit": lab.unit,
                 "status": lab.status.value,
+                "category": lab.category,
+                "qualitative_label": lab.qualitative_label,
+                "expected_label": lab.expected_label,
                 "reference_range_low": lab.reference_range_low,
                 "reference_range_high": lab.reference_range_high,
+                "in_catalog": in_catalog,
+                "in_profile": is_profile_biomarker(lab.biomarker_name, custom_biomarkers) if not in_catalog else False,
             }
         )
     return rows
 
 
-def _biomarker_summary(normalized_labs: list[NormalizedLabResult]) -> dict:
-    tracked = _mvp_tracked_labs(normalized_labs)
-    total = len(tracked) if tracked else len(normalized_labs)
-    source = tracked if tracked else normalized_labs
-    abnormal = [lab for lab in source if lab.status.value not in ("normal", "optimal")]
+def _biomarker_summary(
+    normalized_labs: list[NormalizedLabResult],
+    custom_biomarkers: list[dict] | None = None,
+) -> dict:
+    total = len(normalized_labs)
+    abnormal = [lab for lab in normalized_labs if lab.status.value not in ("normal", "optimal")]
     normal = total - len(abnormal)
     categories: dict[str, int] = {}
     for lab in abnormal:
@@ -181,7 +182,7 @@ def _biomarker_summary(normalized_labs: list[NormalizedLabResult]) -> dict:
         "abnormal_count": len(abnormal),
         "normal_count": normal,
         "categories_affected": categories,
-        "measured_biomarkers": _measured_biomarker_rows(tracked),
+        "measured_biomarkers": _measured_biomarker_rows(normalized_labs, custom_biomarkers),
     }
 
 
@@ -189,20 +190,63 @@ def _biomarker_interpretations(normalized_labs: list[NormalizedLabResult]) -> li
     """Plain-language, per-biomarker interpretation -- the "Biomarker interpretation" output,
     distinct from the aggregate counts in _biomarker_summary. Deterministic/template-based
     (not an extra LLM call) so it never depends on network availability."""
+    _INFECTION_INTERPRETATIONS: dict[str, str] = {
+        "H. pylori Urea Breath Test": (
+            "H. pylori urea breath test was positive, suggesting active gastric colonization. "
+            "This is associated with chronic gastritis, peptic ulcer disease, and altered gastric inflammation pathways. "
+            "Discuss eradication therapy and follow-up testing with a clinician."
+        ),
+        "H. pylori Stool Antigen": (
+            "H. pylori stool antigen was detected, indicating active infection. "
+            "Discuss confirmatory testing and treatment options with a clinician."
+        ),
+        "Hepatitis B Surface Antigen": (
+            "Hepatitis B surface antigen was reactive, suggesting active hepatitis B infection. "
+            "Urgent clinician follow-up is recommended."
+        ),
+        "Hepatitis C Antibody": (
+            "Hepatitis C antibody was reactive. Confirmatory RNA testing and hepatology follow-up may be indicated."
+        ),
+        "HIV Ag/Ab 4th Gen": (
+            "HIV antigen/antibody screen was reactive. Confirmatory testing and immediate clinician follow-up are recommended."
+        ),
+        "Chlamydia trachomatis RNA": (
+            "Chlamydia trachomatis nucleic acid test was detected. Treatment and partner notification should be discussed with a clinician."
+        ),
+        "Neisseria gonorrhoeae RNA": (
+            "Neisseria gonorrhoeae nucleic acid test was detected. Antibiotic treatment per current guidelines should be discussed with a clinician."
+        ),
+        "RPR Syphilis Screen": (
+            "Syphilis screening test was reactive. Confirmatory testing and treatment evaluation are recommended."
+        ),
+    }
+
     interpretations = []
     for lab in normalized_labs:
         status = lab.status.value
         if status in ("normal", "optimal"):
             continue
-        phrase = _BIOMARKER_STATUS_PHRASES.get(status, status)
+        if lab.qualitative_label and lab.biomarker_name in _INFECTION_INTERPRETATIONS:
+            interpretation = _INFECTION_INTERPRETATIONS[lab.biomarker_name]
+        elif lab.qualitative_label:
+            interpretation = (
+                f"{lab.biomarker_name} result was {lab.qualitative_label} (expected negative/not detected). "
+                "This may activate infection-associated inflammatory pathways discussed below. "
+                "This is a laboratory observation, not a diagnosis — confirm with a clinician."
+            )
+        else:
+            phrase = _BIOMARKER_STATUS_PHRASES.get(status, status)
+            interpretation = (
+                f"{lab.biomarker_name} is {phrase} ({lab.value}"
+                + (f" {lab.unit}" if lab.unit else "")
+                + "), which may be relevant to the biological pathways discussed below. "
+                "This is a lab-value observation, not a diagnosis."
+            )
         interpretations.append(
             {
                 "biomarker_name": lab.biomarker_name,
                 "status": status,
-                "interpretation": f"{lab.biomarker_name} is {phrase} ({lab.value}"
-                + (f" {lab.unit}" if lab.unit else "")
-                + "), which may be relevant to the biological pathways discussed below. "
-                "This is a lab-value observation, not a diagnosis.",
+                "interpretation": interpretation,
             }
         )
     return interpretations
@@ -232,9 +276,14 @@ def generate_report(
     biomarker_pattern_analysis: str,
     clinician_questions: list[str],
     intervention_pathways: dict[str, list[str]],
+    *,
+    medication_context: dict | None = None,
+    lab_trends: dict | None = None,
+    routing: RecommendationRoutingContext | None = None,
+    custom_biomarkers: list[dict] | None = None,
 ) -> dict:
     """Stage 7 entry point: score, rank, and assemble the final report payload (pre-persistence)."""
-    biomarker_summary = _biomarker_summary(normalized_labs)
+    biomarker_summary = _biomarker_summary(normalized_labs, custom_biomarkers)
     total_abnormal = biomarker_summary["abnormal_count"]
     evidence_by_id = {e.external_id: e for e in evidence_snippets}
 
@@ -244,6 +293,26 @@ def generate_report(
             rec, evidence_snippets, pathway_activations, intervention_pathways, total_abnormal
         )
         evidence_tier = determine_evidence_tier(rec, evidence_by_id)
+        category = rec.category.value if hasattr(rec.category, "value") else str(rec.category)
+        food_sources, linked_compound = attach_food_sources(rec.intervention_name, category)
+        abnormal_names = {
+            lab.biomarker_name
+            for lab in normalized_labs
+            if lab.status.value in ("critical_low", "low", "high", "critical_high")
+        }
+        rec_intent = intent_for_intervention(rec.intervention_name, abnormal_names)
+        narrative = build_intervention_narrative(
+            rec.intervention_name,
+            category,
+            rec.mechanism,
+            pathway_activations,
+            intervention_pathways,
+            normalized_labs,
+            food_sources,
+            linked_compound=linked_compound,
+            recommendation_intent=rec_intent,
+            routing=routing,
+        )
         rec = rec.model_copy(
             update={
                 "confidence_score": confidence,
@@ -252,7 +321,8 @@ def generate_report(
                     for e in evidence_snippets
                     if e.external_id in rec.cited_study_ids and e.url
                 ],
-                "food_sources": _attach_food_sources(rec),
+                "food_sources": food_sources,
+                "intervention_narrative": narrative,
                 "evidence_tier": evidence_tier,
                 "evidence_tier_label": EVIDENCE_TIER_LABELS[evidence_tier],
             }
@@ -315,5 +385,7 @@ def generate_report(
             "requires_clinician_review": safety_report.requires_clinician_review,
             "high_risk_interventions": high_risk_names,
         },
+        "medication_context": medication_context or {"has_medications": False, "notes": [], "biomarker_specific_notes": []},
+        "lab_trends": lab_trends or {"has_prior_labs": False, "trends": [], "summary": "No prior lab upload found for trend comparison."},
         "disclaimer": DISCLAIMER,
     }

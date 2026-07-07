@@ -6,12 +6,19 @@ task never needs an event loop of its own -- it is equally safe to invoke
 via a real Celery worker process or eagerly in-process during tests.
 """
 
+from sqlalchemy import select
+
 from app import database
 from app.core.file_storage import load_lab_file
-from app.models.enums import LabProcessingStage, LabReportStatus, ReportGenerationStage
+from app.models.enums import LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport, LabResult
-from app.pipeline.biomarker_normalizer import normalize_lab_results
-from app.pipeline.lab_parser import parse_lab_file
+from app.models.user import HealthProfile
+from app.pipeline.biomarker_normalizer import canonical_name_for_persist, normalize_lab_results
+from app.pipeline.user_biomarker_profile import (
+    prune_custom_biomarkers_overlapping_catalog,
+    register_discovered_biomarkers,
+)
+from app.pipeline.lab_parser import parse_lab_file_with_llm_fallback
 from app.services.report_generation import run_report_generation
 from app.workers.celery_app import celery_app
 
@@ -35,28 +42,39 @@ def process_lab_report(lab_report_id: str) -> dict:
         try:
             _set_processing_stage(session, lab_report, LabProcessingStage.PARSING)
             file_bytes = load_lab_file(lab_report.encrypted_file_path)
-            parsed = parse_lab_file(file_bytes, lab_report.original_filename)
+            parsed = parse_lab_file_with_llm_fallback(file_bytes, lab_report.original_filename)
 
-            if not parsed:
-                from app.pipeline.lab_parser import extract_text_from_pdf
-
-                filename = (lab_report.original_filename or "").lower()
-                if filename.endswith(".pdf"):
-                    extracted = extract_text_from_pdf(file_bytes)
-                    if len(extracted.strip()) > 500:
-                        raise ValueError(
-                            "Lab report text was extracted but no biomarker rows matched the parser. "
-                            "The PDF layout may be unsupported — try the demo .txt samples or contact support."
-                        )
+            if not parsed and file_bytes.strip():
+                raise ValueError(
+                    "No biomarker rows could be extracted from this lab report. "
+                    "Regex parsing and LLM-assisted extraction both returned empty. "
+                    "Try a text/CSV export from your lab portal, or one of the demo samples in samples/lab_reports/."
+                )
 
             _set_processing_stage(session, lab_report, LabProcessingStage.NORMALIZING)
-            normalized = normalize_lab_results(parsed)
+            profile = session.execute(
+                select(HealthProfile).where(HealthProfile.user_id == lab_report.user_id)
+            ).scalar_one_or_none()
+            custom_biomarkers = prune_custom_biomarkers_overlapping_catalog(
+                list(profile.custom_biomarkers or []) if profile else []
+            )
+            if profile is not None and custom_biomarkers != list(profile.custom_biomarkers or []):
+                profile.custom_biomarkers = custom_biomarkers
+                session.add(profile)
+
+            normalized = normalize_lab_results(parsed, custom_biomarkers=custom_biomarkers)
+
+            if profile is not None:
+                updated_profile = register_discovered_biomarkers(normalized, custom_biomarkers)
+                if updated_profile != custom_biomarkers:
+                    profile.custom_biomarkers = updated_profile
+                    session.add(profile)
 
             for result in normalized:
                 session.add(
                     LabResult(
                         lab_report_id=lab_report.id,
-                        biomarker_name=result.biomarker_name,
+                        biomarker_name=canonical_name_for_persist(result, custom_biomarkers),
                         raw_test_name=result.raw_test_name,
                         value=result.value,
                         unit=result.unit,

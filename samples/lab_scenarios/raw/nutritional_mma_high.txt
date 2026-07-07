@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Methylmalonic Acid      450.00  nmol/L   (0.00-370.00)
+Vitamin B-12              420.00  pg/mL    (200.00-900.00)
+Folate (Folic Acid), Serum  8.00  ng/mL    (2.70-17.00)

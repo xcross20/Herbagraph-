@@ -1,0 +1,6 @@
+LABCORP - SYNTHETIC SCENARIO (NOT REAL PATIENT DATA)
+
+Insulin   32  uIU/mL  H  2.6-24.9
+Glucose   112  mg/dL  H  70-99
+HbA1c   6.3  %  H  4.0-5.6
+Triglycerides   175  mg/dL  H  0-149

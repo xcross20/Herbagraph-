@@ -8,16 +8,19 @@ import uuid
 from sqlalchemy import select
 
 from app import database
-from app.models.enums import ReportGenerationStage
+from app.models.enums import LabReportStatus, ReportGenerationStage
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile
 from app.pipeline.biomarker_normalizer import normalized_results_from_lab_report
 from app.pipeline.evidence_retriever import build_intervention_pathway_map, retrieve_evidence
+from app.pipeline.test_type_router import route_recommendation_trees
 from app.pipeline.llm_reasoner import generate_reasoning
 from app.pipeline.pathway_mapper import map_pathways
+from app.pipeline.medication_context import build_medication_context
 from app.pipeline.report_generator import generate_report
 from app.pipeline.safety_layer import check_safety
+from app.pipeline.trend_context import build_trend_context, prior_labs_from_results
 
 
 def _health_profile_dict(profile: HealthProfile | None) -> dict:
@@ -43,22 +46,56 @@ async def _run_pipeline_stages(
     health_profile: dict,
     session,
 ) -> RecommendationReport:
-    normalized = normalized_results_from_lab_report(lab_report)
+    custom_biomarkers = []
+    profile = session.execute(
+        select(HealthProfile).where(HealthProfile.user_id == lab_report.user_id)
+    ).scalar_one_or_none()
+    if profile is not None:
+        custom_biomarkers = list(profile.custom_biomarkers or [])
+
+    normalized = normalized_results_from_lab_report(lab_report, custom_biomarkers=custom_biomarkers)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.PATHWAY_MAPPING)
     pathway_activations = map_pathways(normalized)
+    routing = route_recommendation_trees(normalized, pathway_activations)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.EVIDENCE_RETRIEVAL)
-    evidence_snippets = await retrieve_evidence(pathway_activations)
+    evidence_snippets = await retrieve_evidence(
+        pathway_activations, routing=routing, normalized_labs=normalized
+    )
 
     _set_report_stage(session, lab_report, ReportGenerationStage.LLM_REASONING)
-    reasoning = await generate_reasoning(normalized, pathway_activations, evidence_snippets, health_profile)
+    reasoning = await generate_reasoning(
+        normalized, pathway_activations, evidence_snippets, health_profile, routing=routing
+    )
 
     _set_report_stage(session, lab_report, ReportGenerationStage.SAFETY_CHECK)
     safety_report = check_safety(reasoning.recommendations, health_profile)
-    intervention_pathways = build_intervention_pathway_map()
+    intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.REPORT_ASSEMBLY)
+    medication_context = build_medication_context(normalized, health_profile)
+
+    prior_report = (
+        session.execute(
+            select(LabReport)
+            .where(LabReport.user_id == lab_report.user_id)
+            .where(LabReport.id != lab_report.id)
+            .where(LabReport.status == LabReportStatus.COMPLETE)
+            .order_by(LabReport.created_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    prior_labs = None
+    prior_date = None
+    if prior_report is not None:
+        session.refresh(prior_report, attribute_names=["lab_results"])
+        prior_labs = prior_labs_from_results(prior_report.lab_results)
+        prior_date = prior_report.created_at.isoformat() if prior_report.created_at else None
+    lab_trends = build_trend_context(normalized, prior_labs, prior_report_date=prior_date)
+
     payload = generate_report(
         normalized,
         pathway_activations,
@@ -67,6 +104,10 @@ async def _run_pipeline_stages(
         reasoning.biomarker_pattern_analysis,
         reasoning.clinician_questions,
         intervention_pathways,
+        medication_context=medication_context,
+        lab_trends=lab_trends,
+        routing=routing,
+        custom_biomarkers=custom_biomarkers,
     )
 
     report = RecommendationReport(
@@ -81,6 +122,8 @@ async def _run_pipeline_stages(
         biological_systems=payload["biological_systems"],
         clinician_questions=payload["clinician_questions"],
         safety_summary=payload["safety_summary"],
+        medication_context=payload["medication_context"],
+        lab_trends=payload["lab_trends"],
         disclaimer=payload["disclaimer"],
     )
     session.add(report)
@@ -107,6 +150,7 @@ async def _run_pipeline_stages(
                 cited_study_ids=rec["cited_study_ids"],
                 cited_urls=rec["cited_urls"],
                 food_sources=rec["food_sources"],
+                intervention_narrative=rec.get("intervention_narrative"),
             )
         )
 

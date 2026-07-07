@@ -44,5 +44,6 @@ class HealthProfile(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     current_medications: Mapped[list[str]] = mapped_column(JSON, default=list)
     current_supplements: Mapped[list[str]] = mapped_column(JSON, default=list)
     known_conditions: Mapped[list[str]] = mapped_column(JSON, default=list)
+    custom_biomarkers: Mapped[list[dict]] = mapped_column(JSON, default=list)
 
     user: Mapped["User"] = relationship(back_populates="health_profile")

@@ -33,18 +33,23 @@ def activations_by_code(activations):
 
 
 def test_rule_table_has_substantial_size():
-    """README documents 50+ biomarker-to-pathway rules across the 25-biomarker panel."""
-    assert len(_PATHWAY_CONFIGS) == 54
+    """Expanded 200+ biomarker catalog includes 75+ pathway mapping rules."""
+    assert len(_PATHWAY_CONFIGS) >= 75
 
 
-def test_rule_table_covers_25_biomarkers():
+def test_rule_table_covers_core_and_extended_biomarkers():
     biomarkers = {rule[0] for rule in _PATHWAY_CONFIGS}
-    assert len(biomarkers) == 25
+    assert len(biomarkers) >= 40
+    assert "CRP" in biomarkers
+    assert "BUN" in biomarkers
+    assert "WBC" in biomarkers
 
 
-def test_rule_table_covers_16_pathway_codes():
+def test_rule_table_covers_signaling_and_etiological_pathway_codes():
     pathway_codes = {rule[2] for rule in _PATHWAY_CONFIGS}
-    assert len(pathway_codes) == 16
+    assert len(pathway_codes) >= 26
+    assert "NF_KB" in pathway_codes
+    assert "GASTRIC_COLONIZATION" in pathway_codes
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +111,7 @@ _RULE_CASES = [
     }),
     ("Vitamin D", LabResultStatus.LOW, {
         "VITAMIN_D_RECEPTOR": (0.9, PathwayDirection.SUPPRESSED),
+        "NUTRIENT_DEFICIENCY": (0.9, PathwayDirection.SUPPRESSED),
     }),
     ("Vitamin D", LabResultStatus.HIGH, {
         "VITAMIN_D_RECEPTOR": (0.5, PathwayDirection.ACTIVATED),
@@ -119,9 +125,11 @@ _RULE_CASES = [
     }),
     ("B12", LabResultStatus.LOW, {
         "ONE_CARBON_METHYLATION": (0.8, PathwayDirection.SUPPRESSED),
+        "NUTRIENT_DEFICIENCY": (0.9, PathwayDirection.SUPPRESSED),
     }),
     ("Folate", LabResultStatus.LOW, {
         "ONE_CARBON_METHYLATION": (0.85, PathwayDirection.SUPPRESSED),
+        "NUTRIENT_DEFICIENCY": (0.9, PathwayDirection.SUPPRESSED),
     }),
     ("ApoB", LabResultStatus.HIGH, {
         "HEPATIC_LIPID": (0.9, PathwayDirection.ACTIVATED),
@@ -161,6 +169,7 @@ _RULE_CASES = [
     }),
     ("Ferritin", LabResultStatus.LOW, {
         "IRON_HEPCIDIN": (0.85, PathwayDirection.SUPPRESSED),
+        "NUTRIENT_DEFICIENCY": (0.75, PathwayDirection.SUPPRESSED),
     }),
 ]
 
@@ -380,3 +389,164 @@ def test_contributing_biomarkers_present_for_single_contributor_pathways():
 def test_unrelated_biomarker_name_produces_no_activation():
     labs = [make_lab("Not A Real Biomarker", LabResultStatus.HIGH)]
     assert map_pathways(labs) == []
+
+
+def test_macrocytic_cbc_indices_activate_nutrient_pathways():
+    labs = [
+        make_lab("MCV", LabResultStatus.HIGH, value=109.6),
+        make_lab("MCH", LabResultStatus.HIGH, value=36.5),
+        make_lab("RDW", LabResultStatus.HIGH, value=16.0),
+    ]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["ONE_CARBON_METHYLATION"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["IRON_HEPCIDIN"].direction == PathwayDirection.SUPPRESSED
+    assert set(by_code["ONE_CARBON_METHYLATION"].contributing_biomarkers) >= {"MCV", "MCH", "RDW"}
+
+
+def test_low_calcium_activates_nutrient_deficiency():
+    labs = [make_lab("Calcium", LabResultStatus.LOW, value=7.8)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Calcium"]
+
+
+def test_low_potassium_activates_nutrient_deficiency():
+    labs = [make_lab("Potassium", LabResultStatus.LOW, value=3.2)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Potassium"]
+
+
+def test_low_copper_activates_nutrient_deficiency():
+    labs = [make_lab("Copper", LabResultStatus.LOW, value=55.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Copper"]
+
+
+def test_low_selenium_activates_nutrient_deficiency():
+    labs = [make_lab("Selenium", LabResultStatus.LOW, value=55.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Selenium"]
+
+
+def test_high_soluble_transferrin_receptor_activates_iron_hepcidin():
+    labs = [make_lab("Soluble Transferrin Receptor", LabResultStatus.HIGH, value=2.5)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["IRON_HEPCIDIN"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["IRON_HEPCIDIN"].contributing_biomarkers == ["Soluble Transferrin Receptor"]
+
+
+def test_low_transferrin_saturation_activates_iron_hepcidin():
+    labs = [make_lab("Transferrin Saturation", LabResultStatus.LOW, value=12.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["IRON_HEPCIDIN"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["IRON_HEPCIDIN"].contributing_biomarkers == ["Transferrin Saturation"]
+
+
+def test_high_uibc_activates_iron_hepcidin():
+    labs = [make_lab("UIBC", LabResultStatus.HIGH, value=400.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["IRON_HEPCIDIN"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["IRON_HEPCIDIN"].contributing_biomarkers == ["UIBC"]
+
+
+def test_high_tibc_activates_iron_hepcidin():
+    labs = [make_lab("TIBC", LabResultStatus.HIGH, value=480.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["IRON_HEPCIDIN"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["IRON_HEPCIDIN"].contributing_biomarkers == ["TIBC"]
+
+
+def test_high_methylmalonic_acid_activates_one_carbon_and_nutrient_deficiency():
+    labs = [make_lab("Methylmalonic Acid", LabResultStatus.HIGH, value=450.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["ONE_CARBON_METHYLATION"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["ONE_CARBON_METHYLATION"].contributing_biomarkers == ["Methylmalonic Acid"]
+
+
+def test_low_vitamin_k_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin K", LabResultStatus.LOW, value=0.05)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin K"]
+
+
+def test_low_vitamin_b2_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin B2", LabResultStatus.LOW, value=80.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin B2"]
+
+
+def test_low_vitamin_a_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin A", LabResultStatus.LOW, value=22.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin A"]
+
+
+def test_low_vitamin_e_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin E", LabResultStatus.LOW, value=3.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin E"]
+
+
+def test_low_vitamin_b1_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin B1", LabResultStatus.LOW, value=55.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin B1"]
+
+
+def test_low_vitamin_b6_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin B6", LabResultStatus.LOW, value=3.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin B6"]
+
+
+def test_low_prealbumin_activates_nutrient_deficiency():
+    labs = [make_lab("Prealbumin", LabResultStatus.LOW, value=12.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Prealbumin"]
+
+
+def test_low_vitamin_c_activates_nutrient_deficiency():
+    labs = [make_lab("Vitamin C", LabResultStatus.LOW, value=0.25)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert by_code["NUTRIENT_DEFICIENCY"].direction == PathwayDirection.SUPPRESSED
+    assert by_code["NUTRIENT_DEFICIENCY"].contributing_biomarkers == ["Vitamin C"]
+
+
+def test_custom_profile_lpa_mass_aliases_to_lpa_pathway():
+    """User custom_biomarkers may use Lp(a) Mass while catalog rules key on Lp(a)."""
+    labs = [make_lab("Lp(a) Mass", LabResultStatus.HIGH, category="other", value=85.0)]
+    by_code = activations_by_code(map_pathways(labs))
+
+    assert "HEPATIC_LIPID" in by_code
+    assert by_code["HEPATIC_LIPID"].direction == PathwayDirection.ACTIVATED
+    assert by_code["HEPATIC_LIPID"].contributing_biomarkers == ["Lp(a) Mass"]

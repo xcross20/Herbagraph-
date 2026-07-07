@@ -1,0 +1,7 @@
+SYNTHETIC QUEST-STYLE TRACE MINERAL PANEL (NOT REAL PATIENT DATA)
+
+Zinc, Plasma             55.00  ug/dL    (60.00-130.00)
+Copper, Serum            55.00  ug/dL    (70.00-175.00)
+Selenium, Serum          55.00  ug/L     (70.00-150.00)
+Vitamin D, 25-OH         45.00  ng/mL    (30.00-100.00)
+B12                      480.00  pg/mL    (200.00-900.00)

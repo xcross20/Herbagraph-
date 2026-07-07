@@ -1,0 +1,4 @@
+SYNTHETIC GI STOOL PANEL (NOT REAL PATIENT DATA)
+
+Fecal Calprotectin       185.00  ug/g   (0.00-50.00)
+CRP                      5.80  mg/L   (0.00-3.00)

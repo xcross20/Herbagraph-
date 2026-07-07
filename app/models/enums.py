@@ -67,6 +67,36 @@ class InterventionCategory(str, enum.Enum):
     BEHAVIOR = "behavior"
 
 
+class PathwayType(str, enum.Enum):
+    """Distinguishes host signaling pathways from etiological (root-cause) pathways."""
+
+    SIGNALING = "signaling"
+    ETIOLOGICAL = "etiological"
+
+
+class RecommendationTree(str, enum.Enum):
+    """Which reasoning tree applies for a given abnormal lab result."""
+
+    SIGNALING = "signaling"
+    ETIOLOGICAL = "etiological"
+    EXPOSURE = "exposure"
+    CULTURE = "culture"
+    CELIAC = "celiac"
+    ALLERGY = "allergy"
+    PGX_CONTEXT = "pgx_context"
+    NUTRITIONAL_REPLETION = "nutritional_repletion"
+    AUTOIMMUNE = "autoimmune"
+
+
+class RecommendationIntent(str, enum.Enum):
+    """Why an intervention is surfaced relative to the active recommendation tree."""
+
+    PRIMARY = "primary"
+    COLLATERAL = "collateral"
+    CONTEXT_ONLY = "context_only"
+    NUTRITIONAL_REPLETION = "nutritional_repletion"
+
+
 class EvidenceLevel(str, enum.Enum):
     HIGH = "high"
     MODERATE = "moderate"

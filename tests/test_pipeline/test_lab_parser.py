@@ -34,6 +34,13 @@ class TestParenthesizedRangePattern:
         assert result.reference_range_low == 0.0
         assert result.reference_range_high == 3.0
 
+    def test_percent_saturation_name_prefix(self):
+        result = parse_lab_line("% Saturation             12.00  %        (20.00-50.00)")
+        assert result is not None
+        assert result.raw_test_name == "% Saturation"
+        assert result.value == 12.0
+        assert result.unit == "%"
+
     def test_less_than_value_is_parsed(self):
         result = parse_lab_line("Ferritin     <5   ng/mL   (20.00-250.00)")
         assert result is not None
@@ -140,8 +147,20 @@ class TestQuestReferenceRangePattern:
         assert result.value == 0.55
         assert result.unit == "mIU/L"
 
-    def test_quest_qualitative_line_skipped(self):
-        assert parse_lab_line("GLUCOSE NEGATIVE Reference Range: NEGATIVE") is None
+    def test_quest_qualitative_line_parses_negative(self):
+        result = parse_lab_line("GLUCOSE NEGATIVE Reference Range: NEGATIVE")
+        assert result is not None
+        assert result.qualitative_result == "NEGATIVE"
+        assert result.value == 0.0
+
+    def test_quest_h_pylori_detected_parses(self):
+        result = parse_lab_line(
+            "HELICOBACTER PYLORI, UREA BREATH TEST DETECTED Reference Range: NOT DETECTED"
+        )
+        assert result is not None
+        assert result.qualitative_result == "DETECTED"
+        assert result.expected_result == "NOT DETECTED"
+        assert result.value == 1.0
 
     def test_real_quest_fixture_parses_core_panel(self):
         fixture = (
@@ -232,6 +251,26 @@ class TestParseLabText:
         results = parse_lab_text(text)
         names = [r.raw_test_name for r in results]
         assert names == ["CRP", "Homocysteine", "Vitamin D", "Glucose"]
+
+
+class TestOcrPostprocess:
+    def test_reversed_cbc_name_parses_after_postprocess(self):
+        from app.pipeline.biomarker_normalizer import normalize_lab_results
+
+        line = "emuloV lleC naeM (MCV)   102.00  fL      (80.00-100.00)"
+        results = parse_lab_text(line)
+        assert len(results) == 1
+        assert "(MCV)" in results[0].raw_test_name
+        assert results[0].value == 102.0
+        normalized = normalize_lab_results(results)
+        assert normalized[0].biomarker_name == "MCV"
+        assert normalized[0].status.value == "high"
+
+    def test_egfr_name_is_not_reversed_by_postprocess(self):
+        line = "eGFR   58  mL/min  L  90-120"
+        results = parse_lab_text(line)
+        assert len(results) == 1
+        assert results[0].raw_test_name == "eGFR"
 
 
 class TestParseLabFile:

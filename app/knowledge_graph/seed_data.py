@@ -4,270 +4,24 @@ This module is the single source of truth for `scripts/seed_db.py`. It is pure
 data (no I/O) so it can be imported and asserted against directly in tests.
 """
 
-# ---------------------------------------------------------------------------
-# 25 Biomarkers: a 17-biomarker "core" panel (high-value, commonly available)
-# plus 7 "optional near-MVP" additions. Deliberately capped rather than trying
-# to cover every possible lab test -- see README's MVP Scope section.
-# ---------------------------------------------------------------------------
-BIOMARKERS: list[dict] = [
-    # --- Core panel (17) ---
-    {
-        "canonical_name": "CRP",
-        "category": "inflammatory",
-        "description": "C-reactive protein, an acute-phase marker of systemic inflammation.",
-        "default_unit": "mg/L",
-        "reference_low": 0.0,
-        "reference_high": 3.0,
-        "optimal_low": 0.0,
-        "optimal_high": 1.0,
-    },
-    {
-        "canonical_name": "Glucose",
-        "category": "metabolic",
-        "description": "Fasting plasma glucose.",
-        "default_unit": "mg/dL",
-        "reference_low": 70.0,
-        "reference_high": 99.0,
-        "optimal_low": 70.0,
-        "optimal_high": 85.0,
-    },
-    {
-        "canonical_name": "HbA1c",
-        "category": "metabolic",
-        "description": "Glycated hemoglobin; reflects 2-3 month average blood glucose.",
-        "default_unit": "%",
-        "reference_low": 4.0,
-        "reference_high": 5.6,
-        "optimal_low": 4.0,
-        "optimal_high": 5.3,
-    },
-    {
-        "canonical_name": "Insulin",
-        "category": "metabolic",
-        "description": "Fasting serum insulin.",
-        "default_unit": "uIU/mL",
-        "reference_low": 2.6,
-        "reference_high": 24.9,
-        "optimal_low": 2.6,
-        "optimal_high": 6.0,
-    },
-    {
-        "canonical_name": "LDL",
-        "category": "lipid",
-        "description": "Low-density lipoprotein cholesterol.",
-        "default_unit": "mg/dL",
-        "reference_low": 0.0,
-        "reference_high": 99.0,
-        "optimal_low": 0.0,
-        "optimal_high": 80.0,
-    },
-    {
-        "canonical_name": "HDL",
-        "category": "lipid",
-        "description": "High-density lipoprotein cholesterol.",
-        "default_unit": "mg/dL",
-        "reference_low": 40.0,
-        "reference_high": 100.0,
-        "optimal_low": 60.0,
-        "optimal_high": 100.0,
-    },
-    {
-        "canonical_name": "Triglycerides",
-        "category": "lipid",
-        "description": "Circulating triglycerides.",
-        "default_unit": "mg/dL",
-        "reference_low": 0.0,
-        "reference_high": 149.0,
-        "optimal_low": 0.0,
-        "optimal_high": 100.0,
-    },
-    {
-        "canonical_name": "ApoB",
-        "category": "lipid",
-        "description": "Apolipoprotein B; one particle per atherogenic lipoprotein, often a better cardiovascular risk marker than LDL-C alone.",
-        "default_unit": "mg/dL",
-        "reference_low": 40.0,
-        "reference_high": 100.0,
-        "optimal_low": 40.0,
-        "optimal_high": 80.0,
-    },
-    {
-        "canonical_name": "Vitamin D",
-        "category": "hormonal",
-        "description": "25-hydroxyvitamin D, the storage form used to assess vitamin D status.",
-        "default_unit": "ng/mL",
-        "reference_low": 30.0,
-        "reference_high": 100.0,
-        "optimal_low": 50.0,
-        "optimal_high": 80.0,
-    },
-    {
-        "canonical_name": "Ferritin",
-        "category": "iron_metabolism",
-        "description": "Iron storage protein; both deficiency and excess are clinically meaningful.",
-        "default_unit": "ng/mL",
-        "reference_low": 20.0,
-        "reference_high": 250.0,
-        "optimal_low": 50.0,
-        "optimal_high": 150.0,
-    },
-    {
-        "canonical_name": "B12",
-        "category": "nutritional",
-        "description": "Vitamin B12 (cobalamin).",
-        "default_unit": "pg/mL",
-        "reference_low": 200.0,
-        "reference_high": 900.0,
-        "optimal_low": 500.0,
-        "optimal_high": 900.0,
-    },
-    {
-        "canonical_name": "Folate",
-        "category": "nutritional",
-        "description": "Serum folate (vitamin B9).",
-        "default_unit": "ng/mL",
-        "reference_low": 2.7,
-        "reference_high": 17.0,
-        "optimal_low": 7.0,
-        "optimal_high": 17.0,
-    },
-    {
-        "canonical_name": "TSH",
-        "category": "hormonal",
-        "description": "Thyroid-stimulating hormone.",
-        "default_unit": "mIU/L",
-        "reference_low": 0.4,
-        "reference_high": 4.0,
-        "optimal_low": 0.5,
-        "optimal_high": 2.5,
-    },
-    {
-        "canonical_name": "ALT",
-        "category": "hepatic",
-        "description": "Alanine aminotransferase, a marker of hepatocellular injury.",
-        "default_unit": "U/L",
-        "reference_low": 7.0,
-        "reference_high": 56.0,
-        "optimal_low": 7.0,
-        "optimal_high": 25.0,
-    },
-    {
-        "canonical_name": "AST",
-        "category": "hepatic",
-        "description": "Aspartate aminotransferase, a marker of hepatocellular injury.",
-        "default_unit": "U/L",
-        "reference_low": 10.0,
-        "reference_high": 40.0,
-        "optimal_low": 10.0,
-        "optimal_high": 25.0,
-    },
-    {
-        "canonical_name": "GGT",
-        "category": "hepatic",
-        "description": "Gamma-glutamyl transferase; sensitive marker of hepatobiliary stress and oxidative load.",
-        "default_unit": "U/L",
-        "reference_low": 8.0,
-        "reference_high": 61.0,
-        "optimal_low": 8.0,
-        "optimal_high": 30.0,
-    },
-    {
-        "canonical_name": "Creatinine",
-        "category": "renal",
-        "description": "Muscle metabolism byproduct cleared by the kidneys; the basis for eGFR.",
-        "default_unit": "mg/dL",
-        "reference_low": 0.6,
-        "reference_high": 1.3,
-        "optimal_low": 0.7,
-        "optimal_high": 1.1,
-    },
-    {
-        "canonical_name": "eGFR",
-        "category": "renal",
-        "description": "Estimated glomerular filtration rate; higher is better (a low value indicates reduced kidney function).",
-        "default_unit": "mL/min/1.73m2",
-        "reference_low": 90.0,
-        "reference_high": None,
-        "optimal_low": 90.0,
-        "optimal_high": 120.0,
-    },
-    # --- Optional near-MVP additions (7) ---
-    {
-        "canonical_name": "Homocysteine",
-        "category": "inflammatory",
-        "description": "Sulfur amino acid; elevated levels are linked to vascular inflammation and impaired methylation.",
-        "default_unit": "umol/L",
-        "reference_low": 5.0,
-        "reference_high": 15.0,
-        "optimal_low": 5.0,
-        "optimal_high": 8.0,
-    },
-    {
-        "canonical_name": "Uric Acid",
-        "category": "metabolic",
-        "description": "End product of purine metabolism.",
-        "default_unit": "mg/dL",
-        "reference_low": 3.5,
-        "reference_high": 7.2,
-        "optimal_low": 3.5,
-        "optimal_high": 6.0,
-    },
-    {
-        "canonical_name": "Lp(a)",
-        "category": "lipid",
-        "description": "Lipoprotein(a); a largely genetically-determined, independent cardiovascular risk factor.",
-        "default_unit": "mg/dL",
-        "reference_low": 0.0,
-        "reference_high": 30.0,
-        "optimal_low": 0.0,
-        "optimal_high": 14.0,
-    },
-    {
-        "canonical_name": "Free T3",
-        "category": "hormonal",
-        "description": "Unbound, biologically active triiodothyronine.",
-        "default_unit": "pg/mL",
-        "reference_low": 2.3,
-        "reference_high": 4.2,
-        "optimal_low": 2.8,
-        "optimal_high": 3.8,
-    },
-    {
-        "canonical_name": "Free T4",
-        "category": "hormonal",
-        "description": "Unbound thyroxine, the primary hormone secreted by the thyroid.",
-        "default_unit": "ng/dL",
-        "reference_low": 0.8,
-        "reference_high": 1.8,
-        "optimal_low": 1.0,
-        "optimal_high": 1.5,
-    },
-    {
-        "canonical_name": "Cortisol",
-        "category": "hormonal",
-        "description": "Morning (AM) serum cortisol, the primary HPA-axis stress hormone.",
-        "default_unit": "mcg/dL",
-        "reference_low": 6.0,
-        "reference_high": 23.0,
-        "optimal_low": 10.0,
-        "optimal_high": 18.0,
-    },
-    {
-        "canonical_name": "DHEA-S",
-        "category": "hormonal",
-        "description": "Dehydroepiandrosterone sulfate, an adrenal androgen precursor.",
-        "default_unit": "mcg/dL",
-        "reference_low": 65.0,
-        "reference_high": 380.0,
-        "optimal_low": 100.0,
-        "optimal_high": 300.0,
-    },
-]
+from app.knowledge_graph.biomarker_catalog import get_seed_records
+from app.knowledge_graph.catalog_merge import merge_interventions
+from app.knowledge_graph.herb_catalog import HERB_INTERVENTIONS
+from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
+from app.knowledge_graph.lifestyle_methods_catalog import LIFESTYLE_INTERVENTIONS
+from app.knowledge_graph.supplement_catalog import SUPPLEMENT_INTERVENTIONS
+from app.knowledge_graph.tier_a_catalog import TIER_A_HERBS, TIER_A_SUPPLEMENTS
+from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
 
 # ---------------------------------------------------------------------------
-# 16 Biological Pathways
+# 266 Biomarkers: comprehensive clinical panel
 # ---------------------------------------------------------------------------
-PATHWAYS: list[dict] = [
+BIOMARKERS: list[dict] = get_seed_records()
+
+# ---------------------------------------------------------------------------
+# 16 host signaling pathways + 12 etiological pathways
+# ---------------------------------------------------------------------------
+SIGNALING_PATHWAYS: list[dict] = [
     {"code": "NF_KB", "name": "NF-κB Inflammatory Signaling",
      "description": "Master transcriptional regulator of the inflammatory response."},
     {"code": "IL6_JAK_STAT3", "name": "IL-6/JAK-STAT3 Signaling",
@@ -302,338 +56,71 @@ PATHWAYS: list[dict] = [
      "description": "Glomerular filtration and renal clearance function."},
 ]
 
+ETIOLOGICAL_PATHWAYS: list[dict] = [
+    {"code": "GASTRIC_COLONIZATION", "name": "Gastric Pathogen Colonization",
+     "description": "Active colonization of the gastric niche (e.g. H. pylori).", "pathway_type": "etiological"},
+    {"code": "GI_MUCOSAL_BARRIER", "name": "GI Mucosal Barrier Integrity",
+     "description": "Epithelial barrier function and mucosal healing in the GI tract.", "pathway_type": "etiological"},
+    {"code": "PATHOGEN_BURDEN", "name": "Pathogen Burden",
+     "description": "Active infectious organism load detected by lab testing.", "pathway_type": "etiological"},
+    {"code": "BIOFILM_ADHESION", "name": "Biofilm and Microbial Adhesion",
+     "description": "Persistent colonization via biofilm and adhesion mechanisms.", "pathway_type": "etiological"},
+    {"code": "FOOD_ANTIGEN_EXPOSURE", "name": "Food Antigen Exposure",
+     "description": "Dietary antigen driving immune response (e.g. gluten in celiac disease).", "pathway_type": "etiological"},
+    {"code": "IGE_SENSITIZATION", "name": "IgE Sensitization",
+     "description": "Allergen-specific IgE-mediated sensitization.", "pathway_type": "etiological"},
+    {"code": "AUTOIMMUNE_TARGETING", "name": "Autoimmune Targeting",
+     "description": "Self-antigen immune response driving autoimmune serology.", "pathway_type": "etiological"},
+    {"code": "HEPATOTROPIC_VIRAL", "name": "Hepatotropic Viral Infection",
+     "description": "Viral hepatitis markers indicating liver-tropic infection.", "pathway_type": "etiological"},
+    {"code": "DRUG_METABOLISM_VARIANT", "name": "Drug Metabolism Variant",
+     "description": "Pharmacogenomic variants affecting drug metabolism and safety.", "pathway_type": "etiological"},
+    {"code": "NUTRIENT_DEFICIENCY", "name": "Nutrient Deficiency",
+     "description": "Measured deficiency of essential vitamins, minerals, or cofactors.", "pathway_type": "etiological"},
+    {"code": "URINARY_PATHOGEN", "name": "Urinary Tract Pathogen",
+     "description": "Bacterial colonization of the urinary tract.", "pathway_type": "etiological"},
+    {"code": "RESPIRATORY_PATHOGEN", "name": "Respiratory Pathogen",
+     "description": "Upper or lower respiratory tract infection markers.", "pathway_type": "etiological"},
+]
+
+PATHWAYS: list[dict] = [
+    {**pw, "pathway_type": "signaling"} for pw in SIGNALING_PATHWAYS
+] + ETIOLOGICAL_PATHWAYS
+
 # ---------------------------------------------------------------------------
-# 15 Core Interventions
-#
-# `compounds` entries are {name, primary_target, role, pubchem_cid}. `pubchem_cid` is
-# intentionally left None in static seed data -- resolve it on demand via
-# app.integrations.pubchem instead of hardcoding an identifier that can drift out of date.
-# `primary_target` is the molecular target/enzyme/receptor (the "Target" node in the
-# Intervention -> Compound -> Target -> Pathway -> Biomarker graph); Pathway/Biomarker
-# linkage for the compound comes from the parent intervention's own EVIDENCE_CLAIMS below.
+# Interventions: 200 herbs + 200 supplements + 77 lifestyle methods (Tier A merged)
 # ---------------------------------------------------------------------------
-INTERVENTIONS: list[dict] = [
-    {
-        "name": "Boswellia serrata",
-        "category": "herb",
-        "description": "Indian frankincense resin extract standardized for boswellic acids.",
-        "mechanism": "Selectively inhibits 5-LOX, reducing leukotriene B4 synthesis and downstream NF-κB activation.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "AKBA (acetyl-11-keto-beta-boswellic acid)", "primary_target": "5-LOX (5-lipoxygenase)",
-             "role": "primary active constituent", "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "pregnancy", "severity": "contraindication",
-             "note": "Insufficient safety data in pregnancy; avoid."},
-        ],
-        "drug_interactions": [
-            {"drug_name": "Warfarin", "severity": "moderate",
-             "mechanism": "May potentiate anticoagulant effect.",
-             "note": "Monitor INR if co-administered."},
-        ],
-    },
-    {
-        "name": "Curcumin",
-        "category": "herb",
-        "description": "Primary curcuminoid of turmeric (Curcuma longa), typically taken with piperine or as a phytosome for bioavailability.",
-        "mechanism": "Inhibits NF-κB nuclear translocation and downregulates COX-2 and pro-inflammatory cytokines.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Curcumin", "primary_target": "NF-κB", "role": "primary active constituent",
-             "pubchem_cid": None},
-            {"name": "Demethoxycurcumin", "primary_target": "NF-κB", "role": "minor active constituent",
-             "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "pregnancy", "severity": "caution",
-             "note": "High-dose supplemental curcumin (above culinary amounts) is not well studied in pregnancy."},
-        ],
-        "drug_interactions": [
-            {"drug_name": "Warfarin", "severity": "moderate",
-             "mechanism": "May potentiate anticoagulant effect via antiplatelet activity.", "note": None},
-            {"drug_name": "Chemotherapy", "severity": "moderate",
-             "mechanism": "May interact with certain chemotherapeutic agents' oxidative mechanisms.",
-             "note": "Discuss with oncologist before use."},
-        ],
-    },
-    {
-        "name": "Ashwagandha",
-        "category": "herb",
-        "description": "Withania somnifera root/leaf extract, an adaptogen standardized for withanolides.",
-        "mechanism": "Modulates HPA axis activity, lowering cortisol and supporting GABAergic signaling.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Withanolides", "primary_target": "HPA axis / GABA-A receptor",
-             "role": "primary active constituent class", "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "pregnancy", "severity": "contraindication",
-             "note": "Associated with abortifacient risk in animal studies; avoid."},
-            {"condition": "autoimmune_disease", "severity": "caution",
-             "note": "Immune-stimulating effects may be undesirable for patients on immunosuppressants."},
-        ],
-        "drug_interactions": [
-            {"drug_name": "Levothyroxine", "severity": "moderate",
-             "mechanism": "May increase thyroid hormone levels.", "note": "Monitor TSH if co-administered."},
-            {"drug_name": "Immunosuppressants", "severity": "moderate",
-             "mechanism": "Immune-stimulating effect may counteract immunosuppressive therapy.", "note": None},
-        ],
-    },
-    {
-        "name": "Milk Thistle",
-        "category": "herb",
-        "description": "Silybum marianum seed extract standardized for silymarin.",
-        "mechanism": "Silymarin stabilizes hepatocyte membranes and upregulates Nrf2-mediated antioxidant defenses.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Silymarin", "primary_target": "Nrf2", "role": "primary active constituent complex",
-             "pubchem_cid": None},
-            {"name": "Silybin", "primary_target": "Nrf2", "role": "most bioactive silymarin flavonolignan",
-             "pubchem_cid": None},
-        ],
-        "safety_flags": [],
-        "drug_interactions": [
-            {"drug_name": "Statins", "severity": "low",
-             "mechanism": "May mildly inhibit CYP-mediated statin metabolism.",
-             "note": "Generally well tolerated; monitor for myalgia."},
-        ],
-    },
-    {
-        "name": "Berberine",
-        "category": "supplement",
-        "description": "Isoquinoline alkaloid found in Berberis species, used for metabolic support.",
-        "mechanism": "Activates AMPK, improving insulin sensitivity and hepatic lipid metabolism.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Berberine hydrochloride", "primary_target": "AMPK",
-             "role": "primary active constituent", "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "pregnancy", "severity": "contraindication",
-             "note": "Crosses the placenta and may cause kernicterus; avoid."},
-        ],
-        "drug_interactions": [
-            {"drug_name": "Warfarin", "severity": "moderate",
-             "mechanism": "May potentiate anticoagulant effect.", "note": None},
-            {"drug_name": "Metformin", "severity": "moderate",
-             "mechanism": "Additive glucose-lowering effect via AMPK activation.",
-             "note": "Monitor for hypoglycemia."},
-            {"drug_name": "Cyclosporine", "severity": "high",
-             "mechanism": "Inhibits CYP3A4/P-glycoprotein, raising cyclosporine levels.",
-             "note": "Avoid combination without specialist supervision."},
-            {"drug_name": "Insulin/antidiabetics", "severity": "moderate",
-             "mechanism": "Additive glucose-lowering effect.", "note": "Monitor for hypoglycemia."},
-        ],
-    },
-    {
-        "name": "Omega-3",
-        "category": "supplement",
-        "description": "EPA/DHA marine or algal oil.",
-        "mechanism": "Incorporates into cell membranes, resolving inflammation via specialized pro-resolving mediators and reducing NF-κB activation.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "EPA", "primary_target": "Pro-resolving mediator synthesis (resolvins/protectins)",
-             "role": "primary active constituent", "pubchem_cid": None},
-            {"name": "DHA", "primary_target": "Membrane phospholipid remodeling",
-             "role": "primary active constituent", "pubchem_cid": None},
-        ],
-        "safety_flags": [],
-        "drug_interactions": [
-            {"drug_name": "Warfarin", "severity": "moderate",
-             "mechanism": "Additive antiplatelet/anticoagulant effect at high doses.",
-             "note": "Monitor INR at doses above 3g/day."},
-        ],
-    },
-    {
-        "name": "Alpha Lipoic Acid",
-        "category": "supplement",
-        "description": "Mitochondrial cofactor and antioxidant, also known as ALA.",
-        "mechanism": "Regenerates glutathione and other antioxidants; activates AMPK and improves insulin signaling.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "R-alpha lipoic acid", "primary_target": "AMPK / glutathione synthesis",
-             "role": "primary active constituent", "pubchem_cid": None},
-        ],
-        "safety_flags": [],
-        "drug_interactions": [
-            {"drug_name": "Levothyroxine", "severity": "low",
-             "mechanism": "May reduce thyroid hormone absorption if taken simultaneously.",
-             "note": "Separate dosing by 4 hours."},
-            {"drug_name": "Insulin/antidiabetics", "severity": "moderate",
-             "mechanism": "Additive glucose-lowering effect.", "note": "Monitor for hypoglycemia."},
-        ],
-    },
-    {
-        "name": "Magnesium",
-        "category": "supplement",
-        "description": "Essential mineral cofactor for over 300 enzymatic reactions (glycinate/citrate forms preferred for absorption).",
-        "mechanism": "Cofactor for ATP-dependent enzymes; modulates NMDA receptor activity and vascular tone.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Magnesium glycinate", "primary_target": "NMDA receptor / ATP-dependent enzymes",
-             "role": "highly bioavailable form", "pubchem_cid": None},
-            {"name": "Magnesium citrate", "primary_target": "NMDA receptor / ATP-dependent enzymes",
-             "role": "bioavailable form", "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "severe_ckd", "severity": "contraindication",
-             "note": "Impaired renal clearance risks hypermagnesemia."},
-        ],
-        "drug_interactions": [],
-    },
-    {
-        "name": "Vitamin D",
-        "category": "supplement",
-        "description": "Cholecalciferol (D3) supplementation.",
-        "mechanism": "Binds the vitamin D receptor (VDR), regulating calcium homeostasis and innate/adaptive immune function.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Cholecalciferol (D3)", "primary_target": "Vitamin D receptor (VDR)",
-             "role": "primary active constituent", "pubchem_cid": None},
-        ],
-        "safety_flags": [
-            {"condition": "severe_ckd", "severity": "caution",
-             "note": "High-dose D3 may worsen hyperphosphatemia in advanced CKD; use active forms under nephrology guidance."},
-        ],
-        "drug_interactions": [],
-    },
-    {
-        "name": "NAD+ Precursors (NR/NMN)",
-        "category": "supplement",
-        "description": "Nicotinamide riboside and nicotinamide mononucleotide, precursors to cellular NAD+.",
-        "mechanism": "Replenish intracellular NAD+ pools, supporting sirtuin activity and mitochondrial function.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Nicotinamide Riboside", "primary_target": "NAD+ salvage pathway (NRK1)",
-             "role": "NAD+ precursor", "pubchem_cid": None},
-            {"name": "Nicotinamide Mononucleotide", "primary_target": "NAD+ salvage pathway",
-             "role": "NAD+ precursor", "pubchem_cid": None},
-        ],
-        "safety_flags": [],
-        "drug_interactions": [],
-    },
-    {
-        "name": "CoQ10",
-        "category": "supplement",
-        "description": "Coenzyme Q10 (ubiquinone/ubiquinol), a mitochondrial electron transport chain cofactor.",
-        "mechanism": "Facilitates mitochondrial ATP production and acts as a lipophilic antioxidant, often depleted by statin therapy.",
-        "is_regulated": False,
-        "compounds": [
-            {"name": "Ubiquinone", "primary_target": "Mitochondrial electron transport chain (Complex I/II)",
-             "role": "oxidized form", "pubchem_cid": None},
-            {"name": "Ubiquinol", "primary_target": "Mitochondrial electron transport chain (Complex I/II)",
-             "role": "reduced, more bioavailable form", "pubchem_cid": None},
-        ],
-        "safety_flags": [],
-        "drug_interactions": [
-            {"drug_name": "Warfarin", "severity": "low",
-             "mechanism": "Structural similarity to vitamin K may mildly reduce anticoagulant effect.",
-             "note": "Monitor INR."},
-        ],
-    },
-    {
-        "name": "Intermittent Fasting",
-        "category": "behavior",
-        "description": "Time-restricted eating protocol (commonly 16:8).",
-        "mechanism": "Extends the post-absorptive state, activating AMPK and autophagy while suppressing mTOR signaling.",
-        "is_regulated": False,
-        "compounds": [],
-        "safety_flags": [
-            {"condition": "pregnancy", "severity": "caution",
-             "note": "Extended fasting windows are generally not recommended during pregnancy."},
-        ],
-        "drug_interactions": [],
-    },
-    {
-        "name": "HIIT",
-        "category": "exercise",
-        "description": "High-intensity interval training.",
-        "mechanism": "Acutely activates AMPK and mitochondrial biogenesis programs; improves insulin sensitivity.",
-        "is_regulated": False,
-        "compounds": [],
-        "safety_flags": [],
-        "drug_interactions": [],
-    },
-    {
-        "name": "Mindfulness-Based Stress Reduction",
-        "category": "stress_reduction",
-        "description": "Structured meditation/breathwork practice (e.g. MBSR) shown to modulate the stress response.",
-        "mechanism": "Reduces HPA axis reactivity and downstream cortisol output; associated with reduced sympathetic tone.",
-        "is_regulated": False,
-        "compounds": [],
-        "safety_flags": [],
-        "drug_interactions": [],
-    },
-    {
-        "name": "Sleep Hygiene Optimization",
-        "category": "sleep",
-        "description": "Structured behavioral protocol to improve sleep duration/quality (consistent schedule, light exposure, wind-down routine).",
-        "mechanism": "Restores normal HPA axis rhythm and insulin sensitivity that are disrupted by short/poor-quality sleep.",
-        "is_regulated": False,
-        "compounds": [],
-        "safety_flags": [],
-        "drug_interactions": [],
-    },
+_TIER_A_SUPPLEMENT_ONLY = [s for s in TIER_A_SUPPLEMENTS if s["category"] == "supplement"]
+_CURATED_OVERRIDE = TIER_A_HERBS + _TIER_A_SUPPLEMENT_ONLY + LIFESTYLE_INTERVENTIONS
+
+INTERVENTIONS: list[dict] = merge_interventions(
+    SUPPLEMENT_INTERVENTIONS,
+    HERB_INTERVENTIONS,
+    curated=_CURATED_OVERRIDE,
+)
+
+SUPPLEMENT_LIFESTYLE_INTERVENTIONS: list[dict] = [
+    i for i in INTERVENTIONS if i["category"] not in ("herb", "food", "phytochemical", "peptide")
 ]
 
 # ---------------------------------------------------------------------------
-# Evidence claims: (intervention_name, biomarker_name, pathway_code, effect, evidence_level, pmid, summary)
+# Evidence claims — Tier A + lifestyle (real PMIDs); lifestyle overrides Tier A dupes
 # ---------------------------------------------------------------------------
+_LIFESTYLE_EVIDENCE_NAMES = {c["intervention_name"] for c in LIFESTYLE_EVIDENCE_CLAIMS}
+
 EVIDENCE_CLAIMS: list[dict] = [
-    {"intervention_name": "Boswellia serrata", "biomarker_name": "CRP", "pathway_code": "NF_KB",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "29480512",
-     "summary": "Boswellic acids reduced CRP in a randomized trial of knee osteoarthritis patients."},
-    {"intervention_name": "Curcumin", "biomarker_name": "CRP", "pathway_code": "NF_KB",
-     "effect": "decreases", "evidence_level": "high", "pmid": "31150318",
-     "summary": "Meta-analysis of RCTs found curcumin supplementation significantly reduced CRP."},
-    {"intervention_name": "Curcumin", "biomarker_name": None, "pathway_code": "NF_KB",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "28734037",
-     "summary": "RCT evidence for curcumin's inhibition of NF-κB-driven inflammatory signaling."},
-    {"intervention_name": "Ashwagandha", "biomarker_name": None, "pathway_code": "HPA_AXIS",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "31728244",
-     "summary": "RCT showing ashwagandha root extract reduced serum cortisol and perceived stress."},
-    {"intervention_name": "Milk Thistle", "biomarker_name": "ALT", "pathway_code": "HEPATIC_LIPID",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "28829906",
-     "summary": "Silymarin supplementation lowered ALT in patients with non-alcoholic fatty liver disease."},
-    {"intervention_name": "Berberine", "biomarker_name": "HbA1c", "pathway_code": "AMPK",
-     "effect": "decreases", "evidence_level": "high", "pmid": "32721537",
-     "summary": "Meta-analysis of RCTs found berberine lowered HbA1c comparably to first-line oral hypoglycemics."},
-    {"intervention_name": "Berberine", "biomarker_name": "LDL", "pathway_code": "HEPATIC_LIPID",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "25498346",
-     "summary": "RCT evidence for berberine's LDL-lowering effect via hepatic LDL-receptor upregulation."},
-    {"intervention_name": "Omega-3", "biomarker_name": "Triglycerides", "pathway_code": "HEPATIC_LIPID",
-     "effect": "decreases", "evidence_level": "high", "pmid": "27055820",
-     "summary": "Systematic review confirming dose-dependent triglyceride reduction from EPA/DHA supplementation."},
-    {"intervention_name": "Omega-3", "biomarker_name": "CRP", "pathway_code": "NF_KB",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "22735274",
-     "summary": "RCT showing omega-3 supplementation reduced inflammatory markers including CRP."},
-    {"intervention_name": "Alpha Lipoic Acid", "biomarker_name": "Glucose", "pathway_code": "AMPK",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "22436759",
-     "summary": "RCT evidence for ALA's improvement of insulin sensitivity and fasting glucose."},
-    {"intervention_name": "Magnesium", "biomarker_name": None, "pathway_code": "INSULIN_PI3K_AKT",
-     "effect": "increases", "evidence_level": "high", "pmid": "27530471",
-     "summary": "Meta-analysis linking magnesium repletion to improved insulin sensitivity."},
-    {"intervention_name": "Vitamin D", "biomarker_name": "Vitamin D", "pathway_code": "VITAMIN_D_RECEPTOR",
-     "effect": "increases", "evidence_level": "high", "pmid": "31068556",
-     "summary": "RCT confirming D3 supplementation reliably raises serum 25-OH vitamin D."},
-    {"intervention_name": "NAD+ Precursors (NR/NMN)", "biomarker_name": None,
-     "pathway_code": "MITOCHONDRIAL_NAD", "effect": "increases", "evidence_level": "moderate",
-     "pmid": "29202458",
-     "summary": "RCT showing nicotinamide riboside supplementation raises whole-blood NAD+ levels."},
-    {"intervention_name": "CoQ10", "biomarker_name": None, "pathway_code": "MITOCHONDRIAL_NAD",
-     "effect": "increases", "evidence_level": "moderate", "pmid": "24252493",
-     "summary": "Meta-analysis of CoQ10 supplementation's effect on mitochondrial energy markers."},
-    {"intervention_name": "Intermittent Fasting", "biomarker_name": "Insulin", "pathway_code": "AMPK",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "31082617",
-     "summary": "RCT evidence for time-restricted eating's improvement of fasting insulin."},
-    {"intervention_name": "HIIT", "biomarker_name": "HbA1c", "pathway_code": "AMPK",
-     "effect": "decreases", "evidence_level": "moderate", "pmid": "29143705",
-     "summary": "Meta-analysis showing HIIT improves glycemic control comparably to moderate continuous exercise."},
-    {"intervention_name": "Mindfulness-Based Stress Reduction", "biomarker_name": None,
-     "pathway_code": "HPA_AXIS", "effect": "decreases", "evidence_level": "moderate", "pmid": "24395196",
-     "summary": "Meta-analysis of RCTs showing MBSR programs reduce cortisol and perceived stress."},
-    {"intervention_name": "Sleep Hygiene Optimization", "biomarker_name": "Glucose",
-     "pathway_code": "HPA_AXIS", "effect": "decreases", "evidence_level": "low", "pmid": "26194461",
-     "summary": "Observational evidence linking sleep-extension interventions to improved insulin sensitivity."},
-]
+    c for c in TIER_A_EVIDENCE_CLAIMS if c["intervention_name"] not in _LIFESTYLE_EVIDENCE_NAMES
+] + LIFESTYLE_EVIDENCE_CLAIMS
+
+
+def expected_seeded_intervention_count(
+    *,
+    food_interventions: list[dict],
+    phytochemical_compounds: list[dict],
+    peptide_interventions: list[dict],
+) -> int:
+    """Unique intervention names after seeder deduplication (supplement/phytochemical name overlap)."""
+    names = {i["name"] for i in INTERVENTIONS}
+    for data in [*phytochemical_compounds, *food_interventions, *peptide_interventions]:
+        names.add(data["name"])
+    return len(names)

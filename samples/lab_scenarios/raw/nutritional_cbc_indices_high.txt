@@ -1,0 +1,6 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Mean Cell Volume (MCV)   102.00  fL      (80.00-100.00)
+Mean Cell Hemoglobin (MCH)  34.00  pg      (27.00-33.00)
+Red Cell Distribution Width (RDW)  16.50  %  (11.50-14.50)
+Vitamin B-12              420.00  pg/mL    (200.00-900.00)

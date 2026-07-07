@@ -25,13 +25,18 @@ def test_quest_fixture_stage1_parses_numeric_rows(quest_text):
     assert len(parsed) >= 10
 
 
-def test_quest_fixture_stage2_maps_mvp_biomarkers(quest_text):
+def test_quest_fixture_stage2_maps_catalog_biomarkers(quest_text):
     parsed = parse_lab_text(quest_text)
     normalized = normalize_lab_results(parsed)
     tracked = [n for n in normalized if get_reference_data(n.biomarker_name)]
     tracked_names = {n.biomarker_name for n in tracked}
+    assert len(tracked) >= 30
     assert "Glucose" in tracked_names
     assert "Creatinine" in tracked_names
+    assert "BUN" in tracked_names
+    assert "Sodium" in tracked_names
+    assert "WBC" in tracked_names
+    assert "H. pylori Urea Breath Test" in tracked_names
     assert "LDL" in tracked_names or "HDL" in tracked_names
 
 

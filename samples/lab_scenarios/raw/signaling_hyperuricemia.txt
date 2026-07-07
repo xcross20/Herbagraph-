@@ -1,0 +1,7 @@
+LABCORP - SYNTHETIC SCENARIO (NOT REAL PATIENT DATA)
+
+Uric Acid   8.4  mg/dL  H  3.5-7.2
+Glucose   102  mg/dL  H  70-99
+CRP   2.8  mg/L  H  0.0-3.0
+LDL Cholesterol   142  mg/dL  H  0-99
+Triglycerides   168  mg/dL  H  0-149

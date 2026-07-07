@@ -9,6 +9,7 @@ from app.knowledge_graph.food_seed_data import (
     FOOD_INTERVENTIONS,
     PHYTOCHEMICAL_COMPOUNDS,
 )
+from app.knowledge_graph.peptide_catalog import PEPTIDE_EVIDENCE_CLAIMS, PEPTIDE_INTERVENTIONS
 from app.knowledge_graph.seed_data import BIOMARKERS, EVIDENCE_CLAIMS, INTERVENTIONS, PATHWAYS
 from app.models.biomarker import Biomarker
 from app.models.compound import Compound, InterventionCompound
@@ -20,10 +21,15 @@ from app.models.safety import DrugInteraction, SafetyFlag
 
 
 def _build_intervention(data: dict, compound_by_name: dict[str, Compound]) -> Intervention:
+    description = data.get("description")
+    if methodology := data.get("methodology_spec"):
+        protocol_line = f"Validated protocol: {methodology}"
+        description = f"{description}\n\n{protocol_line}" if description else protocol_line
+
     intervention = Intervention(
         name=data["name"],
         category=data["category"],
-        description=data.get("description"),
+        description=description,
         mechanism=data.get("mechanism"),
         is_regulated=data.get("is_regulated", False),
         regulation_note=data.get("regulation_note"),
@@ -44,10 +50,11 @@ def _build_intervention(data: dict, compound_by_name: dict[str, Compound]) -> In
     for compound_data in data.get("compounds", []):
         compound = compound_by_name.get(compound_data["name"])
         if compound is None:
+            raw_cid = compound_data.get("pubchem_cid")
             compound = Compound(
                 name=compound_data["name"],
                 primary_target=compound_data.get("primary_target"),
-                pubchem_cid=compound_data.get("pubchem_cid"),
+                pubchem_cid=int(raw_cid) if raw_cid is not None else None,
             )
             compound_by_name[compound_data["name"]] = compound
         intervention.compounds.append(InterventionCompound(compound=compound, role=compound_data.get("role")))
@@ -68,18 +75,27 @@ async def seed_knowledge_graph(db: AsyncSession) -> dict[str, int]:
     for biomarker in BIOMARKERS:
         db.add(Biomarker(**biomarker))
     for pathway in PATHWAYS:
-        db.add(Pathway(**pathway))
+        db.add(
+            Pathway(
+                code=pathway["code"],
+                name=pathway["name"],
+                description=pathway.get("description"),
+                pathway_type=pathway.get("pathway_type", "signaling"),
+            )
+        )
 
     intervention_by_name: dict[str, Intervention] = {}
     compound_by_name: dict[str, Compound] = {}
-    for data in [*INTERVENTIONS, *PHYTOCHEMICAL_COMPOUNDS, *FOOD_INTERVENTIONS]:
+    for data in [*PHYTOCHEMICAL_COMPOUNDS, *INTERVENTIONS, *FOOD_INTERVENTIONS, *PEPTIDE_INTERVENTIONS]:
+        if data["name"] in intervention_by_name:
+            continue
         intervention = _build_intervention(data, compound_by_name)
         db.add(intervention)
         intervention_by_name[data["name"]] = intervention
 
     await db.flush()
 
-    for claim in [*EVIDENCE_CLAIMS, *FOOD_COMPOUND_EVIDENCE_CLAIMS]:
+    for claim in [*EVIDENCE_CLAIMS, *FOOD_COMPOUND_EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS]:
         intervention = intervention_by_name[claim["intervention_name"]]
         db.add(
             EvidenceClaim(
@@ -90,6 +106,7 @@ async def seed_knowledge_graph(db: AsyncSession) -> dict[str, int]:
                 evidence_level=claim["evidence_level"],
                 pmid=claim.get("pmid"),
                 summary=claim.get("summary"),
+                recommendation_intent=claim.get("recommendation_intent"),
             )
         )
 
@@ -108,7 +125,7 @@ async def seed_knowledge_graph(db: AsyncSession) -> dict[str, int]:
     return {
         "biomarkers": len(BIOMARKERS),
         "pathways": len(PATHWAYS),
-        "interventions": len(intervention_by_name),
-        "evidence_claims": len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS),
+        "interventions": len(intervention_by_name),  # deduplicated across supplement/phytochemical overlap
+        "evidence_claims": len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS) + len(PEPTIDE_EVIDENCE_CLAIMS),
         "food_compound_sources": len(FOOD_COMPOUND_SOURCES),
     }

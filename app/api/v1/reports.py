@@ -111,6 +111,7 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
                 "cited_study_ids": r.cited_study_ids,
                 "cited_urls": r.cited_urls,
                 "food_sources": r.food_sources,
+                "intervention_narrative": r.intervention_narrative,
             }
             for r in report.recommendations
         ],
@@ -127,6 +128,8 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         ],
         clinician_questions=report.clinician_questions,
         safety_summary=report.safety_summary,
+        medication_context=report.medication_context or {},
+        lab_trends=report.lab_trends or {},
         disclaimer=report.disclaimer,
         created_at=report.created_at,
     )

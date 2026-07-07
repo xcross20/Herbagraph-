@@ -22,6 +22,8 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     biological_systems: Mapped[list] = mapped_column(JSON, default=list)
     clinician_questions: Mapped[list] = mapped_column(JSON, default=list)
     safety_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+    medication_context: Mapped[dict] = mapped_column(JSON, default=dict)
+    lab_trends: Mapped[dict] = mapped_column(JSON, default=dict)
     disclaimer: Mapped[str] = mapped_column(Text, nullable=False)
 
     lab_report: Mapped["LabReport"] = relationship(back_populates="reports")
@@ -62,6 +64,7 @@ class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     cited_study_ids: Mapped[list[str]] = mapped_column(JSON, default=list)
     cited_urls: Mapped[list[str]] = mapped_column(JSON, default=list)
     food_sources: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    intervention_narrative: Mapped[str | None] = mapped_column(Text, nullable=True)
     limitations: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_tier: Mapped[EvidenceTier] = mapped_column(
         Enum(EvidenceTier, native_enum=False, length=30), default=EvidenceTier.RESEARCH_HYPOTHESIS

@@ -9,7 +9,13 @@ from app.knowledge_graph.food_seed_data import (
     FOOD_INTERVENTIONS,
     PHYTOCHEMICAL_COMPOUNDS,
 )
-from app.knowledge_graph.seed_data import BIOMARKERS, EVIDENCE_CLAIMS, INTERVENTIONS, PATHWAYS
+from app.knowledge_graph.peptide_catalog import PEPTIDE_EVIDENCE_CLAIMS, PEPTIDE_INTERVENTIONS
+from app.knowledge_graph.seed_data import (
+    BIOMARKERS,
+    EVIDENCE_CLAIMS,
+    PATHWAYS,
+    expected_seeded_intervention_count,
+)
 from app.knowledge_graph.seeder import is_seeded, seed_knowledge_graph
 from app.models.biomarker import Biomarker
 from app.models.evidence import EvidenceClaim
@@ -46,13 +52,17 @@ async def test_seed_persists_correct_pathway_count(db_session):
 
 async def test_seed_persists_correct_intervention_count(db_session):
     await seed_knowledge_graph(db_session)
-    expected = len(INTERVENTIONS) + len(PHYTOCHEMICAL_COMPOUNDS) + len(FOOD_INTERVENTIONS)
+    expected = expected_seeded_intervention_count(
+        food_interventions=FOOD_INTERVENTIONS,
+        phytochemical_compounds=PHYTOCHEMICAL_COMPOUNDS,
+        peptide_interventions=PEPTIDE_INTERVENTIONS,
+    )
     assert await _count(db_session, Intervention) == expected
 
 
 async def test_seed_persists_correct_evidence_claim_count(db_session):
     await seed_knowledge_graph(db_session)
-    expected = len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS)
+    expected = len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS) + len(PEPTIDE_EVIDENCE_CLAIMS)
     assert await _count(db_session, EvidenceClaim) == expected
 
 
@@ -65,10 +75,12 @@ async def test_seed_returns_matching_counts_dict(db_session):
     counts = await seed_knowledge_graph(db_session)
     assert counts["biomarkers"] == len(BIOMARKERS)
     assert counts["pathways"] == len(PATHWAYS)
-    assert counts["interventions"] == len(INTERVENTIONS) + len(PHYTOCHEMICAL_COMPOUNDS) + len(
-        FOOD_INTERVENTIONS
+    assert counts["interventions"] == expected_seeded_intervention_count(
+        food_interventions=FOOD_INTERVENTIONS,
+        phytochemical_compounds=PHYTOCHEMICAL_COMPOUNDS,
+        peptide_interventions=PEPTIDE_INTERVENTIONS,
     )
-    assert counts["evidence_claims"] == len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS)
+    assert counts["evidence_claims"] == len(EVIDENCE_CLAIMS) + len(FOOD_COMPOUND_EVIDENCE_CLAIMS) + len(PEPTIDE_EVIDENCE_CLAIMS)
     assert counts["food_compound_sources"] == len(FOOD_COMPOUND_SOURCES)
 
 
@@ -140,8 +152,8 @@ async def test_boswellia_compound_has_primary_target(db_session):
     assert len(boswellia.compounds) == 1
     akba = boswellia.compounds[0].compound
     assert "AKBA" in akba.name
-    assert akba.primary_target == "5-LOX (5-lipoxygenase)"
-    assert akba.pubchem_cid is None
+    assert akba.primary_target == "5-LOX"
+    assert str(akba.pubchem_cid) == "6758"
 
 
 async def test_lifestyle_interventions_have_no_compounds(db_session):
@@ -163,4 +175,7 @@ async def test_new_ontology_categories_are_seeded(db_session):
     await seed_knowledge_graph(db_session)
     result = await db_session.execute(select(Intervention.category, func.count()).group_by(Intervention.category))
     categories = {cat.value for cat, _ in result.all()}
-    assert {"supplement", "exercise", "sleep", "stress_reduction", "behavior", "food", "phytochemical", "herb"} <= categories
+    assert {
+        "supplement", "exercise", "sleep", "stress_reduction", "behavior", "food",
+        "phytochemical", "herb", "peptide", "medication", "hormone", "environmental",
+    } <= categories

@@ -46,4 +46,7 @@ class LabReportSummary(BaseModel):
     id: uuid.UUID
     original_filename: str
     status: LabReportStatus
+    report_stage: ReportGenerationStage | None = None
+    latest_report_id: uuid.UUID | None = None
+    error_message: str | None = None
     created_at: datetime

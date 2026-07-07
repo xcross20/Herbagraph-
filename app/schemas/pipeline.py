@@ -24,6 +24,8 @@ class ParsedLabResult(BaseModel):
     reference_range_low: float | None = None
     reference_range_high: float | None = None
     raw_line: str | None = None
+    qualitative_result: str | None = None
+    expected_result: str | None = None
 
 
 class NormalizedLabResult(BaseModel):
@@ -37,6 +39,8 @@ class NormalizedLabResult(BaseModel):
     reference_range_high: float | None = None
     status: LabResultStatus
     category: str | None = None
+    qualitative_label: str | None = None
+    expected_label: str | None = None
 
 
 class PathwayActivation(BaseModel):
@@ -105,6 +109,7 @@ class ScoredRecommendation(LLMRecommendation):
     cited_urls: list[str] = []
     confidence_score: float | None = None
     food_sources: list[FoodSourceRead] | None = None
+    intervention_narrative: str | None = None
     evidence_tier: EvidenceTier = EvidenceTier.RESEARCH_HYPOTHESIS
     evidence_tier_label: str = "Research Hypothesis"
 

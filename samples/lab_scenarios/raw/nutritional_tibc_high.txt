@@ -1,0 +1,5 @@
+SYNTHETIC QUEST-STYLE IRON PANEL (NOT REAL PATIENT DATA)
+
+Iron Binding Capacity   480.00  ug/dL   (250.00-450.00)
+Ferritin, Serum          45.00  ng/mL   (20.00-250.00)
+Iron, Total              85.00  mcg/dL  (50.00-180.00)

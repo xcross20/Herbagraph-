@@ -1,0 +1,5 @@
+SYNTHETIC OCR-GARBLED CBC (NOT REAL PATIENT DATA)
+
+emuloV lleC naeM (MCV)   102.00  fL      (80.00-100.00)
+nibolgomeH lleC naeM (MCH)  34.00  pg      (27.00-33.00)
+Vitamin B-12              420.00  pg/mL    (200.00-900.00)

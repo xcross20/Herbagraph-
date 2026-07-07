@@ -1,0 +1,7 @@
+SYNTHETIC QUEST-STYLE ANEMIA PANEL (NOT REAL PATIENT DATA)
+
+Hemoglobin               10.50  g/dL    (12.00-16.00)
+Mean Cell Volume (MCV)  102.00  fL      (80.00-100.00)
+Ferritin, Serum           8.00  ng/mL    (20.00-250.00)
+Iron, Total              35.00  mcg/dL   (50.00-180.00)
+Vitamin B-12            180.00  pg/mL    (200.00-900.00)

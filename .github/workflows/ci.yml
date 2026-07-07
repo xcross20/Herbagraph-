@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, "claude/**"]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run mandatory gates
+        run: bash scripts/ci_gates.sh
+
+      - name: Reseed hint when catalog files change
+        if: github.event_name == 'pull_request'
+        run: bash scripts/ci_catalog_reseed_hint.sh "${{ github.event.pull_request.base.sha }}"
+
+      - name: Upload coverage (optional, non-blocking)
+        if: always()
+        run: |
+          python -m pytest tests/ -q --cov=app --cov-report=xml --tb=no || true
+        continue-on-error: true
+
+  reseed:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: ankane/pgvector:latest
+        env:
+          POSTGRES_USER: herbagraph
+          POSTGRES_PASSWORD: herbagraph
+          POSTGRES_DB: herbagraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U herbagraph -d herbagraph
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Reseed when catalog files changed
+        env:
+          DATABASE_URL: postgresql+asyncpg://herbagraph:herbagraph@localhost:5432/herbagraph
+        run: bash scripts/ci_reseed_postgres.sh "${{ github.event.before }}"

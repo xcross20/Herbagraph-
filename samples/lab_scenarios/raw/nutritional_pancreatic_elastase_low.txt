@@ -1,0 +1,4 @@
+LABCORP - SYNTHETIC SCENARIO (NOT REAL PATIENT DATA)
+
+Pancreatic Elastase   85  ug/g  L  200-500
+Vitamin D   22  ng/mL  L  30-100

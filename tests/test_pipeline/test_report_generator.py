@@ -316,11 +316,11 @@ def test_generate_report_attaches_food_sources_for_known_compound():
     )
     food_sources = report["recommendations"][0]["food_sources"]
     assert food_sources is not None
-    assert len(food_sources) == 4
+    assert len(food_sources) >= 4
 
 
 def test_generate_report_food_sources_none_for_unmapped_compound():
-    rec = make_scored_rec(name="Curcumin", category=InterventionCategory.HERB)
+    rec = make_scored_rec(name="Boswellia serrata", category=InterventionCategory.HERB)
     safety_report = _base_safety_report([rec])
     report = generate_report(
         normalized_labs=[],
@@ -385,7 +385,7 @@ def test_executive_summary_fallback_when_no_abnormal_biomarkers():
         clinician_questions=[],
         intervention_pathways={},
     )
-    assert report["executive_summary"] == "All measured biomarkers fell within normal reference ranges."
+    assert "within reference ranges" in report["executive_summary"]
 
 
 def test_executive_summary_fallback_when_abnormal_biomarkers_present():

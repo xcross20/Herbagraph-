@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.knowledge_graph.seed_data import PATHWAYS
+from app.knowledge_graph.seed_data import SIGNALING_PATHWAYS
 from app.models.enums import PathwayDirection
 from app.pipeline.biological_systems import (
     SIGNAL_LABELS,
@@ -39,10 +39,11 @@ def test_exactly_7_systems():
     assert len(SYSTEM_NAMES) == 7
 
 
-def test_every_internal_pathway_is_covered_by_at_least_one_system():
-    all_pathway_codes = {p["code"] for p in PATHWAYS}
+def test_every_signaling_pathway_is_covered_by_at_least_one_system():
+    """All signaling pathways must roll up; etiological pathways may also inform user-facing systems."""
+    signaling_codes = {p["code"] for p in SIGNALING_PATHWAYS}
     covered = {code for codes in SYSTEM_PATHWAYS.values() for code in codes}
-    assert all_pathway_codes == covered
+    assert signaling_codes <= covered
 
 
 def test_compute_biological_systems_always_returns_all_7():
@@ -207,3 +208,28 @@ def test_pathway_shared_across_two_systems_appears_in_both():
     liver = by_system(result, "liver_detox_stress")
     assert cv["signal_level"] > 0
     assert liver["signal_level"] > 0
+
+
+def test_food_antigen_and_ige_pathways_roll_into_inflammation():
+    celiac = compute_biological_systems(
+        [make_activation("FOOD_ANTIGEN_EXPOSURE", 0.9, biomarkers=["tTG IgA"])]
+    )
+    allergy = compute_biological_systems(
+        [make_activation("IGE_SENSITIZATION", 0.85, biomarkers=["Peanut IgE"])]
+    )
+    assert by_system(celiac, "inflammation")["signal_level"] >= 2
+    assert by_system(allergy, "inflammation")["signal_level"] >= 2
+
+
+def test_nutrient_deficiency_rolls_into_nutrient_status():
+    activations = [make_activation("NUTRIENT_DEFICIENCY", 0.85, biomarkers=["Vitamin D"])]
+    result = compute_biological_systems(activations)
+    assert by_system(result, "nutrient_status")["signal_level"] >= 2
+
+
+def test_hepatotropic_viral_rolls_into_liver_detox_stress():
+    activations = [
+        make_activation("HEPATOTROPIC_VIRAL", 0.9, biomarkers=["Hepatitis B Surface Antigen"])
+    ]
+    result = compute_biological_systems(activations)
+    assert by_system(result, "liver_detox_stress")["signal_level"] >= 2

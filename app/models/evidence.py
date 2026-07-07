@@ -22,6 +22,7 @@ class EvidenceClaim(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     pmid: Mapped[str | None] = mapped_column(String(30), nullable=True)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommendation_intent: Mapped[str | None] = mapped_column(String(30), nullable=True)
 
     intervention: Mapped["Intervention"] = relationship(back_populates="evidence_claims")
 

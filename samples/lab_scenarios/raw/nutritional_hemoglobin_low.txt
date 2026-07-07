@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Hemoglobin            10.50  g/dL   (12.00-16.00)
+Ferritin, Serum       45.00  ng/mL  (20.00-250.00)
+Iron, Total           85.00  mcg/dL (50.00-180.00)

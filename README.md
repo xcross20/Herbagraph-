@@ -17,6 +17,7 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 - [Architecture](#architecture)
 - [MVP Scope](#mvp-scope)
 - [Pipeline Overview](#pipeline-overview)
+- [Recommendation Trees & Etiological Pathways](#recommendation-trees--etiological-pathways)
 - [Biological Systems & Signal Scoring](#biological-systems--signal-scoring)
 - [Intervention Ontology](#intervention-ontology)
 - [Food → Compound Layer](#food--compound-layer)
@@ -95,10 +96,24 @@ Accepts PDF (via OCR) or plain text lab reports. Supports Quest, LabCorp, and mo
 Maps 100+ raw lab test names (aliases, abbreviations, manufacturer variations) to a canonical set of 25 biomarkers (see [MVP Scope](#mvp-scope)). Classifies each result as `critical_low`, `low`, `optimal`, `normal`, `high`, or `critical_high` using both lab-provided and clinically-validated reference ranges.
 
 ### Stage 3: Pathway Mapper
-Maps each abnormal biomarker to one or more of 16 internal biological pathways (NF-κB, AMPK, Nrf2, mTOR, HPA Axis, etc.) with weighted, evidence-based signal scores. 16 pathways, 50+ biomarker-to-pathway rules. These 16 pathways are then rolled up into 7 user-facing biological systems -- see below.
+Maps each abnormal biomarker to **28 pathways** — 16 host **signaling** pathways (NF-κB, AMPK, Nrf2, etc.) plus 12 **etiological** pathways (gastric colonization, food antigen exposure, IgE sensitization, etc.). 90+ biomarker-to-pathway rules. The 16 signaling pathways roll up into 7 user-facing biological systems; etiological pathways drive root-cause recommendation trees separately.
+
+### Stage 3b: Test-Type Router (`app/pipeline/test_type_router.py`)
+Before evidence retrieval, each abnormal lab is classified by `result_kind` + biomarker `category` into one or more **recommendation trees**:
+
+| Tree | Example labs | What surfaces |
+|---|---|---|
+| `etiological` | H. pylori breath test DETECTED | Mastic Gum, DGL Licorice (primary) |
+| `signaling` | High CRP, high LDL | Curcumin, Omega-3, Berberine |
+| `celiac` | tTG IgA positive | Gluten Elimination Diet (primary) |
+| `allergy` | Peanut IgE elevated | Avoidance context + mast-cell adjuncts |
+| `pgx_context` | CYP2D6 genotype | Interaction context only — not treatment recs |
+| `nutritional_repletion` | Low B12, low Vitamin D | B12, Vitamin D, Iron |
+
+The router picks a **primary tree** that controls intervention ranking and narrative framing.
 
 ### Stage 4: Evidence Retriever
-Builds intervention-specific PubMed queries from activated pathways. Concurrently fetches studies from PubMed (ESearch + EFetch), ClinicalTrials.gov v2, and Europe PMC. Deduplicates by PMID/NCTID and ranks by study quality (meta-analysis → RCT → cohort → preclinical).
+Builds intervention-specific PubMed queries from **routed pathways + biomarker-direct evidence claims** (not a single global NF-κB list). Concurrently fetches from PubMed, ClinicalTrials.gov, and Europe PMC. Deduplicates by PMID/NCTID and ranks by study quality.
 
 ### Stage 5: LLM Reasoning
 Sends a de-identified payload to an OpenAI model (gpt-4o by default). The LLM reasons **only** from retrieved evidence snippets — it cannot free-invent claims. The system prompt is written to reduce liability by design: it forbids directive language ("take 500mg"), requires every recommendation to state *why it was surfaced* (`rationale`) and *what the evidence doesn't show* (`limitations`), and instructs the model to frame everything as input to a discussion with a clinician, never as a decision made on the reader's behalf. Returns a structured JSON with: biomarker pattern analysis, pathway summaries, ranked recommendations with dose/mechanism/citations/rationale/limitations, and questions to ask a clinician.
@@ -155,7 +170,61 @@ Example output shape (this is what `biological_systems` looks like in a `GET /re
 }
 ```
 
-Wording is deliberate: **"evidence-weighted pathway signal," never "activation score."** HerbaGraph has not measured biological activation directly -- it has inferred a signal from a lab value and published mechanism-of-action literature. `pathway_activations` (the detailed 16-pathway breakdown) is still included in the report response for anyone who wants the detail, but `biological_systems` is the recommended thing to render.
+Wording is deliberate: **"evidence-weighted pathway signal," never "activation score."** HerbaGraph has not measured biological activation directly -- it has inferred a signal from a lab value and published mechanism-of-action literature. `pathway_activations` (the detailed pathway breakdown, including etiological pathways) is still included in the report response for anyone who wants the detail, but `biological_systems` is the recommended thing to render.
+
+---
+
+## Recommendation Trees & Etiological Pathways
+
+Different lab tests need different reasoning chains. A positive H. pylori breath test should not route through the same intervention list as an elevated CRP.
+
+```
+Abnormal lab → Test-Type Router → Recommendation Tree(s)
+                                      ↓
+              ┌───────────────────────┴────────────────────────┐
+              │                                                │
+     Etiological pathways                          Signaling pathways
+     (root cause)                                  (host response)
+              │                                                │
+     Biomarker-direct claims                         Pathway → intervention map
+     (H. pylori → Mastic Gum)                        (CRP → Curcumin)
+              └───────────────────────┬────────────────────────┘
+                                      ↓
+                           Evidence retrieval + LLM reasoning
+                                      ↓
+                    Narrative with recommendation_intent label
+                    (primary / collateral / context_only / nutritional_repletion)
+```
+
+### Etiological pathway codes (12)
+
+| Code | Use case |
+|---|---|
+| `GASTRIC_COLONIZATION` | H. pylori breath/stool antigen |
+| `GI_MUCOSAL_BARRIER` | Mucosal healing adjuncts |
+| `PATHOGEN_BURDEN` | Active infection markers |
+| `FOOD_ANTIGEN_EXPOSURE` | Celiac serology (tTG, EMA, DGP) |
+| `IGE_SENSITIZATION` | Allergen-specific IgE |
+| `NUTRIENT_DEFICIENCY` | Low B12, Vitamin D, Ferritin, etc. |
+| `DRUG_METABOLISM_VARIANT` | Pharmacogenomics (context only) |
+| ... | See `ETIOLOGICAL_PATHWAYS` in `app/knowledge_graph/seed_data.py` |
+
+### Tier A curated catalog (quality over count)
+
+The knowledge graph no longer pads to 200 placeholder herbs. All production interventions live in:
+
+- `app/knowledge_graph/tier_a_catalog.py` — 76 evidence-backed entries (16 herbs, 19 supplements/lifestyle, 15 foods, 16 phytochemicals) + 10 clinical peptides
+- `app/knowledge_graph/tier_a_evidence.py` — 49 claims, each with a **verifiable PMID** and `recommendation_intent`
+
+Grow toward 200 **only** by adding entries with real compounds, targets, and literature — not template generation.
+
+### Reseed after catalog changes
+
+```bash
+docker compose exec api alembic upgrade head
+docker compose exec api python scripts/reseed_db.py
+docker compose restart api worker
+```
 
 ---
 
@@ -166,8 +235,8 @@ HerbaGraph doesn't model "herbs" and "foods" and "exercise" as separate systems 
 | Category | Examples |
 |---|---|
 | `food` | Broccoli Sprouts, Garlic, Cooked Tomatoes |
-| `herb` | Boswellia serrata, Curcumin, Ashwagandha, Milk Thistle |
-| `phytochemical` | Sulforaphane, Anthocyanins, EGCG, Quercetin |
+| `herb` | Boswellia serrata, Mastic Gum, DGL Licorice, Ashwagandha, Milk Thistle |
+| `phytochemical` | Sulforaphane, Curcumin, Anthocyanins, EGCG, Quercetin |
 | `supplement` | Berberine, Omega-3, Magnesium, Vitamin D, CoQ10 |
 | `exercise` | HIIT |
 | `sleep` | Sleep Hygiene Optimization |
@@ -1032,19 +1101,23 @@ make clean        # stop and remove containers + volumes
 
 The seeded knowledge graph includes:
 
-**25 Biomarkers** -- a deliberately-capped MVP panel of high-value, commonly-available tests (see [MVP Scope](#mvp-scope)):
-- **Core panel (17)**: CRP, HbA1c, Glucose, Fasting Insulin, LDL, HDL, Triglycerides, ApoB, Vitamin D, Ferritin, B12, Folate, TSH, ALT, AST, GGT, Creatinine, eGFR
-- **Optional near-MVP additions (8, counting Uric Acid & Homocysteine)**: Homocysteine, Uric Acid, Lp(a), Free T3, Free T4, Cortisol, DHEA-S
+**266 Biomarkers** — core metabolic panel plus infectious disease, celiac serology, allergy IgE, pharmacogenomics, cultures, and more. Each entry has a `result_kind` (`numeric`, `qualitative`, `culture`, `genotype`) used by the test-type router.
 
-**16 Biological Pathways** (internal): NF-κB, IL-6/JAK-STAT3, AMPK, Insulin/PI3K-Akt, Nrf2, mTOR/Autophagy, HPA Axis, Thyroid/HPT, Hepatic Lipid, One-Carbon/Methylation, GLP-1/Incretins, Mitochondrial NAD+, Iron/Hepcidin, Purine/Uric Acid, Vitamin D Receptor, Renal Filtration -- rolled up into **7 user-facing Biological Systems** (Inflammation, Metabolic Health, Cardiovascular Risk, Liver Detox/Stress, Nutrient Status, Thyroid/Endocrine, Oxidative Stress/Mitochondrial Resilience). See [Biological Systems & Signal Scoring](#biological-systems--signal-scoring).
+**28 Pathways** — 16 signaling + 12 etiological. Signaling pathways roll up into **7 user-facing Biological Systems**. Etiological pathways power root-cause recommendation trees. See [Recommendation Trees & Etiological Pathways](#recommendation-trees--etiological-pathways).
 
-**15 Core Interventions** with full compound/target, safety, and interaction data (36 total once the 8 phytochemical compounds and 13 foods from the [Food → Compound Layer](#food--compound-layer) are included):
-- **Herbs**: Boswellia serrata, Curcumin, Ashwagandha, Milk Thistle
-- **Supplements**: Berberine, Omega-3, Alpha Lipoic Acid, Magnesium, Vitamin D, NAD+ Precursors (NR/NMN), CoQ10
-- **Exercise**: HIIT
-- **Behavior**: Intermittent Fasting
-- **Stress Reduction**: Mindfulness-Based Stress Reduction
-- **Sleep**: Sleep Hygiene Optimization
+**76 Tier A Interventions** (+ 10 clinical peptides) — every entry has real compounds/targets, safety flags, and PMID-linked evidence claims with `recommendation_intent`:
+
+| Category | Count | Examples |
+|---|---|---|
+| Herbs | 16 | Mastic Gum, DGL Licorice, Boswellia, Turmeric |
+| Supplements / lifestyle | 19 | Berberine, Zinc Carnosine, Glutamine, Gluten Elimination Diet |
+| Phytochemicals | 16 | Sulforaphane, Curcumin, Allicin, Quercetin |
+| Foods | 15 | Broccoli Sprouts, Garlic, Blueberries |
+| Peptides | 10 | Semaglutide, Tirzepatide (regulated, clinical evidence only) |
+
+**49 Evidence Claims** — each links `intervention_name` → `biomarker` and/or `pathway_code` with `recommendation_intent` (`primary`, `collateral`, `context_only`, `nutritional_repletion`).
+
+**15 Curated Food→Compound Links** — e.g. Broccoli Sprouts → Sulforaphane (high), Garlic → Allicin (high). See [Food → Compound Layer](#food--compound-layer).
 
 ---
 

@@ -1,0 +1,6 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Vitamin A                22.00  ug/dL    (30.00-95.00)
+Vitamin E                 3.00  mg/L     (5.00-20.00)
+Vitamin K                 0.05  ng/mL    (0.10-2.20)
+B12                      480.00  pg/mL    (200.00-900.00)

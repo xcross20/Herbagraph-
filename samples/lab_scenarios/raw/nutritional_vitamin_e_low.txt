@@ -1,0 +1,5 @@
+SYNTHETIC NUTRITIONAL PANEL (NOT REAL PATIENT DATA)
+
+Vitamin E                 3.00  mg/L     (5.00-20.00)
+Vitamin D, 25-OH         45.00  ng/mL    (30.00-100.00)
+B12                      480.00  pg/mL    (200.00-900.00)

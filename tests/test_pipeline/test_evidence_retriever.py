@@ -12,12 +12,12 @@ import pytest
 
 from app.models.enums import PathwayDirection, StudySource, StudyType
 from app.pipeline.evidence_retriever import (
-    _PATHWAY_INTERVENTIONS,
     build_intervention_pathway_map,
     build_query,
     interventions_for_activations,
     retrieve_evidence,
 )
+from app.pipeline.intervention_catalog import build_pathway_intervention_map
 from app.schemas.pipeline import EvidenceSnippet, PathwayActivation
 
 pytestmark = pytest.mark.unit
@@ -73,12 +73,11 @@ def test_build_query_format():
 def test_interventions_for_activations_includes_pathway_with_interventions():
     activations = [make_activation("NF_KB")]
     result = interventions_for_activations(activations)
-    assert result == {"NF_KB": _PATHWAY_INTERVENTIONS["NF_KB"]}
+    assert result["NF_KB"] == build_pathway_intervention_map()["NF_KB"]
 
 
 def test_interventions_for_activations_excludes_pathway_with_empty_intervention_list():
-    # THYROID_HPT maps to [] in _PATHWAY_INTERVENTIONS.
-    activations = [make_activation("THYROID_HPT")]
+    activations = [make_activation("NOT_A_REAL_PATHWAY")]
     result = interventions_for_activations(activations)
     assert result == {}
 
@@ -92,7 +91,7 @@ def test_interventions_for_activations_excludes_unknown_pathway_code():
 def test_interventions_for_activations_mixed_pathways():
     activations = [make_activation("NF_KB"), make_activation("THYROID_HPT"), make_activation("HPA_AXIS")]
     result = interventions_for_activations(activations)
-    assert set(result.keys()) == {"NF_KB", "HPA_AXIS"}
+    assert set(result.keys()) == {"NF_KB", "THYROID_HPT", "HPA_AXIS"}
 
 
 def test_interventions_for_activations_empty_input_returns_empty_dict():
@@ -107,18 +106,17 @@ def test_interventions_for_activations_empty_input_returns_empty_dict():
 def test_build_intervention_pathway_map_inverts_mapping():
     mapping = build_intervention_pathway_map()
     assert "NF_KB" in mapping["Curcumin"]
-    assert "IL6_JAK_STAT3" in mapping["Curcumin"]
+    assert "GASTRIC_COLONIZATION" in mapping["Mastic Gum"]
 
 
-def test_build_intervention_pathway_map_excludes_pathways_with_no_interventions():
+def test_build_intervention_pathway_map_includes_thyroid_medication_context():
     mapping = build_intervention_pathway_map()
-    all_pathway_codes = {code for codes in mapping.values() for code in codes}
-    assert "THYROID_HPT" not in all_pathway_codes
+    assert "THYROID_HPT" in mapping["Levothyroxine"]
 
 
-def test_build_intervention_pathway_map_single_intervention_pathway():
+def test_build_intervention_pathway_map_ashwagandha_covers_stress_and_thyroid():
     mapping = build_intervention_pathway_map()
-    assert mapping["Ashwagandha"] == ["HPA_AXIS"]
+    assert mapping["Ashwagandha"] == ["HPA_AXIS", "THYROID_HPT"]
 
 
 # ---------------------------------------------------------------------------
@@ -132,8 +130,7 @@ async def test_retrieve_evidence_no_activations_returns_empty_list():
 
 
 async def test_retrieve_evidence_activations_with_no_interventions_returns_empty_list():
-    # THYROID_HPT and ONE_CARBON_METHYLATION both map to empty intervention lists.
-    activations = [make_activation("THYROID_HPT"), make_activation("ONE_CARBON_METHYLATION")]
+    activations = [make_activation("NOT_A_REAL_PATHWAY")]
     result = await retrieve_evidence(activations)
     assert result == []
 
@@ -143,11 +140,16 @@ async def test_retrieve_evidence_activations_with_no_interventions_returns_empty
 # ---------------------------------------------------------------------------
 
 
+def _no_catalog_snippets(*_args, **_kwargs):
+    return []
+
+
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_calls_all_three_sources_and_merges(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     mock_pubmed.return_value = [make_snippet("Ashwagandha", "PMID:1", 0.85, StudySource.PUBMED)]
     mock_ct.return_value = [make_snippet("Ashwagandha", "NCT1", 0.60, StudySource.CLINICALTRIALS)]
@@ -156,19 +158,22 @@ async def test_retrieve_evidence_calls_all_three_sources_and_merges(
     activations = [make_activation("HPA_AXIS", "HPA Axis")]
     result = await retrieve_evidence(activations)
 
+    hpa_interventions = build_pathway_intervention_map()["HPA_AXIS"]
+    assert mock_pubmed.await_count == len(hpa_interventions)
+    assert mock_ct.await_count == len(hpa_interventions)
+    assert mock_epmc.await_count == len(hpa_interventions)
+    # Mocks return the same Ashwagandha snippets for every intervention queried.
     assert len(result) == 3
-    assert mock_pubmed.await_count == 1
-    assert mock_ct.await_count == 1
-    assert mock_epmc.await_count == 1
-    # Descending order by quality_score.
-    assert [s.quality_score for s in result] == [0.85, 0.60, 0.45]
+    scores = [s.quality_score for s in result]
+    assert scores == sorted(scores, reverse=True)
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_dedupes_keeping_higher_quality_snippet(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     # Same intervention_name + external_id across two "sources" -> dedupe key collision.
     mock_pubmed.return_value = [make_snippet("Ashwagandha", "SAME_ID", 0.85, StudySource.PUBMED)]
@@ -183,11 +188,12 @@ async def test_retrieve_evidence_dedupes_keeping_higher_quality_snippet(
     assert result[0].source == StudySource.PUBMED
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_dedupe_keeps_higher_quality_regardless_of_arrival_order(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     # Lower quality arrives from pubmed, higher quality from clinicaltrials -- the
     # dedupe must still keep the higher one even though it's not first.
@@ -203,11 +209,12 @@ async def test_retrieve_evidence_dedupe_keeps_higher_quality_regardless_of_arriv
     assert result[0].source == StudySource.CLINICALTRIALS
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_different_intervention_names_are_not_deduped(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     # Same external_id but different intervention_name -> distinct dedupe keys, both kept.
     mock_pubmed.side_effect = lambda query, client, intervention_name, max_results: [
@@ -219,16 +226,18 @@ async def test_retrieve_evidence_different_intervention_names_are_not_deduped(
     activations = [make_activation("NF_KB", "NF-kB")]
     result = await retrieve_evidence(activations)
 
+    expected = set(build_pathway_intervention_map()["NF_KB"])
     intervention_names = {s.intervention_name for s in result}
-    assert intervention_names == set(_PATHWAY_INTERVENTIONS["NF_KB"])
-    assert len(result) == len(_PATHWAY_INTERVENTIONS["NF_KB"])
+    assert intervention_names == expected
+    assert len(result) == len(expected)
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_results_sorted_descending_by_quality_score(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     mock_pubmed.return_value = [
         make_snippet("Ashwagandha", "A", 0.20),
@@ -246,11 +255,12 @@ async def test_retrieve_evidence_results_sorted_descending_by_quality_score(
     assert scores == [0.90, 0.55, 0.20]
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_source_exception_does_not_break_other_sources(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     mock_pubmed.side_effect = RuntimeError("PubMed is down")
     mock_ct.return_value = [make_snippet("Ashwagandha", "NCT1", 0.60, StudySource.CLINICALTRIALS)]
@@ -267,7 +277,7 @@ async def test_retrieve_evidence_source_exception_does_not_break_other_sources(
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
-async def test_retrieve_evidence_all_sources_raising_returns_empty_list(
+async def test_retrieve_evidence_all_sources_raising_still_returns_catalog_snippets(
     mock_pubmed, mock_ct, mock_epmc
 ):
     mock_pubmed.side_effect = RuntimeError("down")
@@ -277,14 +287,17 @@ async def test_retrieve_evidence_all_sources_raising_returns_empty_list(
     activations = [make_activation("HPA_AXIS", "HPA Axis")]
     result = await retrieve_evidence(activations)
 
-    assert result == []
+    assert len(result) >= 1
+    assert any(snippet.intervention_name == "Ashwagandha" for snippet in result)
+    assert all(snippet.external_id.startswith("PMID:") for snippet in result)
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_deduplicates_intervention_shared_across_pathways(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     # Curcumin is implicated by both NF_KB and IL6_JAK_STAT3 -- it must only be
     # fetched/searched once, not once per pathway.
@@ -299,11 +312,12 @@ async def test_retrieve_evidence_deduplicates_intervention_shared_across_pathway
     assert len(curcumin_calls) == 1
 
 
+@patch("app.pipeline.evidence_retriever.build_catalog_evidence_snippets", side_effect=_no_catalog_snippets)
 @patch("app.pipeline.evidence_retriever.search_europepmc", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_clinicaltrials", new_callable=AsyncMock)
 @patch("app.pipeline.evidence_retriever.search_pubmed", new_callable=AsyncMock)
 async def test_retrieve_evidence_passes_max_results_per_source_through(
-    mock_pubmed, mock_ct, mock_epmc
+    mock_pubmed, mock_ct, mock_epmc, _mock_catalog
 ):
     mock_pubmed.return_value = []
     mock_ct.return_value = []

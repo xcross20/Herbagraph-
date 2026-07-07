@@ -17,6 +17,10 @@
   table { border-collapse: collapse; width: 100%; }
   th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
   th { background: #f0f0f0; }
+  .category-header td { background: #e8eef5; font-weight: bold; }
+  .status-high, .status-critical_high { color: #a00; }
+  .status-low, .status-critical_low { color: #06c; }
+  .status-optimal { color: #2a6; }
   .disclaimer { border: 1px solid #a00; padding: 0.75rem; font-size: 0.9em; }
   #report { display: none; }
   #progress-panel { display: none; margin: 1rem 0; }
@@ -42,6 +46,11 @@
   <p><strong>Upload Lab PDF</strong></p>
   <input type="file" id="file-input" accept=".pdf,.txt,.csv,.png,.jpg,.jpeg">
   <button id="analyze-btn">Analyze</button>
+  <button id="regenerate-btn" style="display:none; margin-left:0.5rem;">Regenerate Report</button>
+  <p id="operator-hint" class="status" style="display:none; margin-top:0.75rem; max-width:42rem;">
+    After pipeline updates: click <strong>Regenerate Report</strong>, then hard-refresh the page (Cmd+Shift+R).
+    Avoid clearing browser storage — guest sessions live in localStorage and clearing it creates a new account.
+  </p>
 </section>
 
 <div id="progress-panel">
@@ -55,6 +64,11 @@
 <div id="report">
   <hr>
 
+  <section id="profile-biomarkers" style="display:none;">
+    <h2>Your Biomarker Profile</h2>
+    <div id="profile-biomarkers-body"></div>
+  </section>
+
   <section id="patient-summary">
     <h2>Patient Summary</h2>
     <div id="patient-summary-body"></div>
@@ -63,6 +77,16 @@
   <section id="biological-systems">
     <h2>Biological Systems</h2>
     <div id="biological-systems-body"></div>
+  </section>
+
+  <section id="medication-context">
+    <h2>Medication Context</h2>
+    <div id="medication-context-body"></div>
+  </section>
+
+  <section id="lab-trends">
+    <h2>Lab Trends</h2>
+    <div id="lab-trends-body"></div>
   </section>
 
   <section id="recommendations">
@@ -90,7 +114,7 @@ const MAX_WAIT_MS = 15 * 60 * 1000; // 15 minutes for OCR + evidence + LLM
 const PIPELINE_STAGES = [
   { id: "upload", label: "Uploading lab file" },
   { id: "queued", label: "Queued for parsing" },
-  { id: "parsing", label: "Parsing lab report (OCR if needed)" },
+  { id: "parsing", label: "Parsing lab report (OCR + LLM if needed)" },
   { id: "normalizing", label: "Normalizing biomarkers" },
   { id: "pathway_mapping", label: "Mapping biological pathways" },
   { id: "evidence_retrieval", label: "Retrieving scientific evidence" },
@@ -296,20 +320,96 @@ async function waitForReportComplete(labReportId) {
   throw new Error("Timed out waiting for report generation to finish. Evidence retrieval and LLM reasoning can take several minutes.");
 }
 
+async function renderProfileBiomarkers() {
+  try {
+    const profile = await api("/api/v1/auth/profile");
+    const custom = profile.custom_biomarkers || [];
+    if (!custom.length) return;
+    const el = document.getElementById("profile-biomarkers-body");
+    if (!el) return;
+    let html = "<p>Biomarkers discovered from your uploads that are tracked on your profile:</p><ul>";
+    for (const b of custom) {
+      const range = (b.reference_low != null && b.reference_high != null)
+        ? `${b.reference_low} - ${b.reference_high}`
+        : "";
+      html += `<li><strong>${escapeHtml(b.canonical_name)}</strong>` +
+        `${b.unit ? " (" + escapeHtml(b.unit) + ")" : ""}` +
+        `${range ? " — ref " + escapeHtml(range) : ""}</li>`;
+    }
+    html += "</ul>";
+    el.innerHTML = html;
+    document.getElementById("profile-biomarkers").style.display = "block";
+  } catch (err) {
+    console.warn("Could not load profile biomarkers:", err);
+  }
+}
+
+async function renderReport(report, labReportId) {
+  window.lastLabReportId = labReportId || window.lastLabReportId || null;
+  const regenBtn = document.getElementById("regenerate-btn");
+  const operatorHint = document.getElementById("operator-hint");
+  const showRegen = Boolean(window.lastLabReportId);
+  regenBtn.style.display = showRegen ? "inline-block" : "none";
+  operatorHint.style.display = showRegen ? "block" : "none";
+
+  renderPatientSummary(report);
+  renderBiologicalSystems(report);
+  renderMedicationContext(report);
+  renderLabTrends(report);
+  renderRecommendations(report);
+  renderEvidence(report);
+  document.getElementById("disclaimer-body").textContent = report.disclaimer;
+  document.getElementById("report").style.display = "block";
+  await renderProfileBiomarkers();
+}
+
 function renderPatientSummary(report) {
-  const bs = report.biomarker_summary;
+  const bs = report.biomarker_summary || {};
   const interpretations = report.biomarker_interpretations || [];
   const measured = bs.measured_biomarkers || [];
   let html = `<p>${escapeHtml(report.executive_summary)}</p>`;
-  html += `<p>${bs.total_biomarkers} key biomarkers measured, ${bs.abnormal_count} outside reference range.</p>`;
+  if (bs.total_biomarkers === 0) {
+    html += `<p class="error"><strong>No biomarkers were parsed.</strong> Your previous upload may have failed before the worker was running, or the PDF layout is unsupported. Re-upload <code>labreport.pdf</code> now — processing should take under a minute.</p>`;
+  } else {
+    html += `<p>${bs.total_biomarkers} key biomarkers measured, ${bs.abnormal_count} outside reference range.</p>`;
+  }
   if (measured.length) {
+    const abnormalFirst = [...measured].sort((a, b) => {
+      const rank = (s) => (s === "critical_high" || s === "high" || s === "critical_low" || s === "low") ? 0 : 1;
+      const diff = rank(a.status) - rank(b.status);
+      return diff !== 0 ? diff : a.biomarker_name.localeCompare(b.biomarker_name);
+    });
+    const byCategory = {};
+    for (const m of abnormalFirst) {
+      const cat = m.category || "other";
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(m);
+    }
+    const catOrder = ["infectious_disease", "gi_stool", "microbiology", "celiac_serology", "allergy", "pharmacogenomics",
+      "metabolic", "lipid", "cbc", "hepatic", "renal", "electrolyte", "hormonal",
+      "thyroid", "inflammatory", "nutritional", "iron_metabolism", "urinalysis", "cardiac", "coagulation", "autoimmune", "other"];
     html += "<table><tr><th>Biomarker</th><th>Value</th><th>Status</th><th>Reference Range</th></tr>";
-    for (const m of measured) {
-      const range = (m.reference_range_low != null && m.reference_range_high != null)
-        ? `${m.reference_range_low} - ${m.reference_range_high}`
-        : (m.reference_range_low != null ? `> ${m.reference_range_low}` : (m.reference_range_high != null ? `< ${m.reference_range_high}` : "-"));
-      html += `<tr><td>${escapeHtml(m.biomarker_name)}</td><td>${m.value}${m.unit ? " " + escapeHtml(m.unit) : ""}</td>` +
-        `<td>${escapeHtml(m.status)}</td><td>${escapeHtml(range)}</td></tr>`;
+    for (const cat of catOrder) {
+      const rows = byCategory[cat];
+      if (!rows || !rows.length) continue;
+      const label = cat.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+      html += `<tr class="category-header"><td colspan="4">${escapeHtml(label)} (${rows.length})</td></tr>`;
+      for (const m of rows) {
+        const range = (m.reference_range_low != null && m.reference_range_high != null)
+          ? `${m.reference_range_low} - ${m.reference_range_high}`
+          : (m.reference_range_low != null ? `> ${m.reference_range_low}` : (m.reference_range_high != null ? `< ${m.reference_range_high}` : "-"));
+        const displayValue = m.qualitative_label
+          ? escapeHtml(m.qualitative_label)
+          : `${m.value}${m.unit ? " " + escapeHtml(m.unit) : ""}`;
+        const displayRange = m.qualitative_label
+          ? (m.expected_label || "NOT DETECTED / NEGATIVE")
+          : range;
+        const sourceNote = m.in_profile && !m.in_catalog
+          ? ' <span style="color:#666;font-size:0.85em">(your profile)</span>'
+          : "";
+        html += `<tr><td>${escapeHtml(m.biomarker_name)}${sourceNote}</td><td>${displayValue}</td>` +
+          `<td class="status-${escapeHtml(m.status)}">${escapeHtml(m.status)}</td><td>${escapeHtml(displayRange)}</td></tr>`;
+      }
     }
     html += "</table>";
   } else if (interpretations.length) {
@@ -324,9 +424,36 @@ function renderPatientSummary(report) {
 
 function renderBiologicalSystems(report) {
   const systems = report.biological_systems || [];
-  let html = "<table><tr><th>System</th><th>Signal</th><th>Direction</th><th>Confidence</th><th>Drivers</th></tr>";
+  const bs = report.biomarker_summary || {};
+  let html = "";
+  if (bs.total_biomarkers > 0 && bs.abnormal_count === 0) {
+    html += "<p>All seven biological systems were screened. None showed an abnormal pathway signal based on your tracked biomarkers — this is expected when values are in range.</p>";
+  }
+  if (!systems.length) {
+    html += "<p>No biological system data available.</p>";
+    document.getElementById("biological-systems-body").innerHTML = html;
+    return;
+  }
+  const activeSystems = systems.filter((s) => (s.signal_level || 0) > 0);
+  if (bs.abnormal_count > 0 && activeSystems.length === 0) {
+    const abnormalStatuses = new Set(["low", "high", "critical_low", "critical_high"]);
+    const unmatched = (bs.measured_biomarkers || []).filter(
+      (m) => abnormalStatuses.has(m.status) && !m.in_catalog
+    );
+    html += "<p class=\"error\"><strong>Abnormal labs were parsed but no pathway signals fired.</strong> " +
+      "This often means biomarker names did not match the catalog (OCR garbling or custom names). ";
+    if (unmatched.length) {
+      html += "Unresolved abnormal names: <strong>" +
+        escapeHtml(unmatched.map((m) => m.biomarker_name).join(", ")) +
+        "</strong>. ";
+    }
+    html += "For iron and vitamin/mineral panels, names like <em>Iron, Total</em> or <em>Vitamin D, 25-OH</em> should map automatically — " +
+      "click <strong>Regenerate Report</strong> after a refresh, or re-upload a text/CSV export from your lab portal.</p>";
+  }
+  html += "<table><tr><th>System</th><th>Signal</th><th>Direction</th><th>Confidence</th><th>Drivers</th></tr>";
   for (const s of systems) {
-    html += `<tr><td>${escapeHtml(s.system_name)}</td><td>${escapeHtml(s.signal_label)}</td>` +
+    const rowStyle = (s.signal_level || 0) > 0 ? "" : " style=\"color:#666\"";
+    html += `<tr${rowStyle}><td>${escapeHtml(s.system_name)}</td><td>${escapeHtml(s.signal_label)}</td>` +
       `<td>${escapeHtml(s.direction)}</td><td>${escapeHtml(s.confidence)}</td>` +
       `<td>${escapeHtml((s.drivers || []).join(", ") || "-")}</td></tr>`;
   }
@@ -334,30 +461,92 @@ function renderBiologicalSystems(report) {
   document.getElementById("biological-systems-body").innerHTML = html;
 }
 
+function renderMedicationContext(report) {
+  const ctx = report.medication_context || {};
+  let html = "";
+  if (!ctx.has_medications && !(ctx.notes || []).length) {
+    html = "<p>No medications on file. Add current medications to your health profile for medication-aware lab interpretation.</p>";
+  } else {
+    if ((ctx.medications || []).length) {
+      html += `<p><strong>Current medications:</strong> ${escapeHtml(ctx.medications.join(", "))}</p>`;
+    }
+    if ((ctx.supplements || []).length) {
+      html += `<p><strong>Current supplements:</strong> ${escapeHtml(ctx.supplements.join(", "))}</p>`;
+    }
+    if ((ctx.notes || []).length) {
+      html += "<ul>";
+      for (const note of ctx.notes) {
+        html += `<li>${escapeHtml(note)}</li>`;
+      }
+      html += "</ul>";
+    }
+    if ((ctx.biomarker_specific_notes || []).length) {
+      html += "<table><tr><th>Biomarker</th><th>Medication class</th><th>Note</th></tr>";
+      for (const n of ctx.biomarker_specific_notes) {
+        html += `<tr><td>${escapeHtml(n.biomarker_name)}</td><td>${escapeHtml(n.medication_class)}</td><td>${escapeHtml(n.note)}</td></tr>`;
+      }
+      html += "</table>";
+    }
+  }
+  document.getElementById("medication-context-body").innerHTML = html;
+}
+
+function renderLabTrends(report) {
+  const trends = report.lab_trends || {};
+  let html = `<p>${escapeHtml(trends.summary || "No trend data available.")}</p>`;
+  if ((trends.trends || []).length) {
+    html += "<table><tr><th>Biomarker</th><th>Prior</th><th>Current</th><th>Delta</th><th>Direction</th></tr>";
+    for (const t of trends.trends) {
+      const unit = t.unit ? " " + escapeHtml(t.unit) : "";
+      html += `<tr><td>${escapeHtml(t.biomarker_name)}</td>` +
+        `<td>${t.prior_value}${unit}</td><td>${t.current_value}${unit}</td>` +
+        `<td>${t.delta > 0 ? "+" : ""}${t.delta}</td><td>${escapeHtml(t.direction)}</td></tr>`;
+    }
+    html += "</table>";
+  }
+  document.getElementById("lab-trends-body").innerHTML = html;
+}
+
 function renderRecommendations(report) {
   const recs = report.recommendations || [];
   if (!recs.length) {
     const bs = report.biomarker_summary || {};
-    const msg = bs.abnormal_count === 0 && bs.total_biomarkers > 0
-      ? "Your tracked biomarkers are within range. HerbaGraph surfaces evidence-backed recommendations when abnormal values activate biological pathways — nothing was flagged in this panel."
-      : "No recommendations were surfaced. The lab file may not have parsed correctly — try re-uploading or use a demo sample from samples/lab_reports/.";
+    const systems = report.biological_systems || [];
+    const hasActiveSignal = systems.some((s) => (s.signal_level || 0) > 0);
+    let msg;
+    if (bs.abnormal_count === 0 && bs.total_biomarkers > 0) {
+      msg = "Your tracked biomarkers are within range. HerbaGraph surfaces evidence-backed recommendations when abnormal values activate biological pathways — nothing was flagged in this panel.";
+    } else if (bs.abnormal_count > 0 && !hasActiveSignal) {
+      msg = "Abnormal values are listed in Patient Summary, but biomarkers may not have mapped to catalog names — no evidence-backed recommendations could be routed. Try Regenerate Report, or upload a text/CSV lab export for cleaner parsing.";
+    } else {
+      msg = "No recommendations were surfaced. The lab file may not have parsed correctly — try re-uploading or use a demo sample from samples/lab_reports/.";
+    }
     document.getElementById("recommendations-body").innerHTML = `<p>${escapeHtml(msg)}</p>`;
     return;
   }
   let html = "";
   for (const r of recs) {
-    html += `<div style="margin-bottom:1rem;">`;
-    html += `<p><strong>#${r.rank} ${escapeHtml(r.intervention_name)}</strong> (${escapeHtml(r.category)}) -- ${escapeHtml(r.evidence_tier_label)}, confidence ${r.confidence_score}</p>`;
-    if (r.mechanism) html += `<p>Mechanism: ${escapeHtml(r.mechanism)}</p>`;
-    if (r.rationale) html += `<p>Rationale: ${escapeHtml(r.rationale)}</p>`;
-    if (r.limitations) html += `<p>Limitations: ${escapeHtml(r.limitations)}</p>`;
-    if (r.typical_dose) html += `<p>Typical dose (per cited research): ${escapeHtml(r.typical_dose)}</p>`;
+    html += `<div style="margin-bottom:1.25rem;">`;
+    html += `<p><strong>#${r.rank} ${escapeHtml(r.intervention_name)}</strong> (${escapeHtml(r.category)}) — ${escapeHtml(r.evidence_tier_label)}, confidence ${r.confidence_score}</p>`;
+    if (r.intervention_narrative) {
+      html += `<p style="margin:0.5rem 0;">${escapeHtml(r.intervention_narrative)}</p>`;
+    }
+    if (r.food_sources && r.food_sources.length) {
+      html += `<p><strong>Whole-food sources:</strong></p><ul>`;
+      for (const f of r.food_sources) {
+        const serving = f.typical_serving ? ` — ${escapeHtml(f.typical_serving)}` : "";
+        const note = f.note ? ` <em>(${escapeHtml(f.note)})</em>` : "";
+        html += `<li>${escapeHtml(f.food)} (${escapeHtml(f.richness)}${serving})${note}</li>`;
+      }
+      html += `</ul>`;
+    }
+    if (r.rationale) html += `<p><strong>Why surfaced:</strong> ${escapeHtml(r.rationale)}</p>`;
+    if (r.mechanism) html += `<p><strong>Mechanism (literature):</strong> ${escapeHtml(r.mechanism)}</p>`;
+    if (r.limitations) html += `<p><strong>Limitations:</strong> ${escapeHtml(r.limitations)}</p>`;
+    if (r.typical_dose) html += `<p><strong>Dose in cited research:</strong> ${escapeHtml(r.typical_dose)}</p>`;
     html += `<p>Safety risk: ${escapeHtml(r.safety_risk)}${r.is_regulated ? " (regulated substance)" : ""}</p>`;
     if ((r.safety_notes || []).length) html += `<p>Safety notes: ${escapeHtml(r.safety_notes.join("; "))}</p>`;
     if ((r.interactions || []).length) html += `<p>Interactions: ${escapeHtml(r.interactions.join("; "))}</p>`;
-    if (r.food_sources && r.food_sources.length) {
-      html += `<p>Food sources: ${escapeHtml(r.food_sources.map((f) => f.food).join(", "))}</p>`;
-    }
     html += `</div>`;
   }
   document.getElementById("recommendations-body").innerHTML = html;
@@ -409,14 +598,7 @@ async function analyze() {
     const lab = await waitForReportComplete(upload.lab_report_id);
     showProgressPanel("complete");
     const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
-
-    renderPatientSummary(report);
-    renderBiologicalSystems(report);
-    renderRecommendations(report);
-    renderEvidence(report);
-    document.getElementById("disclaimer-body").textContent = report.disclaimer;
-
-    document.getElementById("report").style.display = "block";
+    renderReport(report, upload.lab_report_id);
     setStatus("Done.");
   } catch (err) {
     showProgressPanel("failed");
@@ -426,8 +608,75 @@ async function analyze() {
   }
 }
 
+async function loadLatestReport() {
+  try {
+    await ensureAuth();
+    const labs = await api("/api/v1/labs");
+    if (!labs.length) return;
+    const latest = labs[0];
+    if (latest.status === "failed") {
+      setStatus("Your last upload failed: " + (latest.error_message || "unknown error") + " — please re-upload.", true);
+      return;
+    }
+    if (latest.status === "processing" || latest.status === "pending") {
+      setStatus("A lab upload is still processing — click Analyze after choosing the file, or wait and refresh.");
+      return;
+    }
+    if (latest.status === "complete" && latest.report_stage !== "complete") {
+      setStatus("Finishing report for your last upload...");
+      await api(`/api/v1/reports/generate/${latest.id}`, "POST");
+      await waitForReportComplete(latest.id);
+      const lab = await api(`/api/v1/labs/${latest.id}`);
+      const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
+      renderReport(report, latest.id);
+      setStatus("Showing your most recent report. Upload a new file to analyze again.");
+      return;
+    }
+    if (latest.status !== "complete" || !latest.latest_report_id) return;
+    const report = await api(`/api/v1/reports/${latest.latest_report_id}`);
+    renderReport(report, latest.id);
+    setStatus("Showing your most recent report. Click Regenerate Report to rebuild with the latest pipeline, or upload a new file.");
+  } catch (err) {
+    // Guest auth or network hiccup on first load — user can still upload manually.
+    console.warn("Could not load latest report:", err);
+  }
+}
+
+async function regenerateReport() {
+  if (!window.lastLabReportId) {
+    setStatus("No lab report loaded to regenerate.", true);
+    return;
+  }
+  const regenBtn = document.getElementById("regenerate-btn");
+  const analyzeBtn = document.getElementById("analyze-btn");
+  regenBtn.disabled = true;
+  analyzeBtn.disabled = true;
+  try {
+    setStatus("Regenerating report with latest evidence pipeline...");
+    showProgressPanel("pathway_mapping");
+    await api(`/api/v1/reports/generate/${window.lastLabReportId}`, "POST");
+    const lab = await waitForReportComplete(window.lastLabReportId);
+    const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
+    renderReport(report, window.lastLabReportId);
+    const names = (report.recommendations || []).map((r) => r.intervention_name);
+    setStatus(
+      names.length
+        ? `Report regenerated. Recommendations: ${names.join(", ")}`
+        : "Report regenerated, but no recommendations were surfaced — check that H. pylori parsed as DETECTED in Patient Summary."
+    );
+  } catch (err) {
+    showProgressPanel("failed");
+    setStatus(err.message, true);
+  } finally {
+    regenBtn.disabled = false;
+    analyzeBtn.disabled = false;
+  }
+}
+
 document.getElementById("analyze-btn").addEventListener("click", analyze);
+document.getElementById("regenerate-btn").addEventListener("click", regenerateReport);
 document.getElementById("download-pdf").addEventListener("click", () => window.print());
+loadLatestReport();
 </script>
 </body>
 </html>

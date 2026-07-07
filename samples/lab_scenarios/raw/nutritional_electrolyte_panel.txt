@@ -1,0 +1,7 @@
+SYNTHETIC QUEST-STYLE ELECTROLYTE PANEL (NOT REAL PATIENT DATA)
+
+Calcium, Total            7.80  mg/dL    (8.60-10.30)
+Potassium, Serum          3.20  mmol/L   (3.50-5.30)
+Magnesium                 1.40  mg/dL    (1.70-2.40)
+Vitamin D, 25-OH         45.00  ng/mL    (30.00-100.00)
+B12                      480.00  pg/mL    (200.00-900.00)

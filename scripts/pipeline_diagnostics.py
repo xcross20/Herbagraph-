@@ -1,132 +1,86 @@
 #!/usr/bin/env python3
-"""Stage-by-stage pipeline diagnostics for lab files and samples.
-
-Usage:
-  python scripts/pipeline_diagnostics.py
-  python scripts/pipeline_diagnostics.py path/to/lab.pdf
-  python scripts/pipeline_diagnostics.py --lab-report-id <uuid>   # requires DB + .env
-"""
+"""One-command HerbaGraph pipeline health report for operators."""
 
 from __future__ import annotations
 
-import argparse
+import subprocess
 import sys
-import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT))
 
 
-def _header(title: str) -> None:
-    print(f"\n{'=' * 60}\n{title}\n{'=' * 60}")
-
-
-def diagnose_bytes(file_bytes: bytes, filename: str) -> int:
-    from app.pipeline.biomarker_normalizer import get_reference_data, normalize_lab_results
-    from app.pipeline.lab_parser import extract_text_from_pdf, parse_lab_file, parse_lab_text
-    from app.pipeline.pathway_mapper import map_pathways
-
-    _header(f"Stage 0: Input — {filename} ({len(file_bytes)} bytes)")
-
-    if filename.lower().endswith(".pdf"):
-        text = extract_text_from_pdf(file_bytes)
-        _header("Stage 1a: PDF text extraction")
-        print(f"  extracted_chars={len(text)}  lines={len(text.splitlines())}")
-        if text.strip():
-            print("  first_line:", repr(text.splitlines()[0][:100]))
-        parsed = parse_lab_text(text)
-    else:
-        text = file_bytes.decode("utf-8", errors="replace")
-        parsed = parse_lab_file(file_bytes, filename)
-
-    _header("Stage 1b: Line parsing")
-    print(f"  parsed_rows={len(parsed)}")
-    for row in parsed[:15]:
-        print(f"    - {row.raw_test_name}: {row.value} {row.unit or ''} ({row.reference_range_low}-{row.reference_range_high})")
-    if len(parsed) > 15:
-        print(f"    ... +{len(parsed) - 15} more")
-
-    _header("Stage 2: Biomarker normalization")
-    normalized = normalize_lab_results(parsed)
-    tracked = [n for n in normalized if get_reference_data(n.biomarker_name)]
-    print(f"  normalized_rows={len(normalized)}  tracked_mvp_biomarkers={len(tracked)}")
-    for row in tracked:
-        print(f"    - {row.biomarker_name}: {row.value} -> {row.status.value}")
-
-    _header("Stage 3: Pathway mapping (dry run)")
-    pathways = map_pathways(normalized)
-    active = [p for p in pathways if p.activation_score > 0]
-    print(f"  pathways_mapped={len(pathways)}  active={len(active)}")
-    for p in active[:10]:
-        print(f"    - {p.pathway_code}: score={p.activation_score:.2f} direction={p.direction.value}")
-
-    if not parsed:
-        print("\nRESULT: FAIL — no biomarker rows parsed")
-        return 1
-    if not tracked:
-        print("\nRESULT: WARN — parsed rows exist but none map to MVP biomarker panel")
-        return 0
-    print("\nRESULT: PASS")
-    return 0
-
-
-def diagnose_lab_report_id(lab_report_id: str) -> int:
-    from sqlalchemy import create_engine, text
-
-    from app.config import settings
-    from app.core.file_storage import load_lab_file
-    from app.database import _to_sync_url
-
-    engine = create_engine(_to_sync_url(settings.database_url))
-    with engine.connect() as conn:
-        row = conn.execute(
-            text("SELECT original_filename, encrypted_file_path FROM lab_reports WHERE id = :id"),
-            {"id": lab_report_id},
-        ).mappings().first()
-    if row is None:
-        print(f"No lab report found: {lab_report_id}")
-        return 1
-    file_bytes = load_lab_file(row["encrypted_file_path"])
-    return diagnose_bytes(file_bytes, row["original_filename"])
+def _run(cmd: list[str]) -> tuple[int, str]:
+    proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, out.strip()
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run HerbaGraph pipeline stage diagnostics")
-    parser.add_argument("path", nargs="?", help="Lab file (.pdf, .txt, .csv)")
-    parser.add_argument("--lab-report-id", help="Diagnose a persisted lab report by UUID")
-    args = parser.parse_args()
+    print("=== HerbaGraph Pipeline Diagnostics ===\n")
 
-    failures = 0
+    from app.knowledge_graph.biomarker_catalog import REFERENCE_DATA
+    from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS, INTERVENTIONS
+    from app.pipeline.lab_scenario_loader import load_manifest, validate_all_scenarios
 
-    if args.lab_report_id:
-        failures += diagnose_lab_report_id(args.lab_report_id)
-        return failures
+    print(f"Biomarker catalog: {len(REFERENCE_DATA)} tests")
+    print(f"Interventions (seed): {len(INTERVENTIONS)}")
+    print(f"Evidence claims (seed): {len(EVIDENCE_CLAIMS)}")
 
-    targets: list[Path] = []
-    if args.path:
-        targets.append(Path(args.path))
-    else:
-        samples = ROOT / "samples" / "lab_reports"
-        if samples.exists():
-            targets.extend(sorted(samples.glob("*.*")))
-        fixture = ROOT / "tests" / "fixtures" / "quest_labreport_excerpt.txt"
-        if fixture.exists():
-            targets.append(fixture)
+    checks = [
+        ("Seed catalog counts", [sys.executable, "scripts/validate_seed_counts.py"]),
+        ("Pathway coverage", [sys.executable, "scripts/validate_pathway_coverage.py"]),
+        ("Alias resolution", [sys.executable, "scripts/audit_alias_resolution.py"]),
+        ("Evidence gaps (priority pathways)", [sys.executable, "scripts/audit_evidence_gaps.py"]),
+        ("Lab scenarios", [sys.executable, "scripts/validate_lab_scenarios.py"]),
+        ("PMID integrity (denylist)", [sys.executable, "scripts/audit_pmid_integrity.py"]),
+        ("Sample lab parse", [sys.executable, "scripts/validate_sample_labs.py"]),
+        ("Scenario coverage", [sys.executable, "scripts/audit_scenario_coverage.py"]),
+    ]
 
-    if not targets:
-        print("No files to diagnose. Pass a path or add samples under samples/lab_reports/")
+    failed = 0
+    for label, cmd in checks:
+        code, output = _run(cmd)
+        status = "PASS" if code == 0 else "FAIL"
+        print(f"\n[{status}] {label}")
+        if output:
+            for line in output.splitlines()[-6:]:
+                print(f"  {line}")
+        if code != 0:
+            failed += 1
+
+    manifest = load_manifest()
+    scenarios = [s for s in manifest["scenarios"] if not s.get("skip_ci")]
+    with_recs = sum(
+        1 for s in scenarios if s.get("expect", {}).get("recommendations", {}).get("must_include")
+    )
+    with_pathways = sum(
+        1 for s in scenarios if s.get("expect", {}).get("pathways", {}).get("must_include")
+    )
+    with_systems = sum(
+        1 for s in scenarios if s.get("expect", {}).get("biological_systems", {}).get("must_include")
+    )
+    results = validate_all_scenarios(manifest, skip_ci=True)
+    passed = sum(1 for r in results if r.passed)
+
+    print(f"\nLab scenario matrix: {passed}/{len(results)} passed")
+    print(f"Scenarios with pathway asserts: {with_pathways}")
+    print(f"Scenarios with recommendation asserts: {with_recs}")
+    print(f"Scenarios with biological_systems asserts: {with_systems}")
+
+    if failed:
+        print(f"\nDiagnostics: {failed} gate(s) failed.")
         return 1
 
-    for path in targets:
-        if path.name.lower() == "readme.md":
-            continue
-        if path.suffix.lower() not in {".pdf", ".txt", ".csv"}:
-            continue
-        failures += diagnose_bytes(path.read_bytes(), path.name)
+    print("\nDiagnostics: all gates green.")
 
-    return 1 if failures else 0
+    reseed_code, reseed_out = _run(["bash", "scripts/ops_reseed.sh"])
+    print(f"\n[{'PASS' if reseed_code == 0 else 'FAIL'}] Ops reseed")
+    if reseed_out:
+        for line in reseed_out.splitlines()[-4:]:
+            print(f"  {line}")
+    return reseed_code if reseed_code != 0 else 0
 
 
 if __name__ == "__main__":
