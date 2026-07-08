@@ -26,8 +26,59 @@ window.HerbaGraphAuth = (function () {
       s.onerror = reject;
       document.head.appendChild(s);
     });
-    supabaseClient = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key);
+    supabaseClient = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key, {
+      auth: {
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
     return supabaseClient;
+  }
+
+  function isAuthCallbackUrl() {
+    const hash = window.location.hash || "";
+    const search = window.location.search || "";
+    return (
+      hash.includes("access_token=")
+      || hash.includes("type=signup")
+      || hash.includes("type=recovery")
+      || hash.includes("type=invite")
+      || search.includes("code=")
+    );
+  }
+
+  /** Send Supabase email-confirm / password-reset landings to the app shell. */
+  function redirectAuthCallbackToApp() {
+    if (!isAuthCallbackUrl()) return false;
+    if (window.location.pathname.endsWith("/app.html")) return false;
+    const target = `/app.html${window.location.search}${window.location.hash || "#dashboard"}`;
+    window.location.replace(target);
+    return true;
+  }
+
+  async function handleAuthRedirect() {
+    const cfg = await loadConfig();
+    if (cfg.auth_provider !== "supabase") return false;
+
+    const sb = await initSupabase();
+    // detectSessionInUrl picks up tokens from email confirmation links
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw new Error(error.message);
+
+    if (data?.session) {
+      storeSupabaseSession(data.session);
+      await fetch(API + "/api/v1/auth/sync", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      // Clean sensitive tokens from the address bar
+      if (isAuthCallbackUrl()) {
+        window.history.replaceState({}, document.title, "/app.html#dashboard");
+      }
+      return true;
+    }
+    return false;
   }
 
   function storeLocalTokens(tokens) {
@@ -133,7 +184,10 @@ window.HerbaGraphAuth = (function () {
       const { data, error } = await sb.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName || null } },
+        options: {
+          data: { full_name: fullName || null },
+          emailRedirectTo: `${window.location.origin}/app.html`,
+        },
       });
       if (error) throw new Error(error.message);
       if (!data.session) {
@@ -199,6 +253,8 @@ window.HerbaGraphAuth = (function () {
 
   return {
     loadConfig,
+    redirectAuthCallbackToApp,
+    handleAuthRedirect,
     ensureSession,
     refreshTokens,
     signInWithPassword,
@@ -209,3 +265,6 @@ window.HerbaGraphAuth = (function () {
     isSupabase: async () => (await loadConfig()).auth_provider === "supabase",
   };
 })();
+
+// If email confirmation lands on / or /index.html, forward to the app shell immediately.
+window.__hgAuthRedirecting = window.HerbaGraphAuth.redirectAuthCallbackToApp();

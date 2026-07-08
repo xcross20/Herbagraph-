@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -31,6 +32,14 @@ app.include_router(api_router, prefix="/api/v1")
 @app.get("/health")
 async def health_check() -> dict:
     return {"status": "ok", "version": __version__}
+
+
+@app.get("/")
+async def root_redirect() -> RedirectResponse:
+    """With Supabase auth, send users to the application shell instead of the report viewer."""
+    if settings.auth_provider == "supabase":
+        return RedirectResponse(url="/app.html", status_code=302)
+    return RedirectResponse(url="/index.html", status_code=302)
 
 
 # Serves the bare-bones frontend (frontend/index.html) at "/". Mounted last so it

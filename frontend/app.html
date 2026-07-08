@@ -565,6 +565,9 @@ function setActiveNav(route) {
 
 async function render() {
   try {
+    if (await Auth.handleAuthRedirect()) {
+      location.hash = "#dashboard";
+    }
     const hash = location.hash.slice(1) || "login";
     if (hash === "login" || !(await ensureSession())) {
       await renderAuth();

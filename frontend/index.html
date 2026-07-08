@@ -584,6 +584,20 @@ async function refreshAccessToken() {
 async function ensureAuth() {
   const Auth = window.HerbaGraphAuth;
   const cfg = await Auth.loadConfig();
+  if (cfg.auth_provider === "supabase") {
+    const params = new URLSearchParams(window.location.search);
+    const hasReport = params.get("report_id");
+    if (!hasReport && !(await Auth.ensureSession())) {
+      window.location.href = "/app.html#login";
+      throw new Error("Sign in required");
+    }
+    if (hasReport && await Auth.handleAuthRedirect()) return;
+    if (hasReport && !(await Auth.ensureSession())) {
+      window.location.href = `/app.html#login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+      throw new Error("Sign in required");
+    }
+    return;
+  }
   if (await Auth.ensureSession()) return;
   if (!cfg.allow_guest_auth) {
     window.location.href = "/app.html#login";
@@ -2019,9 +2033,11 @@ function printHerbaGraphReport(mode) {
   setTimeout(cleanup, 1500);
 }
 
-document.getElementById("download-pdf-summary").addEventListener("click", () => printHerbaGraphReport("summary"));
-document.getElementById("download-pdf-full").addEventListener("click", () => printHerbaGraphReport("full"));
-loadLatestReport();
+if (!window.__hgAuthRedirecting) {
+  document.getElementById("download-pdf-summary").addEventListener("click", () => printHerbaGraphReport("summary"));
+  document.getElementById("download-pdf-full").addEventListener("click", () => printHerbaGraphReport("full"));
+  loadLatestReport();
+}
 </script>
 </body>
 </html>

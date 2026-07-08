@@ -6,12 +6,10 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
-async def test_root_serves_frontend_html(client):
-    resp = await client.get("/")
-    assert resp.status_code == 200
-    assert "text/html" in resp.headers["content-type"]
-    assert "HerbaGraph" in resp.text
-    assert "Analyze" in resp.text
+async def test_root_redirects_to_frontend_entry(client):
+    resp = await client.get("/", follow_redirects=False)
+    assert resp.status_code == 302
+    assert resp.headers["location"] in {"/index.html", "/app.html"}
 
 
 async def test_api_routes_still_work_alongside_static_mount(client):
