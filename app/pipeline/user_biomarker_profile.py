@@ -84,9 +84,20 @@ def _fix_ocr_reversed_variants(raw_name: str) -> list[str]:
     return variants or [raw_name]
 
 
-def _strip_portal_suffixes(raw_name: str) -> str:
+def _as_str_name(raw_name: str | list | None) -> str:
+    """Coerce parser/alias candidates to a single string (guards against nested list bugs)."""
+    if raw_name is None:
+        return ""
+    if isinstance(raw_name, list):
+        return " ".join(str(part) for part in raw_name if part is not None).strip()
+    return str(raw_name).strip()
+
+
+def _strip_portal_suffixes(raw_name: str | list | None) -> str:
     """Remove portal noise: parenthetical (calc) and vendor tags — not analyte names like 'LDL Chol Calc'."""
-    cleaned = raw_name.strip()
+    cleaned = _as_str_name(raw_name)
+    if re.match(r"^(?:F\s+)?Cholesterol\s*,\s*Total\s*$", cleaned, re.IGNORECASE):
+        return "Total Cholesterol"
     cleaned = _PAREN_CALC_RE.sub("", cleaned).strip()
     cleaned = _VENDOR_TAG_RE.sub("", cleaned).strip()
     # Quest/LabCorp: "Iron, Total" / "Copper, Serum" → analyte name only.
@@ -209,6 +220,11 @@ _SUPPLEMENTAL_ALIASES: dict[str, str] = {
     "fldl": "LDL",
     "final hdl": "HDL",
     "final ldl cholesterol calc": "LDL",
+    "f cholesterol total": "Total Cholesterol",
+    "f triglycerides": "Triglycerides",
+    "f non hdl cholesterol": "Non-HDL Cholesterol",
+    "total cholesterol hdl ratio": "Chol/HDL Ratio",
+    "f total cholesterol hdl ratio": "Chol/HDL Ratio",
 }
 
 
@@ -248,16 +264,19 @@ def resolve_canonical_name(raw_name: str, custom_biomarkers: list[dict] | None =
     alias_map = build_alias_map(custom_biomarkers)
     stripped = _strip_portal_suffixes(raw_name)
     prefix_variants = _leading_column_prefix_variants(raw_name) + _leading_column_prefix_variants(stripped)
-    candidates = [
-        raw_name,
+    candidates: list[str] = [
+        _as_str_name(raw_name),
         stripped,
         *prefix_variants,
-        *_fix_ocr_reversed_variants(raw_name),
+        *_fix_ocr_reversed_variants(_as_str_name(raw_name)),
         *_fix_ocr_reversed_variants(stripped),
-        *(_fix_ocr_reversed_variants(v) for v in prefix_variants),
     ]
+    for variant in prefix_variants:
+        candidates.extend(_fix_ocr_reversed_variants(variant))
     seen: set[str] = set()
     for candidate in candidates:
+        if not isinstance(candidate, str):
+            candidate = _as_str_name(candidate)
         key = _clean(candidate)
         if not key or key in seen:
             continue

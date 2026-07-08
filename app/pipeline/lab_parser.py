@@ -13,8 +13,10 @@ from app.pipeline.user_biomarker_profile import clean_parsed_test_name
 from app.schemas.pipeline import ParsedLabResult
 
 
-def _parsed_test_name(raw: str) -> str:
-    return clean_parsed_test_name(raw.strip().rstrip(":").strip())
+def _parsed_test_name(raw: str | list | None) -> str:
+    if isinstance(raw, list):
+        raw = " ".join(str(part) for part in raw if part is not None)
+    return clean_parsed_test_name(str(raw).strip().rstrip(":").strip())
 
 _NUM = r"[<>]?\s*-?\d+\.?\d*"
 # Quest/LabCorp analyte names may start with % (e.g. "% Saturation").
@@ -104,6 +106,16 @@ _PATTERN_FLAG_RANGE_UNIT = re.compile(
     rf"(?P<value>{_NUM})\s+"
     rf"(?:(?P<flag>{_STATUS_TOKEN})\s+)?"
     rf"(?P<low>{_NUM})\s*[-–]\s*(?P<high>{_NUM})\s*"
+    rf"\(\s*(?P<unit>[^)]+)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+# Pattern 10a: "F Triglycerides 63.0 <= 150.00 (mg/dL)" — upper-bound-only with <=
+_PATTERN_FLAG_LTE_RANGE_UNIT = re.compile(
+    rf"^(?P<name>[A-Za-z][A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<value>{_NUM})\s+"
+    rf"(?:(?P<flag>{_STATUS_TOKEN})\s+)?"
+    rf"<=\s*(?P<high>{_NUM})\s*"
     rf"\(\s*(?P<unit>[^)]+)\s*\)\s*$",
     re.IGNORECASE,
 )
@@ -253,6 +265,27 @@ def _parse_quest_qualitative_line(line: str) -> ParsedLabResult | None:
 
 
 def _parse_flag_range_line(line: str) -> ParsedLabResult | None:
+    lte_match = _PATTERN_FLAG_LTE_RANGE_UNIT.match(line.strip())
+    if lte_match:
+        groups = lte_match.groupdict()
+        try:
+            value = _to_float(groups["value"])
+            high = _to_float(groups["high"])
+        except ValueError:
+            return None
+        name = _parsed_test_name(groups["name"])
+        if not name:
+            return None
+        unit = _clean_unit(groups.get("unit"))
+        return ParsedLabResult(
+            raw_test_name=name,
+            value=value,
+            unit=unit,
+            reference_range_low=0.0,
+            reference_range_high=high,
+            raw_line=line.strip(),
+        )
+
     for pattern in (_PATTERN_FLAG_RANGE_UNIT, _PATTERN_VALUE_STATUS_RANGE):
         match = pattern.match(line.strip())
         if not match:
