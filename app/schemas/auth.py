@@ -42,9 +42,18 @@ class UserRead(BaseModel):
     full_name: str | None = None
     is_active: bool
     is_verified: bool
+    auth_provider: str = "local"
     role: UserRole
     clinic_name: str | None = None
     created_at: datetime
+
+
+class AuthConfigRead(BaseModel):
+    auth_provider: str
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
+    require_email_verification: bool
+    allow_guest_auth: bool
 
 
 class Token(BaseModel):

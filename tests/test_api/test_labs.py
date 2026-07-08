@@ -166,6 +166,7 @@ async def test_list_lab_reports_summary_shape_omits_lab_results(authed_client):
     assert "lab_results" not in body[0]
     assert set(body[0].keys()) == {
         "id",
+        "patient_id",
         "original_filename",
         "status",
         "report_stage",

@@ -1,19 +1,20 @@
 import pathlib
 import uuid
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_verified_user, get_db
 from app.config import settings
 from app.core.file_storage import ALLOWED_EXTENSIONS, save_lab_file
 from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport
-from app.models.enums import AnalysisSessionStatus, LabProcessingStage, LabReportStatus
+from app.models.enums import AnalysisSessionStatus, AuditAction, LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
 from app.models.patient import Patient
 from app.models.user import User
+from app.services.audit import record_audit_event
 from app.pipeline.integrated_merge import infer_panel_label
 from app.schemas.analysis_session import (
     AnalysisSessionCreate,
@@ -44,7 +45,7 @@ async def _get_owned_session(
 @router.get("", response_model=list[AnalysisSessionRead])
 async def list_analysis_sessions(
     patient_id: uuid.UUID | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[AnalysisSessionRead]:
     query = (
@@ -88,7 +89,7 @@ def _session_read_payload(analysis_session: AnalysisSession) -> AnalysisSessionR
 @router.post("", response_model=AnalysisSessionRead, status_code=status.HTTP_201_CREATED)
 async def create_analysis_session(
     payload: AnalysisSessionCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionRead:
     if payload.patient_id is not None:
@@ -128,7 +129,7 @@ async def upload_lab_reports_to_session(
     session_id: uuid.UUID,
     files: list[UploadFile] = File(...),
     patient_id: uuid.UUID | None = Form(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> IntegratedUploadResponse:
     if not files:
@@ -215,7 +216,7 @@ async def upload_lab_reports_to_session(
 async def link_existing_lab_reports(
     session_id: uuid.UUID,
     payload: AnalysisSessionLinkLabsRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionRead:
     """Attach already-uploaded lab reports to a session (no file re-upload)."""
@@ -274,7 +275,8 @@ async def link_existing_lab_reports(
 @router.post("/{session_id}/run", response_model=AnalysisSessionRunResponse, status_code=status.HTTP_202_ACCEPTED)
 async def run_integrated_analysis(
     session_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionRunResponse:
     analysis_session = await _get_owned_session(session_id, current_user, db)
@@ -300,6 +302,19 @@ async def run_integrated_analysis(
     analysis_session.error_message = None
     await db.commit()
 
+    await record_audit_event(
+        db,
+        action=AuditAction.ANALYSIS_STARTED,
+        summary=f"Integrated analysis started ({analysis_session.title})",
+        user=current_user,
+        patient_id=analysis_session.patient_id,
+        resource_type="analysis_session",
+        resource_id=str(analysis_session.id),
+        detail={"lab_count": len(analysis_session.lab_links)},
+        request=request,
+    )
+    await db.commit()
+
     task = run_integrated_analysis_task.delay(str(analysis_session.id), str(current_user.id))
     return AnalysisSessionRunResponse(
         analysis_session_id=analysis_session.id,
@@ -312,7 +327,7 @@ async def run_integrated_analysis(
 @router.get("/{session_id}", response_model=AnalysisSessionRead)
 async def get_analysis_session(
     session_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionRead:
     analysis_session = await _get_owned_session(session_id, current_user, db)

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings, settings
 from app.core.auth_providers import AuthConfigurationError, verify_external_token
 from app.core.security import InvalidTokenError, decode_token
+from app.core.supabase_auth import get_or_create_user_from_supabase
 from app.database import AsyncSessionLocal
 from app.models.user import User
 
@@ -20,6 +21,35 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+async def _user_from_local_token(token: str, db: AsyncSession) -> User:
+    try:
+        subject = decode_token(token, expected_type="access")
+        user_id = uuid.UUID(subject)
+    except (InvalidTokenError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
+    return user
+
+
+async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
+    try:
+        claims = await verify_external_token(token)
+    except AuthConfigurationError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    if settings.require_email_verification and not claims.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required before accessing patient data. Check your inbox.",
+        )
+
+    return await get_or_create_user_from_supabase(db, claims)
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     db: AsyncSession = Depends(get_db),
@@ -27,30 +57,20 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    if settings.auth_provider != "local":
-        # Phase 3 integration point -- see app/core/auth_providers.py. Not implemented
-        # yet, so this always raises 501 rather than silently falling back to local
-        # auth or pretending a token verified.
-        try:
-            await verify_external_token(credentials.credentials)
-        except AuthConfigurationError as exc:
-            raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
+    if settings.auth_provider == "supabase":
+        return await _user_from_supabase_token(credentials.credentials, db)
 
-    try:
-        subject = decode_token(credentials.credentials, expected_type="access")
-    except InvalidTokenError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    return await _user_from_local_token(credentials.credentials, db)
 
-    try:
-        user_id = uuid.UUID(subject)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token subject") from exc
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
-    return user
+async def get_verified_user(current_user: User = Depends(get_current_user)) -> User:
+    """Require a verified email before patient-data operations when configured."""
+    if settings.require_email_verification and not current_user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required before accessing patient data.",
+        )
+    return current_user
 
 
 async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:

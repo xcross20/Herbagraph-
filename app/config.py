@@ -22,11 +22,15 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     deidentify_before_llm: bool = True
 
-    # Pluggable auth (Phase 3 infrastructure). Default "local" is the built-in JWT +
-    # bcrypt implementation and is fully functional/tested with no external account.
-    # "clerk"/"firebase" are documented integration points, not implemented yet --
-    # see app/core/auth_providers.py.
+    # Auth provider: "local" (bcrypt JWT) or "supabase" (Supabase Auth JWT).
     auth_provider: str = "local"
+    require_email_verification: bool = False
+    allow_guest_auth: bool = True
+    # Supabase — set all three when AUTH_PROVIDER=supabase
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_jwt_secret: str = ""
+    # Legacy stubs (not implemented)
     clerk_secret_key: str = ""
     firebase_project_id: str = ""
     # Comma-separated admin emails allowed to access /admin/validation dashboard APIs.

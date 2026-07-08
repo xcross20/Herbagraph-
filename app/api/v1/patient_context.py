@@ -1,12 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_verified_user, get_db
 from app.models.patient import Patient
+from app.models.enums import AuditAction
 from app.models.patient_context import PatientContext
+from app.services.audit import record_audit_event
 from app.models.user import User
 from app.schemas.patient_context import PatientContextCreate, PatientContextRead, PatientContextUpdate
 
@@ -26,7 +28,7 @@ async def _get_owned_patient(patient_id: uuid.UUID, current_user: User, db: Asyn
 @router.get("/{patient_id}/context", response_model=list[PatientContextRead])
 async def list_patient_context(
     patient_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[PatientContext]:
     await _get_owned_patient(patient_id, current_user, db)
@@ -42,12 +44,24 @@ async def list_patient_context(
 async def create_patient_context(
     patient_id: uuid.UUID,
     payload: PatientContextCreate,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> PatientContext:
     await _get_owned_patient(patient_id, current_user, db)
     item = PatientContext(patient_id=patient_id, **payload.model_dump())
     db.add(item)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action=AuditAction.CONTEXT_ADDED,
+        summary=f"Added {payload.context_type.value}: {payload.name}",
+        user=current_user,
+        patient_id=patient_id,
+        resource_type="patient_context",
+        resource_id=str(item.id),
+        request=request,
+    )
     await db.commit()
     await db.refresh(item)
     return item
@@ -58,7 +72,7 @@ async def update_patient_context(
     patient_id: uuid.UUID,
     context_id: uuid.UUID,
     payload: PatientContextUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> PatientContext:
     await _get_owned_patient(patient_id, current_user, db)
@@ -81,7 +95,7 @@ async def update_patient_context(
 async def delete_patient_context(
     patient_id: uuid.UUID,
     context_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await _get_owned_patient(patient_id, current_user, db)

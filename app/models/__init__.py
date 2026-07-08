@@ -1,4 +1,5 @@
 from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport, IntegratedBiomarkerResult
+from app.models.audit import AuditEvent
 from app.models.biomarker import Biomarker
 from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
@@ -17,6 +18,7 @@ from app.models.safety import DrugInteraction, SafetyFlag
 from app.models.user import HealthProfile, User
 
 __all__ = [
+    "AuditEvent",
     "AnalysisSession",
     "AnalysisSessionLabReport",
     "IntegratedBiomarkerResult",

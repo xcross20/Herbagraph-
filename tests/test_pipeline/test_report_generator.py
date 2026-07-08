@@ -615,7 +615,8 @@ def test_biomarker_interpretations_empty_when_all_normal():
 
 def test_disclaimer_mentions_discussion_not_replacement():
     assert "discussion" in DISCLAIMER.lower()
-    assert "not to replace" in DISCLAIMER.lower()
+    assert "does not diagnose disease" in DISCLAIMER.lower()
+    assert "replace licensed medical judgment" in DISCLAIMER.lower()
 
 
 def test_generate_report_includes_biological_systems():

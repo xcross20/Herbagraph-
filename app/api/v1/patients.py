@@ -1,11 +1,13 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_verified_user, get_db
+from app.models.enums import AuditAction
 from app.models.patient import Patient
+from app.services.audit import record_audit_event
 from app.models.user import User
 from app.schemas.patient import PatientCreate, PatientRead, PatientUpdate
 
@@ -15,7 +17,8 @@ router = APIRouter(prefix="/patients", tags=["patients"])
 @router.post("", response_model=PatientRead, status_code=status.HTTP_201_CREATED)
 async def create_patient(
     payload: PatientCreate,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
     patient = Patient(
@@ -27,6 +30,17 @@ async def create_patient(
         notes=payload.notes,
     )
     db.add(patient)
+    await db.flush()
+    await record_audit_event(
+        db,
+        action=AuditAction.PATIENT_CREATED,
+        summary=f"Patient profile created ({patient.display_name})",
+        user=current_user,
+        patient_id=patient.id,
+        resource_type="patient",
+        resource_id=str(patient.id),
+        request=request,
+    )
     await db.commit()
     await db.refresh(patient)
     return patient
@@ -34,7 +48,7 @@ async def create_patient(
 
 @router.get("", response_model=list[PatientRead])
 async def list_patients(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_verified_user), db: AsyncSession = Depends(get_db)
 ) -> list[Patient]:
     result = await db.execute(
         select(Patient).where(Patient.user_id == current_user.id).order_by(Patient.created_at.desc())
@@ -45,7 +59,7 @@ async def list_patients(
 @router.get("/{patient_id}", response_model=PatientRead)
 async def get_patient(
     patient_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
     result = await db.execute(
@@ -61,7 +75,7 @@ async def get_patient(
 async def update_patient(
     patient_id: uuid.UUID,
     payload: PatientUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
     result = await db.execute(
@@ -80,7 +94,7 @@ async def update_patient(
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_patient(
     patient_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     result = await db.execute(

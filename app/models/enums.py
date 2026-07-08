@@ -27,6 +27,25 @@ class PatientContextType(str, enum.Enum):
     NOTE = "note"
 
 
+class AuditAction(str, enum.Enum):
+    USER_REGISTERED = "user_registered"
+    USER_LOGIN = "user_login"
+    USER_SYNC = "user_sync"
+    PATIENT_CREATED = "patient_created"
+    PATIENT_UPDATED = "patient_updated"
+    LAB_UPLOADED = "lab_uploaded"
+    LAB_PARSED = "lab_parsed"
+    LAB_PARSE_FAILED = "lab_parse_failed"
+    BIOMARKER_CORRECTED = "biomarker_corrected"
+    ANALYSIS_STARTED = "analysis_started"
+    ANALYSIS_COMPLETED = "analysis_completed"
+    ANALYSIS_FAILED = "analysis_failed"
+    REPORT_GENERATED = "report_generated"
+    REPORT_VIEWED = "report_viewed"
+    REPORT_DOWNLOADED = "report_downloaded"
+    CONTEXT_ADDED = "context_added"
+
+
 class PatientContextSource(str, enum.Enum):
     USER = "user"
     IMPORT = "import"

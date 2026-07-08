@@ -10,7 +10,8 @@ from sqlalchemy import select
 
 from app import database
 from app.core.file_storage import load_lab_file
-from app.models.enums import LabProcessingStage, LabReportStatus
+from app.models.enums import AuditAction, LabProcessingStage, LabReportStatus
+from app.services.audit import record_audit_event_sync
 from app.models.lab import LabReport, LabResult
 from app.models.user import HealthProfile
 from app.pipeline.biomarker_normalizer import canonical_name_for_persist, normalize_lab_results
@@ -86,6 +87,16 @@ def process_lab_report(lab_report_id: str) -> dict:
                 )
             lab_report.status = LabReportStatus.COMPLETE
             lab_report.processing_stage = LabProcessingStage.COMPLETE
+            record_audit_event_sync(
+                session,
+                action=AuditAction.LAB_PARSED,
+                summary=f"Parser extracted {len(normalized)} biomarkers from {lab_report.original_filename}",
+                user_id=lab_report.user_id,
+                patient_id=lab_report.patient_id,
+                resource_type="lab_report",
+                resource_id=str(lab_report.id),
+                detail={"biomarker_count": len(normalized), "filename": lab_report.original_filename},
+            )
             session.commit()
             return {"status": "complete", "lab_report_id": lab_report_id, "biomarker_count": len(normalized)}
         except Exception as exc:  # noqa: BLE001 - persist any processing failure onto the report
@@ -93,6 +104,16 @@ def process_lab_report(lab_report_id: str) -> dict:
             lab_report.status = LabReportStatus.FAILED
             lab_report.processing_stage = LabProcessingStage.FAILED
             lab_report.error_message = str(exc)
+            record_audit_event_sync(
+                session,
+                action=AuditAction.LAB_PARSE_FAILED,
+                summary=f"Lab parse failed for {lab_report.original_filename}",
+                user_id=lab_report.user_id,
+                patient_id=lab_report.patient_id,
+                resource_type="lab_report",
+                resource_id=str(lab_report.id),
+                detail={"error": str(exc)},
+            )
             session.commit()
             return {"status": "failed", "error": str(exc)}
     finally:

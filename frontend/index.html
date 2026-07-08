@@ -402,6 +402,7 @@
 </div>
 </div>
 
+<script src="/js/herbagraph-auth.js"></script>
 <script>
 const API = "";
 const POLL_INTERVAL_MS = 2000;
@@ -577,59 +578,18 @@ async function waitForAnalysisSessionComplete(sessionId) {
 }
 
 async function refreshAccessToken() {
-  if (!window.hgRefreshToken) throw new Error("Session expired. Reload the page to start again.");
-  const resp = await fetch(API + "/api/v1/auth/refresh", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: window.hgRefreshToken }),
-  });
-  if (!resp.ok) throw new Error("Session expired. Reload the page to start again.");
-  const tokens = await resp.json();
-  window.hgToken = tokens.access_token;
-  window.hgRefreshToken = tokens.refresh_token;
-  localStorage.setItem("hg_tokens", JSON.stringify({
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-  }));
+  await window.HerbaGraphAuth.refreshTokens();
 }
 
 async function ensureAuth() {
-  let creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
-  if (!creds) {
-    const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
-    const password = `Guest${Math.random().toString(36).slice(2)}A1`;
-    creds = { email, password };
-    await apiWithoutAuth("/api/v1/auth/register", "POST", creds);
-    localStorage.setItem("hg_creds", JSON.stringify(creds));
+  const Auth = window.HerbaGraphAuth;
+  const cfg = await Auth.loadConfig();
+  if (await Auth.ensureSession()) return;
+  if (!cfg.allow_guest_auth) {
+    window.location.href = "/app.html#login";
+    throw new Error("Sign in required");
   }
-
-  const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
-  if (stored?.access_token && stored?.refresh_token) {
-    window.hgToken = stored.access_token;
-    window.hgRefreshToken = stored.refresh_token;
-    return;
-  }
-
-  const login = await apiWithoutAuth("/api/v1/auth/login", "POST", creds);
-  window.hgToken = login.access_token;
-  window.hgRefreshToken = login.refresh_token;
-  localStorage.setItem("hg_tokens", JSON.stringify({
-    access_token: login.access_token,
-    refresh_token: login.refresh_token,
-  }));
-}
-
-async function apiWithoutAuth(path, method, body) {
-  const resp = await fetch(API + path, {
-    method: method || "GET",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`${method || "GET"} ${path} failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
+  await Auth.continueAsGuest();
 }
 
 function humanizeError(msg) {
@@ -2049,6 +2009,12 @@ function printHerbaGraphReport(mode) {
   };
   window.addEventListener("afterprint", cleanup);
   trackValidationEvent("downloaded_report", "report", { print_mode: mode });
+  if (window.currentReportId && window.hgToken) {
+    fetch(`${API}/api/v1/audit/report-downloaded/${window.currentReportId}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${window.hgToken}` },
+    }).catch(() => {});
+  }
   window.print();
   setTimeout(cleanup, 1500);
 }

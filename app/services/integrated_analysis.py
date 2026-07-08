@@ -12,7 +12,8 @@ from sqlalchemy import delete, select
 
 from app import database
 from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport, IntegratedBiomarkerResult
-from app.models.enums import AnalysisSessionStatus, LabReportStatus, ReportGenerationStage
+from app.models.enums import AnalysisSessionStatus, AuditAction, LabReportStatus, ReportGenerationStage
+from app.services.audit import record_audit_event_sync
 from app.models.lab import LabReport
 from app.models.user import HealthProfile
 from app.models.enums import LabResultStatus
@@ -262,6 +263,20 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
         analysis_session.latest_report_id = report.id
         analysis_session.report_confidence = report.overall_confidence
         analysis_session.analysis_date = datetime.now(timezone.utc)
+        record_audit_event_sync(
+            session,
+            action=AuditAction.ANALYSIS_COMPLETED,
+            summary=f"Integrated analysis completed ({analysis_session.title})",
+            user_id=analysis_session.user_id,
+            patient_id=patient_id,
+            resource_type="analysis_session",
+            resource_id=str(analysis_session.id),
+            detail={
+                "report_id": str(report.id),
+                "lab_count": len(lab_report_ids),
+                "confidence": report.overall_confidence,
+            },
+        )
         _set_session_status(session, analysis_session, AnalysisSessionStatus.COMPLETE)
         return {
             "status": "complete",

@@ -1,11 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
-from app.models.enums import EVIDENCE_TIER_LABELS, LabReportStatus
+from app.api.deps import get_current_user, get_verified_user, get_db
+from app.models.enums import AuditAction, EVIDENCE_TIER_LABELS, LabReportStatus
 from app.models.feedback import Feedback
 from app.models.lab import LabReport
 from app.models.enums import ReportGenerationStage
@@ -13,6 +13,7 @@ from app.models.report import RecommendationReport
 from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
 from app.schemas.report import RecommendationReportRead, RecommendationReportSummary, ReportGenerationResponse
+from app.services.audit import record_audit_event
 from app.workers.tasks import generate_recommendation_report_task
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -35,7 +36,8 @@ async def _get_owned_lab_report(lab_report_id: uuid.UUID, current_user: User, db
 )
 async def generate_recommendation_report(
     lab_report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> ReportGenerationResponse:
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
@@ -69,6 +71,18 @@ async def generate_recommendation_report(
 
     lab_report.report_stage = ReportGenerationStage.QUEUED
     lab_report.report_error_message = None
+    await db.commit()
+
+    await record_audit_event(
+        db,
+        action=AuditAction.ANALYSIS_STARTED,
+        summary=f"Report generation started for lab {lab_report.original_filename}",
+        user=current_user,
+        patient_id=lab_report.patient_id,
+        resource_type="lab_report",
+        resource_id=str(lab_report.id),
+        request=request,
+    )
     await db.commit()
 
     task = generate_recommendation_report_task.delay(str(lab_report.id), str(current_user.id))
@@ -327,11 +341,22 @@ async def _get_owned_report(report_id: uuid.UUID, current_user: User, db: AsyncS
 @router.get("/{report_id}", response_model=RecommendationReportRead)
 async def get_report(
     report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> RecommendationReportRead:
     report = await _get_owned_report(report_id, current_user, db)
     await db.refresh(report, attribute_names=["recommendations", "citations"])
+    await record_audit_event(
+        db,
+        action=AuditAction.REPORT_VIEWED,
+        summary=f"Report viewed ({report_id})",
+        user=current_user,
+        resource_type="report",
+        resource_id=str(report_id),
+        request=request,
+    )
+    await db.commit()
     return _to_report_read(report)
 
 

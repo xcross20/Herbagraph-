@@ -477,4 +477,5 @@ async def test_disclaimer_supports_discussion_not_replacement(authed_client, mon
 
     resp = await _generate_and_fetch_report(authed_client, lab_report_id)
     disclaimer = resp.json()["disclaimer"].lower()
-    assert "not to replace" in disclaimer
+    assert "does not diagnose disease" in disclaimer
+    assert "replace licensed medical judgment" in disclaimer

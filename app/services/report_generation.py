@@ -8,7 +8,8 @@ import uuid
 from sqlalchemy import select
 
 from app import database
-from app.models.enums import LabReportStatus, ReportGenerationStage
+from app.models.enums import AuditAction, LabReportStatus, ReportGenerationStage
+from app.services.audit import record_audit_event_sync
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile
@@ -193,6 +194,16 @@ async def _run_pipeline_stages(
     lab_report.latest_report_id = report.id
     lab_report.report_stage = ReportGenerationStage.COMPLETE
     lab_report.report_error_message = None
+    record_audit_event_sync(
+        session,
+        action=AuditAction.REPORT_GENERATED,
+        summary=f"Report generated (confidence {report.overall_confidence:.0%})",
+        user_id=lab_report.user_id,
+        patient_id=patient_id or lab_report.patient_id,
+        resource_type="report",
+        resource_id=str(report.id),
+        detail={"overall_confidence": report.overall_confidence, "lab_report_id": str(lab_report.id)},
+    )
     session.commit()
     return report
 

@@ -1,17 +1,19 @@
 import pathlib
 import uuid
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_verified_user, get_db
 from app.config import settings
 from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, save_lab_file
 from app.models.enums import LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
 from app.models.patient import Patient
+from app.models.enums import AuditAction
 from app.models.user import User
+from app.services.audit import record_audit_event
 from app.schemas.lab import LabReportRead, LabReportSummary, LabUploadResponse
 from app.workers.tasks import process_lab_report_task
 
@@ -21,8 +23,9 @@ router = APIRouter(prefix="/labs", tags=["labs"])
 @router.post("/upload", response_model=LabUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_lab_report(
     file: UploadFile,
+    request: Request,
     patient_id: uuid.UUID | None = Form(default=None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabUploadResponse:
     """`patient_id` is optional and only used in clinic mode, when a clinician User
@@ -62,6 +65,17 @@ async def upload_lab_report(
     db.add(lab_report)
     await db.flush()  # assign lab_report.id before persisting the encrypted file to disk
     lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
+    await record_audit_event(
+        db,
+        action=AuditAction.LAB_UPLOADED,
+        summary=f"Uploaded {lab_report.original_filename}",
+        user=current_user,
+        patient_id=patient_id,
+        resource_type="lab_report",
+        resource_id=str(lab_report.id),
+        detail={"filename": lab_report.original_filename, "size_bytes": lab_report.file_size_bytes},
+        request=request,
+    )
     await db.commit()
     await db.refresh(lab_report)
 
@@ -78,7 +92,7 @@ async def upload_lab_report(
 @router.get("", response_model=list[LabReportSummary])
 async def list_lab_reports(
     patient_id: uuid.UUID | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[LabReport]:
     query = select(LabReport).where(LabReport.user_id == current_user.id)
@@ -101,7 +115,7 @@ async def _get_owned_lab_report(lab_report_id: uuid.UUID, current_user: User, db
 @router.get("/{lab_report_id}", response_model=LabReportRead)
 async def get_lab_report(
     lab_report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> LabReport:
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
@@ -112,7 +126,7 @@ async def get_lab_report(
 @router.delete("/{lab_report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lab_report(
     lab_report_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)

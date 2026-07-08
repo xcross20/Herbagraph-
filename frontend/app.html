@@ -64,16 +64,19 @@
   <button type="button" id="logout-btn">Sign out</button>
 </nav>
 <main class="shell" id="app-main"></main>
+<script src="/js/herbagraph-auth.js"></script>
 <script>
 const API = window.location.origin;
+const Auth = window.HerbaGraphAuth;
 let currentUser = null;
+let authConfig = null;
 
 async function api(path, method = "GET", body) {
   const headers = { "Content-Type": "application/json" };
   if (window.hgToken) headers.Authorization = `Bearer ${window.hgToken}`;
   let resp = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   if (resp.status === 401 && window.hgRefreshToken) {
-    await refreshTokens();
+    await Auth.refreshTokens();
     headers.Authorization = `Bearer ${window.hgToken}`;
     resp = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   }
@@ -85,50 +88,14 @@ async function api(path, method = "GET", body) {
   return resp.json();
 }
 
-async function apiWithoutAuth(path, method, body) {
-  const resp = await fetch(API + path, {
-    method: method || "GET",
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!resp.ok) throw new Error(await resp.text());
-  return resp.json();
-}
-
-async function refreshTokens() {
-  const resp = await fetch(API + "/api/v1/auth/refresh", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: window.hgRefreshToken }),
-  });
-  if (!resp.ok) throw new Error("Session expired");
-  const tokens = await resp.json();
-  window.hgToken = tokens.access_token;
-  window.hgRefreshToken = tokens.refresh_token;
-  localStorage.setItem("hg_tokens", JSON.stringify(tokens));
-}
-
 async function ensureSession() {
-  const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
-  const creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
-  if (!creds) return false;
-  if (stored?.access_token && stored?.refresh_token) {
-    window.hgToken = stored.access_token;
-    window.hgRefreshToken = stored.refresh_token;
-  } else {
-    const login = await apiWithoutAuth("/api/v1/auth/login", "POST", creds);
-    window.hgToken = login.access_token;
-    window.hgRefreshToken = login.refresh_token;
-    localStorage.setItem("hg_tokens", JSON.stringify(login));
-  }
+  if (!(await Auth.ensureSession())) return false;
   currentUser = await api("/api/v1/auth/me");
   return true;
 }
 
-function signOut() {
-  localStorage.removeItem("hg_tokens");
-  localStorage.removeItem("hg_creds");
-  window.hgToken = null;
+async function signOut() {
+  await Auth.signOut();
   currentUser = null;
   location.hash = "#login";
   render();
@@ -162,38 +129,63 @@ function renderAuth() {
         <div class="actions">
           <button class="primary" id="login-btn">Sign in</button>
           <button id="signup-btn">Create account</button>
+          <button id="reset-btn" class="hidden">Reset password</button>
           <button id="guest-btn">Continue as guest</button>
         </div>
+        <p id="auth-hint" class="muted" style="margin-top:0.75rem"></p>
       </div>
     </div>`;
+  authConfig = await Auth.loadConfig();
+  const isSupabase = authConfig.auth_provider === "supabase";
+  document.getElementById("guest-btn").classList.toggle("hidden", !authConfig.allow_guest_auth);
+  document.getElementById("reset-btn").classList.toggle("hidden", !isSupabase);
+  document.getElementById("auth-hint").textContent = isSupabase
+    ? "Secure sign-in via Supabase. Email verification may be required before uploading patient data."
+    : "Local sandbox auth. For production, set AUTH_PROVIDER=supabase.";
   let signupMode = false;
   document.getElementById("signup-btn").onclick = () => {
     signupMode = !signupMode;
     document.getElementById("name-row").classList.toggle("hidden", !signupMode);
     document.getElementById("signup-btn").textContent = signupMode ? "Back to sign in" : "Create account";
+    document.getElementById("login-btn").textContent = signupMode ? "Create account" : "Sign in";
   };
   document.getElementById("login-btn").onclick = () => doAuth(signupMode);
+  document.getElementById("reset-btn").onclick = async () => {
+    const err = document.getElementById("auth-error");
+    err.textContent = "";
+    try {
+      const email = document.getElementById("auth-email").value.trim();
+      await Auth.resetPassword(email);
+      err.textContent = "Password reset email sent.";
+      err.className = "muted";
+    } catch (e) {
+      err.textContent = e.message;
+      err.className = "error";
+    }
+  };
   document.getElementById("guest-btn").onclick = async () => {
-    const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
-    const password = `Guest${Math.random().toString(36).slice(2)}A1`;
-    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
-    localStorage.removeItem("hg_tokens");
-    await doAuth(true, { email, password, full_name: "Guest" });
+    const err = document.getElementById("auth-error");
+    try {
+      await Auth.continueAsGuest();
+      await ensureSession();
+      location.hash = "#dashboard";
+      render();
+    } catch (e) {
+      err.textContent = e.message;
+    }
   };
 }
 
-async function doAuth(isSignup, preset) {
+async function doAuth(isSignup) {
   const err = document.getElementById("auth-error");
   err.textContent = "";
+  err.className = "error";
   try {
-    const email = preset?.email || document.getElementById("auth-email").value.trim();
-    const password = preset?.password || document.getElementById("auth-password").value;
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value;
     const full_name = document.getElementById("auth-name")?.value.trim() || null;
-    if (isSignup) {
-      await apiWithoutAuth("/api/v1/auth/register", "POST", { email, password, full_name });
-    }
-    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
-    localStorage.removeItem("hg_tokens");
+    if (isSignup) await Auth.signUp(email, password, full_name);
+    else await Auth.signInWithPassword(email, password);
     await ensureSession();
     location.hash = "#dashboard";
     render();
