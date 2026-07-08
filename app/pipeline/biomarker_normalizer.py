@@ -231,3 +231,29 @@ def normalized_results_from_lab_report(
         normalized_result_from_lab_result(r, custom_biomarkers=custom_biomarkers)
         for r in lab_report.lab_results
     ]
+
+
+def refresh_persisted_lab_results(
+    lab_results,
+    custom_biomarkers: list[dict] | None = None,
+) -> int:
+    """Re-resolve stored lab rows to catalog names (alias rules may have changed since upload)."""
+    updated = 0
+    for row in lab_results:
+        normalized = normalized_result_from_lab_result(row, custom_biomarkers=custom_biomarkers)
+        changed = False
+        if normalized.biomarker_name != row.biomarker_name:
+            row.biomarker_name = normalized.biomarker_name
+            changed = True
+        if normalized.status != row.status:
+            row.status = normalized.status
+            changed = True
+        if normalized.reference_range_low != row.reference_range_low:
+            row.reference_range_low = normalized.reference_range_low
+            changed = True
+        if normalized.reference_range_high != row.reference_range_high:
+            row.reference_range_high = normalized.reference_range_high
+            changed = True
+        if changed:
+            updated += 1
+    return updated

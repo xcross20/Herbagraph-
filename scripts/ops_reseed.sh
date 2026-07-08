@@ -21,4 +21,11 @@ fi
 echo "[2/2] Reseeding PostgreSQL knowledge graph via Docker..."
 docker compose exec -T api python scripts/reseed_db.py
 
+if docker compose ps --status running --services 2>/dev/null | grep -qx worker; then
+    echo "[3/3] Restarting api+worker so Celery picks up pipeline/alias code changes..."
+    docker compose restart api worker
+else
+    echo "[3/3] SKIP worker restart (worker not running)."
+fi
+
 echo "=== Reseed complete ==="

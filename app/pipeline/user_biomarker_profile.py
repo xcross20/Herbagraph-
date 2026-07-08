@@ -20,7 +20,12 @@ _PORTAL_COMMA_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 # Quest/LabCorp PDF exports sometimes bleed a Final/flag column into the analyte name.
-_LEADING_COLUMN_PREFIX_RE = re.compile(r"^[FHL*]\s+", re.IGNORECASE)
+_LEADING_COLUMN_PREFIX_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^[FHL*]\s+", re.IGNORECASE),
+    re.compile(r"^FINAL\s+", re.IGNORECASE),
+    # OCR may concatenate the column marker: FHDL, FLDL (no space).
+    re.compile(r"^F(?=(?:HDL|LDL)\b)", re.IGNORECASE),
+)
 _PAREN_RE = re.compile(r"^\(([^)]+)\)$")
 _KNOWN_ABBREVS = frozenset({
     "mch", "mcv", "rdw", "rbc", "wbc", "mchc", "hgb", "hb", "hct", "plt", "anc", "alc",
@@ -89,14 +94,31 @@ def _strip_portal_suffixes(raw_name: str) -> str:
     return cleaned
 
 
+def _strip_one_column_prefix(name: str) -> str | None:
+    """Remove one leading column/flag prefix; return None if no prefix matched."""
+    for pattern in _LEADING_COLUMN_PREFIX_PATTERNS:
+        if pattern.match(name):
+            stripped = pattern.sub("", name, count=1).strip()
+            if stripped and stripped != name:
+                return stripped
+    return None
+
+
 def _leading_column_prefix_variants(raw_name: str) -> list[str]:
-    """Return name variants with Quest/LabCorp PDF column prefixes (F/H/L/*) removed."""
+    """Return name variants with Quest/LabCorp PDF column prefixes (F/H/L/*, FINAL, FHDL) removed."""
     stripped = _strip_portal_suffixes(raw_name)
-    match = _LEADING_COLUMN_PREFIX_RE.match(stripped)
-    if not match:
-        return []
-    without_prefix = _LEADING_COLUMN_PREFIX_RE.sub("", stripped, count=1).strip()
-    return [without_prefix] if without_prefix and without_prefix != stripped else []
+    variants: list[str] = []
+    seen: set[str] = set()
+    current = stripped
+    for _ in range(3):
+        without_prefix = _strip_one_column_prefix(current)
+        if not without_prefix:
+            break
+        if without_prefix not in seen:
+            seen.add(without_prefix)
+            variants.append(without_prefix)
+        current = without_prefix
+    return variants
 
 
 def clean_parsed_test_name(raw_name: str) -> str:
@@ -183,6 +205,10 @@ _SUPPLEMENTAL_ALIASES: dict[str, str] = {
     "f ldl chol calc": "LDL",
     "h hdl": "HDL",
     "l ldl cholesterol calc": "LDL",
+    "fhdl": "HDL",
+    "fldl": "LDL",
+    "final hdl": "HDL",
+    "final ldl cholesterol calc": "LDL",
 }
 
 

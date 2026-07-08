@@ -12,7 +12,7 @@ from app.models.enums import LabReportStatus, ReportGenerationStage
 from app.models.lab import LabReport
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.user import HealthProfile
-from app.pipeline.biomarker_normalizer import normalized_results_from_lab_report
+from app.pipeline.biomarker_normalizer import normalized_results_from_lab_report, refresh_persisted_lab_results
 from app.pipeline.evidence_retriever import build_intervention_pathway_map, retrieve_evidence
 from app.pipeline.test_type_router import route_recommendation_trees
 from app.pipeline.llm_reasoner import generate_reasoning
@@ -53,6 +53,8 @@ async def _run_pipeline_stages(
     if profile is not None:
         custom_biomarkers = list(profile.custom_biomarkers or [])
 
+    refresh_persisted_lab_results(lab_report.lab_results, custom_biomarkers=custom_biomarkers)
+    session.commit()
     normalized = normalized_results_from_lab_report(lab_report, custom_biomarkers=custom_biomarkers)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.PATHWAY_MAPPING)

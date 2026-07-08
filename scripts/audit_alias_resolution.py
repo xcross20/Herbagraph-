@@ -57,6 +57,8 @@ _CURATED_LAB_PATTERNS: list[tuple[str, str]] = [
     ("LDL", "LDL Cholesterol Calc"),
     ("HDL", "F HDL"),
     ("LDL", "F LDL Cholesterol Calc"),
+    ("HDL", "FHDL"),
+    ("HDL", "FINAL HDL"),
 ]
 
 
