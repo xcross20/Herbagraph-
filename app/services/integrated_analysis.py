@@ -20,6 +20,8 @@ from app.pipeline.biomarker_normalizer import classify_lab_value, get_reference_
 from app.pipeline.integrated_merge import infer_panel_label, merge_lab_reports
 from app.pipeline.trend_context import build_trend_context
 from app.schemas.pipeline import NormalizedLabResult
+from app.models.enums import AnalysisType
+from app.services.patient_memory import build_patient_memory
 from app.services.report_generation import _health_profile_dict, _run_pipeline_stages
 
 _PARSE_POLL_SECONDS = 2
@@ -233,6 +235,19 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
             }
 
         health_profile = _health_profile_dict(profile)
+        patient_id = analysis_session.patient_id or anchor.patient_id
+        if analysis_session.analysis_type == AnalysisType.LONGITUDINAL_COMPARISON and patient_id:
+            memory = build_patient_memory(session, patient_id, analysis_session.user_id)
+            prior_findings = memory.get("patient_context", {}).get("prior_findings") or []
+            if prior_findings:
+                lab_trends = {
+                    **lab_trends,
+                    "longitudinal_note": (
+                        "Compared to prior analyses for this patient. "
+                        + "; ".join(prior_findings[:3])
+                    ),
+                }
+
         report = await _run_pipeline_stages(
             anchor,
             health_profile,
@@ -241,9 +256,11 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
             integrated_analysis=integrated_meta,
             analysis_session_id=analysis_session.id,
             lab_trends_override=lab_trends,
+            patient_id=patient_id,
         )
 
         analysis_session.latest_report_id = report.id
+        analysis_session.report_confidence = report.overall_confidence
         analysis_session.analysis_date = datetime.now(timezone.utc)
         _set_session_status(session, analysis_session, AnalysisSessionStatus.COMPLETE)
         return {

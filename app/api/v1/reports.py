@@ -299,13 +299,16 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
 
 @router.get("", response_model=list[RecommendationReportSummary])
 async def list_reports(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    patient_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[RecommendationReport]:
-    result = await db.execute(
-        select(RecommendationReport)
-        .where(RecommendationReport.user_id == current_user.id)
-        .order_by(RecommendationReport.created_at.desc())
-    )
+    query = select(RecommendationReport).where(RecommendationReport.user_id == current_user.id)
+    if patient_id is not None:
+        query = query.join(LabReport, RecommendationReport.lab_report_id == LabReport.id).where(
+            LabReport.patient_id == patient_id
+        )
+    result = await db.execute(query.order_by(RecommendationReport.created_at.desc()))
     return list(result.scalars().all())
 
 

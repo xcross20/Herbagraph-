@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HerbaGraph Workspace</title>
+<style>
+  :root {
+    --bg: #f5f5f7; --surface: #fff; --text: #1d1d1f; --muted: #6e6e73;
+    --accent: #0071e3; --accent-soft: #e8f2ff; --border: #d2d2d7;
+    --success: #1a7f4b; --danger: #d70015; --radius: 12px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; margin: 0; background: var(--bg); color: var(--text); line-height: 1.45; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .top-nav { display: flex; align-items: center; gap: 1.25rem; padding: 0.85rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+  .brand { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+  .nav-links { display: flex; gap: 0.5rem; flex: 1; }
+  .nav-links a { padding: 0.4rem 0.75rem; border-radius: 8px; color: var(--muted); font-size: 0.9rem; }
+  .nav-links a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .nav-user { font-size: 0.85rem; color: var(--muted); }
+  .shell { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+  h1 { margin: 0 0 0.25rem; font-size: 1.65rem; font-weight: 700; }
+  h2 { margin: 0 0 0.75rem; font-size: 1.15rem; font-weight: 650; }
+  .muted { color: var(--muted); font-size: 0.9rem; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 0.85rem; box-shadow: var(--shadow); }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.85rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.65rem; }
+  button, .btn { font: inherit; padding: 0.55rem 1rem; border-radius: 980px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; display: inline-block; }
+  button.primary, .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  input, select, textarea { font: inherit; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; width: 100%; }
+  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.25rem; }
+  .form-row { margin-bottom: 0.75rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  th, td { border-bottom: 1px solid #ececf0; padding: 0.55rem 0.6rem; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
+  .auth-wrap { max-width: 420px; margin: 4rem auto; }
+  .patient-layout { display: flex; gap: 1.25rem; align-items: flex-start; }
+  .patient-sidebar { width: 200px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0; position: sticky; top: 4.5rem; }
+  .patient-sidebar a { display: block; padding: 0.5rem 1rem; color: var(--muted); font-size: 0.88rem; }
+  .patient-sidebar a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  .patient-main { flex: 1; min-width: 0; }
+  .pill { display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 6px; background: #f0f0f2; }
+  .pill.complete { background: #e8f5ee; color: var(--success); }
+  .pill.failed { background: #ffecec; color: var(--danger); }
+  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+  .error { color: var(--danger); font-size: 0.9rem; }
+  .hidden { display: none !important; }
+  .context-chip { display: inline-block; margin: 0.2rem 0.35rem 0.2rem 0; padding: 0.25rem 0.55rem; background: #f5f5f7; border-radius: 6px; font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<nav class="top-nav hidden" id="app-nav">
+  <a class="brand" href="#dashboard">HerbaGraph</a>
+  <div class="nav-links">
+    <a href="#dashboard" data-nav="dashboard">Dashboard</a>
+    <a href="#patients" data-nav="patients">Patients</a>
+    <a href="#upload" data-nav="upload">Upload</a>
+    <a href="#settings" data-nav="settings">Settings</a>
+  </div>
+  <span class="nav-user" id="nav-user"></span>
+  <button type="button" id="logout-btn">Sign out</button>
+</nav>
+<main class="shell" id="app-main"></main>
+<script>
+const API = window.location.origin;
+let currentUser = null;
+
+async function api(path, method = "GET", body) {
+  const headers = { "Content-Type": "application/json" };
+  if (window.hgToken) headers.Authorization = `Bearer ${window.hgToken}`;
+  let resp = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (resp.status === 401 && window.hgRefreshToken) {
+    await refreshTokens();
+    headers.Authorization = `Bearer ${window.hgToken}`;
+    resp = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  }
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${method} ${path} (${resp.status}): ${text}`);
+  }
+  if (resp.status === 204) return null;
+  return resp.json();
+}
+
+async function apiWithoutAuth(path, method, body) {
+  const resp = await fetch(API + path, {
+    method: method || "GET",
+    headers: { "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+async function refreshTokens() {
+  const resp = await fetch(API + "/api/v1/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: window.hgRefreshToken }),
+  });
+  if (!resp.ok) throw new Error("Session expired");
+  const tokens = await resp.json();
+  window.hgToken = tokens.access_token;
+  window.hgRefreshToken = tokens.refresh_token;
+  localStorage.setItem("hg_tokens", JSON.stringify(tokens));
+}
+
+async function ensureSession() {
+  const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
+  const creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
+  if (!creds) return false;
+  if (stored?.access_token && stored?.refresh_token) {
+    window.hgToken = stored.access_token;
+    window.hgRefreshToken = stored.refresh_token;
+  } else {
+    const login = await apiWithoutAuth("/api/v1/auth/login", "POST", creds);
+    window.hgToken = login.access_token;
+    window.hgRefreshToken = login.refresh_token;
+    localStorage.setItem("hg_tokens", JSON.stringify(login));
+  }
+  currentUser = await api("/api/v1/auth/me");
+  return true;
+}
+
+function signOut() {
+  localStorage.removeItem("hg_tokens");
+  localStorage.removeItem("hg_creds");
+  window.hgToken = null;
+  currentUser = null;
+  location.hash = "#login";
+  render();
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function fmtConf(n) {
+  if (n == null) return "—";
+  return `${Math.round(n * 100)}%`;
+}
+
+function renderAuth() {
+  document.getElementById("app-nav").classList.add("hidden");
+  document.getElementById("app-main").innerHTML = `
+    <div class="auth-wrap">
+      <div class="card">
+        <h1>HerbaGraph</h1>
+        <p class="muted">Explainable biological reasoning workspace</p>
+        <div id="auth-error" class="error"></div>
+        <div class="form-row"><label>Email</label><input id="auth-email" type="email" autocomplete="email"></div>
+        <div class="form-row"><label>Password</label><input id="auth-password" type="password" autocomplete="current-password"></div>
+        <div class="form-row hidden" id="name-row"><label>Full name (optional)</label><input id="auth-name" type="text"></div>
+        <div class="actions">
+          <button class="primary" id="login-btn">Sign in</button>
+          <button id="signup-btn">Create account</button>
+          <button id="guest-btn">Continue as guest</button>
+        </div>
+      </div>
+    </div>`;
+  let signupMode = false;
+  document.getElementById("signup-btn").onclick = () => {
+    signupMode = !signupMode;
+    document.getElementById("name-row").classList.toggle("hidden", !signupMode);
+    document.getElementById("signup-btn").textContent = signupMode ? "Back to sign in" : "Create account";
+  };
+  document.getElementById("login-btn").onclick = () => doAuth(signupMode);
+  document.getElementById("guest-btn").onclick = async () => {
+    const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
+    const password = `Guest${Math.random().toString(36).slice(2)}A1`;
+    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
+    localStorage.removeItem("hg_tokens");
+    await doAuth(true, { email, password, full_name: "Guest" });
+  };
+}
+
+async function doAuth(isSignup, preset) {
+  const err = document.getElementById("auth-error");
+  err.textContent = "";
+  try {
+    const email = preset?.email || document.getElementById("auth-email").value.trim();
+    const password = preset?.password || document.getElementById("auth-password").value;
+    const full_name = document.getElementById("auth-name")?.value.trim() || null;
+    if (isSignup) {
+      await apiWithoutAuth("/api/v1/auth/register", "POST", { email, password, full_name });
+    }
+    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
+    localStorage.removeItem("hg_tokens");
+    await ensureSession();
+    location.hash = "#dashboard";
+    render();
+  } catch (e) {
+    err.textContent = e.message;
+  }
+}
+
+async function renderDashboard() {
+  const dash = await api("/api/v1/workspace/dashboard");
+  const patientCards = dash.patients.map(p => `
+    <div class="card">
+      <strong>${esc(p.display_name)}</strong>
+      <p class="muted">${p.lab_report_count} labs · ${p.analysis_session_count} analyses</p>
+      <p class="muted">Latest confidence: ${fmtConf(p.latest_report_confidence)}</p>
+      <div class="actions">
+        <a class="btn" href="#patient/${p.id}">Open profile</a>
+        ${p.latest_report_id ? `<a class="btn primary" href="/index.html?report_id=${p.latest_report_id}">View report</a>` : ""}
+      </div>
+    </div>`).join("");
+  const reportRows = dash.recent_reports.map(r => `
+    <tr>
+      <td>${esc(r.patient_display_name || "—")}</td>
+      <td>${esc(r.title)}</td>
+      <td>${fmtConf(r.overall_confidence)}</td>
+      <td>${fmtDate(r.created_at)}</td>
+      <td><a href="/index.html?report_id=${r.id}">View</a></td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No reports yet</td></tr>`;
+  document.getElementById("app-main").innerHTML = `
+    <h1>Welcome back${dash.user_full_name ? ", " + esc(dash.user_full_name) : ""}</h1>
+    <p class="muted">${esc(dash.user_email)}</p>
+    <div class="actions" style="margin:1rem 0">
+      <a class="btn primary" href="#upload">Upload lab report</a>
+      <a class="btn" href="#patients">Manage patients</a>
+      <a class="btn" href="#analysis">Run integrated analysis</a>
+    </div>
+    <h2>Patients</h2>
+    <div class="grid-2">${patientCards}</div>
+    <h2 style="margin-top:1.5rem">Recent reports</h2>
+    <div class="card"><table><thead><tr><th>Patient</th><th>Report</th><th>Confidence</th><th>Date</th><th></th></tr></thead><tbody>${reportRows}</tbody></table></div>`;
+}
+
+async function renderPatients() {
+  const patients = await api("/api/v1/patients");
+  const rows = patients.map(p => `
+    <tr>
+      <td><a href="#patient/${p.id}">${esc(p.display_name)}</a></td>
+      <td>${p.age ?? "—"}</td>
+      <td>${esc(p.biological_sex || "—")}</td>
+      <td>${fmtDate(p.created_at)}</td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">No patients yet</td></tr>`;
+  document.getElementById("app-main").innerHTML = `
+    <h1>Patients</h1>
+    <div class="grid-2">
+      <div class="card">
+        <h2>Create patient</h2>
+        <div class="form-row"><label>Display name</label><input id="new-patient-name" value="Patient A"></div>
+        <div class="form-row"><label>Age (optional)</label><input id="new-patient-age" type="number"></div>
+        <div class="form-row"><label>Sex (optional)</label><select id="new-patient-sex"><option value="">—</option><option>female</option><option>male</option></select></div>
+        <button class="primary" id="create-patient-btn">Create patient</button>
+        <p id="patient-create-error" class="error"></p>
+      </div>
+      <div class="card">
+        <h2>All patients</h2>
+        <table><thead><tr><th>Name</th><th>Age</th><th>Sex</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>
+      </div>
+    </div>`;
+  document.getElementById("create-patient-btn").onclick = async () => {
+    try {
+      const payload = {
+        display_name: document.getElementById("new-patient-name").value.trim() || "Patient",
+        age: document.getElementById("new-patient-age").value ? Number(document.getElementById("new-patient-age").value) : null,
+        biological_sex: document.getElementById("new-patient-sex").value || null,
+      };
+      const p = await api("/api/v1/patients", "POST", payload);
+      location.hash = `#patient/${p.id}`;
+      render();
+    } catch (e) {
+      document.getElementById("patient-create-error").textContent = e.message;
+    }
+  };
+}
+
+async function renderPatient(patientId, section = "overview") {
+  const overview = await api(`/api/v1/workspace/patients/${patientId}/overview`);
+  const contextHtml = Object.entries(overview.context_summary || {}).map(([k, items]) =>
+    `<div><strong>${esc(k)}</strong><br>${items.map(i => `<span class="context-chip">${esc(i)}</span>`).join("")}</div>`
+  ).join("") || `<p class="muted">No context items yet. Add medications, supplements, or conditions in Context.</p>`;
+  const labRows = overview.lab_reports.map(l => `
+    <tr>
+      <td>${esc(l.original_filename)}</td>
+      <td><span class="pill ${l.status}">${esc(l.status)}</span></td>
+      <td>${fmtDate(l.created_at)}</td>
+      <td>
+        <a href="#review/${l.id}">Review</a>
+        ${l.latest_report_id ? ` · <a href="/index.html?report_id=${l.latest_report_id}">Report</a>` : ""}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">No lab uploads</td></tr>`;
+  const sessionRows = overview.analysis_sessions.map(s => `
+    <tr>
+      <td>${esc(s.title)}</td>
+      <td>${esc(s.analysis_type)}</td>
+      <td><span class="pill ${s.status}">${esc(s.status)}</span></td>
+      <td>${fmtConf(s.report_confidence)}</td>
+      <td>${s.latest_report_id ? `<a href="/index.html?report_id=${s.latest_report_id}">View</a>` : "—"}</td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No analyses</td></tr>`;
+  const abnormal = overview.recent_abnormal_biomarkers.map(b =>
+    `<span class="context-chip">${esc(b.biomarker_name)} ${b.value} ${esc(b.unit||"")} (${esc(b.status)})</span>`
+  ).join("") || `<span class="muted">None in recent labs</span>`;
+
+  let sectionBody = "";
+  if (section === "overview") {
+    sectionBody = `
+      <div class="card"><h2>Patient overview</h2>
+        <p><strong>Latest confidence:</strong> ${fmtConf(overview.latest_report_confidence)}</p>
+        <p><strong>Top priorities:</strong> ${overview.top_priorities.length ? overview.top_priorities.map(esc).join(" · ") : "Run an analysis to surface priorities"}</p>
+        <p><strong>Recent abnormal biomarkers:</strong><br>${abnormal}</p>
+      </div>`;
+  } else if (section === "labs") {
+    sectionBody = `<div class="card"><h2>Lab timeline</h2><table><thead><tr><th>File</th><th>Status</th><th>Uploaded</th><th></th></tr></thead><tbody>${labRows}</tbody></table></div>`;
+  } else if (section === "analyses") {
+    sectionBody = `<div class="card"><h2>Analysis history</h2><table><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Confidence</th><th></th></tr></thead><tbody>${sessionRows}</tbody></table></div>`;
+  } else if (section === "context") {
+    sectionBody = renderPatientContextForm(patientId, contextHtml);
+  }
+
+  document.getElementById("app-main").innerHTML = `
+    <h1>${esc(overview.display_name)}</h1>
+    <p class="muted">Patient profile · created ${fmtDate(overview.created_at)}</p>
+    <div class="patient-layout">
+      <aside class="patient-sidebar">
+        <a href="#patient/${patientId}" class="${section==="overview"?"active":""}">Overview</a>
+        <a href="#patient/${patientId}/labs" class="${section==="labs"?"active":""}">Lab reports</a>
+        <a href="#patient/${patientId}/analyses" class="${section==="analyses"?"active":""}">Analyses</a>
+        <a href="#patient/${patientId}/context" class="${section==="context"?"active":""}">Context</a>
+        <a href="#upload?patient=${patientId}">Upload labs</a>
+        <a href="#analysis?patient=${patientId}">New analysis</a>
+      </aside>
+      <div class="patient-main">${sectionBody}</div>
+    </div>`;
+}
+
+function renderPatientContextForm(patientId, existingHtml) {
+  return `
+    <div class="card"><h2>Patient context</h2>${existingHtml}</div>
+    <div class="card"><h2>Add context</h2>
+      <div class="grid-3">
+        <div class="form-row"><label>Type</label>
+          <select id="ctx-type">
+            <option value="medication">Medication</option>
+            <option value="supplement">Supplement</option>
+            <option value="condition">Condition</option>
+            <option value="allergy">Allergy</option>
+            <option value="diet_pattern">Diet pattern</option>
+            <option value="goal">Goal</option>
+            <option value="note">Note</option>
+          </select>
+        </div>
+        <div class="form-row"><label>Name</label><input id="ctx-name" placeholder="Metformin"></div>
+        <div class="form-row"><label>Value (optional)</label><input id="ctx-value" placeholder="500mg daily"></div>
+      </div>
+      <button class="primary" id="add-ctx-btn">Add</button>
+      <p id="ctx-error" class="error"></p>
+    </div>`;
+}
+
+async function wirePatientContext(patientId) {
+  const btn = document.getElementById("add-ctx-btn");
+  if (!btn) return;
+  btn.onclick = async () => {
+    try {
+      await api(`/api/v1/patients/${patientId}/context`, "POST", {
+        context_type: document.getElementById("ctx-type").value,
+        name: document.getElementById("ctx-name").value.trim(),
+        value: document.getElementById("ctx-value").value.trim() || null,
+      });
+      render();
+    } catch (e) {
+      document.getElementById("ctx-error").textContent = e.message;
+    }
+  };
+}
+
+async function renderUpload(preselectedPatient) {
+  const patients = await api("/api/v1/patients");
+  const opts = patients.map(p => `<option value="${p.id}" ${p.id===preselectedPatient?"selected":""}>${esc(p.display_name)}</option>`).join("");
+  document.getElementById("app-main").innerHTML = `
+    <h1>Upload lab reports</h1>
+    <p class="muted">Select a patient, upload one or more files, then review parsed biomarkers before analysis.</p>
+    <div class="card">
+      <div class="form-row"><label>Patient</label><select id="upload-patient">${opts}</select></div>
+      <div class="form-row"><label>Lab files</label><input id="upload-files" type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg"></div>
+      <button class="primary" id="upload-btn">Upload &amp; parse</button>
+      <p id="upload-status" class="muted"></p>
+    </div>`;
+  document.getElementById("upload-btn").onclick = async () => {
+    const files = document.getElementById("upload-files").files;
+    const patientId = document.getElementById("upload-patient").value;
+    if (!files.length) return;
+    const status = document.getElementById("upload-status");
+    status.textContent = "Uploading...";
+    try {
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("patient_id", patientId);
+        const resp = await fetch(API + "/api/v1/labs/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${window.hgToken}` },
+          body: fd,
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        const body = await resp.json();
+        status.textContent = `Uploaded ${file.name}. Parsing...`;
+        await pollLab(body.lab_report_id, status);
+      }
+      status.textContent = "Upload complete. Review biomarkers or run analysis.";
+      location.hash = `#patient/${patientId}/labs`;
+      render();
+    } catch (e) {
+      status.textContent = e.message;
+      status.className = "error";
+    }
+  };
+}
+
+async function pollLab(labId, el) {
+  for (let i = 0; i < 120; i++) {
+    const lab = await api(`/api/v1/labs/${labId}`);
+    if (lab.status === "complete") return lab;
+    if (lab.status === "failed") throw new Error(lab.error_message || "Parse failed");
+    el.textContent = `Parsing (${lab.processing_stage || lab.status})...`;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  throw new Error("Parse timed out");
+}
+
+async function renderBiomarkerReview(labId) {
+  const lab = await api(`/api/v1/labs/${labId}`);
+  const rows = (lab.lab_results || []).map(r => `
+    <tr>
+      <td>${esc(r.biomarker_name)}</td>
+      <td>${r.value}</td>
+      <td>${esc(r.unit||"")}</td>
+      <td>${r.reference_range_low ?? "—"} – ${r.reference_range_high ?? "—"}</td>
+      <td>${esc(r.status)}</td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">No biomarkers extracted</td></tr>`;
+  document.getElementById("app-main").innerHTML = `
+    <h1>Biomarker review</h1>
+    <p class="muted">${esc(lab.original_filename)} · ${esc(lab.status)}</p>
+    <div class="card">
+      <p class="muted">Review parsed values before running analysis. Editing values will be supported in a future release.</p>
+      <table><thead><tr><th>Biomarker</th><th>Value</th><th>Unit</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="actions">
+        ${lab.status === "complete" ? `<button class="primary" id="gen-report-btn">Generate single-report analysis</button>` : ""}
+        <a class="btn" href="#analysis">Multi-report analysis</a>
+      </div>
+      <p id="review-status" class="muted"></p>
+    </div>`;
+  const genBtn = document.getElementById("gen-report-btn");
+  if (genBtn) {
+    genBtn.onclick = async () => {
+      const st = document.getElementById("review-status");
+      st.textContent = "Starting analysis...";
+      await api(`/api/v1/reports/generate/${labId}`, "POST");
+      for (let i = 0; i < 180; i++) {
+        const refreshed = await api(`/api/v1/labs/${labId}`);
+        if (refreshed.report_stage === "complete" && refreshed.latest_report_id) {
+          location.href = `/index.html?report_id=${refreshed.latest_report_id}`;
+          return;
+        }
+        if (refreshed.report_stage === "failed") throw new Error(refreshed.report_error_message || "Failed");
+        st.textContent = `Generating (${refreshed.report_stage})...`;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+    };
+  }
+}
+
+async function renderAnalysisBuilder(preselectedPatient) {
+  const patients = await api("/api/v1/patients");
+  const patientId = preselectedPatient || patients[0]?.id;
+  const labs = patientId ? await api(`/api/v1/labs?patient_id=${patientId}`) : [];
+  const checkboxes = labs.filter(l => l.status === "complete").map(l => `
+    <label style="display:block;margin:0.35rem 0">
+      <input type="checkbox" class="analysis-lab" value="${l.id}" checked> ${esc(l.original_filename)}
+    </label>`).join("") || `<p class="muted">Upload at least two parsed lab reports for this patient.</p>`;
+  const opts = patients.map(p => `<option value="${p.id}" ${p.id===patientId?"selected":""}>${esc(p.display_name)}</option>`).join("");
+  document.getElementById("app-main").innerHTML = `
+    <h1>Analysis builder</h1>
+    <p class="muted">Select lab reports to merge into one integrated biological reasoning run.</p>
+    <div class="card">
+      <div class="form-row"><label>Patient</label><select id="analysis-patient">${opts}</select></div>
+      <div class="form-row"><label>Analysis type</label>
+        <select id="analysis-type">
+          <option value="multi_report_snapshot">Current snapshot</option>
+          <option value="longitudinal_comparison">Compare to prior</option>
+          <option value="single_report">Single report</option>
+        </select>
+      </div>
+      <div class="form-row"><label>Select lab reports</label><div id="analysis-lab-list">${checkboxes}</div></div>
+      <button class="primary" id="run-analysis-btn">Run integrated analysis</button>
+      <p id="analysis-status" class="muted"></p>
+    </div>`;
+  document.getElementById("analysis-patient").onchange = () => {
+    location.hash = `#analysis?patient=${document.getElementById("analysis-patient").value}`;
+    render();
+  };
+  document.getElementById("run-analysis-btn").onclick = async () => {
+    const st = document.getElementById("analysis-status");
+    const selected = [...document.querySelectorAll(".analysis-lab:checked")].map(el => el.value);
+    if (selected.length < 2) { st.textContent = "Select at least two lab reports."; return; }
+    st.textContent = "Creating session...";
+    try {
+      const session = await api("/api/v1/analysis-sessions", "POST", {
+        title: "Integrated Lab Analysis",
+        patient_id: document.getElementById("analysis-patient").value,
+        analysis_type: document.getElementById("analysis-type").value,
+      });
+      await api(`/api/v1/analysis-sessions/${session.id}/link-labs`, "POST", { lab_report_ids: selected });
+      await api(`/api/v1/analysis-sessions/${session.id}/run`, "POST");
+      for (let i = 0; i < 180; i++) {
+        const s = await api(`/api/v1/analysis-sessions/${session.id}`);
+        if (s.status === "complete" && s.latest_report_id) {
+          location.href = `/index.html?report_id=${s.latest_report_id}&session_id=${session.id}`;
+          return;
+        }
+        if (s.status === "failed") throw new Error(s.error_message || "Analysis failed");
+        st.textContent = `Running (${s.status})...`;
+        await new Promise(r => setTimeout(r, 2500));
+      }
+    } catch (e) {
+      st.textContent = e.message;
+      st.className = "error";
+    }
+  };
+}
+
+async function renderSettings() {
+  const profile = await api("/api/v1/auth/profile");
+  document.getElementById("app-main").innerHTML = `
+    <h1>Settings</h1>
+    <div class="card">
+      <h2>Health profile</h2>
+      <p class="muted">Medications and conditions inform safety checks and reasoning context.</p>
+      <div class="form-row"><label>Age range</label><input id="hp-age" value="${esc(profile.age_range||"")}"></div>
+      <div class="form-row"><label>Biological sex</label><input id="hp-sex" value="${esc(profile.biological_sex||"")}"></div>
+      <div class="form-row"><label>Medications (comma-separated)</label><input id="hp-meds" value="${esc((profile.current_medications||[]).join(", "))}"></div>
+      <div class="form-row"><label>Supplements (comma-separated)</label><input id="hp-sups" value="${esc((profile.current_supplements||[]).join(", "))}"></div>
+      <div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions||[]).join(", "))}"></div>
+      <button class="primary" id="save-profile-btn">Save profile</button>
+      <p id="settings-status" class="muted"></p>
+    </div>
+    <div class="card">
+      <h2>Report viewer</h2>
+      <p class="muted">Open the full clinical report UI with PDF export.</p>
+      <a class="btn" href="/index.html">Open report workspace</a>
+    </div>`;
+  document.getElementById("save-profile-btn").onclick = async () => {
+    const split = (s) => s.split(",").map(x => x.trim()).filter(Boolean);
+    await api("/api/v1/auth/profile", "PUT", {
+      age_range: document.getElementById("hp-age").value || null,
+      biological_sex: document.getElementById("hp-sex").value || null,
+      current_medications: split(document.getElementById("hp-meds").value),
+      current_supplements: split(document.getElementById("hp-sups").value),
+      known_conditions: split(document.getElementById("hp-conds").value),
+    });
+    document.getElementById("settings-status").textContent = "Saved.";
+  };
+}
+
+function setActiveNav(route) {
+  document.querySelectorAll("[data-nav]").forEach(a => {
+    a.classList.toggle("active", route.startsWith(a.dataset.nav));
+  });
+}
+
+async function render() {
+  const hash = location.hash.slice(1) || "dashboard";
+  if (hash === "login" || !(await ensureSession())) {
+    renderAuth();
+    return;
+  }
+  document.getElementById("app-nav").classList.remove("hidden");
+  document.getElementById("nav-user").textContent = currentUser?.email || "";
+  document.getElementById("logout-btn").onclick = signOut;
+
+  const params = new URLSearchParams(hash.split("?")[1] || "");
+  const path = hash.split("?")[0];
+
+  if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
+  else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
+  else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
+  else if (path === "analysis") { setActiveNav("upload"); await renderAnalysisBuilder(params.get("patient")); }
+  else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }
+  else if (path.startsWith("patient/")) {
+    setActiveNav("patients");
+    const parts = path.split("/");
+    const patientId = parts[1];
+    const section = parts[2] || "overview";
+    await renderPatient(patientId, section);
+    if (section === "context") await wirePatientContext(patientId);
+  }
+  else if (path.startsWith("review/")) {
+    setActiveNav("upload");
+    await renderBiomarkerReview(path.split("/")[1]);
+  }
+  else { setActiveNav("dashboard"); await renderDashboard(); }
+}
+
+window.addEventListener("hashchange", render);
+document.getElementById("logout-btn").onclick = signOut;
+render();
+</script>
+</body>
+</html>

@@ -3,12 +3,13 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import AnalysisSessionStatus, LabReportStatus
+from app.models.enums import AnalysisSessionStatus, AnalysisType, LabReportStatus
 
 
 class AnalysisSessionCreate(BaseModel):
     title: str = "Integrated Lab Analysis"
     patient_id: uuid.UUID | None = None
+    analysis_type: AnalysisType = AnalysisType.MULTI_REPORT_SNAPSHOT
 
 
 class AnalysisSessionLabLinkRead(BaseModel):
@@ -22,8 +23,11 @@ class AnalysisSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    patient_id: uuid.UUID | None = None
     title: str
+    analysis_type: AnalysisType
     status: AnalysisSessionStatus
+    report_confidence: float | None = None
     analysis_date: datetime | None = None
     error_message: str | None = None
     latest_report_id: uuid.UUID | None = None
@@ -42,3 +46,7 @@ class IntegratedUploadResponse(BaseModel):
     analysis_session_id: uuid.UUID
     uploaded: list[dict]
     message: str
+
+
+class AnalysisSessionLinkLabsRequest(BaseModel):
+    lab_report_ids: list[uuid.UUID] = Field(min_length=1)

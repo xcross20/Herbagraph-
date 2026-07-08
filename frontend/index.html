@@ -1895,6 +1895,16 @@ async function analyze() {
 async function loadLatestReport() {
   try {
     await ensureAuth();
+    const urlParams = new URLSearchParams(window.location.search);
+    const reportId = urlParams.get("report_id");
+    if (reportId) {
+      const report = await api(`/api/v1/reports/${reportId}`);
+      const labs = await api("/api/v1/labs");
+      const anchor = labs.find(l => l.latest_report_id === reportId) || labs[0];
+      renderReport(report, anchor?.id || null);
+      setStatus("Loaded saved report. Return to workspace: /app.html");
+      return;
+    }
     const labs = await api("/api/v1/labs");
     if (!labs.length) return;
     const latest = labs[0];

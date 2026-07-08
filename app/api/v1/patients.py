@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.models.patient import Patient
 from app.models.user import User
-from app.schemas.patient import PatientCreate, PatientRead
+from app.schemas.patient import PatientCreate, PatientRead, PatientUpdate
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -18,7 +18,14 @@ async def create_patient(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Patient:
-    patient = Patient(user_id=current_user.id, age=payload.age, biological_sex=payload.biological_sex)
+    patient = Patient(
+        user_id=current_user.id,
+        display_name=payload.display_name,
+        date_of_birth=payload.date_of_birth,
+        age=payload.age,
+        biological_sex=payload.biological_sex,
+        notes=payload.notes,
+    )
     db.add(patient)
     await db.commit()
     await db.refresh(patient)
@@ -47,6 +54,26 @@ async def get_patient(
     patient = result.scalar_one_or_none()
     if patient is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    return patient
+
+
+@router.patch("/{patient_id}", response_model=PatientRead)
+async def update_patient(
+    patient_id: uuid.UUID,
+    payload: PatientUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Patient:
+    result = await db.execute(
+        select(Patient).where(Patient.id == patient_id, Patient.user_id == current_user.id)
+    )
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(patient, field, value)
+    await db.commit()
+    await db.refresh(patient)
     return patient
 
 

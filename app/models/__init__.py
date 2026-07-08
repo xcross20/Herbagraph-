@@ -7,7 +7,9 @@ from app.models.validation import ReportFeedback, ValidationEvent
 from app.models.food_compound_source import FoodCompoundSource
 from app.models.intervention import Intervention
 from app.models.lab import LabReport, LabResult
+from app.models.organization import Organization
 from app.models.patient import Patient
+from app.models.patient_context import PatientContext
 from app.models.pathway import Pathway
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
 from app.models.response_tracking import ResponseTracking
@@ -30,7 +32,9 @@ __all__ = [
     "Intervention",
     "LabReport",
     "LabResult",
+    "Organization",
     "Patient",
+    "PatientContext",
     "Pathway",
     "Recommendation",
     "RecommendationReport",

@@ -13,6 +13,7 @@ _DIGIT_RE = re.compile(r"\d")
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    full_name: str | None = None
     role: UserRole = UserRole.INDIVIDUAL
     clinic_name: str | None = None
 
@@ -38,6 +39,7 @@ class UserRead(BaseModel):
 
     id: uuid.UUID
     email: str
+    full_name: str | None = None
     is_active: bool
     is_verified: bool
     role: UserRole

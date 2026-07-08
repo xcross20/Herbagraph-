@@ -18,6 +18,8 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole, native_enum=False, length=20), default=UserRole.INDIVIDUAL, nullable=False
     )
+    full_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    organization_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("organizations.id"), nullable=True)
     clinic_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     health_profile: Mapped["HealthProfile"] = relationship(

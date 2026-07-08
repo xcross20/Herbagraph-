@@ -21,6 +21,7 @@ from app.pipeline.medication_context import build_medication_context
 from app.pipeline.report_generator import generate_report
 from app.pipeline.safety_layer import check_safety
 from app.pipeline.trend_context import build_trend_context, prior_labs_from_results
+from app.services.patient_memory import build_patient_memory
 
 
 def _health_profile_dict(profile: HealthProfile | None) -> dict:
@@ -50,7 +51,10 @@ async def _run_pipeline_stages(
     integrated_analysis: dict | None = None,
     analysis_session_id: uuid.UUID | None = None,
     lab_trends_override: dict | None = None,
+    patient_id: uuid.UUID | None = None,
 ) -> RecommendationReport:
+    memory = build_patient_memory(session, patient_id, lab_report.user_id)
+    merged_profile = {**health_profile, **memory.get("patient_context", {})}
     custom_biomarkers = []
     profile = session.execute(
         select(HealthProfile).where(HealthProfile.user_id == lab_report.user_id)
@@ -76,33 +80,30 @@ async def _run_pipeline_stages(
 
     _set_report_stage(session, lab_report, ReportGenerationStage.LLM_REASONING)
     reasoning = await generate_reasoning(
-        normalized, pathway_activations, evidence_snippets, health_profile, routing=routing
+        normalized, pathway_activations, evidence_snippets, merged_profile, routing=routing
     )
 
     _set_report_stage(session, lab_report, ReportGenerationStage.EVIDENCE_CONFIDENCE)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.SAFETY_CHECK)
-    safety_report = check_safety(reasoning.recommendations, health_profile, normalized_labs=normalized)
+    safety_report = check_safety(reasoning.recommendations, merged_profile, normalized_labs=normalized)
     intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.REPORT_ASSEMBLY)
-    medication_context = build_medication_context(normalized, health_profile)
+    medication_context = build_medication_context(normalized, merged_profile)
 
     if lab_trends_override is not None:
         lab_trends = lab_trends_override
     else:
-        prior_report = (
-            session.execute(
-                select(LabReport)
-                .where(LabReport.user_id == lab_report.user_id)
-                .where(LabReport.id != lab_report.id)
-                .where(LabReport.status == LabReportStatus.COMPLETE)
-                .order_by(LabReport.created_at.desc())
-                .limit(1)
-            )
-            .scalars()
-            .first()
+        prior_query = (
+            select(LabReport)
+            .where(LabReport.user_id == lab_report.user_id)
+            .where(LabReport.id != lab_report.id)
+            .where(LabReport.status == LabReportStatus.COMPLETE)
         )
+        if lab_report.patient_id is not None:
+            prior_query = prior_query.where(LabReport.patient_id == lab_report.patient_id)
+        prior_report = session.execute(prior_query.order_by(LabReport.created_at.desc()).limit(1)).scalars().first()
         prior_labs = None
         prior_date = None
         if prior_report is not None:
@@ -123,7 +124,7 @@ async def _run_pipeline_stages(
         lab_trends=lab_trends,
         routing=routing,
         custom_biomarkers=custom_biomarkers,
-        health_profile=health_profile,
+        health_profile=merged_profile,
         integrated_analysis=integrated_analysis,
     )
 
@@ -215,7 +216,9 @@ async def _generate_report_async(lab_report_id: str, user_id: str) -> dict:
         ).scalar_one_or_none()
         health_profile = _health_profile_dict(profile)
 
-        report = await _run_pipeline_stages(lab_report, health_profile, session)
+        report = await _run_pipeline_stages(
+            lab_report, health_profile, session, patient_id=lab_report.patient_id
+        )
         return {"status": "complete", "report_id": str(report.id)}
     except Exception as exc:  # noqa: BLE001
         session.rollback()

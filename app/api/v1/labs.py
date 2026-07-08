@@ -77,11 +77,14 @@ async def upload_lab_report(
 
 @router.get("", response_model=list[LabReportSummary])
 async def list_lab_reports(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    patient_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[LabReport]:
-    result = await db.execute(
-        select(LabReport).where(LabReport.user_id == current_user.id).order_by(LabReport.created_at.desc())
-    )
+    query = select(LabReport).where(LabReport.user_id == current_user.id)
+    if patient_id is not None:
+        query = query.where(LabReport.patient_id == patient_id)
+    result = await db.execute(query.order_by(LabReport.created_at.desc()))
     return list(result.scalars().all())
 
 

@@ -2,11 +2,35 @@ import enum
 
 
 class UserRole(str, enum.Enum):
-    """Distinguishes a self-service individual account from a clinic account that
-    manages multiple Patients (Phase 4 infrastructure -- see app/models/patient.py)."""
+    """Account role for workspace permissions."""
 
     INDIVIDUAL = "individual"
     CLINICIAN = "clinician"
+    ADMIN = "admin"
+    ORGANIZATION_ADMIN = "organization_admin"
+
+
+class AnalysisType(str, enum.Enum):
+    SINGLE_REPORT = "single_report"
+    MULTI_REPORT_SNAPSHOT = "multi_report_snapshot"
+    LONGITUDINAL_COMPARISON = "longitudinal_comparison"
+
+
+class PatientContextType(str, enum.Enum):
+    MEDICATION = "medication"
+    SUPPLEMENT = "supplement"
+    CONDITION = "condition"
+    ALLERGY = "allergy"
+    DIET_PATTERN = "diet_pattern"
+    SYMPTOM = "symptom"
+    GOAL = "goal"
+    NOTE = "note"
+
+
+class PatientContextSource(str, enum.Enum):
+    USER = "user"
+    IMPORT = "import"
+    SYSTEM = "system"
 
 
 class LabReportStatus(str, enum.Enum):

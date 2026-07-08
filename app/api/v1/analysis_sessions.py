@@ -17,6 +17,7 @@ from app.models.user import User
 from app.pipeline.integrated_merge import infer_panel_label
 from app.schemas.analysis_session import (
     AnalysisSessionCreate,
+    AnalysisSessionLinkLabsRequest,
     AnalysisSessionRead,
     AnalysisSessionRunResponse,
     IntegratedUploadResponse,
@@ -40,6 +41,23 @@ async def _get_owned_session(
     return analysis_session
 
 
+@router.get("", response_model=list[AnalysisSessionRead])
+async def list_analysis_sessions(
+    patient_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[AnalysisSessionRead]:
+    query = (
+        select(AnalysisSession)
+        .where(AnalysisSession.user_id == current_user.id)
+        .options(selectinload(AnalysisSession.lab_links).selectinload(AnalysisSessionLabReport.lab_report))
+    )
+    if patient_id is not None:
+        query = query.where(AnalysisSession.patient_id == patient_id)
+    result = await db.execute(query.order_by(AnalysisSession.created_at.desc()))
+    return [_session_read_payload(session) for session in result.scalars().all()]
+
+
 def _session_read_payload(analysis_session: AnalysisSession) -> AnalysisSessionRead:
     lab_reports = []
     for link in analysis_session.lab_links:
@@ -54,8 +72,11 @@ def _session_read_payload(analysis_session: AnalysisSession) -> AnalysisSessionR
         )
     return AnalysisSessionRead(
         id=analysis_session.id,
+        patient_id=analysis_session.patient_id,
         title=analysis_session.title,
+        analysis_type=analysis_session.analysis_type,
         status=analysis_session.status,
+        report_confidence=analysis_session.report_confidence,
         analysis_date=analysis_session.analysis_date,
         error_message=analysis_session.error_message,
         latest_report_id=analysis_session.latest_report_id,
@@ -81,6 +102,7 @@ async def create_analysis_session(
         user_id=current_user.id,
         patient_id=payload.patient_id,
         title=payload.title,
+        analysis_type=payload.analysis_type,
         status=AnalysisSessionStatus.PENDING,
     )
     db.add(analysis_session)
@@ -88,8 +110,11 @@ async def create_analysis_session(
     await db.refresh(analysis_session)
     return AnalysisSessionRead(
         id=analysis_session.id,
+        patient_id=analysis_session.patient_id,
         title=analysis_session.title,
+        analysis_type=analysis_session.analysis_type,
         status=analysis_session.status,
+        report_confidence=analysis_session.report_confidence,
         analysis_date=analysis_session.analysis_date,
         error_message=analysis_session.error_message,
         latest_report_id=analysis_session.latest_report_id,
@@ -184,6 +209,66 @@ async def upload_lab_reports_to_session(
         uploaded=uploaded,
         message=f"Uploaded {len(uploaded)} lab file(s). Parsing has started.",
     )
+
+
+@router.post("/{session_id}/link-labs", response_model=AnalysisSessionRead)
+async def link_existing_lab_reports(
+    session_id: uuid.UUID,
+    payload: AnalysisSessionLinkLabsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AnalysisSessionRead:
+    """Attach already-uploaded lab reports to a session (no file re-upload)."""
+    analysis_session = await _get_owned_session(session_id, current_user, db)
+
+    if analysis_session.status in {
+        AnalysisSessionStatus.ANALYZING,
+        AnalysisSessionStatus.MERGING,
+    }:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Analysis is in progress for this session.",
+        )
+
+    linked_ids = {link.lab_report_id for link in analysis_session.lab_links}
+    for lab_report_id in payload.lab_report_ids:
+        if lab_report_id in linked_ids:
+            continue
+        lab_result = await db.execute(
+            select(LabReport).where(LabReport.id == lab_report_id, LabReport.user_id == current_user.id)
+        )
+        lab_report = lab_result.scalar_one_or_none()
+        if lab_report is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Lab report {lab_report_id} not found")
+        if analysis_session.patient_id and lab_report.patient_id and lab_report.patient_id != analysis_session.patient_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Lab report belongs to a different patient than this session.",
+            )
+        panel_label = infer_panel_label(lab_report.original_filename)
+        db.add(
+            AnalysisSessionLabReport(
+                analysis_session_id=analysis_session.id,
+                lab_report_id=lab_report.id,
+                panel_label=panel_label,
+            )
+        )
+
+    if analysis_session.status == AnalysisSessionStatus.COMPLETE:
+        analysis_session.status = AnalysisSessionStatus.PENDING
+        analysis_session.latest_report_id = None
+        analysis_session.error_message = None
+
+    await db.flush()
+    await db.commit()
+    result = await db.execute(
+        select(AnalysisSession)
+        .where(AnalysisSession.id == session_id, AnalysisSession.user_id == current_user.id)
+        .options(selectinload(AnalysisSession.lab_links).selectinload(AnalysisSessionLabReport.lab_report))
+        .execution_options(populate_existing=True)
+    )
+    refreshed = result.scalar_one()
+    return _session_read_payload(refreshed)
 
 
 @router.post("/{session_id}/run", response_model=AnalysisSessionRunResponse, status_code=status.HTTP_202_ACCEPTED)

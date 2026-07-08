@@ -6,11 +6,13 @@ from app.api.v1 import (
     evidence,
     explainability,
     labs,
+    patient_context,
     patients,
     reports,
     safety,
     tracking,
     validation,
+    workspace,
 )
 
 api_router = APIRouter()
@@ -23,4 +25,6 @@ api_router.include_router(evidence.router)
 api_router.include_router(explainability.router)
 api_router.include_router(safety.router)
 api_router.include_router(patients.router)
+api_router.include_router(patient_context.router)
+api_router.include_router(workspace.router)
 api_router.include_router(tracking.router)
