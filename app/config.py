@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     # Supabase — set all three when AUTH_PROVIDER=supabase
     supabase_url: str = ""
     supabase_anon_key: str = ""
+    supabase_publishable_key: str = ""
     supabase_jwt_secret: str = ""
     # Legacy stubs (not implemented)
     clerk_secret_key: str = ""

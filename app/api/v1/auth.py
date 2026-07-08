@@ -45,7 +45,7 @@ async def get_auth_config() -> AuthConfigRead:
     return AuthConfigRead(
         auth_provider=settings.auth_provider,
         supabase_url=settings.supabase_url or None,
-        supabase_anon_key=settings.supabase_anon_key or None,
+        supabase_anon_key=settings.supabase_anon_key or settings.supabase_publishable_key or None,
         require_email_verification=settings.require_email_verification,
         allow_guest_auth=settings.allow_guest_auth and settings.auth_provider == "local",
     )

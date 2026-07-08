@@ -115,7 +115,7 @@ function fmtConf(n) {
   return `${Math.round(n * 100)}%`;
 }
 
-function renderAuth() {
+async function renderAuth() {
   document.getElementById("app-nav").classList.add("hidden");
   document.getElementById("app-main").innerHTML = `
     <div class="auth-wrap">
@@ -564,11 +564,12 @@ function setActiveNav(route) {
 }
 
 async function render() {
-  const hash = location.hash.slice(1) || "dashboard";
-  if (hash === "login" || !(await ensureSession())) {
-    renderAuth();
-    return;
-  }
+  try {
+    const hash = location.hash.slice(1) || "login";
+    if (hash === "login" || !(await ensureSession())) {
+      await renderAuth();
+      return;
+    }
   document.getElementById("app-nav").classList.remove("hidden");
   document.getElementById("nav-user").textContent = currentUser?.email || "";
   document.getElementById("logout-btn").onclick = signOut;
@@ -594,10 +595,19 @@ async function render() {
     await renderBiomarkerReview(path.split("/")[1]);
   }
   else { setActiveNav("dashboard"); await renderDashboard(); }
+  } catch (err) {
+    document.getElementById("app-nav").classList.add("hidden");
+    document.getElementById("app-main").innerHTML = `
+      <div class="card">
+        <h2>Something went wrong</h2>
+        <p class="error">${esc(err.message)}</p>
+        <button class="primary" onclick="location.hash='#login'; render()">Back to sign in</button>
+      </div>`;
+  }
 }
 
-window.addEventListener("hashchange", render);
-document.getElementById("logout-btn").onclick = signOut;
+window.addEventListener("hashchange", () => render());
+document.getElementById("logout-btn").onclick = () => signOut();
 render();
 </script>
 </body>

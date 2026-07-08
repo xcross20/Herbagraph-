@@ -36,7 +36,7 @@ def test_verify_supabase_token_rejects_invalid(monkeypatch):
         verify_supabase_access_token(token)
 
 
-def test_verify_supabase_token_requires_secret(monkeypatch):
-    monkeypatch.setattr("app.core.supabase_auth.settings.supabase_jwt_secret", "")
-    with pytest.raises(SupabaseAuthError, match="SUPABASE_JWT_SECRET"):
+def test_verify_supabase_token_requires_url(monkeypatch):
+    monkeypatch.setattr("app.core.supabase_auth.settings.supabase_url", "")
+    with pytest.raises(SupabaseAuthError, match="SUPABASE_URL"):
         verify_supabase_access_token("not-a-real-token")
