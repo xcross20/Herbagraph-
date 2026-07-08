@@ -1,0 +1,86 @@
+"""Display intent classification for report presentation."""
+
+from __future__ import annotations
+
+from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
+from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
+from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
+from app.models.enums import (
+    DisplayIntent,
+    EvidenceLevel,
+    EvidenceTier,
+    InterventionCategory,
+    RecommendationIntent,
+)
+
+_INTENT_RANK = {
+    RecommendationIntent.PRIMARY.value: 0,
+    RecommendationIntent.NUTRITIONAL_REPLETION.value: 1,
+    RecommendationIntent.COLLATERAL.value: 2,
+    RecommendationIntent.CONTEXT_ONLY.value: 3,
+}
+
+REGULATED_CATEGORIES = frozenset({
+    InterventionCategory.MEDICATION.value,
+    InterventionCategory.PEPTIDE.value,
+    InterventionCategory.HORMONE.value,
+})
+
+_ALL_CLAIMS = [*EVIDENCE_CLAIMS, *TIER_A_EVIDENCE_CLAIMS, *LIFESTYLE_EVIDENCE_CLAIMS]
+
+
+def _category_value(category) -> str:
+    if hasattr(category, "value"):
+        return category.value
+    return str(category or "")
+
+
+def _tier_value(tier) -> str:
+    if hasattr(tier, "value"):
+        return tier.value
+    return str(tier or EvidenceTier.RESEARCH_HYPOTHESIS.value)
+
+
+def _level_value(level) -> str:
+    if hasattr(level, "value"):
+        return level.value
+    return str(level or EvidenceLevel.LOW.value)
+
+
+def recommendation_intent_for(
+    intervention_name: str,
+    abnormal_biomarkers: set[str],
+) -> str:
+    matching = [
+        c
+        for c in _ALL_CLAIMS
+        if c["intervention_name"] == intervention_name
+        and (c.get("biomarker_name") in abnormal_biomarkers or c.get("biomarker_name") is None)
+    ]
+    if not matching:
+        return RecommendationIntent.COLLATERAL.value
+    best = min(matching, key=lambda c: _INTENT_RANK.get(c.get("recommendation_intent", "collateral"), 9))
+    return best.get("recommendation_intent", RecommendationIntent.COLLATERAL.value)
+
+
+def classify_display_intent(rec: dict, abnormal_biomarkers: set[str]) -> str:
+    category = _category_value(rec.get("category"))
+    if rec.get("is_regulated") or category in REGULATED_CATEGORIES:
+        return DisplayIntent.REGULATED.value
+
+    intent = recommendation_intent_for(rec.get("intervention_name", ""), abnormal_biomarkers)
+    if intent == RecommendationIntent.CONTEXT_ONLY.value:
+        return DisplayIntent.REGULATED.value
+
+    tier = _tier_value(rec.get("evidence_tier"))
+    level = _level_value(rec.get("evidence_level"))
+    if tier in (EvidenceTier.PRECLINICAL.value, EvidenceTier.RESEARCH_HYPOTHESIS.value):
+        return DisplayIntent.MECHANISTIC.value
+    if level == EvidenceLevel.PRECLINICAL.value:
+        return DisplayIntent.MECHANISTIC.value
+
+    if intent in (RecommendationIntent.PRIMARY.value, RecommendationIntent.NUTRITIONAL_REPLETION.value):
+        return DisplayIntent.PRIMARY.value
+    if intent == RecommendationIntent.COLLATERAL.value:
+        return DisplayIntent.SUPPORTIVE.value
+    return DisplayIntent.CONTEXT_ONLY.value

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HerbaGraph Validation Dashboard</title>
+<style>
+  body { font-family: monospace, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: 0.2rem; }
+  .tag { color: #666; margin-top: 0; }
+  hr { margin: 1.25rem 0; border: none; border-top: 1px dashed #bbb; }
+  .metric { margin: 0.35rem 0; }
+  .metric strong { display: inline-block; min-width: 16rem; }
+  .error { color: #a00; }
+  .comment { border-left: 3px solid #ccd; padding: 0.35rem 0.65rem; margin: 0.45rem 0; color: #444; }
+  button { font: inherit; padding: 0.4rem 1rem; cursor: pointer; margin-top: 0.75rem; }
+</style>
+</head>
+<body>
+<h1>HerbaGraph Validation Dashboard</h1>
+<p class="tag">Admin only — aggregates clinician feedback and product analytics. Not shown on clinician reports.</p>
+<div id="status" class="tag"></div>
+<div id="dashboard"></div>
+<button id="refresh-btn" type="button">Refresh</button>
+
+<script>
+const API = "";
+
+async function ensureAuth() {
+  if (window.hgToken) return;
+  const stored = localStorage.getItem("hgAuth");
+  if (stored) {
+    const parsed = JSON.parse(stored);
+    window.hgToken = parsed.access_token;
+    window.hgRefreshToken = parsed.refresh_token;
+    return;
+  }
+  throw new Error("Not signed in. Open the main HerbaGraph app first to create a session.");
+}
+
+async function api(path) {
+  await ensureAuth();
+  const resp = await fetch(API + path, {
+    headers: { Authorization: "Bearer " + window.hgToken },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${path} failed (${resp.status}): ${text}`);
+  }
+  return resp.json();
+}
+
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function renderDashboard(data) {
+  let html = "";
+  html += `<hr><p class="metric"><strong>Reports Generated</strong> ${data.reports_generated}</p>`;
+  html += `<p class="metric"><strong>Reports Reviewed</strong> ${data.reports_reviewed}</p>`;
+  html += `<p class="metric"><strong>Average Trust</strong> ${data.average_trust_score != null ? data.average_trust_score + " / 5" : "—"}</p>`;
+  html += `<p class="metric"><strong>Average Usefulness</strong> ${data.average_usefulness_score != null ? data.average_usefulness_score + " / 5" : "—"}</p>`;
+  html += `<p class="metric"><strong>Average Time Saved</strong> ${data.average_time_saved_minutes != null ? data.average_time_saved_minutes + " minutes" : "—"}</p>`;
+  if (data.would_use_again_percent != null) {
+    html += `<p class="metric"><strong>Would Use Again</strong> ${data.would_use_again_percent}%</p>`;
+  }
+  html += `<hr>`;
+  html += `<p class="metric"><strong>Most Helpful Section</strong> ${escapeHtml(data.most_useful_section || "—")}${data.most_useful_section_percent != null ? " (" + data.most_useful_section_percent + "%)" : ""}</p>`;
+  html += `<p class="metric"><strong>Least Helpful Section</strong> ${escapeHtml(data.least_useful_section || "—")}${data.least_useful_section_percent != null ? " (" + data.least_useful_section_percent + "%)" : ""}</p>`;
+  html += `<p class="metric"><strong>Most Opened Section</strong> ${escapeHtml(data.most_opened_section || "—")}</p>`;
+  html += `<hr><p><strong>Most Requested Biomarkers</strong></p><ul>`;
+  for (const row of data.most_requested_biomarkers || []) {
+    html += `<li>${escapeHtml(row.biomarker_name)} (${row.count})</li>`;
+  }
+  if (!(data.most_requested_biomarkers || []).length) html += `<li>—</li>`;
+  html += `</ul>`;
+  html += `<p><strong>Most Disputed Recommendations</strong></p><ul>`;
+  for (const row of data.disputed_recommendations || []) {
+    html += `<li>${escapeHtml(row.intervention_name)} (${row.low_agreement_count} low-agreement reports)</li>`;
+  }
+  if (!(data.disputed_recommendations || []).length) html += `<li>—</li>`;
+  html += `</ul>`;
+  html += `<p><strong>Average Report Confidence</strong></p><ul>`;
+  const dist = data.report_confidence_distribution || {};
+  for (const [label, pct] of Object.entries(dist)) {
+    html += `<li>${escapeHtml(label)} — ${pct}%</li>`;
+  }
+  if (!Object.keys(dist).length) html += `<li>—</li>`;
+  html += `</ul>`;
+  html += `<hr><p><strong>Free-text Feedback</strong></p>`;
+  for (const row of data.free_text_feedback || []) {
+    html += `<div class="comment">"${escapeHtml(row.text)}"</div>`;
+  }
+  if (!(data.free_text_feedback || []).length) html += `<p>—</p>`;
+  document.getElementById("dashboard").innerHTML = html;
+}
+
+async function loadDashboard() {
+  const status = document.getElementById("status");
+  status.textContent = "Loading...";
+  status.className = "tag";
+  try {
+    const data = await api("/api/v1/admin/validation/dashboard");
+    renderDashboard(data);
+    status.textContent = "Updated " + new Date().toLocaleString();
+  } catch (err) {
+    status.textContent = String(err.message || err);
+    status.className = "error";
+  }
+}
+
+document.getElementById("refresh-btn").addEventListener("click", loadDashboard);
+loadDashboard();
+</script>
+</body>
+</html>

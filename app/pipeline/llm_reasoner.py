@@ -10,7 +10,7 @@ into the final report.
 import json
 import os
 
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
 
 from app.config import settings
 from app.core.privacy import deidentify_payload
@@ -87,6 +87,40 @@ def _use_catalog_only_reasoning() -> bool:
     if not key:
         return True
     return key.startswith("test-")
+
+
+def _catalog_fallback_for_llm_failure(exc: Exception) -> bool:
+    """Use curated catalog reasoning when OpenAI is unreachable."""
+    if _use_catalog_only_reasoning():
+        return True
+    return isinstance(exc, (APIConnectionError, APITimeoutError, ConnectionError))
+
+
+def _catalog_reasoning_with_fallback_note(
+    evidence_snippets: list[EvidenceSnippet],
+    *,
+    abnormal_biomarkers: set[str],
+    pathway_activations: list[PathwayActivation],
+    routing: RecommendationRoutingContext | None,
+    exc: Exception | None = None,
+) -> LLMReasoningOutput:
+    output = build_catalog_reasoning_output(
+        evidence_snippets,
+        abnormal_biomarkers=abnormal_biomarkers,
+        pathway_activations=pathway_activations,
+        routing=routing,
+    )
+    prefix = (
+        "LLM reasoning was unavailable (OpenAI connection failed). "
+        "This report uses curated catalog evidence instead. "
+    )
+    if exc is not None:
+        prefix += f"Technical detail: {exc}. "
+    return output.model_copy(
+        update={
+            "biomarker_pattern_analysis": prefix + output.biomarker_pattern_analysis,
+        }
+    )
 
 
 def _build_payload(
@@ -208,15 +242,26 @@ async def generate_reasoning(
     )
 
     try:
-        response = await client.chat.completions.create(
-            model=settings.llm_model,
-            max_tokens=4096,
-            response_format={"type": "json_object"},
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(payload)},
-            ],
-        )
+        try:
+            response = await client.chat.completions.create(
+                model=settings.llm_model,
+                max_tokens=4096,
+                response_format={"type": "json_object"},
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": json.dumps(payload)},
+                ],
+            )
+        except Exception as exc:
+            if _catalog_fallback_for_llm_failure(exc):
+                return _catalog_reasoning_with_fallback_note(
+                    evidence_snippets,
+                    abnormal_biomarkers=abnormal_biomarkers,
+                    pathway_activations=pathway_activations,
+                    routing=routing,
+                    exc=exc,
+                )
+            raise LLMReasoningError(str(exc)) from exc
     finally:
         if owns_client and hasattr(client, "close"):
             await client.close()

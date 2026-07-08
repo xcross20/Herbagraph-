@@ -225,15 +225,40 @@ def _base_safety_report(recs):
 
 
 def test_generate_report_ranks_by_confidence_descending():
-    high = make_scored_rec(name="HighConf", evidence_level=EvidenceLevel.HIGH, safety_risk=SafetyRiskLevel.LOW)
-    low = make_scored_rec(name="LowConf", evidence_level=EvidenceLevel.PRECLINICAL, safety_risk=SafetyRiskLevel.HIGH)
-    mid = make_scored_rec(name="MidConf", evidence_level=EvidenceLevel.MODERATE, safety_risk=SafetyRiskLevel.LOW)
+    high = make_scored_rec(
+        name="HighConf",
+        evidence_level=EvidenceLevel.HIGH,
+        safety_risk=SafetyRiskLevel.LOW,
+        cited_study_ids=["MA1", "RCT1"],
+    )
+    low = make_scored_rec(
+        name="LowConf",
+        evidence_level=EvidenceLevel.PRECLINICAL,
+        safety_risk=SafetyRiskLevel.HIGH,
+        cited_study_ids=["PRE1"],
+    )
+    mid = make_scored_rec(
+        name="MidConf",
+        evidence_level=EvidenceLevel.MODERATE,
+        safety_risk=SafetyRiskLevel.LOW,
+        cited_study_ids=["RCT2"],
+    )
+    evidence = [
+        make_evidence("MA1", 0.9, study_type=StudyType.META_ANALYSIS),
+        make_evidence("RCT1", 0.8, study_type=StudyType.RCT),
+        make_evidence("RCT2", 0.6, study_type=StudyType.RCT),
+        make_evidence("PRE1", 0.2, study_type=StudyType.PRECLINICAL),
+    ]
+    for snippet in evidence:
+        snippet.intervention_name = "HighConf" if snippet.external_id in ("MA1", "RCT1") else (
+            "MidConf" if snippet.external_id == "RCT2" else "LowConf"
+        )
 
     safety_report = _base_safety_report([low, high, mid])
     report = generate_report(
         normalized_labs=[],
         pathway_activations=[],
-        evidence_snippets=[],
+        evidence_snippets=evidence,
         safety_report=safety_report,
         biomarker_pattern_analysis="",
         clinician_questions=[],
@@ -241,7 +266,8 @@ def test_generate_report_ranks_by_confidence_descending():
     )
 
     names_in_order = [r["intervention_name"] for r in report["recommendations"]]
-    assert names_in_order == ["HighConf", "MidConf", "LowConf"]
+    assert names_in_order[0] == "HighConf"
+    assert names_in_order[-1] == "LowConf"
     ranks = [r["rank"] for r in report["recommendations"]]
     assert ranks == [1, 2, 3]
 

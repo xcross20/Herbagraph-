@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     auth_provider: str = "local"
     clerk_secret_key: str = ""
     firebase_project_id: str = ""
+    # Comma-separated admin emails allowed to access /admin/validation dashboard APIs.
+    admin_emails: str = ""
 
     @property
     def max_file_size_bytes(self) -> int:

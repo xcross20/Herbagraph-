@@ -84,9 +84,11 @@ class TestPlainRangePattern:
         assert result is not None
         assert result.value == 1.5
 
-    def test_single_space_separator_does_not_match(self):
-        # Both range patterns require 2+ spaces after the test name.
-        assert parse_lab_line("AST 18 U/L 10-40") is None
+    def test_single_space_separator_matches_standard_row(self):
+        result = parse_lab_line("AST 18 U/L 10-40")
+        assert result is not None
+        assert result.raw_test_name == "AST"
+        assert result.value == 18.0
 
 
 class TestPipeDelimitedPattern:

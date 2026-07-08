@@ -57,6 +57,7 @@ async def generate_recommendation_report(
         ReportGenerationStage.PATHWAY_MAPPING,
         ReportGenerationStage.EVIDENCE_RETRIEVAL,
         ReportGenerationStage.LLM_REASONING,
+        ReportGenerationStage.EVIDENCE_CONFIDENCE,
         ReportGenerationStage.SAFETY_CHECK,
         ReportGenerationStage.REPORT_ASSEMBLY,
     }
@@ -80,7 +81,185 @@ async def generate_recommendation_report(
     )
 
 
+def _hydrated_supporting_literature(recommendation, citations_by_id: dict):
+    from app.evidence_confidence.citations import hydrate_citation_url, hydrate_supporting_literature, lookup_citation
+    from app.schemas.explainability import SupportingLiteratureEntry
+
+    explainability = recommendation.explainability or {}
+    literature = explainability.get("supporting_literature") or []
+    if not literature:
+        return hydrate_supporting_literature(
+            recommendation.cited_study_ids or [],
+            citations_by_id,
+            cited_urls=recommendation.cited_urls,
+        )
+
+    cited_urls = recommendation.cited_urls or []
+    hydrated: list[SupportingLiteratureEntry] = []
+    for index, item in enumerate(literature):
+        row = dict(item)
+        if not row.get("url"):
+            paired = cited_urls[index] if index < len(cited_urls) else None
+            citation = lookup_citation(citations_by_id, str(row.get("study_id", "")))
+            row["url"] = paired or (hydrate_citation_url(citation) if citation else None) or row.get("url")
+        hydrated.append(SupportingLiteratureEntry(**row))
+    return hydrated
+
+
+def _hydrated_recommendation_payload(recommendation, citations_by_id: dict) -> dict:
+    from app.models.enums import EVIDENCE_TIER_LABELS
+
+    literature = _hydrated_supporting_literature(recommendation, citations_by_id)
+
+    return {
+        "rank": recommendation.rank,
+        "intervention_name": recommendation.intervention_name,
+        "category": recommendation.category,
+        "mechanism": recommendation.mechanism,
+        "evidence_level": recommendation.evidence_level,
+        "evidence_tier": recommendation.evidence_tier,
+        "evidence_tier_label": EVIDENCE_TIER_LABELS[recommendation.evidence_tier],
+        "confidence_score": recommendation.confidence_score,
+        "typical_dose": recommendation.typical_dose,
+        "rationale": recommendation.rationale,
+        "limitations": recommendation.limitations,
+        "safety_risk": recommendation.safety_risk,
+        "safety_notes": recommendation.safety_notes,
+        "interactions": recommendation.interactions,
+        "is_regulated": recommendation.is_regulated,
+        "cited_study_ids": recommendation.cited_study_ids,
+        "cited_urls": recommendation.cited_urls,
+        "food_sources": recommendation.food_sources,
+        "intervention_narrative": recommendation.intervention_narrative,
+        "explainability": recommendation.explainability,
+        "supporting_literature": literature,
+    }
+
+
 def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
+    from app.evidence_confidence.citations import (
+        build_citations_index,
+        hydrate_citation_url,
+    )
+    from app.pipeline.report_insights import insights_from_stored_report
+    from app.schemas.explainability import RecommendationExplainability
+
+    citation_rows = [
+        {
+            "id": c.external_id,
+            "source": c.source,
+            "title": c.title,
+            "year": c.year,
+            "study_type": c.study_type,
+            "quality_score": c.quality_score,
+            "url": hydrate_citation_url(
+                {
+                    "id": c.external_id,
+                    "source": c.source,
+                    "title": c.title,
+                    "year": c.year,
+                    "study_type": c.study_type,
+                    "quality_score": c.quality_score,
+                    "url": c.url,
+                }
+            ),
+        }
+        for c in report.citations
+    ]
+    citations_by_id = build_citations_index(citation_rows)
+
+    rec_dicts = [
+        {
+            "intervention_name": r.intervention_name,
+            "evidence_tier": r.evidence_tier.value if hasattr(r.evidence_tier, "value") else r.evidence_tier,
+            "confidence_score": r.confidence_score,
+            "explainability": r.explainability,
+        }
+        for r in report.recommendations
+    ]
+    explainability_items = [
+        RecommendationExplainability(**r.explainability)
+        for r in report.recommendations
+        if r.explainability
+    ]
+    citation_rows_for_insights = [
+        {
+            "id": c.external_id,
+            "study_type": c.study_type,
+        }
+        for c in report.citations
+    ]
+    insights = report.report_insights or insights_from_stored_report(
+        report.biomarker_summary or {},
+        report.biological_systems or [],
+        report.pathway_activations or [],
+        rec_dicts,
+        explainability_items=explainability_items or None,
+        citations=citation_rows_for_insights,
+    )
+    full_rec_payloads = [
+        _hydrated_recommendation_payload(r, citations_by_id)
+        for r in report.recommendations
+    ]
+    recommendation_tiers = insights.get("recommendation_tiers")
+    biological_hierarchy = insights.get("biological_hierarchy")
+    dual_clinical_rankings = insights.get("dual_clinical_rankings")
+    clinical_summary_hero = insights.get("clinical_summary_hero")
+    if not recommendation_tiers or not biological_hierarchy or not dual_clinical_rankings:
+        from app.pipeline.evidence_retriever import build_intervention_pathway_map
+        from app.pipeline.report_biological_hierarchy import build_biological_hierarchy
+        from app.pipeline.report_clinical_priorities import build_dual_clinical_rankings
+        from app.pipeline.report_tiering import build_recommendation_tiers
+
+        intervention_pathways = build_intervention_pathway_map()
+        if not recommendation_tiers:
+            recommendation_tiers = build_recommendation_tiers(
+                full_rec_payloads,
+                report.biomarker_summary or {},
+                insights.get("biological_systems") or report.biological_systems or [],
+                executive_summary=report.executive_summary or "",
+                intervention_pathways=intervention_pathways,
+                pathway_activations=report.pathway_activations or [],
+            )
+            insights["recommendation_tiers"] = recommendation_tiers
+        if not biological_hierarchy:
+            biological_hierarchy = build_biological_hierarchy(
+                report.biomarker_summary or {},
+                insights.get("biological_systems") or report.biological_systems or [],
+                report.pathway_activations or [],
+                full_rec_payloads,
+                intervention_pathways,
+            )
+            insights["biological_hierarchy"] = biological_hierarchy
+        if not dual_clinical_rankings:
+            dual_clinical_rankings = build_dual_clinical_rankings(
+                report.biomarker_summary or {},
+                insights.get("biological_systems") or report.biological_systems or [],
+                report.pathway_activations or [],
+                full_rec_payloads,
+                intervention_pathways,
+            )
+            insights["dual_clinical_rankings"] = dual_clinical_rankings
+    if not clinical_summary_hero and dual_clinical_rankings:
+        from app.pipeline.report_clinical_summary import build_clinical_summary_hero
+
+        clinical_summary_hero = build_clinical_summary_hero(
+            dual_clinical_rankings,
+            insights.get("overall_confidence_assessment"),
+            report.biomarker_summary or {},
+        )
+        insights["clinical_summary_hero"] = clinical_summary_hero
+    if not insights.get("report_methodology"):
+        from app.pipeline.report_methodology import build_report_methodology
+
+        insights["report_methodology"] = build_report_methodology(
+            report.biomarker_summary or {},
+            insights.get("biological_systems") or report.biological_systems or [],
+            report.pathway_activations or [],
+            rec_dicts,
+            citations=citation_rows_for_insights,
+        )
+
     return RecommendationReportRead(
         id=report.id,
         lab_report_id=report.lab_report_id,
@@ -90,47 +269,30 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         biomarker_summary=report.biomarker_summary,
         biomarker_interpretations=report.biomarker_interpretations,
         pathway_activations=report.pathway_activations,
-        biological_systems=report.biological_systems,
+        biological_systems=insights.get("biological_systems") or report.biological_systems,
         recommendations=[
-            {
-                "rank": r.rank,
-                "intervention_name": r.intervention_name,
-                "category": r.category,
-                "mechanism": r.mechanism,
-                "evidence_level": r.evidence_level,
-                "evidence_tier": r.evidence_tier,
-                "evidence_tier_label": EVIDENCE_TIER_LABELS[r.evidence_tier],
-                "confidence_score": r.confidence_score,
-                "typical_dose": r.typical_dose,
-                "rationale": r.rationale,
-                "limitations": r.limitations,
-                "safety_risk": r.safety_risk,
-                "safety_notes": r.safety_notes,
-                "interactions": r.interactions,
-                "is_regulated": r.is_regulated,
-                "cited_study_ids": r.cited_study_ids,
-                "cited_urls": r.cited_urls,
-                "food_sources": r.food_sources,
-                "intervention_narrative": r.intervention_narrative,
-            }
+            _hydrated_recommendation_payload(r, citations_by_id)
             for r in report.recommendations
         ],
-        citations=[
-            {
-                "id": c.external_id,
-                "source": c.source,
-                "title": c.title,
-                "year": c.year,
-                "study_type": c.study_type,
-                "quality_score": c.quality_score,
-            }
-            for c in report.citations
-        ],
+        citations=citation_rows,
         clinician_questions=report.clinician_questions,
         safety_summary=report.safety_summary,
         medication_context=report.medication_context or {},
         lab_trends=report.lab_trends or {},
         disclaimer=report.disclaimer,
+        report_versioning=report.report_versioning,
+        evidence_summary=insights.get("evidence_summary"),
+        missing_information=insights.get("missing_information"),
+        overall_confidence_assessment=insights.get("overall_confidence_assessment"),
+        biological_reasoning_summary=insights.get("biological_reasoning_summary"),
+        differential_explanations=insights.get("differential_explanations"),
+        patient_evidence_gaps=insights.get("patient_evidence_gaps"),
+        report_methodology=insights.get("report_methodology"),
+        report_insights=insights,
+        recommendation_tiers=recommendation_tiers,
+        biological_hierarchy=biological_hierarchy,
+        dual_clinical_rankings=dual_clinical_rankings,
+        clinical_summary_hero=clinical_summary_hero,
         created_at=report.created_at,
     )
 

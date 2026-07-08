@@ -47,7 +47,7 @@ async def run_pipeline(
         client=llm_client,
         routing=routing,
     )
-    safety_report = check_safety(reasoning.recommendations, health_profile)
+    safety_report = check_safety(reasoning.recommendations, health_profile, normalized_labs=normalized)
     intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
 
     return generate_report(
@@ -59,4 +59,5 @@ async def run_pipeline(
         reasoning.clinician_questions,
         intervention_pathways,
         routing=routing,
+        health_profile=health_profile,
     )

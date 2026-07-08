@@ -15,6 +15,8 @@ from app.models.enums import (
     StudyType,
 )
 from app.schemas.evidence import FoodSourceRead
+from app.schemas.explainability import RecommendationExplainability, ReportVersioning, SupportingLiteratureEntry
+from app.schemas.safety_profile import InterventionSafetyProfile
 
 
 class PathwayActivationRead(BaseModel):
@@ -80,6 +82,9 @@ class RecommendationRead(BaseModel):
     cited_urls: list[str] = []
     food_sources: list[FoodSourceRead] | None = None
     intervention_narrative: str | None = None
+    safety_profile: InterventionSafetyProfile | None = None
+    explainability: RecommendationExplainability | None = None
+    supporting_literature: list[SupportingLiteratureEntry] = []
 
 
 class CitationRead(BaseModel):
@@ -91,6 +96,7 @@ class CitationRead(BaseModel):
     year: int | None = None
     study_type: StudyType | None = None
     quality_score: float | None = None
+    url: str | None = None
 
 
 class MeasuredBiomarkerRead(BaseModel):
@@ -151,6 +157,62 @@ class LabTrendsRead(BaseModel):
     summary: str = ""
 
 
+class ClinicalSummaryHeroRead(BaseModel):
+    """Page-1 stitched clinical summary."""
+
+    model: str = "clinical_summary_hero_v1"
+    positioning: str = "AI Clinical Reasoning for Precision Nutrition"
+    title: str = "HerbaGraph Clinical Summary"
+    overall_confidence_label: str = ""
+    overall_confidence_percent: int | None = None
+    primary_finding: dict = {}
+    likely_explanation: str = ""
+    alternative_explanations: list[str] = []
+    diagnostic_note: str | None = None
+    most_important_next_tests: list[dict] = []
+    highest_leverage_interventions: list[dict] = []
+    confidence_if_added: list[dict] = []
+    secondary_priorities: list[dict] = []
+
+
+class DualClinicalRankingsRead(BaseModel):
+    """Separate clinical-priority and network-leverage rankings."""
+
+    model: str = "dual_ranking_v1"
+    clinical_priorities: list[dict] = []
+    network_leverage_groups: list[dict] = []
+    clinical_priority_table: list[dict] = []
+    ranking_questions: dict = {}
+
+
+class BiologicalHierarchyRead(BaseModel):
+    """Biology-first cascade: biomarkers → systems → pathways → interventions."""
+
+    model: str = "biology_hierarchy_v1"
+    cascade: dict = {}
+    abnormal_biomarker_details: list[dict] = []
+    dominant_biology: dict | None = None
+    systems_tree: list[dict] = []
+    network_influence_table: list[dict] = []
+    ranking_priorities: list[str] = []
+
+
+class RecommendationTiersRead(BaseModel):
+    """Clinician-focused tiered presentation of evidence-graded considerations."""
+
+    model: str = "tiered_v1"
+    caps: dict = {}
+    top_biological_problems: list[dict] = []
+    top_considerations: list[dict] = []
+    additional_by_category: dict = {}
+    regulated_context: dict = {}
+    mechanistic_appendix: dict = {}
+    full_appendix_available: bool = False
+    total_considerations: int = 0
+    displayed_by_default: int = 0
+    clinical_executive_summary: str = ""
+
+
 class RecommendationReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -170,6 +232,19 @@ class RecommendationReportRead(BaseModel):
     medication_context: MedicationContextRead = MedicationContextRead()
     lab_trends: LabTrendsRead = LabTrendsRead()
     disclaimer: str
+    report_versioning: ReportVersioning | None = None
+    evidence_summary: dict | None = None
+    missing_information: dict | None = None
+    overall_confidence_assessment: dict | None = None
+    biological_reasoning_summary: dict | None = None
+    differential_explanations: dict | None = None
+    patient_evidence_gaps: dict | None = None
+    report_methodology: dict | None = None
+    report_insights: dict | None = None
+    recommendation_tiers: RecommendationTiersRead | None = None
+    biological_hierarchy: BiologicalHierarchyRead | None = None
+    dual_clinical_rankings: DualClinicalRankingsRead | None = None
+    clinical_summary_hero: ClinicalSummaryHeroRead | None = None
     created_at: datetime
 
 

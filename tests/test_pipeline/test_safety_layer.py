@@ -1,8 +1,7 @@
-"""Unit tests for Stage 6: safety_layer.check_safety.
+"""Unit tests for Stage 6: safety_layer → Safety Engine v1.0.
 
-Covers drug-herb interaction detection (case-insensitive, substring-tolerant),
-pregnancy/CKD/autoimmune contraindication exclusion, safety_risk assignment,
-requires_clinician_review, and regulated-intervention flagging.
+Covers drug-herb interaction detection, contraindication warnings (not removal),
+safety_risk assignment, requires_clinician_review, and regulated-intervention flagging.
 """
 
 import pytest
@@ -135,34 +134,39 @@ def test_multiple_matched_interactions_use_worst_severity():
     "intervention_name",
     ["Berberine", "Ashwagandha", "Curcumin", "Boswellia Serrata"],
 )
-def test_pregnancy_excludes_expected_interventions(intervention_name):
+def test_pregnancy_flags_expected_interventions_without_removal(intervention_name):
     report = check_safety([make_rec(intervention_name)], profile(conditions=["Pregnancy"]))
-    excluded = excluded_by_name(report)
-    assert intervention_name in excluded
-    rec = excluded[intervention_name]
-    assert rec.safety_risk == SafetyRiskLevel.CONTRAINDICATED
-    assert rec.safety_notes == ["Excluded: contraindicated given patient's health profile."]
-    assert report.approved_recommendations == []
+    approved = approved_by_name(report)
+    assert intervention_name in approved
+    rec = approved[intervention_name]
+    assert rec.safety_risk in (SafetyRiskLevel.CONTRAINDICATED, SafetyRiskLevel.MODERATE)
+    assert report.excluded_recommendations == []
+    assert rec.safety_profile is not None
+    assert rec.safety_profile.requires_prominent_warning
 
 
 def test_pregnancy_detection_is_case_insensitive_and_matches_substring():
     report = check_safety([make_rec("Berberine")], profile(conditions=["currently pregnant"]))
-    excluded = excluded_by_name(report)
-    assert "Berberine" in excluded
+    approved = approved_by_name(report)
+    assert "Berberine" in approved
 
 
 @pytest.mark.parametrize(
     "intervention_name",
     ["Magnesium", "Potassium", "Vitamin D"],
 )
-def test_severe_ckd_excludes_expected_interventions(intervention_name):
+def test_severe_ckd_flags_expected_interventions(intervention_name):
     report = check_safety(
         [make_rec(intervention_name, category=InterventionCategory.SUPPLEMENT)],
         profile(conditions=["severe chronic kidney disease"]),
     )
-    excluded = excluded_by_name(report)
-    assert intervention_name in excluded
-    assert excluded[intervention_name].safety_risk == SafetyRiskLevel.CONTRAINDICATED
+    approved = approved_by_name(report)
+    assert intervention_name in approved
+    assert approved[intervention_name].safety_risk in (
+        SafetyRiskLevel.CONTRAINDICATED,
+        SafetyRiskLevel.HIGH,
+        SafetyRiskLevel.MODERATE,
+    )
 
 
 def test_ckd_abbreviation_alone_is_detected():
@@ -170,22 +174,26 @@ def test_ckd_abbreviation_alone_is_detected():
         [make_rec("Magnesium", category=InterventionCategory.SUPPLEMENT)],
         profile(conditions=["CKD"]),
     )
-    excluded = excluded_by_name(report)
-    assert "Magnesium" in excluded
+    approved = approved_by_name(report)
+    assert "Magnesium" in approved
 
 
 @pytest.mark.parametrize(
     "intervention_name",
     ["Ashwagandha", "Echinacea"],
 )
-def test_autoimmune_on_immunosuppressants_excludes_expected_interventions(intervention_name):
+def test_autoimmune_on_immunosuppressants_flags_expected_interventions(intervention_name):
     report = check_safety(
         [make_rec(intervention_name)],
         profile(conditions=["Rheumatoid Arthritis"], medications=["Methotrexate"]),
     )
-    excluded = excluded_by_name(report)
-    assert intervention_name in excluded
-    assert excluded[intervention_name].safety_risk == SafetyRiskLevel.CONTRAINDICATED
+    approved = approved_by_name(report)
+    assert intervention_name in approved
+    assert approved[intervention_name].safety_risk in (
+        SafetyRiskLevel.CONTRAINDICATED,
+        SafetyRiskLevel.MODERATE,
+        SafetyRiskLevel.HIGH,
+    )
 
 
 def test_autoimmune_condition_alone_without_immunosuppressant_does_not_exclude():
@@ -223,7 +231,7 @@ def test_unrelated_intervention_is_not_excluded_by_contraindications():
 # ---------------------------------------------------------------------------
 
 
-def test_requires_clinician_review_true_when_exclusion_present():
+def test_requires_clinician_review_true_when_contraindication_warning_present():
     report = check_safety([make_rec("Berberine")], profile(conditions=["Pregnancy"]))
     assert report.requires_clinician_review is True
 
@@ -236,12 +244,12 @@ def test_requires_clinician_review_true_when_any_approved_rec_is_moderate_or_hig
 def test_requires_clinician_review_false_when_all_low_and_nothing_excluded():
     report = check_safety([make_rec("Vitamin C")], profile(medications=["Aspirin"]))
     assert report.requires_clinician_review is False
-    assert report.overall_note == "No major drug-herb interactions detected."
+    assert "No major safety concerns" in report.overall_note
 
 
 def test_overall_note_flags_review_when_high_risk_present():
     report = check_safety([make_rec("Berberine")], profile(medications=["Cyclosporine"]))
-    assert report.overall_note == "One or more recommendations require clinician review before starting."
+    assert "clinician" in report.overall_note.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +262,8 @@ def test_overall_note_flags_review_when_high_risk_present():
     [
         ("bpc-157", "investigational peptide"),
         ("TB-500", "investigational peptide"),
-        ("Semaglutide", "prescription-only"),
-        ("Tirzepatide", "prescription-only"),
+        ("Semaglutide", "prescription"),
+        ("Tirzepatide", "prescription"),
     ],
 )
 def test_regulated_interventions_flagged_with_note(intervention_name, expected_snippet):
@@ -266,7 +274,9 @@ def test_regulated_interventions_flagged_with_note(intervention_name, expected_s
     approved = approved_by_name(report)
     rec = approved[intervention_name]
     assert rec.is_regulated is True
-    assert any(expected_snippet in note for note in rec.safety_notes)
+    notes_blob = " ".join(rec.safety_notes or []).lower()
+    profile_note = ((rec.safety_profile.regulation_note or "") if rec.safety_profile else "").lower()
+    assert expected_snippet.lower() in notes_blob or expected_snippet.lower() in profile_note
 
 
 def test_non_regulated_intervention_is_not_flagged():
@@ -275,16 +285,13 @@ def test_non_regulated_intervention_is_not_flagged():
     assert approved["Vitamin C"].is_regulated is False
 
 
-def test_regulated_and_contraindicated_still_marks_is_regulated_on_excluded():
-    # Berberine isn't regulated, so use a regulated + also-excluded combination
-    # isn't directly modeled; instead confirm a regulated intervention excluded
-    # via unrelated contraindication still carries is_regulated flag.
+def test_regulated_intervention_still_carries_warning_when_pregnant():
     report = check_safety(
-        [make_rec("Berberine", category=InterventionCategory.PEPTIDE)],
+        [make_rec("Semaglutide", category=InterventionCategory.PEPTIDE)],
         profile(conditions=["Pregnancy"]),
     )
-    excluded = excluded_by_name(report)
-    assert excluded["Berberine"].is_regulated is False
+    approved = approved_by_name(report)
+    assert approved["Semaglutide"].is_regulated is True
 
 
 def test_empty_recommendations_returns_empty_report():

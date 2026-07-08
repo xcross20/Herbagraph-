@@ -13,6 +13,8 @@ from app.models.enums import (
     StudyType,
 )
 from app.schemas.evidence import FoodSourceRead
+from app.schemas.explainability import RecommendationExplainability
+from app.schemas.safety_profile import InterventionSafetyProfile
 
 
 class ParsedLabResult(BaseModel):
@@ -26,6 +28,9 @@ class ParsedLabResult(BaseModel):
     raw_line: str | None = None
     qualitative_result: str | None = None
     expected_result: str | None = None
+    parse_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+    parser_pattern: str | None = None
+    document_provider: str | None = None
 
 
 class NormalizedLabResult(BaseModel):
@@ -112,6 +117,8 @@ class ScoredRecommendation(LLMRecommendation):
     intervention_narrative: str | None = None
     evidence_tier: EvidenceTier = EvidenceTier.RESEARCH_HYPOTHESIS
     evidence_tier_label: str = "Research Hypothesis"
+    safety_profile: InterventionSafetyProfile | None = None
+    explainability: RecommendationExplainability | None = None
 
 
 class SafetyReport(BaseModel):

@@ -120,6 +120,24 @@ _PATTERN_FLAG_LTE_RANGE_UNIT = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern 10b: "F HbA1c 5.9 H < 5.70 (%)" — Healow/Quest upper-bound-only with < (not <=)
+_PATTERN_FLAG_LT_RANGE_UNIT = re.compile(
+    rf"^(?P<name>[A-Za-z][A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<value>{_NUM})\s+"
+    rf"(?:(?P<flag>{_STATUS_TOKEN})\s+)?"
+    rf"<\s*(?P<high>{_NUM})\s*"
+    rf"\(\s*(?P<unit>[^)]+)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
+# Pattern 10c: "F Estimated Average Glucose 122.63 (mg/dL)" — value + unit, no reference range
+_PATTERN_VALUE_UNIT_PARENS = re.compile(
+    rf"^(?P<name>[A-Za-z][A-Za-z0-9/(),.'%\- ]{{1,60}}?)\s+"
+    rf"(?P<value>{_NUM})\s*"
+    rf"\(\s*(?P<unit>[^)]+)\s*\)\s*$",
+    re.IGNORECASE,
+)
+
 # Pattern 10: "LDL Cholesterol Calc 109.4 NEAR OPTIMAL 0.00 - 100.00"
 _PATTERN_VALUE_STATUS_RANGE = re.compile(
     rf"^(?P<name>[A-Za-z][A-Za-z0-9/(),.'%\- ]{{1,60}}?)\s+"
@@ -127,6 +145,51 @@ _PATTERN_VALUE_STATUS_RANGE = re.compile(
     rf"(?:(?P<flag>{_STATUS_TOKEN})\s+)?"
     rf"(?P<low>{_NUM})\s*[-–]\s*(?P<high>{_NUM})\s*"
     rf"(?:(?P<unit>[A-Za-z%/µμ][A-Za-z0-9%/µμ]*)?\s*)?$",
+    re.IGNORECASE,
+)
+
+# Pattern 11: "Glucose 102 mg/dL 65-99" — standard row (name value unit range)
+_PATTERN_STANDARD_ROW = re.compile(
+    rf"^(?P<name>{_NAME_START}[A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<value>{_NUM})\s+"
+    rf"(?P<unit>[A-Za-z%/µμ][A-Za-z0-9%/µμ]*)\s+"
+    rf"(?P<low>{_NUM})\s*[-–—to]+\s*(?P<high>{_NUM})\s*$",
+    re.IGNORECASE,
+)
+
+# Pattern 12: "Ferritin 12 L ng/mL 38-380" — flagged row with trailing range
+_PATTERN_FLAGGED_ROW = re.compile(
+    rf"^(?P<name>{_NAME_START}[A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<value>{_NUM})\s+"
+    rf"(?:(?P<flag>{_STATUS_TOKEN})\s+)?"
+    rf"(?P<unit>[A-Za-z%/µμ][A-Za-z0-9%/µμ]*)\s+"
+    rf"(?P<low>{_NUM})\s*[-–—to]+\s*(?P<high>{_NUM})\s*$",
+    re.IGNORECASE,
+)
+
+# Pattern 13: inline reference text — "Vitamin D 25 ng/mL Reference Range: 30-100"
+_PATTERN_INLINE_REF_TEXT = re.compile(
+    rf"^(?P<name>{_NAME_START}[A-Za-z0-9/(),.'%\- ]{{1,60}}?)\s+"
+    rf"(?P<value>{_NUM})\s*"
+    rf"(?P<unit>[A-Za-z%/µμ][A-Za-z0-9%/µμ]*)?\s+"
+    rf"(?:Reference Range|Ref Range|Normal Range|Range)\s*:\s*"
+    rf"(?P<low>{_NUM})\s*[-–—to]+\s*(?P<high>{_NUM})",
+    re.IGNORECASE,
+)
+
+# Pattern 14: percent row — "Neutrophils 58 % 40-70"
+_PATTERN_PERCENT_ROW = re.compile(
+    rf"^(?P<name>{_NAME_START}[A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<value>{_NUM})\s*%\s+"
+    rf"(?P<low>{_NUM})\s*[-–—to]+\s*(?P<high>{_NUM})\s*%?\s*$",
+    re.IGNORECASE,
+)
+
+# Pattern 15: bounded only — "hs-CRP >10.0 mg/L" or "<5 ng/mL"
+_PATTERN_BOUNDED_VALUE = re.compile(
+    rf"^(?P<name>{_NAME_START}[A-Za-z0-9/(),.'%\- ]{{1,50}}?)\s+"
+    rf"(?P<bounded>[<>]=?\s*{_NUM})\s*"
+    rf"(?P<unit>[A-Za-z%/µμ][A-Za-z0-9%/µμ]*)?\s*$",
     re.IGNORECASE,
 )
 
@@ -265,6 +328,27 @@ def _parse_quest_qualitative_line(line: str) -> ParsedLabResult | None:
 
 
 def _parse_flag_range_line(line: str) -> ParsedLabResult | None:
+    lt_match = _PATTERN_FLAG_LT_RANGE_UNIT.match(line.strip())
+    if lt_match:
+        groups = lt_match.groupdict()
+        try:
+            value = _to_float(groups["value"])
+            high = _to_float(groups["high"])
+        except ValueError:
+            return None
+        name = _parsed_test_name(groups["name"])
+        if not name:
+            return None
+        unit = _clean_unit(groups.get("unit"))
+        return ParsedLabResult(
+            raw_test_name=name,
+            value=value,
+            unit=unit,
+            reference_range_low=0.0,
+            reference_range_high=high,
+            raw_line=line.strip(),
+        )
+
     lte_match = _PATTERN_FLAG_LTE_RANGE_UNIT.match(line.strip())
     if lte_match:
         groups = lte_match.groupdict()
@@ -364,6 +448,78 @@ def parse_lab_line(line: str) -> ParsedLabResult | None:
     if flag_range is not None:
         return flag_range
 
+    for extra in (
+        _PATTERN_STANDARD_ROW,
+        _PATTERN_FLAGGED_ROW,
+        _PATTERN_INLINE_REF_TEXT,
+        _PATTERN_PERCENT_ROW,
+    ):
+        match = extra.match(stripped)
+        if match:
+            groups = match.groupdict()
+            try:
+                value = _to_float(groups["value"])
+                low = _to_float(groups["low"])
+                high = _to_float(groups["high"])
+            except (KeyError, ValueError):
+                continue
+            name = _parsed_test_name(groups["name"])
+            if not name:
+                continue
+            unit = _clean_unit(groups.get("unit"))
+            if extra is _PATTERN_PERCENT_ROW:
+                unit = "%"
+            return ParsedLabResult(
+                raw_test_name=name,
+                value=value,
+                unit=unit,
+                reference_range_low=low,
+                reference_range_high=high,
+                raw_line=stripped,
+                parser_pattern="generic_regex",
+            )
+
+    bounded = _PATTERN_BOUNDED_VALUE.match(stripped)
+    if bounded:
+        groups = bounded.groupdict()
+        try:
+            value = _to_float(groups["bounded"])
+        except ValueError:
+            pass
+        else:
+            name = _parsed_test_name(groups["name"])
+            if name:
+                return ParsedLabResult(
+                    raw_test_name=name,
+                    value=value,
+                    unit=_clean_unit(groups.get("unit")),
+                    reference_range_low=None,
+                    reference_range_high=None,
+                    raw_line=stripped,
+                    parser_pattern="generic_regex",
+                )
+
+    value_unit = _PATTERN_VALUE_UNIT_PARENS.match(stripped)
+    if value_unit:
+        groups = value_unit.groupdict()
+        unit_raw = (groups.get("unit") or "").strip()
+        if not re.search(r"\d+\s*[-–—]\s*\d+", unit_raw):
+            try:
+                value = _to_float(groups["value"])
+            except ValueError:
+                return None
+            name = _parsed_test_name(groups["name"])
+            if not name:
+                return None
+            return ParsedLabResult(
+                raw_test_name=name,
+                value=value,
+                unit=_clean_unit(unit_raw),
+                reference_range_low=None,
+                reference_range_high=None,
+                raw_line=stripped,
+            )
+
     for pattern in _PATTERNS:
         match = pattern.match(stripped)
         if not match:
@@ -422,8 +578,8 @@ def postprocess_ocr_lab_text(text: str) -> str:
     return "\n".join(lines)
 
 
-def parse_lab_text(text: str) -> list[ParsedLabResult]:
-    """Parse a full lab report's plain text into a list of ParsedLabResult rows."""
+def parse_lab_text_legacy_regex(text: str) -> list[ParsedLabResult]:
+    """Legacy regex-only parse (line by line, no provider detection)."""
     text = postprocess_ocr_lab_text(text)
     results: list[ParsedLabResult] = []
     for line in text.splitlines():
@@ -431,6 +587,14 @@ def parse_lab_text(text: str) -> list[ParsedLabResult]:
         if parsed is not None:
             results.append(parsed)
     return results
+
+
+def parse_lab_text(text: str, *, filename: str = "", file_bytes: bytes | None = None) -> list[ParsedLabResult]:
+    """Parse lab report text via the document intelligence pipeline."""
+    from app.pipeline.parsers.pipeline import run_document_pipeline
+
+    outcome = run_document_pipeline(text, filename=filename, file_bytes=file_bytes)
+    return outcome.results
 
 
 def extract_text_from_pdf(file_bytes: bytes) -> str:
@@ -465,13 +629,22 @@ def extract_document_text(file_bytes: bytes, filename: str) -> str:
 
 def parse_lab_file(file_bytes: bytes, filename: str) -> list[ParsedLabResult]:
     """Dispatch on file extension: OCR/extract PDFs, decode everything else as text."""
-    return parse_lab_text(extract_document_text(file_bytes, filename))
+    text = extract_document_text(file_bytes, filename)
+    return parse_lab_text(text, filename=filename, file_bytes=file_bytes)
+
+
+def parse_lab_document(file_bytes: bytes, filename: str):
+    """Full parse outcome including unparsed lines and provider detection."""
+    from app.pipeline.parsers.pipeline import run_document_pipeline
+
+    text = extract_document_text(file_bytes, filename)
+    return run_document_pipeline(text, filename=filename, file_bytes=file_bytes)
 
 
 def parse_lab_file_with_llm_fallback(file_bytes: bytes, filename: str) -> list[ParsedLabResult]:
-    """Regex-first parsing; fall back to LLM text/vision when patterns match nothing."""
+    """Document intelligence pipeline first; fall back to LLM text/vision when empty."""
     text = extract_document_text(file_bytes, filename)
-    parsed = parse_lab_text(text)
+    parsed = parse_lab_text(text, filename=filename, file_bytes=file_bytes)
     if parsed:
         return parsed
 

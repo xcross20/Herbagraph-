@@ -32,15 +32,31 @@ python3 scripts/audit_scenario_coverage.py
 echo "[8/10] seed catalog counts..."
 python3 scripts/validate_seed_counts.py
 
-echo "[9/10] sample lab files parse..."
+echo "[9/11] sample lab files parse..."
 python3 scripts/validate_sample_labs.py
 
-echo "[10/10] pytest full suite..."
+echo "[10/12] unresolved abnormal biomarker audit..."
+python3 scripts/audit_unresolved_abnormals.py
+
+echo "[11/12] pipeline resilience (scenarios × adversarial mutations)..."
+python3 scripts/audit_pipeline_resilience.py
+
+echo "[12/12] pytest full suite..."
 python3 -m pytest tests/ -q --tb=line
 
 if [[ "${HERBAGRAPH_OPS_RESEED:-0}" == "1" ]]; then
   echo ""
   bash scripts/ops_reseed.sh
+fi
+
+if [[ "${HERBAGRAPH_PLAYWRIGHT:-0}" == "1" ]]; then
+  echo ""
+  bash scripts/playwright_ui_smoke.sh
+fi
+
+if [[ "${HERBAGRAPH_LIVE_E2E:-0}" == "1" ]]; then
+  echo ""
+  bash scripts/live_e2e_smoke.sh
 fi
 
 echo "=== All gates passed ==="

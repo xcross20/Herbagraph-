@@ -1,0 +1,6 @@
+HEALOW / ECLINICALWORKS HbA1c - SYNTHETIC (NOT REAL PATIENT DATA)
+
+Hemoglobin A1c
+F HbA1c 5.9 H < 5.70 (%)
+- PREDIABETIC RANGE
+F Estimated Average Glucose 122.63 (mg/dL)

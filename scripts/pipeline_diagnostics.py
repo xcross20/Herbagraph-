@@ -37,6 +37,8 @@ def main() -> int:
         ("PMID integrity (denylist)", [sys.executable, "scripts/audit_pmid_integrity.py"]),
         ("Sample lab parse", [sys.executable, "scripts/validate_sample_labs.py"]),
         ("Scenario coverage", [sys.executable, "scripts/audit_scenario_coverage.py"]),
+        ("Unresolved abnormals", [sys.executable, "scripts/audit_unresolved_abnormals.py"]),
+        ("Pipeline resilience", [sys.executable, "scripts/audit_pipeline_resilience.py"]),
     ]
 
     failed = 0

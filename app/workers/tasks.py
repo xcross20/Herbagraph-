@@ -19,6 +19,7 @@ from app.pipeline.user_biomarker_profile import (
     register_discovered_biomarkers,
 )
 from app.pipeline.lab_parser import parse_lab_file_with_llm_fallback
+from app.services.integrated_analysis import run_integrated_analysis
 from app.services.report_generation import run_report_generation
 from app.workers.celery_app import celery_app
 
@@ -110,3 +111,8 @@ def generate_recommendation_report(lab_report_id: str, user_id: str) -> dict:
 @celery_app.task(name="generate_recommendation_report")
 def generate_recommendation_report_task(lab_report_id: str, user_id: str) -> dict:
     return generate_recommendation_report(lab_report_id, user_id)
+
+
+@celery_app.task(name="run_integrated_analysis")
+def run_integrated_analysis_task(analysis_session_id: str, user_id: str) -> dict:
+    return run_integrated_analysis(analysis_session_id, user_id)

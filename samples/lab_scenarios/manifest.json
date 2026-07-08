@@ -327,6 +327,42 @@
       }
     },
     {
+      "scenario_id": "format_healow_lipid_panel",
+      "description": "Healow/eClinicalWorks lipid panel: F-column bleed, <= ranges, Cholesterol Total comma suffix",
+      "tags": ["signaling", "format_healow", "format_pdf_column_prefix"],
+      "raw_file": "raw/format_healow_lipid_panel.txt",
+      "expect": {
+        "parse": { "min_rows": 6 },
+        "normalize": {
+          "must_include": [
+            { "biomarker_name": "HDL" },
+            { "biomarker_name": "LDL", "status": "high" }
+          ],
+          "must_track_in_catalog": [
+            "Total Cholesterol",
+            "Triglycerides",
+            "HDL",
+            "LDL",
+            "Non-HDL Cholesterol",
+            "Chol/HDL Ratio"
+          ]
+        },
+        "routing": { "primary_tree": "signaling", "min_abnormal": 1 },
+        "pathways": {
+          "must_include": ["HEPATIC_LIPID"]
+        },
+        "biological_systems": {
+          "must_include": [
+            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+          ]
+        },
+        "recommendations": {
+          "must_include": ["Berberine"],
+          "min_count": 1
+        }
+      }
+    },
+    {
       "scenario_id": "etiological_h_pylori_urea_breath",
       "description": "Active H. pylori urea breath — etiological primary (Mastic Gum path)",
       "tags": ["etiological", "infectious_disease", "format_quest_qualitative"],

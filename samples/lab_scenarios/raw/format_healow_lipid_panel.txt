@@ -1,0 +1,8 @@
+HEALOW / ECLINICALWORKS LIPID PANEL - SYNTHETIC (NOT REAL PATIENT DATA)
+
+F Cholesterol, Total 174.0 100.00 - 200.00 (mg/dL)
+F Triglycerides 63.0 <= 150.00 (mg/dL)
+F HDL 52.0 L 60.00 - 180.00 (mg/dL)
+F LDL Cholesterol Calc 109.4 NEAR OPTIMAL 0.00 - 100.00
+F Non-HDL Cholesterol 122.0 1.00 - 130.00
+F Total Cholesterol/HDL Ratio 3.35 1.00 - 5.00

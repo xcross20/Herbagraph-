@@ -1,8 +1,39 @@
-# HerbaGraph Clinical Evidence Engine
+# HerbaGraph
 
-> **A privacy-first biomarker intelligence platform for botanicals, nutraceuticals, peptides, and longevity therapies.**
+**An Explainable Biological Reasoning Platform for Biomarker Interpretation and Evidence-Based Integrative Medicine.**
 
-HerbaGraph bridges the gap between a patient's lab results and the published scientific literature. It parses any standard lab report (Quest, LabCorp, Cleveland HeartLab), maps abnormal biomarkers to disrupted biological pathways, retrieves and scores evidence from PubMed, ClinicalTrials.gov, and Europe PMC, then uses an OpenAI LLM with a structured reasoning chain to synthesize evidence-backed intervention recommendations — all with a rigorous safety and drug-interaction layer.
+HerbaGraph is an AI-powered biomedical reasoning platform that transforms laboratory biomarkers into transparent, evidence-based biological insights.
+
+Rather than simply flagging abnormal lab values or recommending supplements, HerbaGraph constructs an explainable chain of reasoning that connects laboratory biomarkers to biological systems, molecular pathways, scientific evidence, safety considerations, and potential evidence-supported intervention classes.
+
+The platform combines a biomedical knowledge graph, explainable AI, structured scientific evidence, and clinical reasoning to help researchers and clinicians better understand the biological significance of laboratory findings while clearly communicating confidence, uncertainty, and research limitations.
+
+## Core Capabilities
+
+- Multi-report laboratory aggregation into a unified patient profile
+- Biomarker normalization and interpretation
+- Biological systems and pathway mapping
+- Explainable biological reasoning
+- Evidence grading using human clinical literature
+- Differential biological explanations
+- Evidence confidence and uncertainty estimation
+- Diagnostic optimization through identification of high-value missing biomarkers
+- Safety-aware evidence synthesis
+- Transparent evidence provenance and literature citation
+- Knowledge graph–driven intervention discovery across botanicals, nutraceuticals, foods, peptides, lifestyle interventions, and emerging therapeutic classes
+
+## Design Philosophy
+
+HerbaGraph is designed around four guiding principles:
+
+1. Explain every conclusion.
+2. Quantify uncertainty rather than hide it.
+3. Separate evidence from opinion.
+4. Assist human decision-making rather than replace it.
+
+Rather than functioning as a recommendation engine, HerbaGraph acts as an explainable biological reasoning platform that organizes complex biomedical knowledge into transparent, auditable, and clinically interpretable reports.
+
+The platform is intended for research, evidence synthesis, educational use, and future clinical decision support development. It is not intended to diagnose disease or replace professional medical judgment.
 
 ---
 
@@ -14,6 +45,8 @@ HerbaGraph bridges the gap between a patient's lab results and the published sci
 
 ## Table of Contents
 
+- [Core Capabilities](#core-capabilities)
+- [Design Philosophy](#design-philosophy)
 - [Architecture](#architecture)
 - [MVP Scope](#mvp-scope)
 - [Pipeline Overview](#pipeline-overview)
@@ -365,8 +398,8 @@ Each compound carries the same safety rigor as any other intervention — for ex
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/your-org/herbagraph.git
-cd herbagraph
+git clone https://github.com/xcross20/Herbagraph-.git
+cd Herbagraph-
 cp .env.example .env
 ```
 
@@ -406,7 +439,7 @@ docker-compose exec api python scripts/seed_db.py
 
 ### 5. Explore the API or the bare-bones frontend
 
-- Frontend: [http://localhost:8000/](http://localhost:8000/) -- a deliberately plain, single-page HTML/JS UI (`frontend/index.html`, served by the API itself, no build step): choose a lab file, click Analyze, and it walks through upload -> processing -> report generation -> a Patient Summary / Biological Systems / Recommendations / Evidence & Citations view, with a "Download PDF" button (browser print-to-PDF). It transparently creates a throwaway local account in `localStorage` on first visit, so there's no login screen.
+- Frontend: [http://localhost:8000/](http://localhost:8000/) — a single-page explainable biological reasoning UI (`frontend/index.html`, served by the API, no build step). Upload one lab or run **Integrated Lab Analysis** across multiple files. Reports surface Executive Summary, Clinical Priorities, Diagnostic Optimization, and expandable sections (Biological Network, Intervention Library, Patient Data, Research Appendix) with a persistent sidebar. **Download Summary PDF** matches the on-screen view; **Download Full Report PDF** expands all sections for sharing. Guest auth is stored in `localStorage` on first visit — no login screen.
 - **Demo lab files:** synthetic Quest/LabCorp/CSV samples in [`samples/lab_reports/`](samples/lab_reports/) — start with `demo_01_inflammatory_quest.txt` or `demo_03_comprehensive_quest.txt` (see that folder's README).
 - Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 - ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)

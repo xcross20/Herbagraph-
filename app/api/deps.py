@@ -6,7 +6,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import get_settings, settings
 from app.core.auth_providers import AuthConfigurationError, verify_external_token
 from app.core.security import InvalidTokenError, decode_token
 from app.database import AsyncSessionLocal
@@ -51,3 +51,17 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found or inactive")
     return user
+
+
+async def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
+    admin_emails = {
+        email.strip().lower() for email in get_settings().admin_emails.split(",") if email.strip()
+    }
+    if not admin_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access is not configured. Set ADMIN_EMAILS in the environment.",
+        )
+    if current_user.email.lower() not in admin_emails:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user

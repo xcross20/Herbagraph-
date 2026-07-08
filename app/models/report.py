@@ -12,6 +12,9 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "recommendation_reports"
 
     lab_report_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("lab_reports.id"), nullable=False)
+    analysis_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), ForeignKey("analysis_sessions.id"), nullable=True, index=True
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False)
     overall_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     model_version: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -25,6 +28,8 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     medication_context: Mapped[dict] = mapped_column(JSON, default=dict)
     lab_trends: Mapped[dict] = mapped_column(JSON, default=dict)
     disclaimer: Mapped[str] = mapped_column(Text, nullable=False)
+    report_versioning: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    report_insights: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     lab_report: Mapped["LabReport"] = relationship(back_populates="reports")
     user: Mapped["User"] = relationship(back_populates="reports")
@@ -35,6 +40,9 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="report", cascade="all, delete-orphan"
     )
     feedback: Mapped[list["Feedback"]] = relationship(back_populates="report", cascade="all, delete-orphan")
+    report_feedback: Mapped[list["ReportFeedback"]] = relationship(
+        back_populates="report", cascade="all, delete-orphan"
+    )
 
 
 class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -69,6 +77,7 @@ class Recommendation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     evidence_tier: Mapped[EvidenceTier] = mapped_column(
         Enum(EvidenceTier, native_enum=False, length=30), default=EvidenceTier.RESEARCH_HYPOTHESIS
     )
+    explainability: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     report: Mapped["RecommendationReport"] = relationship(back_populates="recommendations")
 
@@ -87,5 +96,6 @@ class ReportCitation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     study_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     quality_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     report: Mapped["RecommendationReport"] = relationship(back_populates="citations")

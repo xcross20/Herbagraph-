@@ -26,13 +26,23 @@ class LabProcessingStage(str, enum.Enum):
     FAILED = "failed"
 
 
+class AnalysisSessionStatus(str, enum.Enum):
+    PENDING = "pending"
+    PARSING = "parsing"
+    MERGING = "merging"
+    ANALYZING = "analyzing"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
 class ReportGenerationStage(str, enum.Enum):
-    """Granular progress for Stage 3–7 (pathways through final report)."""
+    """Granular progress for Stage 3–8 (pathways through final report)."""
 
     QUEUED = "queued"
     PATHWAY_MAPPING = "pathway_mapping"
     EVIDENCE_RETRIEVAL = "evidence_retrieval"
     LLM_REASONING = "llm_reasoning"
+    EVIDENCE_CONFIDENCE = "evidence_confidence"
     SAFETY_CHECK = "safety_check"
     REPORT_ASSEMBLY = "report_assembly"
     COMPLETE = "complete"
@@ -97,6 +107,16 @@ class RecommendationIntent(str, enum.Enum):
     NUTRITIONAL_REPLETION = "nutritional_repletion"
 
 
+class DisplayIntent(str, enum.Enum):
+    """User-facing report tier label — controls default visibility and section placement."""
+
+    PRIMARY = "primary"
+    SUPPORTIVE = "supportive"
+    CONTEXT_ONLY = "context_only"
+    REGULATED = "regulated"
+    MECHANISTIC = "mechanistic"
+
+
 class EvidenceLevel(str, enum.Enum):
     HIGH = "high"
     MODERATE = "moderate"
@@ -151,7 +171,51 @@ class StudyType(str, enum.Enum):
     RCT = "rct"
     COHORT = "cohort"
     CASE_CONTROL = "case_control"
+    MECHANISTIC = "mechanistic"
     PRECLINICAL = "preclinical"
+    ANIMAL = "animal"
+    IN_VITRO = "in_vitro"
+    TRADITIONAL_USE = "traditional_use"
+
+
+class EvidenceConfidenceLevel(str, enum.Enum):
+    """User-facing confidence band — always computed from structured evidence, never LLM."""
+
+    HIGH = "high"
+    MODERATE = "moderate"
+    LOW = "low"
+
+
+class EvidenceQualityGrade(str, enum.Enum):
+    """Evidence hierarchy grade per recommendation."""
+
+    VERY_HIGH = "very_high"
+    HIGH = "high"
+    MODERATE = "moderate"
+    LOW = "low"
+    VERY_LOW = "very_low"
+
+
+EVIDENCE_QUALITY_LABELS: dict["EvidenceQualityGrade", str] = {
+    EvidenceQualityGrade.VERY_HIGH: "Very High",
+    EvidenceQualityGrade.HIGH: "High",
+    EvidenceQualityGrade.MODERATE: "Moderate",
+    EvidenceQualityGrade.LOW: "Low",
+    EvidenceQualityGrade.VERY_LOW: "Very Low",
+}
+
+
+EVIDENCE_CONFIDENCE_LABELS: dict["EvidenceConfidenceLevel", str] = {
+    EvidenceConfidenceLevel.HIGH: "High",
+    EvidenceConfidenceLevel.MODERATE: "Moderate",
+    EvidenceConfidenceLevel.LOW: "Low",
+}
+
+
+class StudyOutcome(str, enum.Enum):
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+    NEGATIVE = "negative"
 
 
 class Richness(str, enum.Enum):
@@ -168,3 +232,36 @@ class PathwayDirection(str, enum.Enum):
 class FlagSeverity(str, enum.Enum):
     CAUTION = "caution"
     CONTRAINDICATION = "contraindication"
+
+
+class SafetyNodeType(str, enum.Enum):
+    """Safety graph entity types — extensible without schema changes."""
+
+    MEDICATION = "medication"
+    SUPPLEMENT = "supplement"
+    BOTANICAL = "botanical"
+    FOOD_COMPOUND = "food_compound"
+    PEPTIDE = "peptide"
+    LIFESTYLE = "lifestyle"
+    CONDITION = "condition"
+    ORGAN_SYSTEM = "organ_system"
+    INTERVENTION = "intervention"
+
+
+class SafetyRelationshipType(str, enum.Enum):
+    INTERACTS_WITH = "interacts_with"
+    CONTRAINDICATED_IN = "contraindicated_in"
+    USE_WITH_CAUTION = "use_with_caution"
+    CAUTION_IN = "caution_in"
+    AFFECTS_PATHWAY = "affects_pathway"
+
+
+class SafetyWarningEvidenceLevel(str, enum.Enum):
+    """Evidence strength supporting a safety warning (distinct from intervention evidence)."""
+
+    META_ANALYSIS = "meta_analysis"
+    RCT = "rct"
+    OBSERVATIONAL = "observational"
+    MECHANISTIC = "mechanistic"
+    ANIMAL = "animal"
+    TRADITIONAL = "traditional"

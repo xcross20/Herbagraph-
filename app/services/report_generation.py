@@ -45,6 +45,11 @@ async def _run_pipeline_stages(
     lab_report: LabReport,
     health_profile: dict,
     session,
+    *,
+    normalized_labs=None,
+    integrated_analysis: dict | None = None,
+    analysis_session_id: uuid.UUID | None = None,
+    lab_trends_override: dict | None = None,
 ) -> RecommendationReport:
     custom_biomarkers = []
     profile = session.execute(
@@ -53,9 +58,12 @@ async def _run_pipeline_stages(
     if profile is not None:
         custom_biomarkers = list(profile.custom_biomarkers or [])
 
-    refresh_persisted_lab_results(lab_report.lab_results, custom_biomarkers=custom_biomarkers)
-    session.commit()
-    normalized = normalized_results_from_lab_report(lab_report, custom_biomarkers=custom_biomarkers)
+    if normalized_labs is None:
+        refresh_persisted_lab_results(lab_report.lab_results, custom_biomarkers=custom_biomarkers)
+        session.commit()
+        normalized = normalized_results_from_lab_report(lab_report, custom_biomarkers=custom_biomarkers)
+    else:
+        normalized = normalized_labs
 
     _set_report_stage(session, lab_report, ReportGenerationStage.PATHWAY_MAPPING)
     pathway_activations = map_pathways(normalized)
@@ -71,32 +79,37 @@ async def _run_pipeline_stages(
         normalized, pathway_activations, evidence_snippets, health_profile, routing=routing
     )
 
+    _set_report_stage(session, lab_report, ReportGenerationStage.EVIDENCE_CONFIDENCE)
+
     _set_report_stage(session, lab_report, ReportGenerationStage.SAFETY_CHECK)
-    safety_report = check_safety(reasoning.recommendations, health_profile)
+    safety_report = check_safety(reasoning.recommendations, health_profile, normalized_labs=normalized)
     intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.REPORT_ASSEMBLY)
     medication_context = build_medication_context(normalized, health_profile)
 
-    prior_report = (
-        session.execute(
-            select(LabReport)
-            .where(LabReport.user_id == lab_report.user_id)
-            .where(LabReport.id != lab_report.id)
-            .where(LabReport.status == LabReportStatus.COMPLETE)
-            .order_by(LabReport.created_at.desc())
-            .limit(1)
+    if lab_trends_override is not None:
+        lab_trends = lab_trends_override
+    else:
+        prior_report = (
+            session.execute(
+                select(LabReport)
+                .where(LabReport.user_id == lab_report.user_id)
+                .where(LabReport.id != lab_report.id)
+                .where(LabReport.status == LabReportStatus.COMPLETE)
+                .order_by(LabReport.created_at.desc())
+                .limit(1)
+            )
+            .scalars()
+            .first()
         )
-        .scalars()
-        .first()
-    )
-    prior_labs = None
-    prior_date = None
-    if prior_report is not None:
-        session.refresh(prior_report, attribute_names=["lab_results"])
-        prior_labs = prior_labs_from_results(prior_report.lab_results)
-        prior_date = prior_report.created_at.isoformat() if prior_report.created_at else None
-    lab_trends = build_trend_context(normalized, prior_labs, prior_report_date=prior_date)
+        prior_labs = None
+        prior_date = None
+        if prior_report is not None:
+            session.refresh(prior_report, attribute_names=["lab_results"])
+            prior_labs = prior_labs_from_results(prior_report.lab_results)
+            prior_date = prior_report.created_at.isoformat() if prior_report.created_at else None
+        lab_trends = build_trend_context(normalized, prior_labs, prior_report_date=prior_date)
 
     payload = generate_report(
         normalized,
@@ -110,10 +123,13 @@ async def _run_pipeline_stages(
         lab_trends=lab_trends,
         routing=routing,
         custom_biomarkers=custom_biomarkers,
+        health_profile=health_profile,
+        integrated_analysis=integrated_analysis,
     )
 
     report = RecommendationReport(
         lab_report_id=lab_report.id,
+        analysis_session_id=analysis_session_id,
         user_id=lab_report.user_id,
         overall_confidence=payload["overall_confidence"],
         model_version=payload["model_version"],
@@ -127,6 +143,8 @@ async def _run_pipeline_stages(
         medication_context=payload["medication_context"],
         lab_trends=payload["lab_trends"],
         disclaimer=payload["disclaimer"],
+        report_versioning=payload.get("report_versioning"),
+        report_insights=payload.get("report_insights"),
     )
     session.add(report)
     session.flush()
@@ -153,6 +171,7 @@ async def _run_pipeline_stages(
                 cited_urls=rec["cited_urls"],
                 food_sources=rec["food_sources"],
                 intervention_narrative=rec.get("intervention_narrative"),
+                explainability=rec.get("explainability"),
             )
         )
 
@@ -166,6 +185,7 @@ async def _run_pipeline_stages(
                 year=citation["year"],
                 study_type=citation["study_type"],
                 quality_score=citation["quality_score"],
+                url=citation.get("url"),
             )
         )
 

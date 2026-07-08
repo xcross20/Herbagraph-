@@ -26,7 +26,7 @@ _SEVERITY_MULTIPLIER = {
     LabResultStatus.CRITICAL_HIGH: 1.3,
 }
 
-_PATHWAY_NAMES = {
+PATHWAY_DISPLAY_NAMES = {
     "NF_KB": "NF-κB Inflammatory Signaling",
     "IL6_JAK_STAT3": "IL-6/JAK-STAT3 Signaling",
     "AMPK": "AMPK Energy Sensing",
@@ -481,7 +481,7 @@ def map_pathways(normalized_results: list[NormalizedLabResult]) -> list[PathwayA
         activations.append(
             PathwayActivation(
                 pathway_code=pathway_code,
-                pathway_name=_PATHWAY_NAMES[pathway_code],
+                pathway_name=PATHWAY_DISPLAY_NAMES[pathway_code],
                 activation_score=min(score, 1.0),
                 direction=direction,
                 contributing_biomarkers=sorted(bucket["biomarkers"]),
