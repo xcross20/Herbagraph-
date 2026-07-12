@@ -1,0 +1,12 @@
+# Duplicate this service in Railway: same repo, name it "worker", use this config.
+# In the Railway UI: worker service → Settings → Config-as-code → railway.worker.toml
+# Or set start command manually:
+#   celery -A app.workers.celery_app worker --loglevel=info
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+startCommand = "celery -A app.workers.celery_app worker --loglevel=info"
