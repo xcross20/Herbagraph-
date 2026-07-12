@@ -12,6 +12,7 @@ os.environ.setdefault("OPENAI_API_KEY", "test-openai-api-key")
 os.environ.setdefault("NCBI_EMAIL", "test@herbagraph.io")
 os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="herbagraph-test-uploads-"))
 os.environ.setdefault("DEBUG", "false")
+os.environ.setdefault("AUTH_PROVIDER", "local")
 
 import uuid  # noqa: E402
 

@@ -32,6 +32,24 @@ _ABNORMAL = {
 }
 
 
+def _report_dashboard_title(executive_summary: str | dict | None) -> str:
+    """Short label for dashboard cards — executive_summary is stored as plain text."""
+    if not executive_summary:
+        return "Analysis Report"
+    if isinstance(executive_summary, dict):
+        headline = executive_summary.get("headline") or executive_summary.get("clinical_executive_summary")
+        if headline:
+            return str(headline)[:160]
+        return "Analysis Report"
+    text = str(executive_summary).strip()
+    if not text:
+        return "Analysis Report"
+    first_line = text.splitlines()[0].strip()
+    if len(first_line) > 160:
+        return first_line[:157] + "..."
+    return first_line
+
+
 async def build_workspace_dashboard(db: AsyncSession, user: User) -> WorkspaceDashboardRead:
     patients_result = await db.execute(
         select(Patient).where(Patient.user_id == user.id).order_by(Patient.created_at.asc())
@@ -90,7 +108,7 @@ async def build_workspace_dashboard(db: AsyncSession, user: User) -> WorkspaceDa
             id=report.id,
             patient_id=patient_id,
             patient_display_name=display_name,
-            title=report.executive_summary.get("headline", "Analysis Report") if report.executive_summary else "Analysis Report",
+            title=_report_dashboard_title(report.executive_summary),
             overall_confidence=report.overall_confidence,
             created_at=report.created_at,
             analysis_session_id=report.analysis_session_id,

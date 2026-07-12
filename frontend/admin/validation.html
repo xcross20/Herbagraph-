@@ -22,26 +22,12 @@
 <div id="dashboard"></div>
 <button id="refresh-btn" type="button">Refresh</button>
 
+<script src="/js/herbagraph-auth.js"></script>
 <script>
-const API = "";
-
-async function ensureAuth() {
-  if (window.hgToken) return;
-  const stored = localStorage.getItem("hgAuth");
-  if (stored) {
-    const parsed = JSON.parse(stored);
-    window.hgToken = parsed.access_token;
-    window.hgRefreshToken = parsed.refresh_token;
-    return;
-  }
-  throw new Error("Not signed in. Open the main HerbaGraph app first to create a session.");
-}
-
 async function api(path) {
-  await ensureAuth();
-  const resp = await fetch(API + path, {
-    headers: { Authorization: "Bearer " + window.hgToken },
-  });
+  const ok = await window.HerbaGraphAuth.ensureSession();
+  if (!ok) throw new Error("Not signed in. Open the workspace first.");
+  const resp = await window.HerbaGraphAuth.api(path);
   if (!resp.ok) {
     const text = await resp.text();
     throw new Error(`${path} failed (${resp.status}): ${text}`);

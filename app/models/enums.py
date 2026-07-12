@@ -31,6 +31,8 @@ class AuditAction(str, enum.Enum):
     USER_REGISTERED = "user_registered"
     USER_LOGIN = "user_login"
     USER_SYNC = "user_sync"
+    USER_UPDATED = "user_updated"
+    USER_DELETED = "user_deleted"
     PATIENT_CREATED = "patient_created"
     PATIENT_UPDATED = "patient_updated"
     LAB_UPLOADED = "lab_uploaded"

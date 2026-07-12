@@ -54,6 +54,45 @@ async def test_patient_context_crud(authed_client):
     assert listing2.json() == []
 
 
+async def test_dashboard_with_string_executive_summary(authed_client, db_session, test_user):
+    from app.models.lab import LabReport
+    from app.models.enums import LabReportStatus
+    from app.models.report import RecommendationReport
+
+    lab = LabReport(
+        user_id=test_user.id,
+        original_filename="summary_test.txt",
+        encrypted_file_path="enc",
+        file_size_bytes=10,
+        status=LabReportStatus.COMPLETE,
+    )
+    db_session.add(lab)
+    await db_session.flush()
+    report = RecommendationReport(
+        lab_report_id=lab.id,
+        user_id=test_user.id,
+        overall_confidence=0.9,
+        model_version="1.0.0",
+        executive_summary="Integrated from 3 lab reports. This patient presents with iron deficiency.",
+        biomarker_summary={},
+        biomarker_interpretations=[],
+        pathway_activations=[],
+        biological_systems=[],
+        clinician_questions=[],
+        safety_summary={},
+        medication_context={},
+        lab_trends={},
+        disclaimer="Test disclaimer",
+    )
+    db_session.add(report)
+    await db_session.commit()
+
+    resp = await authed_client.get("/api/v1/workspace/dashboard")
+    assert resp.status_code == 200, resp.text
+    titles = [r["title"] for r in resp.json()["recent_reports"]]
+    assert any("iron deficiency" in t for t in titles)
+
+
 async def test_list_analysis_sessions(authed_client):
     create = await authed_client.post(
         "/api/v1/analysis-sessions",

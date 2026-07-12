@@ -10,11 +10,21 @@ into the final report.
 import json
 import os
 
-from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
-
-from app.config import settings
+from app.config import get_settings, settings
+from app.pipeline.llm_client import (
+    APIConnectionError,
+    APITimeoutError,
+    AsyncOpenAI,
+    async_chat_json,
+    create_async_client,
+    llm_api_key,
+)
 from app.core.privacy import deidentify_payload
-from app.pipeline.catalog_evidence import build_catalog_reasoning_output, ensure_primary_recommendations
+from app.pipeline.catalog_evidence import (
+    build_catalog_reasoning_output,
+    ensure_primary_recommendations,
+    stabilize_reasoning_output,
+)
 from app.pipeline.test_type_router import RecommendationRoutingContext
 from app.schemas.pipeline import EvidenceSnippet, LLMReasoningOutput, LLMRecommendation, NormalizedLabResult, PathwayActivation
 
@@ -83,7 +93,7 @@ def _use_catalog_only_reasoning() -> bool:
     flag = os.environ.get("HERBAGRAPH_CATALOG_ONLY_REASONING", "").lower()
     if flag in ("1", "true", "yes"):
         return True
-    key = settings.openai_api_key
+    key = llm_api_key()
     if not key:
         return True
     return key.startswith("test-")
@@ -111,7 +121,7 @@ def _catalog_reasoning_with_fallback_note(
         routing=routing,
     )
     prefix = (
-        "LLM reasoning was unavailable (OpenAI connection failed). "
+        "LLM reasoning was unavailable (provider connection failed). "
         "This report uses curated catalog evidence instead. "
     )
     if exc is not None:
@@ -235,7 +245,7 @@ async def generate_reasoning(
         )
 
     owns_client = client is None
-    client = client or AsyncOpenAI(api_key=settings.openai_api_key)
+    client = client or create_async_client()
 
     payload = _build_payload(
         normalized_labs, pathway_activations, evidence_snippets, health_profile, routing=routing
@@ -243,10 +253,8 @@ async def generate_reasoning(
 
     try:
         try:
-            response = await client.chat.completions.create(
-                model=settings.llm_model,
-                max_tokens=4096,
-                response_format={"type": "json_object"},
+            raw_text = await async_chat_json(
+                client,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": json.dumps(payload)},
@@ -265,9 +273,15 @@ async def generate_reasoning(
     finally:
         if owns_client and hasattr(client, "close"):
             await client.close()
-
-    raw_text = response.choices[0].message.content
     output = parse_llm_response(raw_text, evidence_snippets)
+    if get_settings().llm_stabilize_reasoning:
+        output = stabilize_reasoning_output(
+            output,
+            evidence_snippets,
+            abnormal_biomarkers=abnormal_biomarkers,
+            pathway_activations=pathway_activations,
+            routing=routing,
+        )
     return ensure_primary_recommendations(
         output,
         evidence_snippets,

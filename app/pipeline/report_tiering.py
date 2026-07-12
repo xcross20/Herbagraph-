@@ -1,14 +1,29 @@
-"""Tiered report presentation — prioritize clinically actionable considerations.
+"""Tiered report presentation — prioritized decision map with four clinical lanes.
 
-The graph may surface dozens of evidence-graded items; the default report shows only
-the highest-value subset with expandable category groups and a separate regulated context.
+The graph may surface dozens of evidence-graded items. Default view shows top 3 per lane
+ranked by Clinical Priority Score (patient relevance + biomarker fit + pathway + evidence
++ safety + actionability − regulated − uncertainty), not evidence grade alone.
 """
 
 from __future__ import annotations
 
 import re
 
-from app.pipeline.report_biological_hierarchy import biology_first_network_score, intervention_network_metrics
+from app.pipeline.report_biological_hierarchy import (
+    _pathway_activation_index,
+    biology_first_network_score,
+    intervention_network_metrics,
+)
+from app.pipeline.report_decision_map import (
+    LANE_DIRECT,
+    LANE_LABELS,
+    LANE_LIFESTYLE,
+    LANE_REGULATED,
+    LANE_SUPPORTIVE,
+    TOP_PER_LANE_DEFAULT,
+    build_lane_groups,
+    enrich_intervention_for_decision_map,
+)
 from app.pipeline.report_intent import classify_display_intent, recommendation_intent_for
 from app.models.enums import (
     DisplayIntent,
@@ -23,6 +38,7 @@ TOP_CONSIDERATIONS_MAX = 10
 TOP_CONSIDERATIONS_DEFAULT = 7
 PER_CATEGORY_MAX = 3
 TOP_BIOLOGICAL_PROBLEMS = 3
+TOP_PER_LANE = TOP_PER_LANE_DEFAULT
 _CLINICAL_SUMMARY_MAX_CHARS = 900
 
 _CATEGORY_BUCKETS: dict[str, str] = {
@@ -135,6 +151,7 @@ _SYSTEM_PROBLEM_FALLBACK: dict[str, str] = {
     "oxidative_stress_mitochondrial": "Oxidative stress and mitochondrial resilience pathways show signal.",
 }
 
+
 def _abnormal_biomarkers(biomarker_summary: dict) -> list[dict]:
     abnormal_statuses = {"critical_low", "low", "high", "critical_high"}
     return [
@@ -142,6 +159,10 @@ def _abnormal_biomarkers(biomarker_summary: dict) -> list[dict]:
         for m in biomarker_summary.get("measured_biomarkers", [])
         if m.get("status") in abnormal_statuses
     ]
+
+
+def _measured_names(biomarker_summary: dict) -> set[str]:
+    return {m["biomarker_name"] for m in biomarker_summary.get("measured_biomarkers", [])}
 
 
 def _category_value(category) -> str:
@@ -167,68 +188,6 @@ def _mechanism_key(rec: dict) -> str:
     mechanism = re.sub(r"[^a-z0-9]+", " ", mechanism).strip()
     tokens = mechanism.split()[:6]
     return " ".join(tokens) if tokens else (rec.get("intervention_name") or "").lower()
-
-
-def _biomarker_tie_score(rec: dict, abnormal_biomarkers: set[str]) -> float:
-    intent = recommendation_intent_for(rec.get("intervention_name", ""), abnormal_biomarkers)
-    if intent in (RecommendationIntent.PRIMARY.value, RecommendationIntent.NUTRITIONAL_REPLETION.value):
-        return 1.0
-    if intent == RecommendationIntent.COLLATERAL.value:
-        return 0.5
-    return 0.35
-
-
-def _actionability_score(rec: dict, display_intent: str) -> float:
-    category = _category_value(rec.get("category"))
-    if display_intent == DisplayIntent.PRIMARY.value:
-        base = 1.0
-    elif display_intent == DisplayIntent.SUPPORTIVE.value:
-        base = 0.65
-    else:
-        base = 0.2
-    if category in {
-        InterventionCategory.FOOD.value,
-        InterventionCategory.EXERCISE.value,
-        InterventionCategory.SLEEP.value,
-        InterventionCategory.BEHAVIOR.value,
-    }:
-        base += 0.08
-    return min(base, 1.0)
-
-
-def _human_evidence_score(rec: dict) -> float:
-    tier = _tier_value(rec.get("evidence_tier"))
-    level = _level_value(rec.get("evidence_level"))
-    tier_score = {EvidenceTier.ESTABLISHED.value: 1.0, EvidenceTier.EMERGING.value: 0.7}.get(tier, 0.25)
-    level_score = {
-        EvidenceLevel.HIGH.value: 1.0,
-        EvidenceLevel.MODERATE.value: 0.7,
-        EvidenceLevel.LOW.value: 0.4,
-    }.get(level, 0.15)
-    return max(tier_score, level_score)
-
-
-def _tier_rank_score(rec: dict, display_intent: str, abnormal_biomarkers: set[str]) -> float:
-    confidence = float(rec.get("confidence_score") or 0.0)
-    safety = str(rec.get("safety_risk") or "low").lower()
-    score = (
-        confidence * 40.0
-        + _biomarker_tie_score(rec, abnormal_biomarkers) * 18.0
-        + _actionability_score(rec, display_intent) * 14.0
-        + _human_evidence_score(rec) * 12.0
-        + (8.0 if display_intent == DisplayIntent.PRIMARY.value else 0.0)
-        - _SAFETY_PENALTY.get(safety, 0)
-    )
-    return round(score, 4)
-
-
-def _enrich_rec(rec: dict, display_intent: str, tier_rank: float, *, tier_rank_display: int | None = None) -> dict:
-    row = dict(rec)
-    row["display_intent"] = display_intent
-    row["tier_rank_score"] = tier_rank
-    if tier_rank_display is not None:
-        row["tier_rank"] = tier_rank_display
-    return row
 
 
 def build_top_biological_problems(
@@ -290,7 +249,7 @@ def build_top_biological_problems(
 def _condense_executive_summary(
     executive_summary: str,
     top_problems: list[dict],
-    top_count: int,
+    displayed_default: int,
     total_count: int,
 ) -> str:
     text = (executive_summary or "").strip()
@@ -306,22 +265,17 @@ def _condense_executive_summary(
         else:
             text = lead
 
-    if total_count > top_count:
+    if total_count > displayed_default:
         text = (
-            f"{text} Showing top {top_count} of {total_count} evidence-graded considerations by default; "
-            "expand sections below for additional evidence."
+            f"{text} Showing top {TOP_PER_LANE} per clinical lane ({displayed_default} of {total_count} "
+            "considerations by default); expand lanes below for the full prioritized decision map."
         ).strip()
     return text
 
 
-def _select_top_considerations(
-    pool: list[dict],
-    *,
-    min_count: int = TOP_CONSIDERATIONS_MIN,
-    max_count: int = TOP_CONSIDERATIONS_MAX,
-    default_count: int = TOP_CONSIDERATIONS_DEFAULT,
-) -> list[dict]:
-    target = min(max(default_count, min_count), max_count, len(pool))
+def _select_top_considerations(pool: list[dict], *, max_count: int = TOP_CONSIDERATIONS_DEFAULT) -> list[dict]:
+    """Flattened cross-lane highlights for backward-compatible summary surfaces."""
+    target = min(max_count, len(pool))
     selected: list[dict] = []
     used_names: set[str] = set()
     used_mechanisms: set[str] = set()
@@ -333,15 +287,15 @@ def _select_top_considerations(
         mech = _mechanism_key(rec)
         if name in used_names:
             continue
-        if mech in used_mechanisms and len(selected) >= min_count:
+        if mech in used_mechanisms and len(selected) >= TOP_CONSIDERATIONS_MIN:
             continue
         used_names.add(name)
         used_mechanisms.add(mech)
         selected.append(rec)
 
-    if len(selected) < min_count:
+    if len(selected) < min(TOP_CONSIDERATIONS_MIN, len(pool)):
         for rec in pool:
-            if len(selected) >= min_count:
+            if len(selected) >= min(TOP_CONSIDERATIONS_MIN, len(pool)):
                 break
             name = (rec.get("intervention_name") or "").lower()
             if name in used_names:
@@ -349,6 +303,26 @@ def _select_top_considerations(
             used_names.add(name)
             selected.append(rec)
     return selected
+
+
+def _legacy_additional_by_category(remaining: list[dict]) -> dict[str, dict]:
+    additional_by_category: dict[str, dict] = {}
+    for rec in remaining:
+        if rec.get("display_intent") == DisplayIntent.MECHANISTIC.value:
+            bucket = "mechanistic_only"
+        elif rec.get("intervention_lane") == LANE_REGULATED:
+            bucket = "regulated_therapies"
+        else:
+            bucket = _CATEGORY_BUCKETS.get(_category_value(rec.get("category")), "nutraceuticals")
+        group = additional_by_category.setdefault(
+            bucket,
+            {"label": _BUCKET_LABELS[bucket], "items": [], "hidden_count": 0},
+        )
+        if len(group["items"]) < PER_CATEGORY_MAX:
+            group["items"].append(rec)
+        else:
+            group["hidden_count"] += 1
+    return additional_by_category
 
 
 def build_recommendation_tiers(
@@ -360,122 +334,99 @@ def build_recommendation_tiers(
     intervention_pathways: dict[str, list[str]] | None = None,
     pathway_activations: list[dict] | None = None,
 ) -> dict:
-    """Partition ranked recommendations into clinician-friendly default vs expandable views."""
+    """Partition ranked recommendations into a four-lane prioritized decision map."""
     abnormal_names = {m["biomarker_name"] for m in _abnormal_biomarkers(biomarker_summary)}
+    measured_names = _measured_names(biomarker_summary)
     total = len(recommendations)
-    pathway_index = {
-        p["pathway_code"]: p
-        for p in (pathway_activations or [])
-        if (p.get("activation_score") or 0) > 0
-    }
-    use_network_rank = bool(intervention_pathways and pathway_index)
+    pathway_index = _pathway_activation_index(pathway_activations or [])
 
-    regulated: list[dict] = []
-    mechanistic: list[dict] = []
-    actionable_pool: list[dict] = []
-
+    enriched: list[dict] = []
     for rec in recommendations:
-        display_intent = classify_display_intent(rec, abnormal_names)
-        if use_network_rank:
-            tier_rank = biology_first_network_score(
+        row = enrich_intervention_for_decision_map(
+            rec,
+            abnormal_names,
+            measured_names,
+            intervention_pathways=intervention_pathways,
+            pathway_index=pathway_index,
+        )
+        if intervention_pathways and pathway_index:
+            row["tier_rank_score"] = biology_first_network_score(
                 rec,
-                intervention_pathways or {},
+                intervention_pathways,
                 pathway_index,
                 abnormal_names,
-                display_intent=display_intent,
+                display_intent=row["display_intent"],
             )
         else:
-            tier_rank = _tier_rank_score(rec, display_intent, abnormal_names)
-        row = _enrich_rec(rec, display_intent, tier_rank)
-        if use_network_rank:
-            metrics = intervention_network_metrics(
-                rec, intervention_pathways or {}, pathway_index, abnormal_names
-            )
-            row["pathways_hit"] = metrics["pathways_hit"]
-            row["biomarkers_explained"] = metrics["biomarkers_explained"]
+            row["tier_rank_score"] = float(row.get("clinical_priority_score") or 0)
+        enriched.append(row)
 
-        if display_intent == DisplayIntent.REGULATED.value:
-            regulated.append(row)
-        elif display_intent == DisplayIntent.MECHANISTIC.value:
-            mechanistic.append(row)
-        elif display_intent == DisplayIntent.CONTEXT_ONLY.value:
-            mechanistic.append(row)
-        else:
-            actionable_pool.append(row)
+    lanes = build_lane_groups(enriched, top_per_lane=TOP_PER_LANE)
 
-    actionable_pool.sort(
+    regulated_items = lanes[LANE_REGULATED]["all_items"]
+    mechanistic_items = [
+        r
+        for r in enriched
+        if r.get("display_intent") in (DisplayIntent.MECHANISTIC.value, DisplayIntent.CONTEXT_ONLY.value)
+        and r.get("intervention_lane") != LANE_REGULATED
+    ]
+
+    non_regulated_ranked = sorted(
+        [r for r in enriched if r.get("intervention_lane") != LANE_REGULATED],
         key=lambda r: (
             _INTENT_RANK.get(
                 recommendation_intent_for(r.get("intervention_name", ""), abnormal_names),
                 9,
             ),
-            -r.get("tier_rank_score", 0),
+            -r.get("clinical_priority_score", 0),
             _EVIDENCE_TIER_RANK.get(_tier_value(r.get("evidence_tier")), 9),
             r.get("rank", 999),
-        )
+        ),
     )
-
-    top_considerations = _select_top_considerations(actionable_pool)
+    top_considerations = _select_top_considerations(non_regulated_ranked)
     top_names = {(r.get("intervention_name") or "").lower() for r in top_considerations}
-
-    remaining_actionable = [r for r in actionable_pool if (r.get("intervention_name") or "").lower() not in top_names]
-    additional_by_category: dict[str, dict] = {}
-    for rec in remaining_actionable:
-        if rec.get("display_intent") == DisplayIntent.MECHANISTIC.value:
-            bucket = "mechanistic_only"
-        else:
-            bucket = _CATEGORY_BUCKETS.get(_category_value(rec.get("category")), "nutraceuticals")
-        group = additional_by_category.setdefault(
-            bucket,
-            {"label": _BUCKET_LABELS[bucket], "items": [], "hidden_count": 0},
-        )
-        if len(group["items"]) < PER_CATEGORY_MAX:
-            group["items"].append(rec)
-        else:
-            group["hidden_count"] += 1
-
-    for rec in mechanistic:
-        group = additional_by_category.setdefault(
-            "mechanistic_only",
-            {"label": _BUCKET_LABELS["mechanistic_only"], "items": [], "hidden_count": 0},
-        )
-        if len(group["items"]) < PER_CATEGORY_MAX:
-            group["items"].append(rec)
-        else:
-            group["hidden_count"] += 1
-
-    top_problems = build_top_biological_problems(biomarker_summary, biological_systems)
-    top_count = len(top_considerations)
-
     for index, rec in enumerate(top_considerations, start=1):
         rec["tier_rank"] = index
 
-    displayed_default = top_count + sum(len(g["items"]) for g in additional_by_category.values())
+    remaining_actionable = [
+        r for r in non_regulated_ranked if (r.get("intervention_name") or "").lower() not in top_names
+    ]
+    additional_by_category = _legacy_additional_by_category(remaining_actionable)
+
+    top_problems = build_top_biological_problems(biomarker_summary, biological_systems)
+    displayed_default = sum(len(lanes[code]["items"]) for code in LANE_LABELS)
 
     return {
-        "model": "tiered_v1",
+        "model": "decision_map_v1",
+        "ranking_formula": (
+            "Clinical Priority Score = patient relevance + biomarker directness + pathway relevance "
+            "+ evidence strength + safety + actionability − regulated status − uncertainty penalty"
+        ),
         "caps": {
+            "top_per_lane": TOP_PER_LANE,
             "top_considerations_min": TOP_CONSIDERATIONS_MIN,
             "top_considerations_max": TOP_CONSIDERATIONS_MAX,
             "top_considerations_default": TOP_CONSIDERATIONS_DEFAULT,
             "per_category_max": PER_CATEGORY_MAX,
             "top_biological_problems": TOP_BIOLOGICAL_PROBLEMS,
         },
+        "lanes": lanes,
         "top_biological_problems": top_problems,
         "top_considerations": top_considerations,
         "additional_by_category": additional_by_category,
         "regulated_context": {
-            "label": "Conventional / Regulated Context",
+            "label": LANE_LABELS[LANE_REGULATED]["label"],
             "disclaimer": (
                 "Prescription and regulated therapies are shown for clinical context only, "
                 "not as self-directed treatment recommendations."
             ),
-            "items": regulated,
+            "items": regulated_items,
+            "lane_code": LANE_REGULATED,
         },
         "mechanistic_appendix": {
             "label": "Mechanistic / preclinical evidence",
             "hidden_by_default": True,
-            "items": mechanistic,
+            "items": mechanistic_items,
         },
         "full_appendix_available": total > displayed_default,
         "total_considerations": total,
@@ -483,7 +434,7 @@ def build_recommendation_tiers(
         "clinical_executive_summary": _condense_executive_summary(
             executive_summary,
             top_problems,
-            top_count,
+            displayed_default,
             total,
         ),
     }

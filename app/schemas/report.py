@@ -198,10 +198,12 @@ class BiologicalHierarchyRead(BaseModel):
 
 
 class RecommendationTiersRead(BaseModel):
-    """Clinician-focused tiered presentation of evidence-graded considerations."""
+    """Clinician-focused four-lane decision map for evidence-graded considerations."""
 
-    model: str = "tiered_v1"
+    model: str = "decision_map_v1"
+    ranking_formula: str = ""
     caps: dict = {}
+    lanes: dict = {}
     top_biological_problems: list[dict] = []
     top_considerations: list[dict] = []
     additional_by_category: dict = {}

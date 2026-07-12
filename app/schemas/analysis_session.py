@@ -31,6 +31,7 @@ class AnalysisSessionRead(BaseModel):
     analysis_date: datetime | None = None
     error_message: str | None = None
     latest_report_id: uuid.UUID | None = None
+    anchor_lab_report_id: uuid.UUID | None = None
     created_at: datetime
     lab_reports: list[AnalysisSessionLabLinkRead] = []
 

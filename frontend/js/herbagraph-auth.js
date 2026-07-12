@@ -61,6 +61,7 @@ window.HerbaGraphAuth = (function () {
     const cfg = await loadConfig();
     if (cfg.auth_provider !== "supabase") return false;
 
+    const wasCallback = isAuthCallbackUrl();
     const sb = await initSupabase();
     // detectSessionInUrl picks up tokens from email confirmation links
     const { data, error } = await sb.auth.getSession();
@@ -72,13 +73,12 @@ window.HerbaGraphAuth = (function () {
         method: "POST",
         headers: { Authorization: `Bearer ${data.session.access_token}` },
       });
-      // Clean sensitive tokens from the address bar
-      if (isAuthCallbackUrl()) {
+      // Clean sensitive tokens from the address bar after email confirm / recovery
+      if (wasCallback) {
         window.history.replaceState({}, document.title, "/app.html#dashboard");
       }
-      return true;
     }
-    return false;
+    return wasCallback;
   }
 
   function storeLocalTokens(tokens) {
@@ -251,6 +251,21 @@ window.HerbaGraphAuth = (function () {
     await signInWithPassword(email, password);
   }
 
+  async function api(path, options) {
+    options = options || {};
+    const headers = { ...(options.headers || {}) };
+    if (!headers.Authorization && window.hgToken) {
+      headers.Authorization = `Bearer ${window.hgToken}`;
+    }
+    let resp = await fetch(API + path, { ...options, headers });
+    if (resp.status === 401 && window.hgRefreshToken) {
+      await refreshTokens();
+      headers.Authorization = `Bearer ${window.hgToken}`;
+      resp = await fetch(API + path, { ...options, headers });
+    }
+    return resp;
+  }
+
   return {
     loadConfig,
     redirectAuthCallbackToApp,
@@ -262,6 +277,7 @@ window.HerbaGraphAuth = (function () {
     resetPassword,
     signOut,
     continueAsGuest,
+    api,
     isSupabase: async () => (await loadConfig()).auth_provider === "supabase",
   };
 })();

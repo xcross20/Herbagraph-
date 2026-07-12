@@ -59,6 +59,19 @@ async def list_analysis_sessions(
     return [_session_read_payload(session) for session in result.scalars().all()]
 
 
+def _anchor_lab_report_id(analysis_session: AnalysisSession) -> uuid.UUID | None:
+    """Lab that drives integrated report generation (latest upload in the session)."""
+    candidates = [
+        link
+        for link in analysis_session.lab_links
+        if link.lab_report is not None and link.lab_report.created_at is not None
+    ]
+    if not candidates:
+        return analysis_session.lab_links[0].lab_report_id if analysis_session.lab_links else None
+    anchor_link = max(candidates, key=lambda link: link.lab_report.created_at)
+    return anchor_link.lab_report_id
+
+
 def _session_read_payload(analysis_session: AnalysisSession) -> AnalysisSessionRead:
     lab_reports = []
     for link in analysis_session.lab_links:
@@ -81,6 +94,7 @@ def _session_read_payload(analysis_session: AnalysisSession) -> AnalysisSessionR
         analysis_date=analysis_session.analysis_date,
         error_message=analysis_session.error_message,
         latest_report_id=analysis_session.latest_report_id,
+        anchor_lab_report_id=_anchor_lab_report_id(analysis_session),
         created_at=analysis_session.created_at,
         lab_reports=lab_reports,
     )

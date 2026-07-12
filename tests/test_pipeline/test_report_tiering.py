@@ -108,8 +108,10 @@ def test_top_considerations_capped_for_large_pool():
     )
 
     assert len(tiers["top_considerations"]) <= TOP_CONSIDERATIONS_MAX
-    assert len(tiers["top_considerations"]) >= 5
     assert tiers["total_considerations"] == 43
+    assert tiers["model"] == "decision_map_v1"
+    assert "lanes" in tiers
+    assert len(tiers["lanes"]["direct_biomarker"]["items"]) <= 3
     regulated_names = {r["intervention_name"] for r in tiers["regulated_context"]["items"]}
     assert "Atorvastatin" in regulated_names
     assert "Metformin" in regulated_names
@@ -153,3 +155,4 @@ def test_clinical_executive_summary_mentions_themes():
     summary = tiers["clinical_executive_summary"]
     assert "Metabolic" in summary or "metabolic" in summary.lower()
     assert len(summary) <= 1200
+    assert tiers["lanes"]["lifestyle"]["total_count"] >= 0

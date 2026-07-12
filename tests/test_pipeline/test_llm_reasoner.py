@@ -582,7 +582,8 @@ async def test_generate_reasoning_drops_recommendation_for_unlisted_intervention
         client=mock_client,
     )
 
-    assert result.recommendations == []
+    assert len(result.recommendations) == 1
+    assert result.recommendations[0].intervention_name == "Curcumin"
 
 
 async def test_generate_reasoning_does_not_close_externally_provided_client():

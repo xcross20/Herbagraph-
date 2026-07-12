@@ -143,9 +143,18 @@
   .wallet-badges { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
   .badge { font-size: 0.78rem; padding: 0.2rem 0.5rem; border-radius: 6px; background: #f0f0f2; color: #444; }
   .badge.evidence { background: #e8f5ee; color: var(--success); }
+  .badge.priority { background: #e8f0ff; color: #1a4fd6; font-weight: 600; }
+  .badge.fit-high { background: #e8f5ee; color: var(--success); }
+  .badge.fit-moderate { background: #fff4e0; color: #9a6700; }
+  .badge.fit-low { background: #f0f0f2; color: #666; }
+  .badge.intent { background: #f3eeff; color: #5b3ea8; }
   .badge.safety-low { background: #e8f5ee; color: var(--success); }
   .badge.safety-moderate { background: #fff4e0; color: #9a6700; }
   .badge.safety-high { background: #ffecec; color: #d70015; }
+  .lane-section { margin: 1.25rem 0 0.5rem; }
+  .lane-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.75rem; margin-bottom: 0.35rem; }
+  .lane-header h3 { margin: 0; font-size: 1rem; }
+  .lane-count { font-size: 0.82rem; color: var(--muted); }
   .wallet-targets { font-size: 0.82rem; color: var(--muted); }
   .wallet-body { padding: 0 1rem 1rem; border-top: 1px solid #ececf0; }
   .patient-stats { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; margin: 0.5rem 0 0.75rem; }
@@ -553,14 +562,14 @@ async function waitForAnalysisSessionComplete(sessionId) {
       showProgressPanel("normalizing");
       setStatus("Merging biomarkers from lab reports...");
     } else if (session.status === "analyzing") {
-      const anchorId = (session.lab_reports || [])[0]?.lab_report_id;
+      const anchorId = session.anchor_lab_report_id || (session.lab_reports || [])[0]?.lab_report_id;
       if (anchorId) {
         const lab = await api(`/api/v1/labs/${anchorId}`);
         const stage = currentStageFromLab(lab);
-        showProgressPanel(stage === "queued" || stage === "parsing" || stage === "normalizing" ? "pathway_mapping" : stage);
+        showProgressPanel(stage);
         setStatus(`Generating integrated report... (${stage.replace(/_/g, " ")})`);
       } else {
-        showProgressPanel("pathway_mapping");
+        showProgressPanel("evidence_retrieval");
         setStatus("Generating integrated report...");
       }
     } else if (session.status === "pending") {
@@ -634,7 +643,7 @@ function currentStageFromLab(lab) {
   }
   if (lab.status === "processing" || lab.status === "pending") return "queued";
   if (lab.report_stage === "complete") return "complete";
-  if (lab.status === "complete" && !lab.report_stage) return "normalizing";
+  if (lab.status === "complete" && !lab.report_stage) return "pathway_mapping";
   return lab.status;
 }
 
@@ -1061,40 +1070,111 @@ function renderBiologicalReasoningContent(report) {
   return html;
 }
 
+function fitBadgeClass(fit) {
+  const f = String(fit || "").toLowerCase();
+  if (f === "high") return "fit-high";
+  if (f === "moderate") return "fit-moderate";
+  return "fit-low";
+}
+
+function safetyBadgeClass(label) {
+  const s = String(label || "").toLowerCase();
+  if (s.includes("low")) return "safety-low";
+  if (s.includes("moderate")) return "safety-moderate";
+  return "safety-high";
+}
+
 function renderWalletCard(r) {
-  const systems = interventionTargetSystems(r);
-  const safety = String(r.safety_risk || "low");
-  const grade = evidenceGradeShort(r);
+  const priority = r.clinical_priority_score != null ? `${r.clinical_priority_score}/100` : "—";
+  const fit = r.patient_fit_label || "Moderate";
+  const intent = r.intent_label || intentLabel(r.display_intent);
   let html = `<details class="wallet-card">`;
   html += `<summary>`;
   html += `<span class="wallet-name">${escapeHtml(r.intervention_name)}</span>`;
   html += `<span class="wallet-badges">`;
-  html += `<span class="badge evidence">Evidence ${escapeHtml(grade)}</span>`;
-  html += `<span class="badge safety-${safety.toLowerCase()}">${escapeHtml(safety)} Risk</span>`;
-  if (systems) html += `<span class="wallet-targets">Targets: ${systems} systems</span>`;
+  html += `<span class="badge priority">Priority ${escapeHtml(priority)}</span>`;
+  html += `<span class="badge ${fitBadgeClass(fit)}">Fit: ${escapeHtml(fit)}</span>`;
+  html += `<span class="badge intent">${escapeHtml(intent)}</span>`;
   html += `</span></summary>`;
-  html += `<div class="wallet-body">${renderRecommendationCard(r, { compact: false })}</div>`;
+  html += `<div class="wallet-body">${renderRecommendationCard(r, { compact: false, hideSafety: true })}</div>`;
   html += `</details>`;
+  return html;
+}
+
+const LANE_ORDER = [
+  { code: "direct_biomarker", fallback: "Direct Biomarker Priorities" },
+  { code: "lifestyle", fallback: "Lifestyle Foundations" },
+  { code: "supportive_adjunct", fallback: "Supportive Adjuncts" },
+  { code: "regulated_context", fallback: "Regulated Clinical Context" },
+];
+
+function renderInterventionLane(lane, options) {
+  options = options || {};
+  const showAll = Boolean(options.showAll);
+  const items = showAll ? (lane.all_items || lane.items || []) : (lane.items || []);
+  if (!items.length) return "";
+  let html = `<div class="lane-section">`;
+  html += `<div class="lane-header">`;
+  html += `<h3>${escapeHtml(lane.short_label || lane.label || "")}</h3>`;
+  if (!showAll) html += `<span class="lane-count">Top ${items.length}</span>`;
+  html += `</div>`;
+  for (const r of items) html += renderWalletCard(r);
+  html += `</div>`;
   return html;
 }
 
 function renderInterventionLibrary(report) {
   const tiers = reportTiers(report);
   const allRecs = report.recommendations || [];
-  const topRecs = (tiers && tiers.top_considerations) || allRecs.slice(0, 3);
+  const lanes = (tiers && tiers.lanes) || null;
   const teaser = document.getElementById("intervention-library-teaser");
-  const names = topRecs.map((r) => r.intervention_name).slice(0, 3);
-  teaser.textContent = names.length ? names.join(" · ") : "No interventions surfaced";
-
   const body = document.getElementById("intervention-library-body");
+
+  if (lanes) {
+    const directLane = lanes.direct_biomarker || {};
+    const teaserItems = (directLane.items || []).slice(0, 3);
+    teaser.textContent = teaserItems.length
+      ? teaserItems.map((r) => r.intervention_name).join(" · ")
+      : "No interventions surfaced";
+
+    let html = `<p class="muted">Prioritized decision map — ranked by clinical priority, not evidence grade alone.</p>`;
+    let hasAny = false;
+    for (const spec of LANE_ORDER) {
+      const lane = lanes[spec.code];
+      if (!lane || !(lane.items || []).length) continue;
+      hasAny = true;
+      html += renderInterventionLane(lane, { showAll: false });
+      if ((lane.hidden_count || 0) > 0) {
+        html += `<details class="tier-panel"><summary>View all ${lane.short_label || spec.fallback} (${lane.total_count || lane.all_items.length})</summary>`;
+        html += `<div class="tier-panel-body">${renderInterventionLane(lane, { showAll: true })}</div></details>`;
+      }
+    }
+    if (!hasAny) {
+      body.innerHTML = `<p class="muted">No evidence-backed interventions surfaced for this panel.</p>`;
+      return;
+    }
+    const total = tiers.total_considerations || allRecs.length;
+    if (total > (tiers.displayed_by_default || 0)) {
+      html += `<details class="tier-panel"><summary>View all ${total} considerations</summary><div class="tier-panel-body">`;
+      for (const spec of LANE_ORDER) {
+        const lane = lanes[spec.code];
+        if (!lane || !(lane.all_items || []).length) continue;
+        html += renderInterventionLane({ ...lane, items: lane.all_items }, { showAll: true });
+      }
+      html += `</div></details>`;
+    }
+    body.innerHTML = html;
+    return;
+  }
+
+  const topRecs = (tiers && tiers.top_considerations) || allRecs.slice(0, 3);
+  teaser.textContent = topRecs.length ? topRecs.map((r) => r.intervention_name).join(" · ") : "No interventions surfaced";
   if (!topRecs.length) {
     body.innerHTML = `<p class="muted">No evidence-backed interventions surfaced for this panel.</p>`;
     return;
   }
-
   let html = "";
   for (const r of topRecs) html += renderWalletCard(r);
-
   if (allRecs.length > topRecs.length) {
     html += `<details class="tier-panel"><summary>View all interventions (${allRecs.length})</summary><div class="tier-panel-body">`;
     for (const r of allRecs.slice(topRecs.length)) html += renderWalletCard(r);
@@ -1660,7 +1740,8 @@ function evidenceBadge(passport, r) {
   return "🟡 Moderate Human Evidence";
 }
 
-function renderEvidencePassport(r) {
+function renderEvidencePassport(r, options) {
+  options = options || {};
   const ex = r.explainability || {};
   const passport = ex.evidence_passport;
   const literature = r.supporting_literature || ex.supporting_literature || (passport && passport.supporting_literature) || [];
@@ -1713,7 +1794,9 @@ function renderEvidencePassport(r) {
   html += `</dd>`;
   html += `<dt>Population</dt><dd>${escapeHtml(population)}</dd>`;
   html += `<dt>Research gaps</dt><dd>${escapeHtml(gaps.length ? gaps.join("; ") : "Insufficient evidence")}</dd>`;
-  html += `<dt>Safety</dt><dd>${escapeHtml(String(safety).replace(/_/g, " "))} risk</dd>`;
+  if (!options.hideSafety) {
+    html += `<dt>Safety</dt><dd>${escapeHtml(String(safety).replace(/_/g, " "))} risk</dd>`;
+  }
   html += `<dt>Last updated</dt><dd>${escapeHtml(String(updated))}</dd>`;
   html += `</dl></div>`;
   return html;
@@ -1750,18 +1833,34 @@ function intentLabel(intent) {
   return labels[intent] || intent || "Supportive";
 }
 
+function renderPriorityMetaRow(r, options) {
+  options = options || {};
+  const priority = r.clinical_priority_score != null ? `${r.clinical_priority_score}/100` : null;
+  const fit = r.patient_fit_label;
+  const intent = r.intent_label || intentLabel(r.display_intent);
+  if (!priority && !fit && !intent) return "";
+  let html = `<div class="wallet-badges" style="margin:0.35rem 0 0.65rem;">`;
+  if (priority) html += `<span class="badge priority">Priority Score: ${escapeHtml(priority)}</span>`;
+  if (fit) html += `<span class="badge ${fitBadgeClass(fit)}">Fit: ${escapeHtml(fit)}</span>`;
+  html += `<span class="badge intent">Intent: ${escapeHtml(intent)}</span>`;
+  html += `</div>`;
+  return html;
+}
+
 function renderRecommendationCard(r, options) {
   options = options || {};
   const compact = Boolean(options.compact);
-  const rankLabel = r.tier_rank != null ? r.tier_rank : r.rank;
+  const rankLabel = r.lane_rank != null ? r.lane_rank : (r.tier_rank != null ? r.tier_rank : r.rank);
   let html = `<div class="${compact ? "rec-compact" : ""}" style="margin-bottom:1.75rem;">`;
   html += `<p><strong>${escapeHtml(r.intervention_name)}</strong>`;
   if (rankLabel != null) html += ` <span style="color:#666;">#${rankLabel}</span>`;
-  if (r.display_intent) html += `<span class="intent-badge">${escapeHtml(intentLabel(r.display_intent))}</span>`;
+  const intent = r.intent_label || intentLabel(r.display_intent);
+  if (intent) html += `<span class="intent-badge">${escapeHtml(intent)}</span>`;
   html += `</p>`;
+  if (!compact) html += renderPriorityMetaRow(r, options);
   if (!compact) {
     html += renderEvidenceSynthesisLead(r);
-    html += renderEvidencePassport(r);
+    html += renderEvidencePassport(r, options);
     html += renderCitationLinks(r);
   } else {
     html += `<p class="tier-muted"><span class="evidence-badge">${escapeHtml(evidenceBadge((r.explainability || {}).evidence_passport, r))}</span>`;
@@ -1784,18 +1883,13 @@ function renderRecommendationCard(r, options) {
   if (!compact && r.mechanism) html += `<p><strong>Mechanism (literature):</strong> ${escapeHtml(r.mechanism)}</p>`;
   if (!compact && r.limitations) html += `<p><strong>Limitations:</strong> ${escapeHtml(r.limitations)}</p>`;
   if (!compact && r.typical_dose) html += `<p><strong>Dose in cited research:</strong> ${escapeHtml(r.typical_dose)}</p>`;
-  const sp = r.safety_profile || {};
-  const safetyRating = sp.safety_rating || r.safety_risk || "low";
-  const warnClass = (safetyRating === "high" || safetyRating === "contraindicated" || sp.requires_prominent_warning) ? " high" : "";
-  if (!compact) {
-    html += `<p class="safety-meta"><strong>Safety:</strong> ${escapeHtml(safetyRating)} · <span class="evidence-badge">${escapeHtml(evidenceBadge((r.explainability || {}).evidence_passport, r))}</span>${r.is_regulated ? " · regulated substance" : ""}</p>`;
+  if (!compact && !options.hideSafety) {
+    const sp = r.safety_profile || {};
+    const safetyRating = sp.safety_rating || r.safety_risk || "low";
+    const warnClass = (safetyRating === "high" || safetyRating === "contraindicated" || sp.requires_prominent_warning) ? " high" : "";
+    html += `<p class="safety-meta"><strong>Safety:</strong> ${escapeHtml(safetyRating)}${r.is_regulated ? " · regulated substance" : ""}</p>`;
     if (sp.requires_prominent_warning || safetyRating === "high" || safetyRating === "contraindicated") {
       html += `<div class="safety-warning-box${warnClass}"><strong>Clinician review suggested.</strong> Safety concerns were detected for this intervention. This is informational, not a treatment directive.</div>`;
-    }
-    if ((sp.contraindications || []).length) {
-      html += `<p><strong>Contraindications / cautions:</strong></p><ul>`;
-      for (const c of sp.contraindications) html += `<li>${escapeHtml(c)}</li>`;
-      html += `</ul>`;
     }
     if ((sp.organ_cautions || []).length) {
       html += `<p><strong>Organ-specific cautions:</strong></p><ul>`;

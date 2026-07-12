@@ -12,9 +12,8 @@ import io
 import json
 import logging
 
-from openai import OpenAI
-
-from app.config import settings
+from app.config import get_settings
+from app.pipeline.llm_client import create_sync_client, llm_configured, sync_chat_json
 from app.core.privacy import deidentify_text
 from app.schemas.pipeline import ParsedLabResult
 
@@ -56,10 +55,15 @@ class LLMLabParserError(Exception):
     pass
 
 
-def _client() -> OpenAI:
-    if not settings.openai_api_key:
-        raise LLMLabParserError("OPENAI_API_KEY is not configured")
-    return OpenAI(api_key=settings.openai_api_key)
+def _client():
+    if not llm_configured():
+        raise LLMLabParserError("LLM API key is not configured (OPENAI_API_KEY or MINIMAX_API_KEY)")
+    return create_sync_client()
+
+
+def _vision_model() -> str:
+    cfg = get_settings()
+    return cfg.llm_vision_model or cfg.llm_model
 
 
 def _rows_from_llm_payload(data: dict) -> list[ParsedLabResult]:
@@ -127,16 +131,13 @@ def parse_lab_text_with_llm(text: str) -> list[ParsedLabResult]:
 
     payload = cleaned[:_MAX_TEXT_CHARS]
     client = _client()
-    response = client.chat.completions.create(
-        model=settings.llm_model,
-        max_tokens=4096,
-        response_format={"type": "json_object"},
+    raw = sync_chat_json(
+        client,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": f"Extract biomarker rows from this lab report text:\n\n{payload}"},
         ],
     )
-    raw = response.choices[0].message.content or ""
     rows = parse_llm_response(raw)
     logger.info("LLM text parser extracted %d rows", len(rows))
     return rows
@@ -175,16 +176,14 @@ def parse_lab_pdf_with_vision(file_bytes: bytes) -> list[ParsedLabResult]:
         content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}})
 
     client = _client()
-    response = client.chat.completions.create(
-        model=settings.llm_model,
-        max_tokens=4096,
-        response_format={"type": "json_object"},
+    raw = sync_chat_json(
+        client,
+        model=_vision_model(),
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": content},
         ],
     )
-    raw = response.choices[0].message.content or ""
     rows = parse_llm_response(raw)
     logger.info("LLM vision parser extracted %d rows from %d pages", len(rows), len(images))
     return rows

@@ -18,6 +18,23 @@ from app.workers.tasks import generate_recommendation_report_task
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
+_DECISION_MAP_MODEL = "decision_map_v1"
+
+
+def _recommendation_tiers_stale(tiers: dict | None) -> bool:
+    """True when persisted tiers predate the four-lane clinical priority decision map."""
+    if not tiers:
+        return True
+    if tiers.get("model") != _DECISION_MAP_MODEL:
+        return True
+    lanes = tiers.get("lanes") or {}
+    return not any((lanes.get(code) or {}).get("items") for code in (
+        "direct_biomarker",
+        "lifestyle",
+        "supportive_adjunct",
+        "regulated_context",
+    ))
+
 
 async def _get_owned_lab_report(lab_report_id: uuid.UUID, current_user: User, db: AsyncSession) -> LabReport:
     result = await db.execute(
@@ -219,14 +236,15 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
     biological_hierarchy = insights.get("biological_hierarchy")
     dual_clinical_rankings = insights.get("dual_clinical_rankings")
     clinical_summary_hero = insights.get("clinical_summary_hero")
-    if not recommendation_tiers or not biological_hierarchy or not dual_clinical_rankings:
+    tiers_stale = _recommendation_tiers_stale(recommendation_tiers)
+    if tiers_stale or not biological_hierarchy or not dual_clinical_rankings:
         from app.pipeline.evidence_retriever import build_intervention_pathway_map
         from app.pipeline.report_biological_hierarchy import build_biological_hierarchy
         from app.pipeline.report_clinical_priorities import build_dual_clinical_rankings
         from app.pipeline.report_tiering import build_recommendation_tiers
 
         intervention_pathways = build_intervention_pathway_map()
-        if not recommendation_tiers:
+        if tiers_stale:
             recommendation_tiers = build_recommendation_tiers(
                 full_rec_payloads,
                 report.biomarker_summary or {},

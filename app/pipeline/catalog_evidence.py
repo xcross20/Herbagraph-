@@ -255,6 +255,47 @@ def build_catalog_reasoning_output(
     )
 
 
+def stabilize_reasoning_output(
+    llm_output: LLMReasoningOutput,
+    evidence_snippets: list[EvidenceSnippet],
+    *,
+    abnormal_biomarkers: set[str],
+    pathway_activations: list[PathwayActivation],
+    routing: RecommendationRoutingContext | None = None,
+) -> LLMReasoningOutput:
+    """Merge LLM prose with a deterministic catalog recommendation set.
+
+    Stages 1–4 and 6–7 are already provider-independent; this keeps Stage 5 from
+    surfacing different interventions depending on which model is configured.
+    """
+    catalog = build_catalog_reasoning_output(
+        evidence_snippets,
+        abnormal_biomarkers=abnormal_biomarkers,
+        pathway_activations=pathway_activations,
+        routing=routing,
+    )
+    llm_by_name = {rec.intervention_name: rec for rec in llm_output.recommendations}
+
+    merged_recommendations: list[LLMRecommendation] = []
+    for catalog_rec in catalog.recommendations:
+        llm_rec = llm_by_name.get(catalog_rec.intervention_name)
+        merged_recommendations.append(llm_rec if llm_rec is not None else catalog_rec)
+
+    analysis = (llm_output.biomarker_pattern_analysis or "").strip()
+    if not analysis:
+        analysis = catalog.biomarker_pattern_analysis
+
+    pathway_summaries = llm_output.pathway_summaries or catalog.pathway_summaries
+    clinician_questions = llm_output.clinician_questions or catalog.clinician_questions
+
+    return LLMReasoningOutput(
+        biomarker_pattern_analysis=analysis,
+        pathway_summaries=pathway_summaries,
+        recommendations=merged_recommendations,
+        clinician_questions=clinician_questions,
+    )
+
+
 def ensure_primary_recommendations(
     output: LLMReasoningOutput,
     evidence_snippets: list[EvidenceSnippet],

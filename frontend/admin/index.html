@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HerbaGraph Admin</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { margin-bottom: 0.25rem; }
+  .tag { color: #666; margin-top: 0; }
+  .error { color: #a00; }
+  .cards { display: grid; gap: 1rem; margin-top: 1.5rem; }
+  .card { border: 1px solid #ddd; border-radius: 12px; padding: 1rem 1.1rem; text-decoration: none; color: inherit; display: block; }
+  .card:hover { border-color: #4a6cf7; background: #fafbff; }
+  .card h2 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+  .card p { margin: 0; color: #555; font-size: 0.92rem; }
+  .links { margin-top: 1.5rem; font-size: 0.9rem; }
+  .links a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+<h1>HerbaGraph Admin</h1>
+<p class="tag" id="status">Checking access…</p>
+
+<div class="cards" id="cards" style="display:none;">
+  <a class="card" href="/admin/users.html">
+    <h2>Users</h2>
+    <p>List, activate/deactivate, update roles, and delete HerbaGraph accounts.</p>
+  </a>
+  <a class="card" href="/admin/validation.html">
+    <h2>Validation Dashboard</h2>
+    <p>Clinician feedback, trust scores, and product analytics.</p>
+  </a>
+</div>
+
+<div class="links">
+  <a href="/app.html#dashboard">← Workspace</a>
+  <a href="/docs">API docs</a>
+</div>
+
+<script src="/js/herbagraph-auth.js"></script>
+<script>
+(async function () {
+  const status = document.getElementById("status");
+  try {
+    const ok = await window.HerbaGraphAuth.ensureSession();
+    if (!ok) throw new Error("Sign in via the workspace first, then return here.");
+    const resp = await window.HerbaGraphAuth.api("/api/v1/admin/users?limit=1");
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Admin access denied (${resp.status}): ${text}`);
+    }
+    status.textContent = "Signed in as admin.";
+    document.getElementById("cards").style.display = "grid";
+  } catch (err) {
+    status.textContent = String(err.message || err);
+    status.className = "error";
+  }
+})();
+</script>
+</body>
+</html>

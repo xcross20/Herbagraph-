@@ -648,9 +648,9 @@ def parse_lab_file_with_llm_fallback(file_bytes: bytes, filename: str) -> list[P
     if parsed:
         return parsed
 
-    from app.config import settings
+    from app.pipeline.llm_client import llm_configured
 
-    if not settings.openai_api_key:
+    if not llm_configured():
         return []
 
     from app.pipeline.llm_lab_parser import LLMLabParserError, parse_lab_pdf_with_vision, parse_lab_text_with_llm

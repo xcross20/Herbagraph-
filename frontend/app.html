@@ -369,8 +369,17 @@ async function wirePatientContext(patientId) {
   };
 }
 
+async function ensurePatients() {
+  let patients = await api("/api/v1/patients");
+  if (!patients.length) {
+    await api("/api/v1/workspace/dashboard");
+    patients = await api("/api/v1/patients");
+  }
+  return patients;
+}
+
 async function renderUpload(preselectedPatient) {
-  const patients = await api("/api/v1/patients");
+  const patients = await ensurePatients();
   const opts = patients.map(p => `<option value="${p.id}" ${p.id===preselectedPatient?"selected":""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
     <h1>Upload lab reports</h1>
@@ -381,24 +390,37 @@ async function renderUpload(preselectedPatient) {
       <button class="primary" id="upload-btn">Upload &amp; parse</button>
       <p id="upload-status" class="muted"></p>
     </div>`;
+  async function uploadLabFile(file, patientId) {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("patient_id", patientId);
+    let resp = await fetch(API + "/api/v1/labs/upload", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${window.hgToken}` },
+      body: fd,
+    });
+    if (resp.status === 401 && window.hgRefreshToken) {
+      await Auth.refreshTokens();
+      resp = await fetch(API + "/api/v1/labs/upload", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${window.hgToken}` },
+        body: fd,
+      });
+    }
+    if (!resp.ok) throw new Error(await resp.text());
+    return resp.json();
+  }
+
   document.getElementById("upload-btn").onclick = async () => {
     const files = document.getElementById("upload-files").files;
     const patientId = document.getElementById("upload-patient").value;
     if (!files.length) return;
     const status = document.getElementById("upload-status");
     status.textContent = "Uploading...";
+    status.className = "muted";
     try {
       for (const file of files) {
-        const fd = new FormData();
-        fd.append("file", file);
-        fd.append("patient_id", patientId);
-        const resp = await fetch(API + "/api/v1/labs/upload", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${window.hgToken}` },
-          body: fd,
-        });
-        if (!resp.ok) throw new Error(await resp.text());
-        const body = await resp.json();
+        const body = await uploadLabFile(file, patientId);
         status.textContent = `Uploaded ${file.name}. Parsing...`;
         await pollLab(body.lab_report_id, status);
       }
@@ -450,23 +472,30 @@ async function renderBiomarkerReview(labId) {
     genBtn.onclick = async () => {
       const st = document.getElementById("review-status");
       st.textContent = "Starting analysis...";
-      await api(`/api/v1/reports/generate/${labId}`, "POST");
-      for (let i = 0; i < 180; i++) {
-        const refreshed = await api(`/api/v1/labs/${labId}`);
-        if (refreshed.report_stage === "complete" && refreshed.latest_report_id) {
-          location.href = `/index.html?report_id=${refreshed.latest_report_id}`;
-          return;
+      st.className = "muted";
+      try {
+        await api(`/api/v1/reports/generate/${labId}`, "POST");
+        for (let i = 0; i < 180; i++) {
+          const refreshed = await api(`/api/v1/labs/${labId}`);
+          if (refreshed.report_stage === "complete" && refreshed.latest_report_id) {
+            location.href = `/index.html?report_id=${refreshed.latest_report_id}`;
+            return;
+          }
+          if (refreshed.report_stage === "failed") throw new Error(refreshed.report_error_message || "Failed");
+          st.textContent = `Generating (${refreshed.report_stage})...`;
+          await new Promise(r => setTimeout(r, 2500));
         }
-        if (refreshed.report_stage === "failed") throw new Error(refreshed.report_error_message || "Failed");
-        st.textContent = `Generating (${refreshed.report_stage})...`;
-        await new Promise(r => setTimeout(r, 2500));
+        throw new Error("Report generation timed out");
+      } catch (e) {
+        st.textContent = e.message;
+        st.className = "error";
       }
     };
   }
 }
 
 async function renderAnalysisBuilder(preselectedPatient) {
-  const patients = await api("/api/v1/patients");
+  const patients = await ensurePatients();
   const patientId = preselectedPatient || patients[0]?.id;
   const labs = patientId ? await api(`/api/v1/labs?patient_id=${patientId}`) : [];
   const checkboxes = labs.filter(l => l.status === "complete").map(l => `
@@ -514,7 +543,13 @@ async function renderAnalysisBuilder(preselectedPatient) {
           return;
         }
         if (s.status === "failed") throw new Error(s.error_message || "Analysis failed");
-        st.textContent = `Running (${s.status})...`;
+        if (s.status === "analyzing" && s.anchor_lab_report_id) {
+          const anchor = await api(`/api/v1/labs/${s.anchor_lab_report_id}`);
+          const stage = anchor.report_stage || s.status;
+          st.textContent = `Running (${String(stage).replace(/_/g, " ")})...`;
+        } else {
+          st.textContent = `Running (${s.status})...`;
+        }
         await new Promise(r => setTimeout(r, 2500));
       }
     } catch (e) {
@@ -567,6 +602,7 @@ async function render() {
   try {
     if (await Auth.handleAuthRedirect()) {
       location.hash = "#dashboard";
+      return;
     }
     const hash = location.hash.slice(1) || "login";
     if (hash === "login" || !(await ensureSession())) {
