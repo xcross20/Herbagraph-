@@ -24,7 +24,7 @@ Three lockups from the brand guide:
 | Variant | Use |
 |---------|-----|
 | **Primary on light** | Network mark (black strokes) + blue terminal node `#2f7df6` + bold **HerbaGraph** wordmark |
-| **On ink** | White mark on `#111111` background; use on auth left rail and dark panels |
+| **Dark background** | White mark on `#111111` background; use on auth left rail and dark panels |
 | **Mark only** | 16px minimum for favicons, compact nav; blue node always preserved |
 
 Assets: `frontend/assets/logo-mark.svg`, `frontend/assets/logo-wordmark.svg`

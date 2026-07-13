@@ -276,13 +276,7 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -0.02em;
 }
 .auth-brand .brand-copy { max-width: 34ch; color: #9ca3af; font-size: 0.98rem; }
-.auth-brand .on-ink-label {
-  font-size: 0.68rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #6b7280;
-  margin-top: 2rem;
-}
+
 .auth-form-wrap {
   display: flex;
   align-items: center;
@@ -326,6 +320,6 @@ input:focus, select:focus, textarea:focus {
   .trust-band { grid-template-columns: 1fr; }
   .auth-page { grid-template-columns: 1fr; }
   .auth-brand { padding: 1.75rem 1.5rem; min-height: auto; }
-  .auth-brand .on-ink-label { display: none; }
+
   .auth-form-wrap .mobile-logo { display: block; }
 }
