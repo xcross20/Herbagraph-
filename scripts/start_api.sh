@@ -11,9 +11,22 @@ fi
 echo "DATABASE_URL is configured (driver prefix: ${DATABASE_URL%%://*})."
 python3 - <<'PY'
 import os
+import sys
 from urllib.parse import urlparse
+
 url = urlparse(os.environ["DATABASE_URL"])
-print(f"DB target: {url.hostname}:{url.port or 5432}{url.path}")
+host = url.hostname or ""
+print(f"DB target: {host}:{url.port or 5432}{url.path}")
+
+if os.environ.get("RAILWAY_ENVIRONMENT") and host in ("localhost", "127.0.0.1", "db", ""):
+    print(
+        "ERROR: DATABASE_URL points at localhost. "
+        "In Railway → web service → Variables set:\n"
+        "  DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}\n"
+        "See railway.env.example",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 PY
 echo "Applying database migrations (alembic upgrade head)..."
 migration_ok=0

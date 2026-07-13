@@ -83,15 +83,35 @@ async function api(path, method = "GET", body) {
   }
   if (!resp.ok) {
     const text = await resp.text();
-    throw new Error(`${method} ${path} (${resp.status}): ${text}`);
+    throw new Error(friendlyApiError(method, path, resp.status, text));
   }
   if (resp.status === 204) return null;
   return resp.json();
 }
 
+function friendlyApiError(method, path, status, text) {
+  let detail = text;
+  try {
+    const j = JSON.parse(text);
+    detail = j.detail || text;
+  } catch { /* raw text */ }
+  if (path.includes("/auth/me") && (status === 500 || status === 503)) {
+    return (
+      "The server could not reach the database after sign-in. "
+      + "An operator must set DATABASE_URL on Railway (see railway.env.example). "
+      + `Diagnostic: ${detail}`
+    );
+  }
+  return `${method} ${path} (${status}): ${detail}`;
+}
+
 async function ensureSession() {
   if (!(await Auth.ensureSession())) return false;
-  currentUser = await api("/api/v1/auth/me");
+  try {
+    currentUser = await api("/api/v1/auth/me");
+  } catch (err) {
+    throw new Error(err.message || String(err));
+  }
   return true;
 }
 

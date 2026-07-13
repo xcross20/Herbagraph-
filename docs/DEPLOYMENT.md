@@ -67,7 +67,7 @@ docker compose exec api python scripts/reseed_db.py
 
 1. **PostgreSQL** — copy `DATABASE_URL` (use `postgresql+asyncpg://` prefix).
 2. **Redis** — copy `REDIS_URL`.
-3. **Web service** — Dockerfile, port 8000, health check `/ready` (verifies Postgres; migrations run on container start).
+3. **Web service** — Dockerfile, port 8000, health check `/health`. Migrations run on container start.
 4. **Worker service** — same image, command:
    ```
    celery -A app.workers.celery_app worker --loglevel=info
@@ -92,6 +92,10 @@ DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
 ```
 
 Use the **private** URL when Postgres and the API run in the same Railway project (recommended). If you use the public proxy URL instead, the app auto-appends `ssl=require`.
+
+**Alternative:** use your Supabase project's Postgres (Settings → Database → connection URI, Session pooler). Paste as `DATABASE_URL` — the app normalizes `postgresql://` and enables TLS automatically.
+
+Full variable template: `railway.env.example` in the repo root.
 
 If `DATABASE_URL` is missing or points at `localhost`, sign-in will succeed in Supabase but `/api/v1/auth/me` returns 500/503.
 
