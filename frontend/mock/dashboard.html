@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard mock — HerbaGraph</title>
+<link rel="stylesheet" href="/css/site.css">
+<style>
+.dash { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+.dash-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.dash-links { display: flex; gap: 0.35rem; flex: 1; }
+.dash-links a {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-decoration: none;
+}
+.dash-links a.active { background: var(--hg-blue-soft); color: var(--hg-blue); font-weight: 600; }
+.dash-user { font-size: 0.85rem; color: var(--muted); }
+.dash-main { max-width: 1140px; margin: 0 auto; padding: 1.5rem 1.5rem 3rem; width: 100%; }
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem; margin: 1rem 0 1.5rem; }
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.stat strong { display: block; font-size: 1.5rem; margin-bottom: 0.15rem; }
+.stat span { font-size: 0.85rem; color: var(--muted); }
+.patient-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0.85rem; }
+.patient-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.patient-card h3 { margin: 0 0 0.35rem; font-size: 1rem; }
+.mock-pill {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: var(--hg-clinical-soft);
+  color: var(--hg-clinical);
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .stat-row { grid-template-columns: 1fr; }
+  .dash-links { display: none; }
+}
+</style>
+</head>
+<body class="dash">
+<header class="dash-nav">
+  <a class="logo" href="/">
+    <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+    <span class="logo-word">HerbaGraph</span>
+  </a>
+  <nav class="dash-links">
+    <a href="#" class="active">Dashboard</a>
+    <a href="#">Patients</a>
+    <a href="#">Upload</a>
+    <a href="#">Settings</a>
+  </nav>
+  <span class="dash-user">dr.chen@clinic.example</span>
+  <a class="btn" href="/login.html">Sign out</a>
+</header>
+<main class="dash-main">
+  <p class="mock-pill">Static mock</p>
+  <h1 style="margin-top:0.5rem">Welcome back, Dr. Chen</h1>
+  <p class="muted">Your clinical workspace</p>
+  <div class="nav-actions" style="margin:1rem 0">
+    <a class="btn primary" href="#">Upload lab report</a>
+    <a class="btn" href="#">Run analysis</a>
+  </div>
+  <div class="stat-row">
+    <div class="stat"><strong>4</strong><span>Patients</span></div>
+    <div class="stat"><strong>12</strong><span>Lab reports</span></div>
+    <div class="stat"><strong>89%</strong><span>Latest confidence</span></div>
+  </div>
+  <h2>Patients</h2>
+  <div class="patient-grid">
+    <div class="patient-card">
+      <h3>Patient A</h3>
+      <p class="muted">3 labs · 2 analyses</p>
+      <p class="muted">Latest confidence: 89%</p>
+      <div class="actions" style="margin-top:0.65rem">
+        <a class="btn" href="#">Open profile</a>
+        <a class="btn blue" href="/report.html">View report</a>
+      </div>
+    </div>
+    <div class="patient-card">
+      <h3>Patient B</h3>
+      <p class="muted">1 lab · 1 analysis</p>
+      <p class="muted">Latest confidence: 76%</p>
+      <div class="actions" style="margin-top:0.65rem">
+        <a class="btn" href="#">Open profile</a>
+      </div>
+    </div>
+  </div>
+  <p class="disclaimer-foot" style="margin-top:2rem">Mock only. Functional workspace at <a href="/app.html">/app.html</a>.</p>
+</main>
+</body>
+</html>

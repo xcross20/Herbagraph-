@@ -17,9 +17,31 @@ Source of truth: `frontend/report.html` (clinical report UI), `herbagraph7.pdf` 
 3. Separate evidence from opinion.
 4. Assist human decision-making rather than replace it.
 
-## Visual identity (extracted from report viewer)
+## Logo (official brand sheet)
 
-### Color tokens
+Three lockups from the brand guide:
+
+| Variant | Use |
+|---------|-----|
+| **Primary on light** | Network mark (black strokes) + blue terminal node `#2f7df6` + bold **HerbaGraph** wordmark |
+| **On ink** | White mark on `#111111` background; use on auth left rail and dark panels |
+| **Mark only** | 16px minimum for favicons, compact nav; blue node always preserved |
+
+Assets: `frontend/assets/logo-mark.svg`, `frontend/assets/logo-wordmark.svg`
+
+**Do not** substitute a leaf, herb, or generic AI icon. The mark is a connected graph with an ascending path.
+
+## Visual identity
+
+### Marketing tokens (logo-led)
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--hg-ink` | `#111111` | Wordmark, primary buttons on marketing/auth |
+| `--hg-blue` | `#2f7df6` | Logo terminal node, links, focus rings |
+| `--hg-blue-soft` | `#eef4ff` | Active nav, soft highlights |
+
+### Clinical tokens (report viewer)
 
 | Token | Value | Use |
 |-------|-------|-----|
@@ -37,7 +59,7 @@ Source of truth: `frontend/report.html` (clinical report UI), `herbagraph7.pdf` 
 | `--hg-muted` | `#6e6e73` | Secondary copy |
 | `--hg-border` | `#d2d2d7` | Dividers |
 
-Do **not** use generic SaaS blue (`#0071e3`) as the primary accent on marketing or auth surfaces. Clinical green is the brand anchor.
+Marketing/auth surfaces use **logo ink + blue**. Clinical green stays in reports and confidence UI inside the product.
 
 ### Typography
 

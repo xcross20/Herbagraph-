@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HerbaGraph UI Mocks</title>
+<link rel="stylesheet" href="/css/site.css">
+<style>
+.logo-spec {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+.spec-card {
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  gap: 0.75rem;
+}
+.spec-card.light { background: #f9fafb; }
+.spec-card.dark { background: var(--hg-ink); color: #fff; }
+.spec-card.dark .logo { color: #fff; }
+.spec-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.spec-card.dark .spec-label { color: #6b7280; }
+.spec-icon { width: 16px; height: 16px; color: var(--hg-ink); }
+.spec-card.dark .spec-icon { color: #fff; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <a class="logo" href="/">
+    <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+    <span class="logo-word">HerbaGraph</span>
+  </a>
+  <nav class="nav-actions">
+    <a class="btn" href="/">Live homepage</a>
+  </nav>
+</header>
+<main class="shell">
+  <h1>UI mock gallery</h1>
+  <p class="muted">Design previews using the official HerbaGraph logo (network mark + blue terminal node).</p>
+
+  <section class="logo-spec" aria-label="Logo variants">
+    <div class="spec-card light">
+      <a class="logo" href="/">
+        <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+        <span class="logo-word">HerbaGraph</span>
+      </a>
+      <span class="spec-label">Primary on light</span>
+    </div>
+    <div class="spec-card dark">
+      <a class="logo" href="/">
+        <svg class="logo-mark on-ink" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+        <span class="logo-word">HerbaGraph</span>
+      </a>
+      <span class="spec-label">On ink</span>
+    </div>
+    <div class="spec-card light">
+      <svg class="spec-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+      <span class="spec-label">Mark 16px</span>
+    </div>
+  </section>
+
+  <div class="mock-grid">
+    <a class="mock-tile" href="/"><strong>Homepage</strong><span>Split hero, workflow, trust band</span></a>
+    <a class="mock-tile" href="/login.html"><strong>Sign in</strong><span>Split auth with on-ink brand rail</span></a>
+    <a class="mock-tile" href="/signup.html"><strong>Create account</strong><span>Registration mock</span></a>
+    <a class="mock-tile" href="/forgot-password.html"><strong>Forgot password</strong><span>Reset email flow</span></a>
+    <a class="mock-tile" href="/reset-password.html"><strong>New password</strong><span>Recovery completion</span></a>
+    <a class="mock-tile" href="/mock/dashboard.html"><strong>Dashboard mock</strong><span>Static workspace preview</span></a>
+    <a class="mock-tile" href="/report.html"><strong>Report viewer</strong><span>Live clinical report UI</span></a>
+    <a class="mock-tile" href="/app.html"><strong>Workspace</strong><span>Functional dashboard shell</span></a>
+  </div>
+</main>
+</body>
+</html>

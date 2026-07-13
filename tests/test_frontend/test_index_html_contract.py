@@ -27,10 +27,11 @@ def test_index_html_exists():
 def test_homepage_is_public_landing(index_html):
     assert "/login.html" in index_html
     assert "/signup.html" in index_html
-    assert "Precision Nutrition" in index_html
-    assert "Explain every conclusion" in index_html
+    assert "HerbaGraph" in index_html
+    assert "logo-mark" in index_html
+    assert "#2f7df6" in index_html
     assert 'id="recommendations"' not in index_html
-    assert "hero-split" in index_html
+    assert "landing-hero" in index_html
 
 
 def test_report_html_exists():
