@@ -9,6 +9,12 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
 fi
 
 echo "DATABASE_URL is configured (driver prefix: ${DATABASE_URL%%://*})."
+python3 - <<'PY'
+import os
+from urllib.parse import urlparse
+url = urlparse(os.environ["DATABASE_URL"])
+print(f"DB target: {url.hostname}:{url.port or 5432}{url.path}")
+PY
 echo "Applying database migrations (alembic upgrade head)..."
 migration_ok=0
 for attempt in 1 2 3 4 5; do

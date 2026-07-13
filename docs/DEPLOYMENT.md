@@ -83,6 +83,25 @@ railway run python scripts/reseed_db.py
 
 Set all env vars on **both** web and worker services.
 
+**Critical — link Postgres to the web service**
+
+In Railway → web service → **Variables**, add:
+
+```env
+DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
+```
+
+Use the **private** URL when Postgres and the API run in the same Railway project (recommended). If you use the public proxy URL instead, the app auto-appends `ssl=require`.
+
+If `DATABASE_URL` is missing or points at `localhost`, sign-in will succeed in Supabase but `/api/v1/auth/me` returns 500/503.
+
+Verify after deploy:
+
+```bash
+curl https://www.herbagraph.com/api/v1/system/status
+# Expect: "database":"connected","schema_ready":true
+```
+
 ## Supabase Auth setup
 
 1. Create Supabase project.
