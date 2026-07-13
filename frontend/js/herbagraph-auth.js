@@ -64,6 +64,18 @@ window.HerbaGraphAuth = (function () {
     return true;
   }
 
+  async function syncWithBackend(accessToken) {
+    const resp = await fetch(API + "/api/v1/auth/sync", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`Account sync failed (${resp.status}): ${text}`);
+    }
+    return resp.json();
+  }
+
   async function handleAuthRedirect() {
     const cfg = await loadConfig();
     if (cfg.auth_provider !== "supabase") return false;
@@ -76,10 +88,7 @@ window.HerbaGraphAuth = (function () {
 
     if (data?.session) {
       storeSupabaseSession(data.session);
-      await fetch(API + "/api/v1/auth/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
+      await syncWithBackend(data.session.access_token);
       // Clean sensitive tokens from the address bar after email confirm / recovery
       if (wasCallback) {
         const isRecovery = (window.location.hash || "").includes("type=recovery");
@@ -114,10 +123,7 @@ window.HerbaGraphAuth = (function () {
       const { data } = await sb.auth.getSession();
       if (data?.session) {
         storeSupabaseSession(data.session);
-        await fetch(API + "/api/v1/auth/sync", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${data.session.access_token}` },
-        });
+        await syncWithBackend(data.session.access_token);
         return true;
       }
       return false;
@@ -169,10 +175,7 @@ window.HerbaGraphAuth = (function () {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
       storeSupabaseSession(data.session);
-      await fetch(API + "/api/v1/auth/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
+      await syncWithBackend(data.session.access_token);
       return;
     }
     localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
@@ -203,10 +206,7 @@ window.HerbaGraphAuth = (function () {
         throw new Error("Check your email to verify your account before signing in.");
       }
       storeSupabaseSession(data.session);
-      await fetch(API + "/api/v1/auth/sync", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
+      await syncWithBackend(data.session.access_token);
       return;
     }
     const resp = await fetch(API + "/api/v1/auth/register", {

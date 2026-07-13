@@ -75,6 +75,15 @@ else
   fail "GET /health → $health_code (is api running?)"
 fi
 
+ready_code="$(curl -sf -o /tmp/hg_ready.json -w '%{http_code}' "$API_BASE/ready" 2>/dev/null || echo "000")"
+if [[ "$ready_code" == "200" ]]; then
+  ok "GET /ready → 200 (database connected)"
+elif [[ "$ready_code" == "503" ]]; then
+  fail "GET /ready → 503 (database unreachable or migrations missing)"
+else
+  fail "GET /ready → $ready_code"
+fi
+
 echo ""
 echo "[4] Catalog + pipeline gates"
 for script in validate_seed_counts.py audit_pipeline_resilience.py audit_unresolved_abnormals.py; do

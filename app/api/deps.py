@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings, settings
@@ -14,6 +15,17 @@ from app.database import AsyncSessionLocal
 from app.models.user import User
 
 _bearer_scheme = HTTPBearer(auto_error=False)
+
+_DB_UNAVAILABLE_DETAIL = (
+    "Database is not ready. Ensure Postgres is linked and migrations have run (alembic upgrade head)."
+)
+
+
+def _raise_db_unavailable(exc: SQLAlchemyError) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail=_DB_UNAVAILABLE_DETAIL,
+    ) from exc
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -47,7 +59,10 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
             detail="Email verification required before accessing patient data. Check your inbox.",
         )
 
-    return await get_or_create_user_from_supabase(db, claims)
+    try:
+        return await get_or_create_user_from_supabase(db, claims)
+    except SQLAlchemyError as exc:
+        _raise_db_unavailable(exc)
 
 
 async def get_current_user(

@@ -67,7 +67,7 @@ docker compose exec api python scripts/reseed_db.py
 
 1. **PostgreSQL** — copy `DATABASE_URL` (use `postgresql+asyncpg://` prefix).
 2. **Redis** — copy `REDIS_URL`.
-3. **Web service** — Dockerfile, port 8000, health check `/health`.
+3. **Web service** — Dockerfile, port 8000, health check `/ready` (verifies Postgres; migrations run on container start).
 4. **Worker service** — same image, command:
    ```
    celery -A app.workers.celery_app worker --loglevel=info
@@ -76,8 +76,8 @@ docker compose exec api python scripts/reseed_db.py
 **Deploy steps:**
 
 ```bash
-# One-time after first deploy
-railway run alembic upgrade head
+# Migrations run automatically on each web deploy (scripts/start_api.sh).
+# One-time catalog seed after first successful deploy:
 railway run python scripts/reseed_db.py
 ```
 
