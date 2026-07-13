@@ -6,7 +6,7 @@
 <style>
   :root {
     --bg: #f5f5f7; --surface: #fff; --text: #1d1d1f; --muted: #6e6e73;
-    --accent: #0071e3; --accent-soft: #e8f2ff; --border: #d2d2d7;
+    --accent: #117744; --accent-soft: #f4fbf7; --border: #d2d2d7;
     --success: #1a7f4b; --danger: #d70015; --radius: 12px;
     --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
   }
@@ -29,6 +29,7 @@
   .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.65rem; }
   button, .btn { font: inherit; padding: 0.55rem 1rem; border-radius: 980px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; display: inline-block; }
   button.primary, .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover:not(:disabled), .btn.primary:hover { background: #0d5c38; border-color: #0d5c38; }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   input, select, textarea { font: inherit; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; width: 100%; }
   label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.25rem; }

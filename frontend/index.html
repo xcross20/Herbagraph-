@@ -3,51 +3,88 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HerbaGraph — Clinical biomarker intelligence</title>
+<title>HerbaGraph — AI Clinical Reasoning for Precision Nutrition</title>
 <link rel="stylesheet" href="/css/site.css">
 </head>
 <body>
 <header class="site-header">
-  <a class="brand" href="/">HerbaGraph</a>
+  <div>
+    <a class="brand" href="/">HerbaGraph</a>
+    <span class="brand-tag">AI Clinical Reasoning for Precision Nutrition</span>
+  </div>
   <nav class="nav-actions">
     <a class="btn" href="/login.html">Sign in</a>
     <a class="btn primary" href="/signup.html">Create account</a>
   </nav>
 </header>
 <main class="shell">
-  <section class="hero">
-    <h1>Explainable biological reasoning for lab data</h1>
-    <p>
-      HerbaGraph connects biomarker patterns to botanical, nutraceutical, and longevity interventions
-      with transparent clinical priority scoring — built for practitioners who need evidence they can defend.
-    </p>
-    <div class="nav-actions" style="justify-content:center">
-      <a class="btn primary" href="/signup.html">Get started</a>
-      <a class="btn" href="/login.html">Sign in to workspace</a>
+  <section class="hero-split">
+    <div class="hero-copy">
+      <h1>Explainable biological reasoning for lab data</h1>
+      <p class="lede">
+        HerbaGraph maps biomarker patterns to evidence-graded interventions with transparent
+        clinical priority scoring. Built for practitioners who need conclusions they can defend.
+      </p>
+      <div class="nav-actions">
+        <a class="btn primary" href="/signup.html">Create account</a>
+        <a class="btn" href="/login.html">Sign in</a>
+      </div>
+    </div>
+    <aside class="hero-panel" aria-label="Example clinical summary">
+      <p class="conf-label">Overall confidence</p>
+      <p class="conf-value">HIGH</p>
+      <ul>
+        <li><strong>Clinical priorities</strong> ranked by severity and treatability</li>
+        <li><strong>Four-lane library</strong> botanical, nutraceutical, peptide, lifestyle</li>
+        <li><strong>Evidence passport</strong> methodology and gaps surfaced on every report</li>
+      </ul>
+    </aside>
+  </section>
+
+  <section class="principles" aria-label="Design principles">
+    <div class="principle">
+      <strong>Explain every conclusion</strong>
+      <p>Pathway reasoning, differential explanations, and citation trails stay visible.</p>
+    </div>
+    <div class="principle">
+      <strong>Quantify uncertainty</strong>
+      <p>Confidence scores and missing-information panels are first-class, not footnotes.</p>
+    </div>
+    <div class="principle">
+      <strong>Separate evidence from opinion</strong>
+      <p>Interventions are ranked by clinical fit and intent, not marketing grades alone.</p>
+    </div>
+    <div class="principle">
+      <strong>Assist clinicians</strong>
+      <p>Outputs frame discussion with a qualified provider. They are not directives to self-treat.</p>
     </div>
   </section>
-  <section class="feature-grid">
-    <div class="feature-card">
-      <h3>Integrated lab analysis</h3>
-      <p class="muted">Upload one or more lab reports, review parsed biomarkers, and run multi-report biological reasoning.</p>
+
+  <section class="capability-row">
+    <div class="capability-card">
+      <h3>Integrated lab workspace</h3>
+      <p>Upload labs, review parsed biomarkers, run multi-report analyses, and open full clinical reports from one dashboard.</p>
     </div>
-    <div class="feature-card">
-      <h3>Four-lane intervention library</h3>
-      <p class="muted">Prioritized recommendations across botanicals, nutraceuticals, peptides, and lifestyle — ranked by clinical fit, not hype.</p>
-    </div>
-    <div class="feature-card">
-      <h3>Patient workspace</h3>
-      <p class="muted">Manage patients, medications, conditions, and analysis history in a single secure dashboard.</p>
-    </div>
-    <div class="feature-card">
-      <h3>Evidence transparency</h3>
-      <p class="muted">Every report surfaces confidence, differential explanations, evidence gaps, and methodology — so nothing is a black box.</p>
+    <div class="capability-card accent">
+      <h3>Intervention decision map</h3>
+      <p>Top considerations per lane, with priority score, fit, and intent on every card.</p>
+      <div class="lane-pills">
+        <span class="lane-pill">Botanical</span>
+        <span class="lane-pill">Nutraceutical</span>
+        <span class="lane-pill">Peptide</span>
+        <span class="lane-pill">Lifestyle</span>
+      </div>
     </div>
   </section>
+
   <p class="disclaimer-foot">
-    <strong>Clinical disclaimer.</strong> HerbaGraph provides informational synthesis for licensed practitioners and researchers.
-    It does not diagnose, treat, or replace professional medical judgment. Always verify recommendations against patient context and local regulations.
+    <strong>Clinical disclaimer.</strong> HerbaGraph is a research and clinical decision-support tool.
+    It does not diagnose, treat, or replace professional medical judgment. Verify all recommendations
+    against patient context and discuss applicability with a qualified healthcare provider.
   </p>
+  <footer class="site-footer">
+    HerbaGraph · Research tool, not medical advice.
+  </footer>
 </main>
 <script src="/js/herbagraph-auth.js"></script>
 </body>
