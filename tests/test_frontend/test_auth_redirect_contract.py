@@ -16,3 +16,10 @@ def test_render_returns_after_auth_callback_redirect():
     src = _APP_HTML.read_text(encoding="utf-8")
     assert "if (await Auth.handleAuthRedirect()) {" in src
     assert "return;" in src.split("if (await Auth.handleAuthRedirect())")[1].split("const hash = location.hash")[0]
+
+
+def test_auth_js_routes_recovery_to_reset_password_page():
+    src = _AUTH_JS.read_text(encoding="utf-8")
+    assert "type=recovery" in src
+    assert "/reset-password.html" in src
+    assert "updatePassword" in src

@@ -9,4 +9,5 @@ def test_app_html_serves_workspace_shell():
     assert "/api/v1/analysis-sessions" in html
     assert "link-labs" in html
     assert "#dashboard" in html
-    assert "Sign in" in html
+    assert "/login.html" in html
+    assert "/report.html" in html

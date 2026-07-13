@@ -44,7 +44,7 @@ def assert_no_ui_failure_copy(page) -> None:
         for pattern in FAILURE_PATTERNS:
             assert not pattern.search(status_text), f"status-line: {status_text}"
 
-    for selector in ("#patient-summary-body", "#biological-systems-body", "#recommendations-body"):
+    for selector in ("#executive-summary-body", "#biological-network-body", "#intervention-library-body"):
         body = page.locator(selector)
         if not body.count():
             continue
@@ -60,9 +60,9 @@ def wait_for_report_ready(page, *, timeout_ms: int = 180_000) -> None:
           const status = document.getElementById('status-line');
           const done = status && !status.classList.contains('error') &&
             (status.textContent || '').trim().toLowerCase() === 'done.';
-          const recs = document.getElementById('recommendations-body');
-          const hasRec = recs && recs.innerText && recs.innerText.includes('#1');
-          const systems = document.getElementById('biological-systems-body');
+          const recs = document.getElementById('intervention-library-body');
+          const hasRec = recs && recs.innerText && recs.innerText.trim().length > 20;
+          const systems = document.getElementById('biological-network-body');
           const hasTable = systems && systems.querySelector('table');
           return done && (hasRec || hasTable);
         }""",

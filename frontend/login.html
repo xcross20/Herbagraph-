@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in — HerbaGraph</title>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="/">HerbaGraph</a>
+  <nav class="nav-actions">
+    <a class="btn" href="/signup.html">Create account</a>
+  </nav>
+</header>
+<main class="shell-narrow">
+  <div class="card">
+    <h1>Sign in</h1>
+    <p class="muted">Access your clinical workspace</p>
+    <div id="auth-error" class="error"></div>
+    <div class="form-row"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required></div>
+    <div class="form-row"><label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="current-password" required></div>
+    <div class="actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">
+      <button class="btn primary" id="login-btn" type="button">Sign in</button>
+      <button class="btn hidden" id="guest-btn" type="button">Continue as guest</button>
+    </div>
+    <p class="auth-links">
+      <a href="/forgot-password.html">Forgot password?</a>
+      <a href="/signup.html">Create account</a>
+    </p>
+    <p id="auth-hint" class="muted" style="margin-top:0.75rem"></p>
+  </div>
+</main>
+<script src="/js/herbagraph-auth.js"></script>
+<script>
+const Auth = window.HerbaGraphAuth;
+const params = new URLSearchParams(location.search);
+const nextUrl = params.get("next") || "/app.html#dashboard";
+
+function showError(msg, kind) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.className = kind === "ok" ? "success" : "error";
+}
+
+async function init() {
+  if (window.__hgAuthRedirecting) return;
+  if (await Auth.handleAuthRedirect()) {
+    location.href = nextUrl;
+    return;
+  }
+  if (await Auth.ensureSession()) {
+    location.href = nextUrl;
+    return;
+  }
+  const cfg = await Auth.loadConfig();
+  document.getElementById("guest-btn").classList.toggle("hidden", !cfg.allow_guest_auth);
+  document.getElementById("auth-hint").textContent = cfg.auth_provider === "supabase"
+    ? "Secure sign-in via Supabase. Email verification may be required before uploading patient data."
+    : "Local sandbox auth. For production, set AUTH_PROVIDER=supabase.";
+}
+
+document.getElementById("login-btn").onclick = async () => {
+  showError("");
+  try {
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value;
+    await Auth.signInWithPassword(email, password);
+    location.href = nextUrl;
+  } catch (e) {
+    showError(e.message);
+  }
+};
+
+document.getElementById("guest-btn").onclick = async () => {
+  showError("");
+  try {
+    await Auth.continueAsGuest();
+    location.href = nextUrl;
+  } catch (e) {
+    showError(e.message);
+  }
+};
+
+document.getElementById("auth-password").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("login-btn").click();
+});
+
+init();
+</script>
+</body>
+</html>

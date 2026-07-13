@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create account — HerbaGraph</title>
+<link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="brand" href="/">HerbaGraph</a>
+  <nav class="nav-actions">
+    <a class="btn" href="/login.html">Sign in</a>
+  </nav>
+</header>
+<main class="shell-narrow">
+  <div class="card">
+    <h1>Create account</h1>
+    <p class="muted">Start your HerbaGraph workspace</p>
+    <div id="auth-error" class="error"></div>
+    <div class="form-row"><label for="auth-name">Full name (optional)</label><input id="auth-name" type="text" autocomplete="name"></div>
+    <div class="form-row"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required></div>
+    <div class="form-row"><label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="new-password" required minlength="8"></div>
+    <div class="actions" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem">
+      <button class="btn primary" id="signup-btn" type="button">Create account</button>
+    </div>
+    <p class="auth-links">
+      <a href="/login.html">Already have an account? Sign in</a>
+    </p>
+    <p id="auth-hint" class="muted" style="margin-top:0.75rem"></p>
+  </div>
+</main>
+<script src="/js/herbagraph-auth.js"></script>
+<script>
+const Auth = window.HerbaGraphAuth;
+
+function showError(msg, kind) {
+  const el = document.getElementById("auth-error");
+  el.textContent = msg;
+  el.className = kind === "ok" ? "success" : "error";
+}
+
+async function init() {
+  if (window.__hgAuthRedirecting) return;
+  if (await Auth.ensureSession()) {
+    location.href = "/app.html#dashboard";
+    return;
+  }
+  const cfg = await Auth.loadConfig();
+  document.getElementById("auth-hint").textContent = cfg.auth_provider === "supabase"
+    ? "You may need to verify your email before signing in."
+    : "Local sandbox registration — no email verification required.";
+}
+
+document.getElementById("signup-btn").onclick = async () => {
+  showError("");
+  try {
+    const email = document.getElementById("auth-email").value.trim();
+    const password = document.getElementById("auth-password").value;
+    const full_name = document.getElementById("auth-name").value.trim() || null;
+    await Auth.signUp(email, password, full_name);
+    location.href = "/app.html#dashboard";
+  } catch (e) {
+    showError(e.message, e.message.includes("Check your email") ? "ok" : undefined);
+  }
+};
+
+init();
+</script>
+</body>
+</html>

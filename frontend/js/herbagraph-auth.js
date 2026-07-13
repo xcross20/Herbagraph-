@@ -48,11 +48,18 @@ window.HerbaGraphAuth = (function () {
     );
   }
 
-  /** Send Supabase email-confirm / password-reset landings to the app shell. */
+  /** Route Supabase email-confirm / password-reset landings to the right page. */
   function redirectAuthCallbackToApp() {
     if (!isAuthCallbackUrl()) return false;
-    if (window.location.pathname.endsWith("/app.html")) return false;
-    const target = `/app.html${window.location.search}${window.location.hash || "#dashboard"}`;
+    const hash = window.location.hash || "";
+    const path = window.location.pathname;
+    if (hash.includes("type=recovery")) {
+      if (path.endsWith("/reset-password.html")) return false;
+      window.location.replace(`/reset-password.html${window.location.search}${hash}`);
+      return true;
+    }
+    if (path.endsWith("/app.html") || path.endsWith("/reset-password.html")) return false;
+    const target = `/app.html${window.location.search}${hash || "#dashboard"}`;
     window.location.replace(target);
     return true;
   }
@@ -75,7 +82,9 @@ window.HerbaGraphAuth = (function () {
       });
       // Clean sensitive tokens from the address bar after email confirm / recovery
       if (wasCallback) {
-        window.history.replaceState({}, document.title, "/app.html#dashboard");
+        const isRecovery = (window.location.hash || "").includes("type=recovery");
+        const cleanPath = isRecovery ? "/reset-password.html" : "/app.html#dashboard";
+        window.history.replaceState({}, document.title, cleanPath);
       }
     }
     return wasCallback;
@@ -186,7 +195,7 @@ window.HerbaGraphAuth = (function () {
         password,
         options: {
           data: { full_name: fullName || null },
-          emailRedirectTo: `${window.location.origin}/app.html`,
+          emailRedirectTo: `${window.location.origin}/app.html#dashboard`,
         },
       });
       if (error) throw new Error(error.message);
@@ -215,8 +224,18 @@ window.HerbaGraphAuth = (function () {
       throw new Error("Password reset is managed via Supabase when AUTH_PROVIDER=supabase.");
     }
     const sb = await initSupabase();
-    const redirectTo = `${window.location.origin}/app.html`;
+    const redirectTo = `${window.location.origin}/reset-password.html`;
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw new Error(error.message);
+  }
+
+  async function updatePassword(newPassword) {
+    const cfg = await loadConfig();
+    if (cfg.auth_provider !== "supabase") {
+      throw new Error("Password updates are managed via Supabase when AUTH_PROVIDER=supabase.");
+    }
+    const sb = await initSupabase();
+    const { error } = await sb.auth.updateUser({ password: newPassword });
     if (error) throw new Error(error.message);
   }
 
@@ -275,6 +294,7 @@ window.HerbaGraphAuth = (function () {
     signInWithPassword,
     signUp,
     resetPassword,
+    updatePassword,
     signOut,
     continueAsGuest,
     api,
@@ -282,5 +302,5 @@ window.HerbaGraphAuth = (function () {
   };
 })();
 
-// If email confirmation lands on / or /index.html, forward to the app shell immediately.
+// If email confirmation or recovery lands on a public page, forward immediately.
 window.__hgAuthRedirecting = window.HerbaGraphAuth.redirectAuthCallbackToApp();

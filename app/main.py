@@ -36,9 +36,7 @@ async def health_check() -> dict:
 
 @app.get("/")
 async def root_redirect() -> RedirectResponse:
-    """With Supabase auth, send users to the application shell instead of the report viewer."""
-    if settings.auth_provider == "supabase":
-        return RedirectResponse(url="/app.html", status_code=302)
+    """Public marketing homepage — sign-in lives at /login.html, workspace at /app.html."""
     return RedirectResponse(url="/index.html", status_code=302)
 
 

@@ -42,7 +42,7 @@ def browser_page():
         context = browser.new_context()
         page = context.new_page()
         try:
-            resp = page.goto(base, wait_until="domcontentloaded", timeout=30_000)
+            resp = page.goto(f"{base}/report.html", wait_until="domcontentloaded", timeout=30_000)
             assert resp and resp.ok, f"UI not reachable at {base}"
             yield page
         finally:
@@ -52,7 +52,7 @@ def browser_page():
 
 def test_ui_dom_contract(browser_page):
     """Core report sections and controls exist."""
-    for section_id in ("upload-section", "patient-summary", "biological-systems", "recommendations"):
+    for section_id in ("upload-section", "executive-summary", "biological-network", "intervention-library"):
         assert browser_page.locator(f"#{section_id}").count() == 1, section_id
     assert browser_page.locator("#analyze-btn").count() == 1
     assert browser_page.locator("#regenerate-btn").count() == 1
@@ -65,14 +65,14 @@ def test_ui_upload_to_report(browser_page, case_id: str, fixture_path, expected_
 
     # Fresh guest session per case (avoids stale localStorage from prior uploads).
     browser_page.evaluate("localStorage.clear()")
-    browser_page.reload(wait_until="domcontentloaded")
+    browser_page.goto(f"{ui_base_url()}/report.html", wait_until="domcontentloaded")
 
     upload_and_analyze(browser_page, fixture_path)
     assert_no_ui_failure_copy(browser_page)
 
-    rec_text = browser_page.locator("#recommendations-body").inner_text()
+    rec_text = browser_page.locator("#intervention-library-body").inner_text()
     matched = {name for name in expected_recs if name in rec_text}
-    assert matched, f"{case_id}: expected one of {sorted(expected_recs)} in recommendations; got: {rec_text[:400]}"
+    assert matched, f"{case_id}: expected one of {sorted(expected_recs)} in intervention library; got: {rec_text[:400]}"
 
-    systems_text = browser_page.locator("#biological-systems-body").inner_text()
+    systems_text = browser_page.locator("#biological-network-body").inner_text()
     assert "No biological system data available" not in systems_text, case_id

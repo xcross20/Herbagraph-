@@ -9,7 +9,7 @@ pytestmark = pytest.mark.asyncio
 async def test_root_redirects_to_frontend_entry(client):
     resp = await client.get("/", follow_redirects=False)
     assert resp.status_code == 302
-    assert resp.headers["location"] in {"/index.html", "/app.html"}
+    assert resp.headers["location"] == "/index.html"
 
 
 async def test_api_routes_still_work_alongside_static_mount(client):
