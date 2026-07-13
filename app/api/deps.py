@@ -63,6 +63,11 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
         return await get_or_create_user_from_supabase(db, claims)
     except SQLAlchemyError as exc:
         _raise_db_unavailable(exc)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not provision user account: {type(exc).__name__}",
+        ) from exc
 
 
 async def get_current_user(

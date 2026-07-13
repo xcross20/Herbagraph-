@@ -13,6 +13,7 @@ from app.api.v1 import (
     patients,
     reports,
     safety,
+    system,
     tracking,
     validation,
     workspace,
@@ -33,4 +34,5 @@ api_router.include_router(safety.router)
 api_router.include_router(patients.router)
 api_router.include_router(patient_context.router)
 api_router.include_router(workspace.router)
+api_router.include_router(system.router)
 api_router.include_router(tracking.router)

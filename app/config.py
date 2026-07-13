@@ -13,8 +13,14 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
         """Railway/Render often provide postgresql:// — SQLAlchemy async needs +asyncpg."""
-        if isinstance(value, str) and value.startswith("postgresql://"):
-            return "postgresql+asyncpg://" + value[len("postgresql://") :]
+        if not isinstance(value, str):
+            return value
+        if value.startswith("postgresql://"):
+            value = "postgresql+asyncpg://" + value[len("postgresql://") :]
+        # Railway public Postgres endpoints require TLS.
+        if "railway.app" in value and "ssl" not in value:
+            value += "&" if "?" in value else "?"
+            value += "ssl=require"
         return value
     secret_key: str = "insecure-dev-secret-key-change-me-in-production"
     encryption_key: str = ""

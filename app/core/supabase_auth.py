@@ -9,6 +9,7 @@ from functools import lru_cache
 import httpx
 from jose import JWTError, jwk, jwt
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -90,7 +91,9 @@ def _claims_from_payload(payload: dict) -> dict:
     if not sub:
         raise SupabaseAuthError("Token missing subject")
 
-    email = payload.get("email") or (payload.get("user_metadata") or {}).get("email")
+    meta = payload.get("user_metadata") or {}
+    app_meta = payload.get("app_metadata") or {}
+    email = payload.get("email") or meta.get("email") or app_meta.get("email")
     if not email:
         raise SupabaseAuthError("Token missing email claim")
 
@@ -156,7 +159,17 @@ async def get_or_create_user_from_supabase(db: AsyncSession, claims: dict) -> Us
     if claims.get("full_name") and not user.full_name:
         user.full_name = claims["full_name"]
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        result = await db.execute(select(User).where(User.external_auth_id == external_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+        if user is None:
+            raise
     await db.refresh(user)
     return user
 

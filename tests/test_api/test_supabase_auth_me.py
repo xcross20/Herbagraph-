@@ -56,3 +56,11 @@ async def test_auth_sync_provisions_supabase_user(client, supabase_env):
 def test_database_url_normalizes_railway_postgres_url():
     settings = Settings(database_url="postgresql://user:pass@host:5432/railway")
     assert settings.database_url == "postgresql+asyncpg://user:pass@host:5432/railway"
+
+
+def test_database_url_adds_ssl_for_railway_public_host():
+    settings = Settings(
+        database_url="postgresql://user:pass@containers-us-west-123.railway.app:5432/railway"
+    )
+    assert "ssl=require" in settings.database_url
+    assert settings.database_url.startswith("postgresql+asyncpg://")
