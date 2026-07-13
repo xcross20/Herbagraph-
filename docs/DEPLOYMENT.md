@@ -30,6 +30,7 @@ Required production env vars:
 DEBUG=false
 AUTH_PROVIDER=supabase
 ADMIN_EMAILS=you@yourdomain.com
+ADMIN_MASTER_PASSWORD=<strong-password-8+chars>
 SECRET_KEY=<long-random-string>
 ENCRYPTION_KEY=<fernet-key>
 DATABASE_URL=postgresql+asyncpg://...
@@ -94,13 +95,27 @@ Set all env vars on **both** web and worker services.
 
 Users sign in via `/app.html`; local user rows are created on `/api/v1/auth/sync`.
 
-## Admin console
+## Admin console (password-protected)
 
-Set `ADMIN_EMAILS` to comma-separated admin emails, then sign in and open:
+Set both `ADMIN_EMAILS` and `ADMIN_MASTER_PASSWORD` on web + worker services.
 
-- **https://yourdomain.com/admin/** — hub
-- **https://yourdomain.com/admin/users.html** — list / activate / role / delete users
-- **https://yourdomain.com/admin/validation.html** — feedback analytics
+1. Ensure at least one HerbaGraph account exists whose email is in `ADMIN_EMAILS` (sign up at `/signup.html` if needed).
+2. Open **https://yourdomain.com/admin/login.html** and enter `ADMIN_MASTER_PASSWORD`.
+3. After unlock, use the operator console:
+
+| URL | Purpose |
+|-----|---------|
+| `/admin/` | Hub — health check, links to tools |
+| `/admin/users.html` | List, activate, verify, role, delete users |
+| `/admin/validation.html` | Clinician feedback and validation analytics |
+
+The master token is stored in `sessionStorage` (12h JWT). Sign out clears it. Operators with an `ADMIN_EMAILS` account can also use their normal Supabase session on admin pages.
+
+Generate secrets locally:
+
+```bash
+bash scripts/generate_production_secrets.sh
+```
 
 Deleting a Supabase user removes HerbaGraph data only; remove the auth identity in Supabase dashboard if needed.
 
@@ -126,7 +141,7 @@ curl https://yourdomain.com/health
 
 - Never commit `.env`
 - `DEBUG=false` in production
-- Restrict `ADMIN_EMAILS` to trusted operators
+- Restrict `ADMIN_EMAILS` to trusted operators; use a strong unique `ADMIN_MASTER_PASSWORD`
 - Use HTTPS everywhere
 - Rotate `SECRET_KEY` and `ENCRYPTION_KEY` per environment
 - Keep disclaimers visible on all reports

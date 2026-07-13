@@ -17,7 +17,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return _pwd_context.verify(plain_password, hashed_password)
 
 
-def _create_token(subject: str, expires_delta: timedelta, token_type: Literal["access", "refresh"]) -> str:
+def _create_token(
+    subject: str,
+    expires_delta: timedelta,
+    token_type: Literal["access", "refresh", "admin_master"],
+) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
         "sub": subject,
@@ -46,6 +50,22 @@ def create_refresh_token(subject: str) -> str:
 
 class InvalidTokenError(Exception):
     pass
+
+
+def create_admin_master_token() -> str:
+    return _create_token(
+        "master",
+        timedelta(hours=12),
+        "admin_master",
+    )
+
+
+def verify_admin_master_token(token: str) -> bool:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except JWTError:
+        return False
+    return payload.get("type") == "admin_master" and payload.get("sub") == "master"
 
 
 def decode_token(token: str, expected_type: Literal["access", "refresh"] = "access") -> str:

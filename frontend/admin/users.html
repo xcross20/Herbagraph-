@@ -3,123 +3,85 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HerbaGraph Admin — Users</title>
-<style>
-  body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
-  h1 { margin-bottom: 0.2rem; }
-  .tag { color: #666; }
-  .error { color: #a00; }
-  .ok { color: #0a7a3f; }
-  .toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 1rem 0; }
-  input, select, button { font: inherit; padding: 0.4rem 0.55rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  th, td { border-bottom: 1px solid #ececec; padding: 0.55rem 0.4rem; text-align: left; vertical-align: top; }
-  th { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: #666; }
-  .inactive { opacity: 0.55; }
-  .pill { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; background: #f0f0f2; font-size: 0.78rem; }
-  .pill.off { background: #ffecec; color: #a00; }
-  .actions button { margin-right: 0.35rem; margin-bottom: 0.25rem; }
-  .links { margin-top: 1rem; font-size: 0.9rem; }
-</style>
+<title>Users — HerbaGraph Admin</title>
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/admin.css">
 </head>
-<body>
-<h1>User Management</h1>
-<p class="tag">Admin only — requires your email in <code>ADMIN_EMAILS</code>.</p>
-<p id="status" class="tag">Loading…</p>
-
-<div class="toolbar">
-  <input id="search" type="search" placeholder="Search email or name" style="min-width:220px;">
-  <select id="active-filter">
-    <option value="">All users</option>
-    <option value="true">Active only</option>
-    <option value="false">Inactive only</option>
-  </select>
-  <button id="search-btn" type="button">Search</button>
-  <button id="refresh-btn" type="button">Refresh</button>
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Email</th>
-      <th>Name</th>
-      <th>Role</th>
-      <th>Status</th>
-      <th>Auth</th>
-      <th>Activity</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody id="users-body"></tbody>
-</table>
-
-<div class="links">
-  <a href="/admin/">← Admin home</a>
-  <a href="/app.html#dashboard">Workspace</a>
-</div>
-
-<script src="/js/herbagraph-auth.js"></script>
+<body class="admin-body">
+<header class="admin-header">
+  <a class="logo" href="/admin/">
+    <svg class="logo-mark on-ink" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+    <span class="logo-word">HerbaGraph</span>
+  </a>
+  <nav class="admin-nav">
+    <a href="/admin/">Home</a>
+    <a href="/admin/users.html" class="active">Users</a>
+    <a href="/admin/validation.html">Validation</a>
+  </nav>
+  <button class="btn" type="button" id="logout-btn" style="background:#1f2937;color:#fff;border-color:#374151">Sign out</button>
+</header>
+<main class="admin-shell">
+  <h1>User management</h1>
+  <p id="status" class="admin-status">Loading…</p>
+  <div class="admin-toolbar">
+    <input id="search" type="search" placeholder="Search email or name" style="min-width:220px">
+    <select id="active-filter">
+      <option value="">All users</option>
+      <option value="true">Active only</option>
+      <option value="false">Inactive only</option>
+    </select>
+    <button class="btn primary" id="search-btn" type="button">Search</button>
+    <button class="btn" id="refresh-btn" type="button">Refresh</button>
+  </div>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Auth</th><th>Activity</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="users-body"></tbody>
+  </table>
+</main>
+<script src="/js/admin-auth.js"></script>
 <script>
+const Admin = window.HerbaGraphAdminAuth;
 const ROLES = ["individual", "clinician", "admin", "organization_admin"];
+document.getElementById("logout-btn").onclick = () => Admin.logout();
+if (!Admin.requireAuth()) throw new Error("redirect");
 
-function escapeHtml(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function esc(s) {
+  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-
-function setStatus(msg, isError) {
+function setStatus(msg, err) {
   const el = document.getElementById("status");
   el.textContent = msg;
-  el.className = isError ? "error" : "ok";
+  el.className = err ? "admin-status error" : "admin-status ok";
 }
-
 async function api(path, method, body) {
   const opts = { method: method || "GET", headers: {} };
-  if (body) {
-    opts.headers["Content-Type"] = "application/json";
-    opts.body = JSON.stringify(body);
-  }
-  const resp = await window.HerbaGraphAuth.api(path, opts);
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`${path} failed (${resp.status}): ${text}`);
-  }
-  if (resp.status === 204) return null;
-  return resp.json();
+  if (body) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(body); }
+  const resp = await Admin.api(path, opts);
+  if (!resp.ok) throw new Error(`${path} failed (${resp.status}): ${await resp.text()}`);
+  return resp.status === 204 ? null : resp.json();
 }
-
 function renderUsers(data) {
   const body = document.getElementById("users-body");
-  if (!data.items.length) {
-    body.innerHTML = `<tr><td colspan="7">No users found.</td></tr>`;
-    return;
-  }
-  let html = "";
-  for (const u of data.items) {
-    const inactive = !u.is_active;
-    html += `<tr class="${inactive ? "inactive" : ""}">`;
-    html += `<td>${escapeHtml(u.email)}</td>`;
-    html += `<td>${escapeHtml(u.full_name || "—")}</td>`;
-    html += `<td><select data-action="role" data-id="${u.id}">`;
-    for (const role of ROLES) {
-      html += `<option value="${role}" ${u.role === role ? "selected" : ""}>${role}</option>`;
-    }
-    html += `</select></td>`;
-    html += `<td>`;
-    html += `<span class="pill ${u.is_active ? "" : "off"}">${u.is_active ? "active" : "inactive"}</span>`;
-    if (!u.is_verified) html += ` <span class="pill off">unverified</span>`;
-    html += `</td>`;
-    html += `<td>${escapeHtml(u.auth_provider)}</td>`;
-    html += `<td>${u.patient_count} patients · ${u.lab_report_count} labs · ${u.report_count} reports</td>`;
-    html += `<td class="actions">`;
-    html += `<button type="button" data-action="toggle" data-id="${u.id}" data-active="${u.is_active}">${u.is_active ? "Deactivate" : "Activate"}</button>`;
-    html += `<button type="button" data-action="verify" data-id="${u.id}" ${u.is_verified ? "disabled" : ""}>Verify email</button>`;
-    html += `<button type="button" data-action="delete" data-id="${u.id}" data-email="${escapeHtml(u.email)}">Delete</button>`;
-    html += `</td></tr>`;
-  }
-  body.innerHTML = html;
+  if (!data.items.length) { body.innerHTML = `<tr><td colspan="7">No users found.</td></tr>`; return; }
+  body.innerHTML = data.items.map((u) => {
+    const roleOpts = ROLES.map((r) => `<option value="${r}" ${u.role === r ? "selected" : ""}>${r}</option>`).join("");
+    return `<tr class="${u.is_active ? "" : "inactive"}">
+      <td>${esc(u.email)}</td><td>${esc(u.full_name || "—")}</td>
+      <td><select data-action="role" data-id="${u.id}">${roleOpts}</select></td>
+      <td><span class="pill ${u.is_active ? "ok" : "off"}">${u.is_active ? "active" : "inactive"}</span>${u.is_verified ? "" : ' <span class="pill off">unverified</span>'}</td>
+      <td>${esc(u.auth_provider)}</td>
+      <td>${u.patient_count} patients · ${u.lab_report_count} labs · ${u.report_count} reports</td>
+      <td>
+        <button class="btn" type="button" data-action="toggle" data-id="${u.id}" data-active="${u.is_active}">${u.is_active ? "Deactivate" : "Activate"}</button>
+        <button class="btn" type="button" data-action="verify" data-id="${u.id}" ${u.is_verified ? "disabled" : ""}>Verify</button>
+        <button class="btn" type="button" data-action="delete" data-id="${u.id}" data-email="${esc(u.email)}">Delete</button>
+      </td></tr>`;
+  }).join("");
 }
-
 async function loadUsers() {
   const search = document.getElementById("search").value.trim();
   const active = document.getElementById("active-filter").value;
@@ -128,57 +90,32 @@ async function loadUsers() {
   if (active) path += `&active_only=${active}`;
   const data = await api(path);
   renderUsers(data);
-  setStatus(`${data.total} user(s) — updated ${new Date().toLocaleString()}`);
+  setStatus(`${data.total} user(s) · updated ${new Date().toLocaleString()}`);
 }
-
 document.getElementById("users-body").addEventListener("click", async (e) => {
   const btn = e.target.closest("button[data-action]");
   if (!btn) return;
-  const id = btn.dataset.id;
-  const action = btn.dataset.action;
   try {
-    if (action === "toggle") {
-      await api(`/api/v1/admin/users/${id}`, "PATCH", { is_active: btn.dataset.active !== "true" });
-    } else if (action === "verify") {
-      await api(`/api/v1/admin/users/${id}`, "PATCH", { is_verified: true });
-    } else if (action === "delete") {
-      if (!confirm(`Delete ${btn.dataset.email} and all their HerbaGraph data? This cannot be undone.`)) return;
-      const result = await api(`/api/v1/admin/users/${id}`, "DELETE");
-      if (result.note) alert(result.note);
+    if (btn.dataset.action === "toggle") await api(`/api/v1/admin/users/${btn.dataset.id}`, "PATCH", { is_active: btn.dataset.active !== "true" });
+    else if (btn.dataset.action === "verify") await api(`/api/v1/admin/users/${btn.dataset.id}`, "PATCH", { is_verified: true });
+    else if (btn.dataset.action === "delete") {
+      if (!confirm(`Delete ${btn.dataset.email} and all data?`)) return;
+      const result = await api(`/api/v1/admin/users/${btn.dataset.id}`, "DELETE");
+      if (result?.note) alert(result.note);
     }
     await loadUsers();
-  } catch (err) {
-    setStatus(String(err.message || err), true);
-  }
+  } catch (err) { setStatus(String(err.message || err), true); }
 });
-
 document.getElementById("users-body").addEventListener("change", async (e) => {
   const sel = e.target.closest("select[data-action='role']");
   if (!sel) return;
-  try {
-    await api(`/api/v1/admin/users/${sel.dataset.id}`, "PATCH", { role: sel.value });
-    setStatus("Role updated.");
-  } catch (err) {
-    setStatus(String(err.message || err), true);
-    await loadUsers();
-  }
+  try { await api(`/api/v1/admin/users/${sel.dataset.id}`, "PATCH", { role: sel.value }); setStatus("Role updated."); }
+  catch (err) { setStatus(String(err.message || err), true); await loadUsers(); }
 });
-
-document.getElementById("search-btn").addEventListener("click", () => loadUsers().catch((err) => setStatus(String(err.message || err), true)));
-document.getElementById("refresh-btn").addEventListener("click", () => loadUsers().catch((err) => setStatus(String(err.message || err), true)));
-document.getElementById("search").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") loadUsers().catch((err) => setStatus(String(err.message || err), true));
-});
-
-(async function init() {
-  try {
-    const ok = await window.HerbaGraphAuth.ensureSession();
-    if (!ok) throw new Error("Sign in via the workspace first.");
-    await loadUsers();
-  } catch (err) {
-    setStatus(String(err.message || err), true);
-  }
-})();
+document.getElementById("search-btn").onclick = () => loadUsers().catch((e) => setStatus(e.message, true));
+document.getElementById("refresh-btn").onclick = () => loadUsers().catch((e) => setStatus(e.message, true));
+document.getElementById("search").addEventListener("keydown", (e) => { if (e.key === "Enter") loadUsers().catch((x) => setStatus(x.message, true)); });
+loadUsers().catch((e) => setStatus(e.message, true));
 </script>
 </body>
 </html>

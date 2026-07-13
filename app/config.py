@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     firebase_project_id: str = ""
     # Comma-separated admin emails for /admin/ console APIs.
     admin_emails: str = ""
+    # Master password for /admin/ console (production). Required with ADMIN_EMAILS for full access.
+    admin_master_password: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

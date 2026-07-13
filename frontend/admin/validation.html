@@ -2,100 +2,77 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>HerbaGraph Validation Dashboard</title>
-<style>
-  body { font-family: monospace, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; }
-  h1 { margin-bottom: 0.2rem; }
-  .tag { color: #666; margin-top: 0; }
-  hr { margin: 1.25rem 0; border: none; border-top: 1px dashed #bbb; }
-  .metric { margin: 0.35rem 0; }
-  .metric strong { display: inline-block; min-width: 16rem; }
-  .error { color: #a00; }
-  .comment { border-left: 3px solid #ccd; padding: 0.35rem 0.65rem; margin: 0.45rem 0; color: #444; }
-  button { font: inherit; padding: 0.4rem 1rem; cursor: pointer; margin-top: 0.75rem; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Validation — HerbaGraph Admin</title>
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/admin.css">
 </head>
-<body>
-<h1>HerbaGraph Validation Dashboard</h1>
-<p class="tag">Admin only — aggregates clinician feedback and product analytics. Not shown on clinician reports.</p>
-<div id="status" class="tag"></div>
-<div id="dashboard"></div>
-<button id="refresh-btn" type="button">Refresh</button>
-
-<script src="/js/herbagraph-auth.js"></script>
+<body class="admin-body">
+<header class="admin-header">
+  <a class="logo" href="/admin/">
+    <svg class="logo-mark on-ink" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
+    <span class="logo-word">HerbaGraph</span>
+  </a>
+  <nav class="admin-nav">
+    <a href="/admin/">Home</a>
+    <a href="/admin/users.html">Users</a>
+    <a href="/admin/validation.html" class="active">Validation</a>
+  </nav>
+  <button class="btn" type="button" id="logout-btn" style="background:#1f2937;color:#fff;border-color:#374151">Sign out</button>
+</header>
+<main class="admin-shell">
+  <h1>Validation dashboard</h1>
+  <p class="muted">Clinician feedback and product analytics. Not shown on patient reports.</p>
+  <p id="status" class="admin-status">Loading…</p>
+  <button class="btn primary" id="refresh-btn" type="button">Refresh</button>
+  <div id="metrics" class="metric-grid"></div>
+  <div id="dashboard"></div>
+</main>
+<script src="/js/admin-auth.js"></script>
 <script>
-async function api(path) {
-  const ok = await window.HerbaGraphAuth.ensureSession();
-  if (!ok) throw new Error("Not signed in. Open the workspace first.");
-  const resp = await window.HerbaGraphAuth.api(path);
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`${path} failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
-}
+const Admin = window.HerbaGraphAdminAuth;
+document.getElementById("logout-btn").onclick = () => Admin.logout();
+if (!Admin.requireAuth()) throw new Error("redirect");
 
-function escapeHtml(s) {
-  return String(s == null ? "" : s)
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
+function esc(s) { return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function renderDashboard(data) {
-  let html = "";
-  html += `<hr><p class="metric"><strong>Reports Generated</strong> ${data.reports_generated}</p>`;
-  html += `<p class="metric"><strong>Reports Reviewed</strong> ${data.reports_reviewed}</p>`;
-  html += `<p class="metric"><strong>Average Trust</strong> ${data.average_trust_score != null ? data.average_trust_score + " / 5" : "—"}</p>`;
-  html += `<p class="metric"><strong>Average Usefulness</strong> ${data.average_usefulness_score != null ? data.average_usefulness_score + " / 5" : "—"}</p>`;
-  html += `<p class="metric"><strong>Average Time Saved</strong> ${data.average_time_saved_minutes != null ? data.average_time_saved_minutes + " minutes" : "—"}</p>`;
-  if (data.would_use_again_percent != null) {
-    html += `<p class="metric"><strong>Would Use Again</strong> ${data.would_use_again_percent}%</p>`;
-  }
-  html += `<hr>`;
-  html += `<p class="metric"><strong>Most Helpful Section</strong> ${escapeHtml(data.most_useful_section || "—")}${data.most_useful_section_percent != null ? " (" + data.most_useful_section_percent + "%)" : ""}</p>`;
-  html += `<p class="metric"><strong>Least Helpful Section</strong> ${escapeHtml(data.least_useful_section || "—")}${data.least_useful_section_percent != null ? " (" + data.least_useful_section_percent + "%)" : ""}</p>`;
-  html += `<p class="metric"><strong>Most Opened Section</strong> ${escapeHtml(data.most_opened_section || "—")}</p>`;
-  html += `<hr><p><strong>Most Requested Biomarkers</strong></p><ul>`;
-  for (const row of data.most_requested_biomarkers || []) {
-    html += `<li>${escapeHtml(row.biomarker_name)} (${row.count})</li>`;
-  }
+  document.getElementById("metrics").innerHTML = `
+    <div class="metric-card"><strong>${data.reports_generated}</strong><span>Reports generated</span></div>
+    <div class="metric-card"><strong>${data.reports_reviewed}</strong><span>Reports reviewed</span></div>
+    <div class="metric-card"><strong>${data.average_trust_score != null ? data.average_trust_score + "/5" : "—"}</strong><span>Average trust</span></div>
+    <div class="metric-card"><strong>${data.average_usefulness_score != null ? data.average_usefulness_score + "/5" : "—"}</strong><span>Average usefulness</span></div>`;
+  let html = `<h2 style="margin-top:1.5rem">Section insights</h2>`;
+  html += `<p><strong>Most helpful:</strong> ${esc(data.most_useful_section || "—")}${data.most_useful_section_percent != null ? ` (${data.most_useful_section_percent}%)` : ""}</p>`;
+  html += `<p><strong>Least helpful:</strong> ${esc(data.least_useful_section || "—")}${data.least_useful_section_percent != null ? ` (${data.least_useful_section_percent}%)` : ""}</p>`;
+  html += `<h2>Most requested biomarkers</h2><ul>`;
+  for (const row of data.most_requested_biomarkers || []) html += `<li>${esc(row.biomarker_name)} (${row.count})</li>`;
   if (!(data.most_requested_biomarkers || []).length) html += `<li>—</li>`;
-  html += `</ul>`;
-  html += `<p><strong>Most Disputed Recommendations</strong></p><ul>`;
-  for (const row of data.disputed_recommendations || []) {
-    html += `<li>${escapeHtml(row.intervention_name)} (${row.low_agreement_count} low-agreement reports)</li>`;
-  }
+  html += `</ul><h2>Disputed recommendations</h2><ul>`;
+  for (const row of data.disputed_recommendations || []) html += `<li>${esc(row.intervention_name)} (${row.low_agreement_count} low-agreement)</li>`;
   if (!(data.disputed_recommendations || []).length) html += `<li>—</li>`;
-  html += `</ul>`;
-  html += `<p><strong>Average Report Confidence</strong></p><ul>`;
-  const dist = data.report_confidence_distribution || {};
-  for (const [label, pct] of Object.entries(dist)) {
-    html += `<li>${escapeHtml(label)} — ${pct}%</li>`;
-  }
-  if (!Object.keys(dist).length) html += `<li>—</li>`;
-  html += `</ul>`;
-  html += `<hr><p><strong>Free-text Feedback</strong></p>`;
-  for (const row of data.free_text_feedback || []) {
-    html += `<div class="comment">"${escapeHtml(row.text)}"</div>`;
-  }
-  if (!(data.free_text_feedback || []).length) html += `<p>—</p>`;
+  html += `</ul><h2>Free-text feedback</h2>`;
+  for (const row of data.free_text_feedback || []) html += `<div class="comment">"${esc(row.text)}"</div>`;
+  if (!(data.free_text_feedback || []).length) html += `<p class="muted">—</p>`;
   document.getElementById("dashboard").innerHTML = html;
 }
 
 async function loadDashboard() {
   const status = document.getElementById("status");
-  status.textContent = "Loading...";
-  status.className = "tag";
+  status.textContent = "Loading…";
+  status.className = "admin-status";
   try {
-    const data = await api("/api/v1/admin/validation/dashboard");
-    renderDashboard(data);
+    const resp = await Admin.api("/api/v1/admin/validation/dashboard");
+    if (!resp.ok) throw new Error(await resp.text());
+    renderDashboard(await resp.json());
     status.textContent = "Updated " + new Date().toLocaleString();
+    status.className = "admin-status ok";
   } catch (err) {
     status.textContent = String(err.message || err);
-    status.className = "error";
+    status.className = "admin-status error";
   }
 }
-
-document.getElementById("refresh-btn").addEventListener("click", loadDashboard);
+document.getElementById("refresh-btn").onclick = loadDashboard;
 loadDashboard();
 </script>
 </body>
