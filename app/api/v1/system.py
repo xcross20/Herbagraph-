@@ -12,10 +12,15 @@ from app.database import AsyncSessionLocal
 router = APIRouter(prefix="/system", tags=["system"])
 
 
+@router.get("/ping")
+async def system_ping() -> dict:
+    return {"ok": True, "version": __version__}
+
+
 @router.get("/status")
 async def system_status():
     """Public readiness probe: API config + database connectivity."""
-    payload = {
+    payload: dict = {
         "status": "ok",
         "version": __version__,
         "auth_provider": settings.auth_provider,
@@ -24,29 +29,30 @@ async def system_status():
     try:
         async with AsyncSessionLocal() as session:
             await session.execute(text("SELECT 1"))
-            result = await session.execute(
-                text(
-                    "SELECT EXISTS ("
-                    "SELECT 1 FROM information_schema.columns "
-                    "WHERE table_name = 'users' AND column_name = 'auth_provider'"
-                    ")"
+            try:
+                result = await session.execute(
+                    text(
+                        "SELECT 1 FROM information_schema.columns "
+                        "WHERE table_name = 'users' AND column_name = 'auth_provider' LIMIT 1"
+                    )
                 )
-            )
-            has_auth_columns = bool(result.scalar())
+                payload["schema_ready"] = result.first() is not None
+            except Exception:
+                payload["schema_ready"] = False
         payload["database"] = "connected"
-        payload["schema_ready"] = has_auth_columns
-        if settings.auth_provider == "supabase" and not has_auth_columns:
+        if settings.auth_provider == "supabase" and not payload.get("schema_ready"):
             payload["status"] = "degraded"
             payload["hint"] = "Run alembic upgrade head on the linked Postgres database."
         return payload
-    except SQLAlchemyError as exc:
+    except Exception as exc:
         return JSONResponse(
             status_code=503,
             content={
                 **payload,
                 "status": "degraded",
                 "database": "unavailable",
+                "error": type(exc).__name__,
                 "detail": str(exc)[:300],
-                "hint": "Link Railway Postgres and set DATABASE_URL on this service.",
+                "hint": "Link Railway Postgres to this web service and set DATABASE_URL.",
             },
         )

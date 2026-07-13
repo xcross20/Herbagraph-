@@ -65,8 +65,8 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
         _raise_db_unavailable(exc)
     except Exception as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not provision user account: {type(exc).__name__}",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Could not provision user account ({type(exc).__name__}). Check DATABASE_URL and migrations.",
         ) from exc
 
 

@@ -4,8 +4,6 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.exc import SQLAlchemyError
-
 from app import __version__
 from app.api.v1.router import api_router
 from app.config import settings
@@ -43,10 +41,10 @@ async def readiness_check() -> dict:
     try:
         async with AsyncSessionLocal() as session:
             await check_database(session)
-    except SQLAlchemyError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database unavailable. Check DATABASE_URL and run alembic upgrade head.",
+            detail=f"Database unavailable ({type(exc).__name__}). Check DATABASE_URL and run alembic upgrade head.",
         ) from exc
     return {"status": "ok", "database": "connected", "version": __version__}
 
