@@ -28,8 +28,9 @@
     </div>
     <div class="card">
       <h1>Create account</h1>
-      <p class="muted">Set up your HerbaGraph workspace</p>
+      <p class="muted">Private preview — access code required</p>
       <div id="auth-error" class="error"></div>
+      <div class="form-row"><label for="auth-access-code">Access code</label><input id="auth-access-code" type="text" autocomplete="off" required placeholder="Enter your invite code"></div>
       <div class="form-row"><label for="auth-name">Full name (optional)</label><input id="auth-name" type="text" autocomplete="name"></div>
       <div class="form-row"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required></div>
       <div class="form-row"><label for="auth-password">Password</label><input id="auth-password" type="password" autocomplete="new-password" required minlength="8"></div>
@@ -59,11 +60,17 @@ async function init() {
 }
 document.getElementById("signup-btn").onclick = async () => {
   showError("");
+  const accessCode = document.getElementById("auth-access-code").value.trim();
+  if (!accessCode) {
+    showError("Access code is required.");
+    return;
+  }
   try {
     await Auth.signUp(
       document.getElementById("auth-email").value.trim(),
       document.getElementById("auth-password").value,
-      document.getElementById("auth-name").value.trim() || null
+      document.getElementById("auth-name").value.trim() || null,
+      accessCode
     );
     location.href = "/app.html#dashboard";
   } catch (e) {

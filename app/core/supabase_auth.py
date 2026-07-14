@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.signup_access import require_approved_email
 from app.core.security import hash_password
 from app.models.user import HealthProfile, User
 
@@ -143,6 +144,7 @@ async def get_or_create_user_from_supabase(db: AsyncSession, claims: dict) -> Us
             if claims.get("full_name") and not user.full_name:
                 user.full_name = claims["full_name"]
         else:
+            require_approved_email(email)
             user = User(
                 email=email,
                 hashed_password=hash_password(secrets.token_urlsafe(48)),

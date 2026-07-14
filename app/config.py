@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     admin_emails: str = ""
     # Master password for /admin/ console (production). Required with ADMIN_EMAILS for full access.
     admin_master_password: str = ""
+    # Private preview: require matching code on signup (set SIGNUP_ACCESS_CODE in production).
+    signup_access_code: str = "19922026"
 
     @property
     def cors_origin_list(self) -> list[str]:

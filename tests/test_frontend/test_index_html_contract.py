@@ -32,6 +32,15 @@ def test_homepage_is_public_landing(index_html):
     assert "#2f7df6" in index_html
     assert 'id="recommendations"' not in index_html
     assert "landing-hero" in index_html
+    assert "/mock/" not in index_html
+
+
+def test_signup_requires_access_code_field():
+    html = (Path(__file__).resolve().parents[2] / "frontend" / "signup.html").read_text(encoding="utf-8")
+    assert 'id="auth-access-code"' in html
+    assert "verify-signup-access" in (Path(__file__).resolve().parents[2] / "frontend" / "js" / "herbagraph-auth.js").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_report_html_exists():

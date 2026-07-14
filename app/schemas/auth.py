@@ -13,6 +13,7 @@ _DIGIT_RE = re.compile(r"\d")
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    access_code: str | None = None
     full_name: str | None = None
     role: UserRole = UserRole.INDIVIDUAL
     clinic_name: str | None = None
@@ -27,6 +28,11 @@ class UserCreate(BaseModel):
         if not _DIGIT_RE.search(value):
             raise ValueError("Password must contain at least one digit")
         return value
+
+
+class SignupAccessVerify(BaseModel):
+    email: EmailStr
+    access_code: str
 
 
 class UserLogin(BaseModel):
@@ -54,6 +60,7 @@ class AuthConfigRead(BaseModel):
     supabase_anon_key: str | None = None
     require_email_verification: bool
     allow_guest_auth: bool
+    signup_access_required: bool = False
 
 
 class Token(BaseModel):

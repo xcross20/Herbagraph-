@@ -189,8 +189,30 @@ window.HerbaGraphAuth = (function () {
     storeLocalTokens(await resp.json());
   }
 
-  async function signUp(email, password, fullName) {
+  async function verifySignupAccess(email, accessCode) {
+    const resp = await fetch(API + "/api/v1/auth/verify-signup-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, access_code: accessCode }),
+    });
+    if (!resp.ok) {
+      let detail = await resp.text();
+      try {
+        const j = JSON.parse(detail);
+        detail = j.detail || detail;
+      } catch (_) { /* raw */ }
+      throw new Error(detail);
+    }
+  }
+
+  async function signUp(email, password, fullName, accessCode) {
     const cfg = await loadConfig();
+    if (cfg.signup_access_required) {
+      if (!accessCode || !String(accessCode).trim()) {
+        throw new Error("Access code is required.");
+      }
+      await verifySignupAccess(email, String(accessCode).trim());
+    }
     if (cfg.auth_provider === "supabase") {
       const sb = await initSupabase();
       const { data, error } = await sb.auth.signUp({
@@ -212,7 +234,12 @@ window.HerbaGraphAuth = (function () {
     const resp = await fetch(API + "/api/v1/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, full_name: fullName || null }),
+      body: JSON.stringify({
+        email,
+        password,
+        full_name: fullName || null,
+        access_code: accessCode || null,
+      }),
     });
     if (!resp.ok) throw new Error(await resp.text());
     await signInWithPassword(email, password);

@@ -17,11 +17,18 @@ from app.core.security import (
 
 from app.models.enums import AuditAction
 from app.models.user import HealthProfile, User
+from app.core.signup_access import (
+    approve_email_for_signup,
+    require_approved_email,
+    signup_access_required,
+    verify_access_code,
+)
 from app.schemas.auth import (
     AuthConfigRead,
     HealthProfileRead,
     HealthProfileUpdate,
     RefreshTokenRequest,
+    SignupAccessVerify,
     Token,
     UserCreate,
     UserLogin,
@@ -48,7 +55,15 @@ async def get_auth_config() -> AuthConfigRead:
         supabase_anon_key=settings.supabase_anon_key or settings.supabase_publishable_key or None,
         require_email_verification=settings.require_email_verification,
         allow_guest_auth=settings.allow_guest_auth and settings.auth_provider == "local",
+        signup_access_required=signup_access_required(),
     )
+
+
+@router.post("/verify-signup-access", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_signup_access(payload: SignupAccessVerify) -> None:
+    """Gate private-preview signups; call before Supabase or local registration."""
+    verify_access_code(payload.access_code)
+    approve_email_for_signup(payload.email)
 
 
 @router.post("/sync", response_model=UserRead)
@@ -79,6 +94,10 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     _require_local_auth_enabled()
+    if payload.access_code:
+        verify_access_code(payload.access_code)
+        approve_email_for_signup(payload.email)
+    require_approved_email(payload.email)
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")

@@ -344,3 +344,41 @@ async def test_register_rejects_invalid_role(client):
         json={"email": "bad@example.com", "password": "SecurePass1", "role": "superadmin"},
     )
     assert resp.status_code == 422
+
+
+async def test_verify_signup_access_rejects_wrong_code(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_access_code", "19922026")
+    resp = await client.post(
+        "/api/v1/auth/verify-signup-access",
+        json={"email": "preview@example.com", "access_code": "wrong"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_register_requires_access_code_when_enabled(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_access_code", "19922026")
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "gated@example.com", "password": "SecurePass1"},
+    )
+    assert resp.status_code == 403
+
+
+async def test_register_succeeds_after_access_code_verified(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_access_code", "19922026")
+    verify = await client.post(
+        "/api/v1/auth/verify-signup-access",
+        json={"email": "gated@example.com", "access_code": "19922026"},
+    )
+    assert verify.status_code == 204
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "gated@example.com", "password": "SecurePass1"},
+    )
+    assert resp.status_code == 201, resp.text
