@@ -53,26 +53,6 @@ async def test_auth_sync_provisions_supabase_user(client, supabase_env):
     assert resp.json()["email"] == email
 
 
-def test_database_url_normalizes_railway_postgres_url():
+def test_database_url_normalizes_postgresql_to_asyncpg():
     settings = Settings(database_url="postgresql://user:pass@host:5432/railway")
-    assert settings.database_url == "postgresql+asyncpg://user:pass@host:5432/railway?ssl=require"
-
-
-def test_database_url_adds_ssl_for_railway_public_host():
-    settings = Settings(
-        database_url="postgresql://user:pass@containers-us-west-123.railway.app:5432/railway"
-    )
-    assert "ssl=require" in settings.database_url
-    assert settings.database_url.startswith("postgresql+asyncpg://")
-
-
-def test_database_url_adds_ssl_for_railway_proxy_host():
-    settings = Settings(database_url="postgresql://user:pass@roundhouse.proxy.rlwy.net:12345/railway")
-    assert "ssl=require" in settings.database_url
-
-
-def test_database_url_skips_ssl_for_local_and_internal():
-    local = Settings(database_url="postgresql://herbagraph:herbagraph@db:5432/herbagraph")
-    internal = Settings(database_url="postgresql://user:pass@postgres.railway.internal:5432/railway")
-    assert "ssl=" not in local.database_url
-    assert "ssl=" not in internal.database_url
+    assert settings.database_url == "postgresql+asyncpg://user:pass@host:5432/railway"

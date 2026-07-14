@@ -17,12 +17,6 @@ class Settings(BaseSettings):
             return value
         if value.startswith("postgresql://"):
             value = "postgresql+asyncpg://" + value[len("postgresql://") :]
-        # Managed Postgres (Railway public proxy, Neon, etc.) requires TLS.
-        local_markers = ("localhost", "127.0.0.1", "@db:", "railway.internal", ".internal:")
-        if value.startswith("postgresql+asyncpg://") and "ssl" not in value:
-            if not any(marker in value for marker in local_markers):
-                value += "&" if "?" in value else "?"
-                value += "ssl=require"
         return value
     secret_key: str = "insecure-dev-secret-key-change-me-in-production"
     encryption_key: str = ""

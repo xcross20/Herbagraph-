@@ -5,6 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import settings
+from app.core.database_url import prepare_asyncpg_url
+
+if settings.database_url.startswith("postgresql"):
+    _ASYNC_URL, _ASYNC_CONNECT_ARGS = prepare_asyncpg_url(settings.database_url)
+else:
+    _ASYNC_URL, _ASYNC_CONNECT_ARGS = settings.database_url, {}
 
 
 class Base(DeclarativeBase):
@@ -16,7 +22,12 @@ def _to_sync_url(url: str) -> str:
     return url.replace("+asyncpg", "").replace("+aiosqlite", "")
 
 
-engine = create_async_engine(settings.database_url, echo=settings.debug, future=True)
+engine = create_async_engine(
+    _ASYNC_URL,
+    connect_args=_ASYNC_CONNECT_ARGS,
+    echo=settings.debug,
+    future=True,
+)
 
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -35,7 +46,7 @@ _SyncSessionLocal: sessionmaker | None = None
 def get_sync_session_factory() -> sessionmaker:
     global _sync_engine, _SyncSessionLocal
     if _SyncSessionLocal is None:
-        _sync_engine = create_engine(_to_sync_url(settings.database_url), echo=settings.debug, future=True)
+        _sync_engine = create_engine(_to_sync_url(_ASYNC_URL), echo=settings.debug, future=True)
         _SyncSessionLocal = sessionmaker(bind=_sync_engine, autoflush=False, expire_on_commit=False)
     return _SyncSessionLocal
 

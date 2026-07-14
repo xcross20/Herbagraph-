@@ -18,14 +18,11 @@ url = urlparse(os.environ["DATABASE_URL"])
 host = url.hostname or ""
 print(f"DB target: {host}:{url.port or 5432}{url.path}")
 
-if os.environ.get("RAILWAY_ENVIRONMENT") and host in ("localhost", "127.0.0.1", "db", ""):
-    print(
-        "ERROR: DATABASE_URL points at localhost. "
-        "In Railway → web service → Variables set:\n"
-        "  DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}\n"
-        "See railway.env.example",
-        file=sys.stderr,
-    )
+from app.core.database_url import validate_production_database_url
+
+railway = bool(os.environ.get("RAILWAY_ENVIRONMENT"))
+if err := validate_production_database_url(os.environ["DATABASE_URL"], railway=railway):
+    print(f"ERROR: {err}", file=sys.stderr)
     sys.exit(1)
 PY
 echo "Applying database migrations (alembic upgrade head)..."

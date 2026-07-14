@@ -93,7 +93,12 @@ DATABASE_URL=${{Postgres.DATABASE_PRIVATE_URL}}
 
 Use the **private** URL when Postgres and the API run in the same Railway project (recommended). If you use the public proxy URL instead, the app auto-appends `ssl=require`.
 
-**Alternative:** use your Supabase project's Postgres (Settings → Database → connection URI, Session pooler). Paste as `DATABASE_URL` — the app normalizes `postgresql://` and enables TLS automatically.
+**Alternative:** use your Supabase project's Postgres:
+
+1. Supabase → **Project Settings** → **Database** → **Connection string**
+2. Type: **URI** · Method: **Session pooler** (port **6543**)
+3. **Do not** use **Direct connection** (`db.*.supabase.co`) — it is IPv6-only and returns "Network is unreachable" on Railway.
+4. Paste as `DATABASE_URL`. URL-encode special characters in the password.
 
 Full variable template: `railway.env.example` in the repo root.
 
