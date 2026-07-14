@@ -9,4 +9,4 @@ dockerfilePath = "Dockerfile"
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
-startCommand = "celery -A app.workers.celery_app worker --loglevel=info"
+startCommand = "bash scripts/start_worker.sh"
