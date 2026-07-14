@@ -5,6 +5,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from urllib.parse import urlparse
+
 from app import __version__
 from app.config import settings
 from app.core.background_jobs import redis_reachable
@@ -43,6 +45,9 @@ async def system_status():
                 payload["schema_ready"] = False
         payload["database"] = "connected"
         payload["encryption_configured"] = bool(settings.encryption_key.strip())
+        redis_host = urlparse(settings.redis_url).hostname or ""
+        payload["redis_host"] = redis_host or None
+        payload["redis_looks_local"] = redis_host in ("localhost", "127.0.0.1", "")
         payload["redis_reachable"] = redis_reachable(celery_app)
         payload["uploads_ready"] = (
             payload.get("schema_ready")
@@ -55,9 +60,18 @@ async def system_status():
         elif not payload["encryption_configured"]:
             payload["status"] = "degraded"
             payload["hint"] = "Set ENCRYPTION_KEY on web and worker (python scripts/generate_encryption_key.py)."
+        elif payload.get("redis_looks_local"):
+            payload["status"] = "degraded"
+            payload["hint"] = (
+                "REDIS_URL still points at localhost on the WEB service. "
+                "Railway → web service → Variables → REDIS_URL → reference your Redis service."
+            )
         elif not payload["redis_reachable"]:
             payload["status"] = "degraded"
-            payload["hint"] = "Add Redis, set REDIS_URL on web + worker, and deploy the Celery worker service."
+            payload["hint"] = (
+                f"Cannot reach Redis at {redis_host or 'unknown'}. "
+                "Set REDIS_URL via variable reference on web + worker, then redeploy both."
+            )
         return payload
     except Exception as exc:
         return JSONResponse(
