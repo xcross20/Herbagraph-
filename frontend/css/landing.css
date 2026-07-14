@@ -576,10 +576,13 @@
   margin-bottom: 2.5rem;
 }
 
+.product-demo-media {
+  margin-bottom: 0;
+}
+
 .product-frame {
-  width: min(1500px, 94vw);
-  margin-left: 50%;
-  transform: translateX(-50%);
+  width: 100%;
+  margin: 0;
   border: 1px solid rgba(20, 24, 21, 0.1);
   border-radius: var(--radius-lg);
   box-shadow: 0 30px 80px rgba(12, 15, 13, 0.08);
@@ -635,8 +638,6 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
   margin-top: 2.5rem;
-  max-width: 1200px;
-  margin-inline: auto;
 }
 
 .product-callout {
