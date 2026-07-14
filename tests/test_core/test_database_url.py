@@ -9,7 +9,7 @@ from app.core.database_url import (
 def test_prepare_asyncpg_enables_ssl_for_supabase_pooler():
     url = "postgresql+asyncpg://postgres.ref:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
     clean, args = prepare_asyncpg_url(url)
-    assert "ssl" in args
+    assert args["ssl"] is True
     assert clean.startswith("postgresql+asyncpg://")
 
 

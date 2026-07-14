@@ -64,12 +64,16 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
     except SQLAlchemyError as exc:
         _raise_db_unavailable(exc)
     except OSError as exc:
-        hint = "Use Supabase Session pooler URI (port 6543), not Direct (db.*.supabase.co)."
+        msg = str(exc)
         if getattr(exc, "errno", None) == 101:
             hint = (
-                "Database network unreachable — Supabase DIRECT connections are IPv6-only. "
-                "In Supabase → Database → Connection string, select URI + Session pooler."
+                "Supabase DIRECT connections are IPv6-only. "
+                "Use Session pooler URI (port 6543) in DATABASE_URL."
             )
+        elif "CERTIFICATE_VERIFY_FAILED" in msg:
+            hint = "Redeploy the latest API build (SSL fix for Supabase pooler)."
+        else:
+            hint = "Check DATABASE_URL uses Supabase Session pooler (port 6543)."
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Database connection failed ({exc}). {hint}",

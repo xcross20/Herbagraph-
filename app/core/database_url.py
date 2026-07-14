@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ssl
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 
@@ -30,8 +29,10 @@ def prepare_asyncpg_url(url: str) -> tuple[str, dict]:
                 ssl_requested = True
 
     remote = host and not _is_local_host(host)
+    # asyncpg ssl=True → TLS encrypted, certificate verification disabled.
+    # Required for Supabase Session pooler on Railway/Render (pooler chain fails strict verify).
     if remote and (ssl_requested or "supabase.co" in host or "pooler.supabase.com" in host):
-        connect_args["ssl"] = ssl.create_default_context()
+        connect_args["ssl"] = True
 
     clean_query = urlencode({k: v[0] for k, v in query.items()})
     clean_url = urlunparse(parsed._replace(query=clean_query))
