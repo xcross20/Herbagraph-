@@ -1,3 +1,4 @@
+import ssl
 import uuid
 from collections.abc import AsyncGenerator
 
@@ -63,7 +64,7 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
         return await get_or_create_user_from_supabase(db, claims)
     except SQLAlchemyError as exc:
         _raise_db_unavailable(exc)
-    except OSError as exc:
+    except (OSError, ssl.SSLError) as exc:
         msg = str(exc)
         if getattr(exc, "errno", None) == 101:
             hint = (

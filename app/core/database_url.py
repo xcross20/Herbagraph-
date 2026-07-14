@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
+import ssl
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+
+def _relaxed_ssl_context() -> ssl.SSLContext:
+    """TLS without cert verification — required for Supabase pooler on many PaaS hosts."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
 
 
 def _is_local_host(host: str) -> bool:
@@ -29,12 +38,14 @@ def prepare_asyncpg_url(url: str) -> tuple[str, dict]:
                 ssl_requested = True
 
     remote = host and not _is_local_host(host)
-    # asyncpg ssl=True → TLS encrypted, certificate verification disabled.
-    # Required for Supabase Session pooler on Railway/Render (pooler chain fails strict verify).
-    if remote and (ssl_requested or "supabase.co" in host or "pooler.supabase.com" in host):
-        connect_args["ssl"] = True
+    use_ssl = remote and (
+        ssl_requested or "supabase.co" in host or "pooler.supabase.com" in host or "rlwy.net" in host
+    )
+    if use_ssl:
+        connect_args["ssl"] = _relaxed_ssl_context()
 
-    clean_query = urlencode({k: v[0] for k, v in query.items()})
+    # Drop URL query params for remote hosts so SQLAlchemy/asyncpg cannot re-enable cert verify.
+    clean_query = "" if use_ssl else urlencode({k: v[0] for k, v in query.items()})
     clean_url = urlunparse(parsed._replace(query=clean_query))
     return clean_url, connect_args
 

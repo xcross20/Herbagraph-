@@ -1,3 +1,5 @@
+import ssl
+
 from app.config import Settings
 from app.core.database_url import (
     is_supabase_direct_host,
@@ -9,7 +11,8 @@ from app.core.database_url import (
 def test_prepare_asyncpg_enables_ssl_for_supabase_pooler():
     url = "postgresql+asyncpg://postgres.ref:pass@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
     clean, args = prepare_asyncpg_url(url)
-    assert args["ssl"] is True
+    assert isinstance(args["ssl"], ssl.SSLContext)
+    assert args["ssl"].verify_mode == ssl.CERT_NONE
     assert clean.startswith("postgresql+asyncpg://")
 
 
