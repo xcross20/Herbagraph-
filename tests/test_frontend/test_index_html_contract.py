@@ -39,9 +39,12 @@ def test_homepage_is_public_landing(index_html):
     assert "product-live-iframe" in index_html
     assert "View sample report" in index_html
     assert "/css/landing.css" in index_html
-    assert "connects the system" in index_html
+    assert "HerbaGraph connects the system behind them" in index_html
+    assert "hero-eyebrow" in index_html
+    assert "Connected biological intelligence" in index_html
+    assert "Connected biological intelligence for personalized health analysis" in index_html
     assert "Clinical disclaimer" in index_html
-    assert "AI Clinical Reasoning for Precision Nutrition" in index_html
+    assert "AI Clinical Reasoning for Precision Nutrition" not in index_html
     assert "biology-atmosphere.jpg" in index_html
     assert "biology-atlas-plate.jpg" in index_html
     assert "Biology does not operate in isolation" in index_html

@@ -201,6 +201,11 @@
   margin: 0 auto;
 }
 
+.hero-eyebrow {
+  margin: 0 0 1.25rem;
+  color: var(--text-dark-muted);
+}
+
 .hero-copy h1 {
   margin: 0;
   font-size: clamp(2.4rem, 5.5vw, 5.75rem);
