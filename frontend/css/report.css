@@ -315,7 +315,9 @@ body.report-body {
   align-items: start;
 }
 
-.reasoning-graph-mount { min-height: 280px; }
+.reasoning-graph-mount { min-height: 280px; overflow: visible; }
+
+.reasoning-graph-mount .reasoning-graph-svg { overflow: visible; }
 
 .reasoning-graph-detail {
   font-size: 0.88rem;
@@ -360,7 +362,7 @@ body.report-body {
 
 .rg-label {
   font-family: var(--font-sans);
-  font-size: 9px;
+  font-size: 8.5px;
   fill: var(--muted);
   pointer-events: none;
 }

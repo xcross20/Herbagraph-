@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HerbaGraph — AI Clinical Reasoning for Precision Nutrition</title>
+<title>HerbaGraph | AI Clinical Reasoning for Precision Nutrition</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
@@ -178,9 +178,12 @@
   </section>
 
   <!-- Editorial -->
-  <section class="editorial-statement env-laboratory">
-    <p>Biology is connected.</p>
-    <p>Your health data should be too.</p>
+  <section class="editorial-statement env-laboratory editorial-with-artifact">
+    <img class="bio-artifact bio-artifact-microscopy" src="/assets/biology-atmosphere.jpg" alt="" width="140" height="140" loading="lazy" decoding="async">
+    <div class="editorial-copy">
+      <p>Biology is connected.</p>
+      <p>Your health data should be too.</p>
+    </div>
   </section>
 
   <!-- Product demo -->
@@ -196,35 +199,15 @@
         <span class="product-frame-dot"></span>
         <span class="product-frame-dot"></span>
         <span class="product-frame-dot"></span>
-        <span class="product-frame-url">herbagraph.com/report</span>
+        <span class="product-frame-url">herbagraph.com/report?demo=1</span>
       </div>
-      <div class="product-frame-body">
-        <div class="product-mock">
-          <div class="product-mock-sidebar">
-            <div class="product-mock-nav-item active">Executive Summary</div>
-            <div class="product-mock-nav-item">Clinical Priorities</div>
-            <div class="product-mock-nav-item">Biological Network</div>
-            <div class="product-mock-nav-item">Intervention Library</div>
-            <div class="product-mock-nav-item">Evidence</div>
-          </div>
-          <div class="product-mock-main">
-            <div class="product-mock-hero-card">
-              <span class="badge">Clinical summary</span>
-              <h4>Inflammatory cardiometabolic pattern</h4>
-              <p style="margin:0.5rem 0 0;font-size:0.85rem;color:var(--text-secondary)">Elevated CRP with dyslipidemia and borderline glycemic markers suggests coordinated inflammatory and metabolic stress.</p>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-              <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:0.75rem;font-size:0.8rem">
-                <strong style="color:var(--accent-biological)">Inflammation</strong><br>
-                <span style="color:var(--text-secondary)">CRP-driven · Strong signal</span>
-              </div>
-              <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:0.75rem;font-size:0.8rem">
-                <strong style="color:var(--accent-intelligence)">Omega-3</strong><br>
-                <span style="color:var(--text-secondary)">Established · 0.81 confidence</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div class="product-frame-body product-frame-embed">
+        <iframe
+          src="/report.html?demo=1&amp;embed=1#executive-summary"
+          title="HerbaGraph sample clinical report"
+          class="product-live-iframe"
+          loading="lazy"
+        ></iframe>
       </div>
     </div>
 
@@ -298,15 +281,20 @@
     </div>
   </section>
 
-  <!-- Editorial -->
-  <section class="editorial-statement env-laboratory">
-    <p>One biomarker is a data point.</p>
-    <p>The system is the story.</p>
+  <!-- Atmospheric transition -->
+  <section class="biology-atmosphere-band" aria-label="Biological systems context">
+    <img class="biology-atmosphere-img" src="/assets/biology-atmosphere.jpg" alt="" width="1920" height="640" loading="lazy" decoding="async">
+    <div class="biology-atmosphere-overlay">
+      <p>Biology does not operate in isolation.</p>
+    </div>
   </section>
 
   <!-- Knowledge graph: Atlas -->
-  <section class="env-atlas landing-section" aria-labelledby="graph-title">
-    <div class="landing-section-wide reveal">
+  <section class="env-atlas landing-section atlas-plate-section" aria-labelledby="graph-title">
+    <div class="atlas-plate-bg" aria-hidden="true">
+      <img src="/assets/biology-atlas-plate.jpg" alt="" width="1600" height="900" loading="lazy" decoding="async">
+    </div>
+    <div class="landing-section-wide reveal atlas-plate-content">
       <p class="section-eyebrow">Knowledge graph</p>
       <h2 class="section-title" id="graph-title">From isolated data to connected biology.</h2>
       <p class="section-lede">Active reasoning paths, related nodes, and faint contextual networks create depth without chaos.</p>
@@ -351,8 +339,11 @@
   </section>
 
   <!-- How HerbaGraph thinks -->
-  <section class="env-laboratory landing-section" id="methodology" aria-labelledby="pipeline-title">
-    <div class="landing-section-inner reveal">
+  <section class="env-laboratory landing-section methodology-atlas-section" id="methodology" aria-labelledby="pipeline-title">
+    <div class="methodology-atlas-bg" aria-hidden="true">
+      <img src="/assets/biology-atlas-plate.jpg" alt="" width="1600" height="900" loading="lazy" decoding="async">
+    </div>
+    <div class="landing-section-inner reveal methodology-atlas-content">
       <p class="section-eyebrow">Reasoning pipeline</p>
       <h2 class="section-title" id="pipeline-title">How HerbaGraph thinks.</h2>
       <p class="section-lede">Each stage activates as biological context deepens from raw labs to safe, evidence-linked recommendations.</p>
@@ -376,17 +367,42 @@
   </section>
 
   <!-- Editorial -->
-  <section class="editorial-statement env-laboratory">
-    <p>The recommendation is not the answer.</p>
-    <p>The reasoning is.</p>
+  <section class="editorial-statement env-laboratory editorial-with-artifact editorial-artifact-edge">
+    <img class="bio-artifact bio-artifact-diagram" src="/assets/biology-atlas-plate.jpg" alt="" width="180" height="180" loading="lazy" decoding="async">
+    <div class="editorial-copy">
+      <p>The recommendation is not the answer.</p>
+      <p>The reasoning is.</p>
+    </div>
   </section>
 
   <!-- Evidence -->
-  <section class="env-laboratory landing-section" id="evidence" aria-labelledby="evidence-title">
+  <section class="env-laboratory landing-section evidence-section" id="evidence" aria-labelledby="evidence-title">
     <div class="landing-section-inner reveal">
       <p class="section-eyebrow">Evidence layer</p>
       <h2 class="section-title" id="evidence-title">Inspectable confidence, not star ratings.</h2>
       <p class="section-lede">Human, mechanistic, and consistency signals made visible on every intervention.</p>
+
+      <div class="evidence-composition">
+        <div class="evidence-doc-stack" aria-label="Research citation structure">
+          <article class="pubmed-card">
+            <header class="pubmed-card-header">
+              <span class="pubmed-label">PubMed</span>
+              <span class="pubmed-type">Systematic review</span>
+            </header>
+            <h3 class="pubmed-title">Vitamin E administration reduces liver enzyme levels in patients with MASLD</h3>
+            <p class="pubmed-meta">Nutrition &amp; Metabolism · 2026</p>
+            <dl class="pubmed-ids">
+              <div><dt>PMID</dt><dd><a href="https://pubmed.ncbi.nlm.nih.gov/42374454/" target="_blank" rel="noopener noreferrer">42374454</a></dd></div>
+              <div><dt>DOI</dt><dd><a href="https://doi.org/10.1186/s12986-026-01158-5" target="_blank" rel="noopener noreferrer">10.1186/s12986-026-01158-5</a></dd></div>
+            </dl>
+            <p class="pubmed-abstract">Pooled analysis of 16 RCTs: vitamin E significantly reduced AST, ALT, ALP, and GGT in MASLD cohorts.</p>
+          </article>
+          <div class="evidence-link-diagram" aria-hidden="true">
+            <div class="evidence-node evidence-node-mechanistic">Mechanistic evidence</div>
+            <div class="evidence-node evidence-node-trial">Clinical trial</div>
+            <div class="evidence-node evidence-node-profile">Evidence profile<br><strong>Moderate</strong></div>
+          </div>
+        </div>
 
       <div class="evidence-grid">
         <article class="evidence-card">
@@ -424,6 +440,8 @@
           <p class="evidence-sources">22 sources</p>
         </article>
       </div>
+      </div>
+      <img class="bio-artifact bio-artifact-research" src="/assets/biology-atlas-plate.jpg" alt="" width="120" height="120" loading="lazy" decoding="async">
     </div>
   </section>
 

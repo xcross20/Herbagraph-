@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Clinical Report — HerbaGraph</title>
+<title>Clinical Report | HerbaGraph</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -341,6 +341,39 @@
   .full-report-panel summary::-webkit-details-marker { display: none; }
   .full-report-panel .full-report-body { padding: 0 1rem 1rem; border-top: 1px solid #e2e8f0; }
 
+  body.report-embed {
+    background: var(--bg);
+    overflow: hidden;
+  }
+  body.report-embed .report-top-nav,
+  body.report-embed #demo-banner,
+  body.report-embed .report-page-header,
+  body.report-embed #report-feedback,
+  body.report-embed #operator-hint,
+  body.report-embed #status-line,
+  body.report-embed .print-actions,
+  body.report-embed .pdf-hint,
+  body.report-embed .report-sidebar,
+  body.report-embed #report-loading,
+  body.report-embed #report-empty {
+    display: none !important;
+  }
+  body.report-embed .report-shell {
+    max-width: none;
+    padding: 0.75rem 0.85rem 1rem;
+  }
+  body.report-embed .report-layout {
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  body.report-embed .report-main {
+    width: 100%;
+  }
+  body.report-embed .report-section {
+    margin-bottom: 0.65rem;
+    box-shadow: none;
+  }
+
 </style>
 </head>
 <body class="report-body">
@@ -356,17 +389,13 @@
 
 <div class="report-shell app-shell">
   <div id="demo-banner" class="demo-banner" style="display:none">
-    <strong>Sample report</strong> — synthetic demo data from <code>demo_01_inflammatory_quest.txt</code>. Not a real patient.
+    <strong>Sample report.</strong> Synthetic demo data from <code>demo_01_inflammatory_quest.txt</code>. Not a real patient.
     <a href="/signup.html">Create an account</a> to upload your own labs.
   </div>
 
   <header class="report-doc-header report-page-header" id="report-page-header">
     <h1 id="report-page-title">Clinical report</h1>
-    <p class="tag" id="report-page-subtitle">Research tool, not medical advice.</p>
-    <div class="report-doc-meta" id="report-doc-meta" style="display:none">
-      <span id="report-meta-confidence"></span>
-      <span id="report-meta-model"></span>
-    </div>
+    <p class="tag" id="report-page-subtitle"></p>
   </header>
 
   <div id="report-loading" class="report-state-card">
@@ -662,18 +691,10 @@ async function renderReport(report, labReportId) {
     titleEl.textContent = integrated ? "Integrated clinical report" : "Clinical report";
   }
   if (subtitleEl && report.generated_at) {
-    subtitleEl.textContent = `Generated ${new Date(report.generated_at).toLocaleString()} · Research tool, not medical advice.`;
-  }
-  const metaEl = document.getElementById("report-doc-meta");
-  if (metaEl) {
-    metaEl.style.display = "flex";
-    const confEl = document.getElementById("report-meta-confidence");
-    const modelEl = document.getElementById("report-meta-model");
-    if (confEl) {
-      const pct = report.overall_confidence != null ? Math.round(report.overall_confidence * 100) : null;
-      confEl.textContent = pct != null ? `Analysis confidence · ${pct >= 80 ? "High" : pct >= 60 ? "Moderate" : "Low"}` : "";
-    }
-    if (modelEl) modelEl.textContent = report.model_version ? `Model · ${report.model_version}` : "";
+    subtitleEl.textContent = `Generated ${new Date(report.generated_at).toLocaleString()}`;
+  } else if (subtitleEl) {
+    subtitleEl.textContent = "";
+    subtitleEl.style.display = "none";
   }
 
   renderIntegratedBanner(report);
@@ -755,7 +776,7 @@ function confidenceMeter(label, level) {
   const key = String(level || "moderate").toLowerCase();
   const filled = map[key] || 5;
   const segs = Array.from({ length: 8 }, (_, i) => `<span class="confidence-meter-seg${i < filled ? " on" : ""}"></span>`).join("");
-  return `<div class="confidence-meter"><div class="confidence-meter-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(level || "—")}</span></div><div class="confidence-meter-bars">${segs}</div></div>`;
+  return `<div class="confidence-meter"><div class="confidence-meter-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(level || "n/a")}</span></div><div class="confidence-meter-bars">${segs}</div></div>`;
 }
 
 function reportTiers(report) {
@@ -880,7 +901,7 @@ function renderExecutiveSummary(report) {
 
     const pf = hero.primary_finding || {};
     html += `<div class="exec-block"><h3>Primary Biological Findings</h3>`;
-    html += `<p class="exec-lead">${escapeHtml(pf.label || "—")}</p>`;
+    html += `<p class="exec-lead">${escapeHtml(pf.label || "n/a")}</p>`;
     if (hero.likely_explanation) html += `<p class="muted">Likely: ${escapeHtml(hero.likely_explanation)}</p>`;
     html += `</div>`;
 
@@ -1085,7 +1106,7 @@ function safetyBadgeClass(label) {
 }
 
 function renderWalletCard(r, report) {
-  const priority = r.clinical_priority_score != null ? `${r.clinical_priority_score}/100` : "—";
+  const priority = r.clinical_priority_score != null ? `${r.clinical_priority_score}/100` : "n/a";
   const fit = r.patient_fit_label || "Moderate";
   const intent = r.intent_label || intentLabel(r.display_intent);
   let html = `<details class="wallet-card">`;
@@ -1137,7 +1158,7 @@ function renderInterventionLibrary(report) {
       ? teaserItems.map((r) => r.intervention_name).join(" · ")
       : "No interventions surfaced";
 
-    let html = `<p class="muted">Prioritized decision map — ranked by clinical priority, not evidence grade alone.</p>`;
+    let html = `<p class="muted">Prioritized decision map, ranked by clinical priority, not evidence grade alone.</p>`;
     let hasAny = false;
     for (const spec of LANE_ORDER) {
       const lane = lanes[spec.code];
@@ -1476,7 +1497,7 @@ function renderReportFeedbackSimple(report) {
       });
       statusEl.style.display = "block";
       statusEl.style.color = "var(--success)";
-      statusEl.textContent = "Thank you — feedback submitted.";
+      statusEl.textContent = "Thank you. Feedback submitted.";
       document.getElementById("submit-feedback-btn").disabled = true;
       trackValidationEvent("submitted_feedback", "report_feedback");
     } catch (err) {
@@ -1676,7 +1697,7 @@ function renderClinicalPriorities(report) {
 
     html += `<div class="priority-field"><strong>Confidence</strong>${escapeHtml(p.confidence)} · Severity: ${escapeHtml(p.severity)}</div>`;
     html += `<div class="priority-field"><strong>Primary Biomarkers</strong>${escapeHtml(p.biomarker_name)}`;
-    if (p.value != null) html += ` — ${escapeHtml(String(p.value))}${p.unit ? " " + escapeHtml(p.unit) : ""} (${escapeHtml(p.status || "")})`;
+    if (p.value != null) html += ` · ${escapeHtml(String(p.value))}${p.unit ? " " + escapeHtml(p.unit) : ""} (${escapeHtml(p.status || "")})`;
     html += `</div>`;
 
     if (p.diagnostic_note) {
@@ -1930,6 +1951,16 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function isEmbedMode() {
+  return new URLSearchParams(window.location.search).get("embed") === "1";
+}
+
+function configureEmbedShell() {
+  document.body.classList.add("report-embed");
+  const back = document.getElementById("nav-back-link");
+  if (back) back.style.display = "none";
+}
+
 function configureDemoShell(isDemo) {
   window.isDemoReport = isDemo;
   const back = document.getElementById("nav-back-link");
@@ -1954,6 +1985,7 @@ function configureDemoShell(isDemo) {
 
 async function loadSampleReport() {
   const loading = document.getElementById("report-loading");
+  if (isEmbedMode()) configureEmbedShell();
   configureDemoShell(true);
   try {
     const resp = await fetch("/data/sample-clinical-report.json");
@@ -1962,7 +1994,7 @@ async function loadSampleReport() {
     loading.style.display = "none";
     await renderReport(report, null);
     const subtitle = document.getElementById("report-page-subtitle");
-    if (subtitle) subtitle.textContent = "Synthetic inflammatory/metabolic demo panel · Research tool, not medical advice.";
+    if (subtitle) subtitle.textContent = "Synthetic inflammatory/metabolic demo panel";
     setStatus("");
   } catch (err) {
     loading.style.display = "none";
@@ -1980,6 +2012,7 @@ async function loadReportFromUrl() {
     await loadSampleReport();
     return;
   }
+  if (isEmbedMode()) configureEmbedShell();
   configureDemoShell(false);
   try {
     await ensureAuth();
@@ -2064,8 +2097,8 @@ function printHerbaGraphReport(mode) {
   document.body.setAttribute("data-print-mode", mode);
   if (subtitle) {
     subtitle.textContent = mode === "full"
-      ? "Full expanded report — all sections included for sharing"
-      : "Clinical summary — collapsed sections omitted";
+      ? "Full expanded report, all sections included for sharing"
+      : "Clinical summary, collapsed sections omitted";
   }
   if (mode === "full") expandAllDetails(reportMain);
 

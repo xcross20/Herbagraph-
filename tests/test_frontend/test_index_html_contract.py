@@ -33,12 +33,25 @@ def test_homepage_is_public_landing(index_html):
     assert 'id="recommendations"' not in index_html
     assert "landing-hero" in index_html
     assert "/mock/" not in index_html
+    assert "product-mock" not in index_html
     assert "/report.html?demo=1" in index_html
+    assert "embed=1" in index_html
+    assert "product-live-iframe" in index_html
     assert "View sample report" in index_html
     assert "/css/landing.css" in index_html
     assert "connects the system" in index_html
     assert "Clinical disclaimer" in index_html
     assert "AI Clinical Reasoning for Precision Nutrition" in index_html
+    assert "biology-atmosphere.jpg" in index_html
+    assert "biology-atlas-plate.jpg" in index_html
+    assert "Biology does not operate in isolation" in index_html
+    assert "42374454" in index_html
+
+
+def test_landing_visual_assets_exist():
+    assets = Path(__file__).resolve().parents[2] / "frontend" / "assets"
+    assert (assets / "biology-atmosphere.jpg").is_file()
+    assert (assets / "biology-atlas-plate.jpg").is_file()
 
 
 def test_signup_requires_access_code_field():
@@ -91,6 +104,10 @@ def test_report_demo_mode_hooks(report_html):
     assert "loadSampleReport" in report_html
     assert 'urlParams.get("demo") === "1"' in report_html
     assert "/data/sample-clinical-report.json" in report_html
+    assert "isEmbedMode" in report_html
+    assert "report-embed" in report_html
+    assert 'Research tool, not medical advice' not in report_html
+    assert "Analysis confidence ·" not in report_html
 
 
 def test_report_workspace_shell(report_html):

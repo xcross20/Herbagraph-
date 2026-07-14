@@ -102,9 +102,25 @@
     `).join("")}</div>`;
   }
 
+  function abbrevLabel(label, max) {
+    const text = String(label || "").trim();
+    if (text.length <= max) return text;
+    const words = text.split(/\s+/);
+    if (words.length > 1 && words[0].length + 3 <= max) return words[0] + "…";
+    return text.slice(0, Math.max(4, max - 1)) + "…";
+  }
+
+  function labelWidth(label, type) {
+    const len = String(label || "").length;
+    if (type === "system") return Math.min(120, Math.max(76, len * 5.5));
+    if (type === "pathway") return Math.min(110, Math.max(72, len * 5.2));
+    if (type === "intervention") return Math.min(100, Math.max(68, len * 5));
+    return 68;
+  }
+
   function layoutNodes(nodes, width, height) {
-    const cols = { biomarker: 0.12, system: 0.32, pathway: 0.52, intervention: 0.72, evidence: 0.88, safety: 0.88 };
-    const rowForType = { biomarker: 0.2, system: 0.35, pathway: 0.5, intervention: 0.68, evidence: 0.82, safety: 0.92 };
+    const cols = { biomarker: 0.1, system: 0.34, pathway: 0.56, intervention: 0.78, evidence: 0.9, safety: 0.9 };
+    const rowForType = { biomarker: 0.22, system: 0.38, pathway: 0.54, intervention: 0.72, evidence: 0.86, safety: 0.94 };
     const placed = {};
     const typeCounts = {};
     nodes.forEach(n => {
@@ -127,8 +143,8 @@
     options = options || {};
     if (!container || !graphData) return null;
 
-    const width = options.width || 480;
-    const height = options.height || 320;
+    const width = options.width || 560;
+    const height = options.height || 360;
     const nodes = layoutNodes(graphData.nodes, width, height);
     const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]));
     let selectedId = nodes.find(n => n.type === "biomarker")?.id || nodes[0]?.id;
@@ -173,7 +189,8 @@
       if (st.shape === "circle") {
         shape = `<circle class="rg-node${active ? " is-active" : ""}" data-node-id="${esc(n.id)}" data-node-type="${esc(n.type)}" cx="${n.x}" cy="${n.y}" r="22" tabindex="0" role="button" aria-label="${esc(n.label)}"/>`;
       } else if (st.shape === "rect") {
-        shape = `<rect class="rg-node${active ? " is-active" : ""}" data-node-id="${esc(n.id)}" data-node-type="${esc(n.type)}" x="${n.x - 34}" y="${n.y - 14}" width="68" height="28" rx="10" tabindex="0" role="button" aria-label="${esc(n.label)}"/>`;
+        const w = labelWidth(n.label, n.type);
+        shape = `<rect class="rg-node${active ? " is-active" : ""}" data-node-id="${esc(n.id)}" data-node-type="${esc(n.type)}" x="${n.x - w / 2}" y="${n.y - 15}" width="${w}" height="30" rx="10" tabindex="0" role="button" aria-label="${esc(n.label)}"/>`;
       } else if (st.shape === "diamond") {
         shape = `<polygon class="rg-node${active ? " is-active" : ""}" data-node-id="${esc(n.id)}" data-node-type="${esc(n.type)}" points="${n.x},${n.y - 18} ${n.x + 22},${n.y} ${n.x},${n.y + 18} ${n.x - 22},${n.y}" tabindex="0" role="button" aria-label="${esc(n.label)}"/>`;
       } else if (st.shape === "hex") {
@@ -181,7 +198,8 @@
       } else {
         shape = `<circle class="rg-node${active ? " is-active" : ""}" data-node-id="${esc(n.id)}" data-node-type="${esc(n.type)}" cx="${n.x}" cy="${n.y}" r="18" tabindex="0" role="button" aria-label="${esc(n.label)}"/>`;
       }
-      return `${shape}<text class="rg-label" x="${n.x}" y="${n.y + 34}" text-anchor="middle">${esc(n.label).slice(0, 14)}</text>`;
+      const short = abbrevLabel(n.label, n.type === "system" ? 18 : 16);
+      return `${shape}<title>${esc(n.label)}</title><text class="rg-label" x="${n.x}" y="${n.y + 36}" text-anchor="middle">${esc(short)}</text>`;
     }).join("");
 
     container.innerHTML = `<svg class="reasoning-graph-svg" viewBox="0 0 ${width} ${height}" aria-label="Biological reasoning graph">
