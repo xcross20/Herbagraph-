@@ -52,11 +52,11 @@ async def test_process_lab_report_blindspot_fixtures(
         )
         filename = "f_prefix_lipids.txt"
 
-    encrypted_path = save_lab_file(raw, uuid.uuid4(), filename)
+    saved = save_lab_file(raw, uuid.uuid4(), filename)
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename=filename,
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(raw),
         status=LabReportStatus.PENDING,
     )
@@ -90,11 +90,11 @@ async def test_process_lab_report_healow_does_not_crash_on_ocr_variant_lists(db_
     """Regression: nested OCR variant lists caused 'list' object has no attribute 'strip'."""
     raw = (_FIXTURES / "healow_lipid_panel_excerpt.txt").read_bytes()
     # Use .txt — excerpt is plain text; .pdf would invoke the PDF extractor and fail.
-    encrypted_path = save_lab_file(raw, uuid.uuid4(), "healow_lipids.txt")
+    saved = save_lab_file(raw, uuid.uuid4(), "healow_lipids.txt")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="healow_lipids.txt",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(raw),
         status=LabReportStatus.PENDING,
     )

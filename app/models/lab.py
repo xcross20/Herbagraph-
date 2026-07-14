@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,6 +18,7 @@ class LabReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     patient_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("patients.id"), nullable=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     encrypted_file_path: Mapped[str] = mapped_column(Text, nullable=False)
+    encrypted_file_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     file_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[LabReportStatus] = mapped_column(
         Enum(LabReportStatus, native_enum=False, length=20),

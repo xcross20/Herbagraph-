@@ -43,7 +43,7 @@ def process_lab_report(lab_report_id: str) -> dict:
 
         try:
             _set_processing_stage(session, lab_report, LabProcessingStage.PARSING)
-            file_bytes = load_lab_file(lab_report.encrypted_file_path)
+            file_bytes = load_lab_file(lab_report.encrypted_file_path, lab_report.encrypted_file_data)
             parsed = parse_lab_file_with_llm_fallback(file_bytes, lab_report.original_filename)
 
             if not parsed and file_bytes.strip():

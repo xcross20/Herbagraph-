@@ -29,11 +29,11 @@ async def test_process_lab_report_survives_scenario(db_session, test_user, scena
     path = resolve_raw_path(scenario, SCENARIOS_ROOT)
     raw = path.read_bytes()
 
-    encrypted_path = save_lab_file(raw, uuid.uuid4(), path.name)
+    saved = save_lab_file(raw, uuid.uuid4(), path.name)
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename=path.name,
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(raw),
         status=LabReportStatus.PENDING,
     )

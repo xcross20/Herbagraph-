@@ -5,10 +5,11 @@ from __future__ import annotations
 from celery import Celery
 from fastapi import HTTPException, status
 
+from app.core.file_storage import LabFileSaveResult
 from app.core.privacy import EncryptionError
 
 
-def save_encrypted_lab_file(save_fn, *args, **kwargs) -> str:
+def save_encrypted_lab_file(save_fn, *args, **kwargs) -> LabFileSaveResult:
     """Wrap save_lab_file; map missing ENCRYPTION_KEY to 503."""
     try:
         return save_fn(*args, **kwargs)

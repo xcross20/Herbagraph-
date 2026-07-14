@@ -65,9 +65,9 @@ async def upload_lab_report(
     )
     db.add(lab_report)
     await db.flush()  # assign lab_report.id before persisting the encrypted file to disk
-    lab_report.encrypted_file_path = save_encrypted_lab_file(
-        save_lab_file, file_bytes, lab_report.id, lab_report.original_filename
-    )
+    saved = save_encrypted_lab_file(save_lab_file, file_bytes, lab_report.id, lab_report.original_filename)
+    lab_report.encrypted_file_path = saved.encrypted_file_path
+    lab_report.encrypted_file_data = saved.encrypted_file_data
     await record_audit_event(
         db,
         action=AuditAction.LAB_UPLOADED,

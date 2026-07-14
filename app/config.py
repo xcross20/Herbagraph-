@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     ncbi_api_key: str = ""
     ncbi_email: str = "dev@herbagraph.io"
     upload_dir: str = "/tmp/herbagraph/uploads"
+    # auto = database on Railway (web/worker share Postgres), disk locally
+    file_storage_backend: str = "auto"
     max_file_size_mb: int = 10
     debug: bool = False
     # Comma-separated allowed browser origins when DEBUG=false (e.g. https://app.herbagraph.com)

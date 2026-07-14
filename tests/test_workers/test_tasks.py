@@ -18,11 +18,11 @@ VALID_LAB_TEXT = (
 
 
 async def test_process_lab_report_happy_path_parses_and_persists(db_session, test_user):
-    encrypted_path = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
+    saved = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="labs.txt",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(VALID_LAB_TEXT),
         status=LabReportStatus.PENDING,
     )
@@ -57,11 +57,11 @@ async def test_process_lab_report_nonexistent_id_returns_failed(db_session):
 
 
 async def test_process_lab_report_task_wrapper_delegates(db_session, test_user):
-    encrypted_path = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
+    saved = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="labs.txt",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(VALID_LAB_TEXT),
         status=LabReportStatus.PENDING,
     )
@@ -75,11 +75,11 @@ async def test_process_lab_report_task_wrapper_delegates(db_session, test_user):
 
 
 async def test_process_lab_report_persists_reference_ranges_and_units(db_session, test_user):
-    encrypted_path = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
+    saved = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="labs.txt",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(VALID_LAB_TEXT),
         status=LabReportStatus.PENDING,
     )
@@ -107,11 +107,11 @@ async def test_process_lab_report_persists_reference_ranges_and_units(db_session
 
 
 async def test_process_lab_report_no_parseable_lines_fails_after_llm_fallback(db_session, test_user):
-    encrypted_path = save_lab_file(b"this file has no parseable lab lines at all\n", uuid.uuid4(), "labs.txt")
+    saved = save_lab_file(b"this file has no parseable lab lines at all\n", uuid.uuid4(), "labs.txt")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="labs.txt",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=10,
         status=LabReportStatus.PENDING,
     )
@@ -138,11 +138,11 @@ async def test_process_lab_report_llm_fallback_persists_rows(db_session, test_us
     from app.schemas.pipeline import ParsedLabResult
 
     messy = b"Quest Diagnostics\nGlucose 102 mg/dL Reference Range 70-99\n"
-    encrypted_path = save_lab_file(messy, uuid.uuid4(), "messy.pdf")
+    saved = save_lab_file(messy, uuid.uuid4(), "messy.pdf")
     lab_report = LabReport(
         user_id=test_user.id,
         original_filename="messy.pdf",
-        encrypted_file_path=encrypted_path,
+        encrypted_file_path=saved.encrypted_file_path,
         file_size_bytes=len(messy),
         status=LabReportStatus.PENDING,
     )
@@ -194,6 +194,26 @@ async def test_process_lab_report_bad_file_sets_status_failed(db_session, test_u
         assert persisted.error_message
     finally:
         sync_session.close()
+
+
+async def test_process_lab_report_database_storage_roundtrip(db_session, test_user, monkeypatch):
+    monkeypatch.setattr("app.core.file_storage.settings.file_storage_backend", "database")
+    saved = save_lab_file(VALID_LAB_TEXT, uuid.uuid4(), "labs.txt")
+    lab_report = LabReport(
+        user_id=test_user.id,
+        original_filename="labs.txt",
+        encrypted_file_path=saved.encrypted_file_path,
+        encrypted_file_data=saved.encrypted_file_data,
+        file_size_bytes=len(VALID_LAB_TEXT),
+        status=LabReportStatus.PENDING,
+    )
+    db_session.add(lab_report)
+    await db_session.commit()
+    await db_session.refresh(lab_report)
+
+    result = process_lab_report(str(lab_report.id))
+    assert result["status"] == "complete"
+    assert result["biomarker_count"] == 2
 
 
 async def test_process_lab_report_missing_file_on_disk_sets_status_failed(db_session, test_user):
