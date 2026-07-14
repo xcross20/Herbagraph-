@@ -2,70 +2,58 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HerbaGraph Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css">
-<style>
-  :root {
-    --bg: #f5f5f7; --surface: #fff; --text: #1d1d1f; --muted: #6e6e73;
-    --accent: #117744; --accent-soft: #f4fbf7; --border: #d2d2d7;
-    --success: #1a7f4b; --danger: #d70015; --radius: 12px;
-    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
-  }
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; margin: 0; background: var(--bg); color: var(--text); line-height: 1.45; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  .top-nav { display: flex; align-items: center; gap: 1.25rem; padding: 0.85rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
-  .top-nav .logo { color: var(--text); }
-  .nav-links { display: flex; gap: 0.5rem; flex: 1; }
-  .nav-links a { padding: 0.4rem 0.75rem; border-radius: 8px; color: var(--muted); font-size: 0.9rem; }
-  .nav-links a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
-  .nav-user { font-size: 0.85rem; color: var(--muted); }
-  .shell { max-width: 1180px; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
-  h1 { margin: 0 0 0.25rem; font-size: 1.65rem; font-weight: 700; }
-  h2 { margin: 0 0 0.75rem; font-size: 1.15rem; font-weight: 650; }
-  .muted { color: var(--muted); font-size: 0.9rem; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; margin-bottom: 0.85rem; box-shadow: var(--shadow); }
-  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0.85rem; }
-  .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.65rem; }
-  button, .btn { font: inherit; padding: 0.55rem 1rem; border-radius: 980px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; display: inline-block; }
-  button.primary, .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button.primary:hover:not(:disabled), .btn.primary:hover { background: #0d5c38; border-color: #0d5c38; }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
-  input, select, textarea { font: inherit; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; width: 100%; }
-  label { display: block; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.25rem; }
-  .form-row { margin-bottom: 0.75rem; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
-  th, td { border-bottom: 1px solid #ececf0; padding: 0.55rem 0.6rem; text-align: left; vertical-align: top; }
-  th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; }
-
-  .patient-layout { display: flex; gap: 1.25rem; align-items: flex-start; }
-  .patient-sidebar { width: 200px; flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.5rem 0; position: sticky; top: 4.5rem; }
-  .patient-sidebar a { display: block; padding: 0.5rem 1rem; color: var(--muted); font-size: 0.88rem; }
-  .patient-sidebar a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
-  .patient-main { flex: 1; min-width: 0; }
-  .pill { display: inline-block; font-size: 0.78rem; padding: 0.15rem 0.5rem; border-radius: 6px; background: #f0f0f2; }
-  .pill.complete { background: #e8f5ee; color: var(--success); }
-  .pill.failed { background: #ffecec; color: var(--danger); }
-  .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
-  .error { color: var(--danger); font-size: 0.9rem; }
-  .hidden { display: none !important; }
-  .context-chip { display: inline-block; margin: 0.2rem 0.35rem 0.2rem 0; padding: 0.25rem 0.55rem; background: #f5f5f7; border-radius: 6px; font-size: 0.82rem; }
-</style>
+<link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
-<nav class="top-nav hidden" id="app-nav">
-  <span id="app-nav-logo"></span>
-  <div class="nav-links">
-    <a href="#dashboard" data-nav="dashboard">Dashboard</a>
-    <a href="#patients" data-nav="patients">Patients</a>
-    <a href="#upload" data-nav="upload">Upload</a>
-    <a href="#settings" data-nav="settings">Settings</a>
+<body class="app-body">
+<div class="app-shell hidden" id="app-shell">
+  <aside class="app-sidebar" id="app-sidebar">
+    <div class="sidebar-brand" id="app-nav-logo"></div>
+    <nav class="sidebar-nav" aria-label="Workspace">
+      <a class="sidebar-link" href="#dashboard" data-nav="dashboard">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Overview
+      </a>
+      <a class="sidebar-link" href="#patients" data-nav="patients">
+        <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Patients
+      </a>
+      <a class="sidebar-link" href="#analysis" data-nav="analysis">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Analyses
+      </a>
+      <a class="sidebar-link" href="#reports" data-nav="reports">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+        Reports
+      </a>
+      <a class="sidebar-link" href="#evidence" data-nav="evidence">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Evidence
+      </a>
+      <a class="sidebar-link" href="#upload" data-nav="upload">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload
+      </a>
+      <p class="sidebar-section-label">Workspace</p>
+      <a class="sidebar-link" href="#settings" data-nav="settings">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        Settings
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <p class="sidebar-user" id="nav-user"></p>
+      <button type="button" class="sidebar-signout" id="logout-btn">Sign out</button>
+    </div>
+  </aside>
+  <div class="workspace-main">
+    <div class="workspace-content" id="app-main"></div>
   </div>
-  <span class="nav-user" id="nav-user"></span>
-  <button type="button" id="logout-btn">Sign out</button>
-</nav>
-<main class="shell" id="app-main"></main>
+</div>
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script>
@@ -73,7 +61,9 @@ document.getElementById("app-nav-logo").innerHTML = herbagraphLogoLink("/app.htm
 const API = window.location.origin;
 const Auth = window.HerbaGraphAuth;
 let currentUser = null;
+let lastDashboard = null;
 
+const ICON_GRID = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
 
 async function api(path, method = "GET", body) {
   const headers = { "Content-Type": "application/json" };
@@ -97,24 +87,16 @@ function friendlyApiError(method, path, status, text) {
   try {
     const j = JSON.parse(text);
     detail = j.detail || text;
-  } catch { /* raw text */ }
+  } catch { /* raw */ }
   if (path.includes("/auth/me") && (status === 500 || status === 503)) {
-    return (
-      "The server could not reach the database after sign-in. "
-      + "An operator must set DATABASE_URL on Railway (see railway.env.example). "
-      + `Diagnostic: ${detail}`
-    );
+    return "The server could not reach the database after sign-in. Set DATABASE_URL on Railway. Diagnostic: " + detail;
   }
   return `${method} ${path} (${status}): ${detail}`;
 }
 
 async function ensureSession() {
   if (!(await Auth.ensureSession())) return false;
-  try {
-    currentUser = await api("/api/v1/auth/me");
-  } catch (err) {
-    throw new Error(err.message || String(err));
-  }
+  currentUser = await api("/api/v1/auth/me");
   return true;
 }
 
@@ -133,83 +115,326 @@ function fmtDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function fmtConf(n) {
-  if (n == null) return "—";
-  return `${Math.round(n * 100)}%`;
+function relTime(iso) {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return fmtDate(iso);
 }
 
-function redirectToLogin() {
-  const next = encodeURIComponent(location.pathname + location.search + location.hash);
-  location.href = `/login.html?next=${next}`;
+function fmtConfLabel(n) {
+  if (n == null) return "—";
+  if (n >= 0.8) return "High";
+  if (n >= 0.6) return "Moderate";
+  return "Low";
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function patientStatus(p, recentLabs) {
+  const processing = (recentLabs || []).some(l =>
+    l.patient_id === p.id && (l.status === "parsing" || l.status === "uploaded")
+  );
+  if (processing) return { label: "PROCESSING", cls: "processing" };
+  if (p.lab_report_count === 0) return { label: "NO DATA", cls: "no-data" };
+  if (p.lab_report_count > 0 && p.analysis_session_count === 0) return { label: "NEEDS REVIEW", cls: "review" };
+  if (p.latest_report_id) return { label: "READY", cls: "ready" };
+  return { label: "NO DATA", cls: "no-data" };
+}
+
+function primaryFinding(title) {
+  if (!title || title === "Analysis Report") return "—";
+  const t = title.toLowerCase();
+  if (t.includes("iron")) return "Iron deficiency pattern";
+  if (t.includes("inflamm")) return "Inflammatory pattern";
+  if (t.includes("metabol") || t.includes("glycemic")) return "Metabolic pattern";
+  if (t.includes("thyroid")) return "Thyroid-related pattern";
+  if (title.length > 48) return title.slice(0, 45) + "…";
+  return title.split(".")[0].slice(0, 48);
+}
+
+function buildAttentionItems(dash) {
+  const items = [];
+  for (const p of dash.patients) {
+    const st = patientStatus(p, dash.recent_labs);
+    if (st.cls === "review") {
+      items.push({
+        patient: p.display_name,
+        patientId: p.id,
+        dot: "review",
+        title: "New lab data awaiting analysis",
+        detail: `${p.lab_report_count} lab report(s) uploaded · analysis not yet run`,
+        time: dash.recent_labs.find(l => l.patient_id === p.id)?.created_at,
+      });
+    } else if (st.cls === "processing") {
+      items.push({
+        patient: p.display_name,
+        patientId: p.id,
+        dot: "neutral",
+        title: "Lab report processing",
+        detail: "Extracting and normalizing biomarkers",
+        time: dash.recent_labs.find(l => l.patient_id === p.id)?.created_at,
+      });
+    }
+  }
+  for (const s of dash.recent_sessions) {
+    if (s.status === "failed") {
+      const p = dash.patients.find(x => x.id === s.patient_id);
+      items.push({
+        patient: p?.display_name || "Patient",
+        patientId: s.patient_id,
+        dot: "warning",
+        title: "Analysis requires review",
+        detail: `${s.title} did not complete successfully`,
+        time: s.created_at,
+      });
+    }
+  }
+  for (const r of dash.recent_reports.slice(0, 3)) {
+    if (r.overall_confidence < 0.6) {
+      items.push({
+        patient: r.patient_display_name || "Patient",
+        patientId: r.patient_id,
+        dot: "review",
+        title: "Evidence coverage may be limited",
+        detail: `Analysis confidence: ${fmtConfLabel(r.overall_confidence)} · review recommended`,
+        time: r.created_at,
+      });
+    }
+  }
+  return items.slice(0, 5);
+}
+
+function buildActivityFeed(dash) {
+  const events = [];
+  for (const r of dash.recent_reports) {
+    events.push({ time: r.created_at, label: "Report generated", subject: r.patient_display_name || "Patient", href: `/report.html?report_id=${r.id}` });
+  }
+  for (const l of dash.recent_labs) {
+    const p = dash.patients.find(x => x.id === l.patient_id);
+    events.push({ time: l.created_at, label: "Lab report uploaded", subject: p?.display_name || "Patient", href: l.patient_id ? `#patient/${l.patient_id}/labs` : "#upload" });
+  }
+  for (const s of dash.recent_sessions) {
+    const p = dash.patients.find(x => x.id === s.patient_id);
+    const label = s.status === "complete" ? "Integrated analysis completed" : s.status === "analyzing" ? "Analysis in progress" : "Analysis session created";
+    events.push({ time: s.created_at, label, subject: p?.display_name || s.title, href: s.latest_report_id ? `/report.html?report_id=${s.latest_report_id}` : (s.patient_id ? `#patient/${s.patient_id}/analyses` : "#analysis") });
+  }
+  events.sort((a, b) => new Date(b.time) - new Date(a.time));
+  return events.slice(0, 10);
+}
+
+function buildBiologicalSignals(dash) {
+  const keywords = [
+    { label: "Inflammatory signaling", keys: ["inflamm", "crp", "cytokine"] },
+    { label: "Metabolic regulation", keys: ["metabol", "glycemic", "glucose", "hba1c", "lipid"] },
+    { label: "Micronutrient insufficiency", keys: ["iron", "vitamin", "ferritin", "b12", "folate"] },
+    { label: "Thyroid-related patterns", keys: ["thyroid", "tsh", "t3", "t4"] },
+  ];
+  const counts = keywords.map(k => ({ ...k, count: 0 }));
+  for (const r of dash.recent_reports) {
+    const t = (r.title || "").toLowerCase();
+    counts.forEach(c => { if (c.keys.some(k => t.includes(k))) c.count += 1; });
+  }
+  const max = Math.max(1, ...counts.map(c => c.count));
+  return counts.map(c => ({ label: c.label, count: c.count, pct: Math.round((c.count / max) * 100) }));
+}
+
+function pageHeader(title, subtitle, actionsHtml = "") {
+  return `<div class="page-header">
+    <div>
+      <h1>${title}</h1>
+      ${subtitle ? `<p class="page-subtitle">${subtitle}</p>` : ""}
+    </div>
+    ${actionsHtml ? `<div class="page-header-actions">${actionsHtml}</div>` : ""}
+  </div>`;
+}
+
+function commandBar() {
+  return `<div class="command-bar">
+    <a class="app-btn" href="#patients">+ New patient</a>
+    <a class="app-btn app-btn-primary" href="#upload">Upload labs</a>
+    <a class="app-btn" href="#analysis">Run analysis</a>
+    <input class="command-search" id="workspace-search" type="search" placeholder="Search workspace  ⌘K" aria-label="Search workspace">
+  </div>`;
+}
+
+function renderAttentionList(items) {
+  if (!items.length) {
+    return `<div class="empty-state" style="padding:1.5rem">
+      <p class="muted">No items need attention. Upload labs or run an analysis to get started.</p>
+    </div>`;
+  }
+  return `<div class="attention-list">${items.map(it => `
+    <a class="attention-item" href="${it.patientId ? `#patient/${it.patientId}` : '#dashboard'}" style="text-decoration:none;color:inherit">
+      <span class="attention-dot ${it.dot}"></span>
+      <div class="attention-body">
+        <strong>${esc(it.patient)}</strong>
+        <p>${esc(it.title)}</p>
+        <p>${esc(it.detail)}</p>
+        ${it.time ? `<p class="attention-meta">Updated ${relTime(it.time)}</p>` : ""}
+      </div>
+    </a>`).join("")}</div>`;
+}
+
+function renderActivityFeed(events) {
+  if (!events.length) return `<p class="muted">No recent activity.</p>`;
+  const groups = {};
+  for (const e of events) {
+    const d = new Date(e.time);
+    const key = d.toDateString() === new Date().toDateString() ? "Today" : d.toDateString() === new Date(Date.now() - 86400000).toDateString() ? "Yesterday" : fmtDate(e.time);
+    groups[key] = groups[key] || [];
+    groups[key].push(e);
+  }
+  return `<div class="activity-feed">${Object.entries(groups).map(([label, evs]) => `
+    <p class="activity-group-label">${esc(label)}</p>
+    ${evs.map(e => `
+      <a class="activity-item" href="${e.href}" style="text-decoration:none;color:inherit">
+        <span class="activity-time">${new Date(e.time).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+        <span><strong>${esc(e.label)}</strong><br><span class="muted">${esc(e.subject)}</span></span>
+      </a>`).join("")}
+  `).join("")}</div>`;
+}
+
+function renderSignalBars(signals) {
+  const hasData = signals.some(s => s.count > 0);
+  if (!hasData) {
+    return `<div class="empty-state" style="padding:1.25rem">
+      <svg class="empty-graph" viewBox="0 0 120 80" aria-hidden="true"><circle cx="30" cy="40" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/><circle cx="60" cy="25" r="8" fill="none" stroke="#6978d8" stroke-width="1"/><circle cx="90" cy="50" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/><line x1="38" y1="38" x2="52" y2="28" stroke="#dde1db" stroke-width="1"/><line x1="68" y1="28" x2="82" y2="46" stroke="#dde1db" stroke-width="1"/></svg>
+      <p class="muted">Run analyses to surface biological signals across your workspace.</p>
+    </div>`;
+  }
+  return `<div class="signal-bars">${signals.filter(s => s.count > 0).map(s => `
+    <div class="signal-row">
+      <span>${esc(s.label)}</span>
+      <div class="signal-bar-track"><div class="signal-bar-fill" style="width:${s.pct}%"></div></div>
+      <span class="signal-count">${s.count}</span>
+    </div>`).join("")}</div>`;
 }
 
 async function renderDashboard() {
   const dash = await api("/api/v1/workspace/dashboard");
-  const patientCards = dash.patients.map(p => `
-    <div class="card">
-      <strong>${esc(p.display_name)}</strong>
-      <p class="muted">${p.lab_report_count} labs · ${p.analysis_session_count} analyses</p>
-      <p class="muted">Latest confidence: ${fmtConf(p.latest_report_confidence)}</p>
-      <div class="actions">
-        <a class="btn" href="#patient/${p.id}">Open profile</a>
-        ${p.latest_report_id ? `<a class="btn primary" href="/report.html?report_id=${p.latest_report_id}">View report</a>` : ""}
-      </div>
-    </div>`).join("");
+  lastDashboard = dash;
+  const activeAnalyses = dash.recent_sessions.filter(s => s.status === "analyzing" || s.status === "pending").length;
+  const needsReview = buildAttentionItems(dash).length;
+  const reportsCount = dash.recent_reports.length + dash.patients.filter(p => p.latest_report_id).length;
+  const name = dash.user_full_name ? `, ${esc(dash.user_full_name)}` : "";
+
+  const patientRows = dash.patients.map(p => {
+    const st = patientStatus(p, dash.recent_labs);
+    const report = dash.recent_reports.find(r => r.patient_id === p.id);
+    return `<tr data-href="#patient/${p.id}">
+      <td><a class="row-link" href="#patient/${p.id}">${esc(p.display_name)}</a></td>
+      <td class="mono">${p.lab_report_count}</td>
+      <td class="mono">${p.analysis_session_count}</td>
+      <td>${report ? esc(primaryFinding(report.title)) : "—"}</td>
+      <td><span class="status-chip ${st.cls}">${st.label}</span></td>
+      <td class="mono">${report ? relTime(report.created_at) : "—"}</td>
+    </tr>`;
+  }).join("") || `<tr class="no-hover"><td colspan="6" class="muted">No patients yet</td></tr>`;
+
   const reportRows = dash.recent_reports.map(r => `
-    <tr>
+    <tr data-href="/report.html?report_id=${r.id}">
       <td>${esc(r.patient_display_name || "—")}</td>
-      <td>${esc(r.title)}</td>
-      <td>${fmtConf(r.overall_confidence)}</td>
-      <td>${fmtDate(r.created_at)}</td>
-      <td><a href="/report.html?report_id=${r.id}">View</a></td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">No reports yet</td></tr>`;
+      <td>${esc(primaryFinding(r.title))}</td>
+      <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
+      <td class="mono">${fmtDate(r.created_at)}</td>
+      <td><a href="/report.html?report_id=${r.id}">View report</a></td>
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No reports yet</td></tr>`;
+
   document.getElementById("app-main").innerHTML = `
-    <h1>Welcome back${dash.user_full_name ? ", " + esc(dash.user_full_name) : ""}</h1>
-    <p class="muted">${esc(dash.user_email)}</p>
-    <div class="actions" style="margin:1rem 0">
-      <a class="btn primary" href="#upload">Upload lab report</a>
-      <a class="btn" href="#patients">Manage patients</a>
-      <a class="btn" href="#analysis">Run integrated analysis</a>
+    ${pageHeader(`${greeting()}${name}`, "Here is what changed across your workspace.", `<a class="app-btn app-btn-primary" href="#upload">Upload labs</a>`)}
+    ${commandBar()}
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">Patients</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">In workspace</div></div>
+      <div class="metric-card"><div class="metric-label">Active analyses</div><div class="metric-value">${activeAnalyses}</div><div class="metric-delta">${activeAnalyses ? "Processing" : "None running"}</div></div>
+      <div class="metric-card"><div class="metric-label">Reports</div><div class="metric-value">${dash.recent_reports.length}</div><div class="metric-delta">Recent analyses</div></div>
+      <div class="metric-card"><div class="metric-label">Needs review</div><div class="metric-value">${needsReview}</div><div class="metric-delta">Attention items</div></div>
     </div>
-    <h2>Patients</h2>
-    <div class="grid-2">${patientCards}</div>
-    <h2 style="margin-top:1.5rem">Recent reports</h2>
-    <div class="card"><table><thead><tr><th>Patient</th><th>Report</th><th>Confidence</th><th>Date</th><th></th></tr></thead><tbody>${reportRows}</tbody></table></div>`;
+    <div class="workspace-section">
+      <h2>Needs attention</h2>
+      ${renderAttentionList(buildAttentionItems(dash))}
+    </div>
+    <div class="workspace-section">
+      <h2>Recent patients</h2>
+      <div class="data-table-wrap"><table class="data-table"><thead><tr>
+        <th>Patient</th><th>Labs</th><th>Analyses</th><th>Latest report</th><th>Status</th><th>Updated</th>
+      </tr></thead><tbody>${patientRows}</tbody></table></div>
+    </div>
+    <div class="workspace-section">
+      <h2>Recent reports</h2>
+      <div class="data-table-wrap"><table class="data-table"><thead><tr>
+        <th>Patient</th><th>Primary finding</th><th>Confidence</th><th>Created</th><th></th>
+      </tr></thead><tbody>${reportRows}</tbody></table></div>
+    </div>
+    <div class="form-grid-2" style="margin-top:0.5rem">
+      <div class="workspace-section">
+        <h2>Biological signals across your workspace</h2>
+        <div class="app-card">${renderSignalBars(buildBiologicalSignals(dash))}</div>
+      </div>
+      <div class="workspace-section">
+        <h2>Recent activity</h2>
+        <div class="app-card">${renderActivityFeed(buildActivityFeed(dash))}</div>
+      </div>
+    </div>`;
+  wireTableRows();
+  wireCommandSearch(dash);
 }
 
 async function renderPatients() {
   const patients = await api("/api/v1/patients");
-  const rows = patients.map(p => `
-    <tr>
-      <td><a href="#patient/${p.id}">${esc(p.display_name)}</a></td>
+  const dash = lastDashboard || await api("/api/v1/workspace/dashboard");
+  const rows = patients.map(p => {
+    const summary = dash.patients.find(x => x.id === p.id) || p;
+    const st = patientStatus(summary, dash.recent_labs || []);
+    return `<tr data-href="#patient/${p.id}">
+      <td><a class="row-link" href="#patient/${p.id}">${esc(p.display_name)}</a></td>
+      <td class="mono">${summary.lab_report_count ?? 0}</td>
+      <td class="mono">${summary.analysis_session_count ?? 0}</td>
       <td>${p.age ?? "—"}</td>
       <td>${esc(p.biological_sex || "—")}</td>
-      <td>${fmtDate(p.created_at)}</td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">No patients yet</td></tr>`;
+      <td><span class="status-chip ${st.cls}">${st.label}</span></td>
+      <td class="mono">${fmtDate(p.created_at)}</td>
+    </tr>`;
+  }).join("") || `<tr class="no-hover"><td colspan="7" class="muted">No patients yet</td></tr>`;
+
   document.getElementById("app-main").innerHTML = `
-    <h1>Patients</h1>
-    <div class="grid-2">
-      <div class="card">
-        <h2>Create patient</h2>
+    ${pageHeader("Patients", "Manage biological profiles and lab history.")}
+    <div class="form-grid-2">
+      <div class="app-card">
+        <h2 style="margin:0 0 0.75rem;font-size:1rem">Create patient</h2>
         <div class="form-row"><label>Display name</label><input id="new-patient-name" value="Patient A"></div>
-        <div class="form-row"><label>Age (optional)</label><input id="new-patient-age" type="number"></div>
-        <div class="form-row"><label>Sex (optional)</label><select id="new-patient-sex"><option value="">—</option><option>female</option><option>male</option></select></div>
-        <button class="primary" id="create-patient-btn">Create patient</button>
+        <div class="form-grid-2">
+          <div class="form-row"><label>Age (optional)</label><input id="new-patient-age" type="number"></div>
+          <div class="form-row"><label>Sex (optional)</label><select id="new-patient-sex"><option value="">—</option><option>female</option><option>male</option></select></div>
+        </div>
+        <button class="app-btn app-btn-primary" id="create-patient-btn">Create patient</button>
         <p id="patient-create-error" class="error"></p>
       </div>
-      <div class="card">
-        <h2>All patients</h2>
-        <table><thead><tr><th>Name</th><th>Age</th><th>Sex</th><th>Created</th></tr></thead><tbody>${rows}</tbody></table>
+      <div>
+        <div class="data-table-wrap"><table class="data-table"><thead><tr>
+          <th>Name</th><th>Labs</th><th>Analyses</th><th>Age</th><th>Sex</th><th>Status</th><th>Created</th>
+        </tr></thead><tbody>${rows}</tbody></table></div>
       </div>
     </div>`;
+  wireTableRows();
   document.getElementById("create-patient-btn").onclick = async () => {
     try {
-      const payload = {
+      const p = await api("/api/v1/patients", "POST", {
         display_name: document.getElementById("new-patient-name").value.trim() || "Patient",
         age: document.getElementById("new-patient-age").value ? Number(document.getElementById("new-patient-age").value) : null,
         biological_sex: document.getElementById("new-patient-sex").value || null,
-      };
-      const p = await api("/api/v1/patients", "POST", payload);
+      });
       location.hash = `#patient/${p.id}`;
       render();
     } catch (e) {
@@ -218,70 +443,150 @@ async function renderPatients() {
   };
 }
 
+function reasoningGraphSvg(overview) {
+  const biomarker = overview.recent_abnormal_biomarkers[0];
+  const priority = overview.top_priorities[0] || "Biological pattern";
+  const bName = biomarker ? biomarker.biomarker_name : "Biomarker";
+  return `<svg viewBox="0 0 280 200" aria-hidden="true">
+    <line x1="40" y1="40" x2="40" y2="90" stroke="rgba(105,120,216,0.5)" stroke-width="1.5"/>
+    <line x1="40" y1="90" x2="40" y2="140" stroke="#6978d8" stroke-width="1.5" stroke-dasharray="4 6"/>
+    <line x1="40" y1="140" x2="40" y2="175" stroke="rgba(105,120,216,0.35)" stroke-width="1"/>
+    <circle cx="40" cy="40" r="22" fill="rgba(20,24,21,0.04)" stroke="#69706b" stroke-width="1"/>
+    <text x="40" y="44" text-anchor="middle" font-size="8" fill="#69706b">${esc(bName).slice(0, 12)}</text>
+    <rect x="12" y="72" width="56" height="28" rx="10" fill="rgba(46,125,87,0.1)" stroke="#2e7d57" stroke-width="1"/>
+    <text x="40" y="90" text-anchor="middle" font-size="7" fill="#2e7d57">System</text>
+    <rect x="8" y="124" width="64" height="28" rx="4" fill="rgba(105,120,216,0.08)" stroke="#6978d8" stroke-width="1" transform="rotate(0 40 138)"/>
+    <text x="40" y="142" text-anchor="middle" font-size="7" fill="#6978d8">Pathway</text>
+    <polygon points="40,168 52,178 40,188 28,178" fill="rgba(105,120,216,0.06)" stroke="#6978d8" stroke-width="1"/>
+    <text x="40" y="182" text-anchor="middle" font-size="6" fill="#69706b">Candidates</text>
+    <text x="120" y="30" font-size="9" fill="#69706b">${esc(priority).slice(0, 28)}</text>
+  </svg>`;
+}
+
 async function renderPatient(patientId, section = "overview") {
   const overview = await api(`/api/v1/workspace/patients/${patientId}/overview`);
-  const contextHtml = Object.entries(overview.context_summary || {}).map(([k, items]) =>
-    `<div><strong>${esc(k)}</strong><br>${items.map(i => `<span class="context-chip">${esc(i)}</span>`).join("")}</div>`
-  ).join("") || `<p class="muted">No context items yet. Add medications, supplements, or conditions in Context.</p>`;
+  const sexAge = [overview.biological_sex, overview.age ? `${overview.age}` : null].filter(Boolean).join(" · ");
+  const tabs = [
+    ["overview", "Overview"],
+    ["labs", "Labs"],
+    ["analyses", "Analysis"],
+    ["context", "Notes"],
+  ];
+
   const labRows = overview.lab_reports.map(l => `
-    <tr>
+    <tr data-href="#review/${l.id}">
       <td>${esc(l.original_filename)}</td>
-      <td><span class="pill ${l.status}">${esc(l.status)}</span></td>
-      <td>${fmtDate(l.created_at)}</td>
+      <td><span class="status-chip ${l.status === "complete" ? "complete" : l.status === "failed" ? "failed" : "processing"}">${esc(l.status)}</span></td>
+      <td class="mono">${fmtDate(l.created_at)}</td>
       <td>
         <a href="#review/${l.id}">Review</a>
         ${l.latest_report_id ? ` · <a href="/report.html?report_id=${l.latest_report_id}">Report</a>` : ""}
       </td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">No lab uploads</td></tr>`;
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="4" class="muted">No lab uploads</td></tr>`;
+
   const sessionRows = overview.analysis_sessions.map(s => `
     <tr>
       <td>${esc(s.title)}</td>
       <td>${esc(s.analysis_type)}</td>
-      <td><span class="pill ${s.status}">${esc(s.status)}</span></td>
-      <td>${fmtConf(s.report_confidence)}</td>
+      <td><span class="status-chip ${s.status === "complete" ? "complete" : s.status === "failed" ? "failed" : "processing"}">${esc(s.status)}</span></td>
+      <td>${fmtConfLabel(s.report_confidence)}</td>
       <td>${s.latest_report_id ? `<a href="/report.html?report_id=${s.latest_report_id}">View</a>` : "—"}</td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">No analyses</td></tr>`;
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No analyses</td></tr>`;
+
   const abnormal = overview.recent_abnormal_biomarkers.map(b =>
-    `<span class="context-chip">${esc(b.biomarker_name)} ${b.value} ${esc(b.unit||"")} (${esc(b.status)})</span>`
-  ).join("") || `<span class="muted">None in recent labs</span>`;
+    `<span class="biomarker-chip ${b.status === "low" || b.status === "critical_low" ? "low" : "high"}">
+      <span>${esc(b.biomarker_name)}</span>
+      <span class="mono">${b.value} ${esc(b.unit || "")}</span>
+      <span class="status-chip ${b.status.includes("low") ? "review" : "review"}" style="font-size:0.6rem">${esc(b.status).toUpperCase()}</span>
+    </span>`
+  ).join("") || `<span class="muted">No abnormal markers in recent labs</span>`;
+
+  const systems = overview.top_priorities.length
+    ? overview.top_priorities.map(p => `<span class="system-tag">${esc(p)}</span>`).join("")
+    : `<span class="muted">Run an analysis to map biological systems</span>`;
+
+  const primaryFindingText = overview.top_priorities[0] || (overview.latest_report_id ? "Analysis available" : "No analysis yet");
+  const reviewCount = overview.lab_reports.filter(l => l.status === "complete" && !l.latest_report_id).length;
 
   let sectionBody = "";
   if (section === "overview") {
     sectionBody = `
-      <div class="card"><h2>Patient overview</h2>
-        <p><strong>Latest confidence:</strong> ${fmtConf(overview.latest_report_confidence)}</p>
-        <p><strong>Top priorities:</strong> ${overview.top_priorities.length ? overview.top_priorities.map(esc).join(" · ") : "Run an analysis to surface priorities"}</p>
-        <p><strong>Recent abnormal biomarkers:</strong><br>${abnormal}</p>
+      <div class="snapshot-grid">
+        <div class="app-card snapshot-card">
+          <h3>Primary findings</h3>
+          <div class="finding">${esc(primaryFindingText)}</div>
+          ${overview.latest_report_confidence != null ? `<span class="confidence-label">Analysis confidence: ${fmtConfLabel(overview.latest_report_confidence)}</span>` : ""}
+        </div>
+        <div class="app-card snapshot-card">
+          <h3>Key biomarkers</h3>
+          <div>${abnormal}</div>
+        </div>
+        <div class="app-card snapshot-card">
+          <h3>Biological systems</h3>
+          <div>${systems}</div>
+        </div>
+        <div class="app-card snapshot-card">
+          <h3>Safety / review</h3>
+          <div class="finding" style="font-size:0.95rem">${reviewCount ? `${reviewCount} item(s) require review` : "No review flags"}</div>
+        </div>
+      </div>
+      <div class="reasoning-panel">
+        <div class="app-card">
+          <h3 style="margin:0 0 0.75rem;font-size:0.95rem">Biological snapshot</h3>
+          <p class="muted" style="margin:0 0 0.5rem">Progressive disclosure: pattern → biomarkers → systems → evidence.</p>
+          <p style="margin:0.5rem 0 0"><strong>Why?</strong> <span class="muted">${overview.recent_abnormal_biomarkers.length ? "Abnormal markers and pathway context from latest labs." : "Upload labs to begin reasoning."}</span></p>
+          ${overview.latest_report_id ? `<p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="/report.html?report_id=${overview.latest_report_id}">Open full report</a></p>` : ""}
+        </div>
+        <div class="reasoning-graph">${reasoningGraphSvg(overview)}</div>
       </div>`;
   } else if (section === "labs") {
-    sectionBody = `<div class="card"><h2>Lab timeline</h2><table><thead><tr><th>File</th><th>Status</th><th>Uploaded</th><th></th></tr></thead><tbody>${labRows}</tbody></table></div>`;
+    if (!overview.lab_reports.length) {
+      sectionBody = `<div class="app-card empty-state">
+        <svg class="empty-graph" viewBox="0 0 120 80" aria-hidden="true"><circle cx="40" cy="40" r="10" stroke="#2e7d57" fill="none"/><circle cx="80" cy="40" r="10" stroke="#6978d8" fill="none"/><line x1="50" y1="40" x2="70" y2="40" stroke="#dde1db"/></svg>
+        <h3>No biological data yet</h3>
+        <p>Upload a laboratory report to begin building this patient's biological profile.</p>
+        <a class="app-btn app-btn-primary" href="#upload?patient=${patientId}">Upload labs</a>
+      </div>`;
+    } else {
+      sectionBody = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Status</th><th>Uploaded</th><th></th></tr></thead><tbody>${labRows}</tbody></table></div>`;
+    }
   } else if (section === "analyses") {
-    sectionBody = `<div class="card"><h2>Analysis history</h2><table><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Confidence</th><th></th></tr></thead><tbody>${sessionRows}</tbody></table></div>`;
+    sectionBody = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Confidence</th><th></th></tr></thead><tbody>${sessionRows}</tbody></table></div>
+      <p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="#analysis?patient=${patientId}">Run integrated analysis</a></p>`;
   } else if (section === "context") {
-    sectionBody = renderPatientContextForm(patientId, contextHtml);
+    sectionBody = renderPatientContextForm(patientId, overview);
   }
 
   document.getElementById("app-main").innerHTML = `
-    <h1>${esc(overview.display_name)}</h1>
-    <p class="muted">Patient profile · created ${fmtDate(overview.created_at)}</p>
-    <div class="patient-layout">
-      <aside class="patient-sidebar">
-        <a href="#patient/${patientId}" class="${section==="overview"?"active":""}">Overview</a>
-        <a href="#patient/${patientId}/labs" class="${section==="labs"?"active":""}">Lab reports</a>
-        <a href="#patient/${patientId}/analyses" class="${section==="analyses"?"active":""}">Analyses</a>
-        <a href="#patient/${patientId}/context" class="${section==="context"?"active":""}">Context</a>
-        <a href="#upload?patient=${patientId}">Upload labs</a>
-        <a href="#analysis?patient=${patientId}">New analysis</a>
-      </aside>
-      <div class="patient-main">${sectionBody}</div>
-    </div>`;
+    <div class="patient-header">
+      <h1>${esc(overview.display_name)}</h1>
+      <div class="patient-meta">
+        ${sexAge ? `<span>${esc(sexAge)}</span>` : ""}
+        <span><span class="mono">${overview.lab_reports.length}</span> lab reports</span>
+        <span>Last updated <span class="mono">${overview.lab_reports[0] ? relTime(overview.lab_reports[0].created_at) : fmtDate(overview.created_at)}</span></span>
+      </div>
+      <div class="page-header-actions" style="margin-top:0.85rem">
+        <a class="app-btn app-btn-primary" href="#upload?patient=${patientId}">Upload labs</a>
+        <a class="app-btn" href="#analysis?patient=${patientId}">Run analysis</a>
+        ${overview.latest_report_id ? `<a class="app-btn" href="/report.html?report_id=${overview.latest_report_id}">Generate report</a>` : ""}
+      </div>
+    </div>
+    <nav class="patient-tabs" aria-label="Patient sections">
+      ${tabs.map(([id, label]) => `<a class="patient-tab ${section === id ? "active" : ""}" href="#patient/${patientId}${id === "overview" ? "" : "/" + id}">${label}</a>`).join("")}
+      ${overview.latest_report_id ? `<a class="patient-tab" href="/report.html?report_id=${overview.latest_report_id}">Recommendations</a><a class="patient-tab" href="/report.html?report_id=${overview.latest_report_id}#research-appendix">Evidence</a>` : ""}
+    </nav>
+    ${sectionBody}`;
+  wireTableRows();
 }
 
-function renderPatientContextForm(patientId, existingHtml) {
+function renderPatientContextForm(patientId, overview) {
+  const existingHtml = Object.entries(overview.context_summary || {}).map(([k, items]) =>
+    `<div style="margin-bottom:0.65rem"><strong style="font-size:0.82rem;text-transform:capitalize">${esc(k.replace(/_/g, " "))}</strong><br>${items.map(i => `<span class="system-tag">${esc(i)}</span>`).join("")}</div>`
+  ).join("") || `<p class="muted">No context items yet.</p>`;
   return `
-    <div class="card"><h2>Patient context</h2>${existingHtml}</div>
-    <div class="card"><h2>Add context</h2>
-      <div class="grid-3">
+    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Patient context</h3>${existingHtml}</div>
+    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Add context</h3>
+      <div class="form-grid-3">
         <div class="form-row"><label>Type</label>
           <select id="ctx-type">
             <option value="medication">Medication</option>
@@ -296,7 +601,7 @@ function renderPatientContextForm(patientId, existingHtml) {
         <div class="form-row"><label>Name</label><input id="ctx-name" placeholder="Metformin"></div>
         <div class="form-row"><label>Value (optional)</label><input id="ctx-value" placeholder="500mg daily"></div>
       </div>
-      <button class="primary" id="add-ctx-btn">Add</button>
+      <button class="app-btn app-btn-primary" id="add-ctx-btn">Add</button>
       <p id="ctx-error" class="error"></p>
     </div>`;
 }
@@ -318,6 +623,41 @@ async function wirePatientContext(patientId) {
   };
 }
 
+async function renderReports() {
+  const dash = await api("/api/v1/workspace/dashboard");
+  const rows = dash.recent_reports.map(r => `
+    <tr data-href="/report.html?report_id=${r.id}">
+      <td>${esc(r.patient_display_name || "—")}</td>
+      <td>${esc(primaryFinding(r.title))}</td>
+      <td><span class="muted">—</span></td>
+      <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
+      <td class="mono">${fmtDate(r.created_at)}</td>
+      <td><a href="/report.html?report_id=${r.id}">View report</a></td>
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="6" class="muted">No reports yet. Run an analysis to generate one.</td></tr>`;
+  document.getElementById("app-main").innerHTML = `
+    ${pageHeader("Reports", "Structured clinical analyses across your workspace.")}
+    <div class="data-table-wrap"><table class="data-table"><thead><tr>
+      <th>Patient</th><th>Primary finding</th><th>Systems</th><th>Confidence</th><th>Created</th><th></th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+  wireTableRows();
+}
+
+async function renderEvidence() {
+  const dash = await api("/api/v1/workspace/dashboard");
+  const latest = dash.recent_reports[0];
+  document.getElementById("app-main").innerHTML = `
+    ${pageHeader("Evidence", "Inspectable confidence and source coverage for recommendations.")}
+    <div class="app-card">
+      <p class="muted" style="margin:0 0 1rem">Evidence profiles are attached to each clinical report. Open a report to inspect human, mechanistic, and safety confidence for every intervention.</p>
+      ${latest ? `<a class="app-btn app-btn-primary" href="/report.html?report_id=${latest.id}#research-appendix">Open latest evidence profile</a>` : `<a class="app-btn" href="/report.html?demo=1">View sample report</a>`}
+    </div>
+    <div class="evidence-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-top:1rem">
+      <div class="app-card"><h3 style="margin:0 0 0.35rem">Human evidence</h3><p class="muted" style="margin:0">RCT and observational study coverage per intervention.</p></div>
+      <div class="app-card"><h3 style="margin:0 0 0.35rem">Mechanistic evidence</h3><p class="muted" style="margin:0">Pathway relevance and biological plausibility signals.</p></div>
+      <div class="app-card"><h3 style="margin:0 0 0.35rem">Safety context</h3><p class="muted" style="margin:0">Contraindications and medication interactions integrated before recommendations.</p></div>
+    </div>`;
+}
+
 async function ensurePatients() {
   let patients = await api("/api/v1/patients");
   if (!patients.length) {
@@ -327,61 +667,82 @@ async function ensurePatients() {
   return patients;
 }
 
+const UPLOAD_STAGES = ["Uploaded", "Extracting biomarkers", "Normalizing ranges", "Mapping systems", "Preparing analysis"];
+
+function renderUploadStages(activeIdx) {
+  return UPLOAD_STAGES.map((label, i) => {
+    let cls = "process-stage";
+    let icon = "○";
+    if (i < activeIdx) { cls += " done"; icon = "●"; }
+    else if (i === activeIdx) { cls += " active"; icon = "◌"; }
+    return `<div class="${cls}"><span class="stage-icon">${icon}</span>${label}</div>`;
+  }).join("");
+}
+
 async function renderUpload(preselectedPatient) {
   const patients = await ensurePatients();
-  const opts = patients.map(p => `<option value="${p.id}" ${p.id===preselectedPatient?"selected":""}>${esc(p.display_name)}</option>`).join("");
+  const opts = patients.map(p => `<option value="${p.id}" ${p.id === preselectedPatient ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
-    <h1>Upload lab reports</h1>
-    <p class="muted">Select a patient, upload one or more files, then review parsed biomarkers before analysis.</p>
-    <div class="card">
+    ${pageHeader("Upload laboratory reports", "Parse biomarkers and build a biological profile.")}
+    <div class="app-card">
       <div class="form-row"><label>Patient</label><select id="upload-patient">${opts}</select></div>
-      <div class="form-row"><label>Lab files</label><input id="upload-files" type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg"></div>
-      <button class="primary" id="upload-btn">Upload &amp; parse</button>
-      <p id="upload-status" class="muted"></p>
+      <div class="upload-zone" id="upload-zone">
+        <h3>Drag and drop PDF files</h3>
+        <p>or <label style="color:var(--app-green);cursor:pointer;text-decoration:underline"><input id="upload-files" type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg" style="display:none">browse files</label></p>
+        <p style="margin-top:0.5rem;font-size:0.78rem">Supported: PDF, TXT, CSV, images · Multiple reports</p>
+      </div>
+      <div class="process-stages" id="upload-stages" style="display:none"></div>
+      <p id="upload-status" class="muted" style="margin-top:1rem"></p>
     </div>`;
+
+  const fileInput = document.getElementById("upload-files");
+  const zone = document.getElementById("upload-zone");
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.style.borderColor = "var(--app-green)"; });
+  zone.addEventListener("dragleave", () => { zone.style.borderColor = ""; });
+  zone.addEventListener("drop", e => {
+    e.preventDefault();
+    zone.style.borderColor = "";
+    if (e.dataTransfer.files.length) {
+      fileInput.files = e.dataTransfer.files;
+      startUpload();
+    }
+  });
+  fileInput.addEventListener("change", () => { if (fileInput.files.length) startUpload(); });
+
   async function uploadLabFile(file, patientId) {
     const fd = new FormData();
     fd.append("file", file);
     fd.append("patient_id", patientId);
-    let resp = await fetch(API + "/api/v1/labs/upload", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${window.hgToken}` },
-      body: fd,
-    });
+    let resp = await fetch(API + "/api/v1/labs/upload", { method: "POST", headers: { Authorization: `Bearer ${window.hgToken}` }, body: fd });
     if (resp.status === 401 && window.hgRefreshToken) {
       await Auth.refreshTokens();
-      resp = await fetch(API + "/api/v1/labs/upload", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${window.hgToken}` },
-        body: fd,
-      });
+      resp = await fetch(API + "/api/v1/labs/upload", { method: "POST", headers: { Authorization: `Bearer ${window.hgToken}` }, body: fd });
     }
     if (!resp.ok) {
       const text = await resp.text();
-      try {
-        const j = JSON.parse(text);
-        throw new Error(j.detail || text);
-      } catch (e) {
-        if (e instanceof Error && e.message !== text) throw e;
-        throw new Error(text || `Upload failed (${resp.status})`);
-      }
+      try { throw new Error(JSON.parse(text).detail || text); } catch (e) { if (e.message) throw e; throw new Error(text); }
     }
     return resp.json();
   }
 
-  document.getElementById("upload-btn").onclick = async () => {
-    const files = document.getElementById("upload-files").files;
+  async function startUpload() {
+    const files = fileInput.files;
     const patientId = document.getElementById("upload-patient").value;
     if (!files.length) return;
     const status = document.getElementById("upload-status");
-    status.textContent = "Uploading...";
+    const stagesEl = document.getElementById("upload-stages");
+    stagesEl.style.display = "flex";
+    status.textContent = "";
     status.className = "muted";
     try {
       for (const file of files) {
+        stagesEl.innerHTML = renderUploadStages(0);
         const body = await uploadLabFile(file, patientId);
-        status.textContent = `Uploaded ${file.name}. Parsing...`;
-        await pollLab(body.lab_report_id, status);
+        for (let s = 1; s <= 3; s++) { stagesEl.innerHTML = renderUploadStages(s); await new Promise(r => setTimeout(r, 400)); }
+        status.textContent = `Uploaded ${file.name}. Parsing…`;
+        await pollLab(body.lab_report_id, status, stagesEl);
       }
+      stagesEl.innerHTML = renderUploadStages(UPLOAD_STAGES.length);
       status.textContent = "Upload complete. Review biomarkers or run analysis.";
       location.hash = `#patient/${patientId}/labs`;
       render();
@@ -389,18 +750,36 @@ async function renderUpload(preselectedPatient) {
       status.textContent = e.message;
       status.className = "error";
     }
-  };
+  }
 }
 
-async function pollLab(labId, el) {
+async function pollLab(labId, el, stagesEl) {
   for (let i = 0; i < 120; i++) {
     const lab = await api(`/api/v1/labs/${labId}`);
-    if (lab.status === "complete") return lab;
-    if (lab.status === "failed") throw new Error(lab.error_message || "Parse failed");
-    el.textContent = `Parsing (${lab.processing_stage || lab.status})...`;
+    if (lab.status === "complete") {
+      if (stagesEl) stagesEl.innerHTML = renderUploadStages(UPLOAD_STAGES.length);
+      return lab;
+    }
+    if (lab.status === "failed") throw new Error(lab.error_message || "We could not confidently extract biomarkers from this report. Try uploading a clearer file or review extracted data.");
+    const stageMap = { uploaded: 1, parsing: 2, normalizing: 3 };
+    const idx = stageMap[lab.processing_stage] || stageMap[lab.status] || 2;
+    if (stagesEl) stagesEl.innerHTML = renderUploadStages(idx);
+    el.textContent = `${lab.processing_stage || lab.status}…`;
     await new Promise(r => setTimeout(r, 2000));
   }
-  throw new Error("Parse timed out");
+  throw new Error("Parse timed out. The report may still be processing. Check the patient labs tab shortly.");
+}
+
+const ANALYSIS_PIPELINE = ["Reading biomarkers", "Normalizing laboratory ranges", "Mapping biological systems", "Evaluating pathway relevance", "Reviewing evidence"];
+
+function renderAnalysisPipeline(activeIdx) {
+  return ANALYSIS_PIPELINE.map((label, i) => {
+    let cls = "process-stage";
+    let icon = "○";
+    if (i < activeIdx) { cls += " done"; icon = "●"; }
+    else if (i === activeIdx) { cls += " active"; icon = "◌"; }
+    return `<div class="${cls}"><span class="stage-icon">${icon}</span>${label}</div>`;
+  }).join("");
 }
 
 async function renderBiomarkerReview(labId) {
@@ -408,20 +787,19 @@ async function renderBiomarkerReview(labId) {
   const rows = (lab.lab_results || []).map(r => `
     <tr>
       <td>${esc(r.biomarker_name)}</td>
-      <td>${r.value}</td>
-      <td>${esc(r.unit||"")}</td>
-      <td>${r.reference_range_low ?? "—"} – ${r.reference_range_high ?? "—"}</td>
-      <td>${esc(r.status)}</td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">No biomarkers extracted</td></tr>`;
+      <td class="mono">${r.value}</td>
+      <td class="mono">${esc(r.unit || "")}</td>
+      <td class="mono">${r.reference_range_low ?? "—"} – ${r.reference_range_high ?? "—"}</td>
+      <td><span class="status-chip ${r.status === "normal" ? "ready" : "review"}">${esc(r.status)}</span></td>
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No biomarkers extracted</td></tr>`;
   document.getElementById("app-main").innerHTML = `
-    <h1>Biomarker review</h1>
-    <p class="muted">${esc(lab.original_filename)} · ${esc(lab.status)}</p>
-    <div class="card">
-      <p class="muted">Review parsed values before running analysis. Editing values will be supported in a future release.</p>
-      <table><thead><tr><th>Biomarker</th><th>Value</th><th>Unit</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="actions">
-        ${lab.status === "complete" ? `<button class="primary" id="gen-report-btn">Generate single-report analysis</button>` : ""}
-        <a class="btn" href="#analysis">Multi-report analysis</a>
+    ${pageHeader("Biomarker review", `${esc(lab.original_filename)} · ${esc(lab.status)}`)}
+    <div class="app-card">
+      <p class="muted">Review parsed values before running analysis.</p>
+      <div class="data-table-wrap" style="margin-top:0.75rem"><table class="data-table"><thead><tr><th>Biomarker</th><th>Value</th><th>Unit</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="page-header-actions" style="margin-top:1rem">
+        ${lab.status === "complete" ? `<button class="app-btn app-btn-primary" id="gen-report-btn">Generate single-report analysis</button>` : ""}
+        <a class="app-btn" href="#analysis">Multi-report analysis</a>
       </div>
       <p id="review-status" class="muted"></p>
     </div>`;
@@ -429,8 +807,7 @@ async function renderBiomarkerReview(labId) {
   if (genBtn) {
     genBtn.onclick = async () => {
       const st = document.getElementById("review-status");
-      st.textContent = "Starting analysis...";
-      st.className = "muted";
+      st.textContent = "Starting analysis…";
       try {
         await api(`/api/v1/reports/generate/${labId}`, "POST");
         for (let i = 0; i < 180; i++) {
@@ -439,8 +816,8 @@ async function renderBiomarkerReview(labId) {
             location.href = `/report.html?report_id=${refreshed.latest_report_id}`;
             return;
           }
-          if (refreshed.report_stage === "failed") throw new Error(refreshed.report_error_message || "Failed");
-          st.textContent = `Generating (${refreshed.report_stage})...`;
+          if (refreshed.report_stage === "failed") throw new Error(refreshed.report_error_message || "Analysis failed");
+          st.textContent = `Generating (${String(refreshed.report_stage).replace(/_/g, " ")})…`;
           await new Promise(r => setTimeout(r, 2500));
         }
         throw new Error("Report generation timed out");
@@ -457,25 +834,27 @@ async function renderAnalysisBuilder(preselectedPatient) {
   const patientId = preselectedPatient || patients[0]?.id;
   const labs = patientId ? await api(`/api/v1/labs?patient_id=${patientId}`) : [];
   const checkboxes = labs.filter(l => l.status === "complete").map(l => `
-    <label style="display:block;margin:0.35rem 0">
+    <label style="display:block;margin:0.35rem 0;font-size:0.88rem">
       <input type="checkbox" class="analysis-lab" value="${l.id}" checked> ${esc(l.original_filename)}
     </label>`).join("") || `<p class="muted">Upload at least one parsed lab report for this patient.</p>`;
-  const opts = patients.map(p => `<option value="${p.id}" ${p.id===patientId?"selected":""}>${esc(p.display_name)}</option>`).join("");
+  const opts = patients.map(p => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
-    <h1>Analysis builder</h1>
-    <p class="muted">Select lab reports to merge into one integrated biological reasoning run.</p>
-    <div class="card">
-      <div class="form-row"><label>Patient</label><select id="analysis-patient">${opts}</select></div>
-      <div class="form-row"><label>Analysis type</label>
-        <select id="analysis-type">
-          <option value="multi_report_snapshot">Current snapshot</option>
-          <option value="longitudinal_comparison">Compare to prior</option>
-          <option value="single_report">Single report</option>
-        </select>
+    ${pageHeader("Analysis builder", "Merge lab reports into one integrated biological reasoning run.")}
+    <div class="app-card">
+      <div class="form-grid-2">
+        <div class="form-row"><label>Patient</label><select id="analysis-patient">${opts}</select></div>
+        <div class="form-row"><label>Analysis type</label>
+          <select id="analysis-type">
+            <option value="multi_report_snapshot">Current snapshot</option>
+            <option value="longitudinal_comparison">Compare to prior</option>
+            <option value="single_report">Single report</option>
+          </select>
+        </div>
       </div>
       <div class="form-row"><label>Select lab reports</label><div id="analysis-lab-list">${checkboxes}</div></div>
-      <button class="primary" id="run-analysis-btn">Run integrated analysis</button>
-      <p id="analysis-status" class="muted"></p>
+      <button class="app-btn app-btn-primary" id="run-analysis-btn">Run integrated analysis</button>
+      <div class="analysis-pipeline" id="analysis-pipeline" style="display:none"></div>
+      <p id="analysis-status" class="muted" style="margin-top:0.75rem"></p>
     </div>`;
   document.getElementById("analysis-patient").onchange = () => {
     location.hash = `#analysis?patient=${document.getElementById("analysis-patient").value}`;
@@ -483,9 +862,12 @@ async function renderAnalysisBuilder(preselectedPatient) {
   };
   document.getElementById("run-analysis-btn").onclick = async () => {
     const st = document.getElementById("analysis-status");
+    const pipeline = document.getElementById("analysis-pipeline");
     const selected = [...document.querySelectorAll(".analysis-lab:checked")].map(el => el.value);
     if (selected.length < 1) { st.textContent = "Select at least one lab report."; return; }
-    st.textContent = "Creating session...";
+    st.textContent = "Creating session…";
+    pipeline.style.display = "block";
+    pipeline.innerHTML = renderAnalysisPipeline(0);
     try {
       const session = await api("/api/v1/analysis-sessions", "POST", {
         title: "Integrated Lab Analysis",
@@ -501,12 +883,13 @@ async function renderAnalysisBuilder(preselectedPatient) {
           return;
         }
         if (s.status === "failed") throw new Error(s.error_message || "Analysis failed");
+        const stageIdx = s.status === "analyzing" ? 3 : 1;
+        pipeline.innerHTML = renderAnalysisPipeline(stageIdx);
         if (s.status === "analyzing" && s.anchor_lab_report_id) {
           const anchor = await api(`/api/v1/labs/${s.anchor_lab_report_id}`);
-          const stage = anchor.report_stage || s.status;
-          st.textContent = `Running (${String(stage).replace(/_/g, " ")})...`;
+          st.textContent = `${String(anchor.report_stage || s.status).replace(/_/g, " ")}…`;
         } else {
-          st.textContent = `Running (${s.status})...`;
+          st.textContent = `${s.status}…`;
         }
         await new Promise(r => setTimeout(r, 2500));
       }
@@ -520,20 +903,18 @@ async function renderAnalysisBuilder(preselectedPatient) {
 async function renderSettings() {
   const profile = await api("/api/v1/auth/profile");
   document.getElementById("app-main").innerHTML = `
-    <h1>Settings</h1>
-    <div class="card">
-      <h2>Health profile</h2>
-      <p class="muted">Medications and conditions inform safety checks and reasoning context.</p>
-      <div class="form-row"><label>Age range</label><input id="hp-age" value="${esc(profile.age_range||"")}"></div>
-      <div class="form-row"><label>Biological sex</label><input id="hp-sex" value="${esc(profile.biological_sex||"")}"></div>
-      <div class="form-row"><label>Medications (comma-separated)</label><input id="hp-meds" value="${esc((profile.current_medications||[]).join(", "))}"></div>
-      <div class="form-row"><label>Supplements (comma-separated)</label><input id="hp-sups" value="${esc((profile.current_supplements||[]).join(", "))}"></div>
-      <div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions||[]).join(", "))}"></div>
-      <button class="primary" id="save-profile-btn">Save profile</button>
-      <p id="settings-status" class="muted"></p>
+    ${pageHeader("Settings", "Health profile informs safety checks and reasoning context.")}
+    <div class="app-card" style="max-width:520px">
+      <div class="form-row"><label>Age range</label><input id="hp-age" value="${esc(profile.age_range || "")}"></div>
+      <div class="form-row"><label>Biological sex</label><input id="hp-sex" value="${esc(profile.biological_sex || "")}"></div>
+      <div class="form-row"><label>Medications (comma-separated)</label><input id="hp-meds" value="${esc((profile.current_medications || []).join(", "))}"></div>
+      <div class="form-row"><label>Supplements (comma-separated)</label><input id="hp-sups" value="${esc((profile.current_supplements || []).join(", "))}"></div>
+      <div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions || []).join(", "))}"></div>
+      <button class="app-btn app-btn-primary" id="save-profile-btn">Save profile</button>
+      <p id="settings-status" class="muted" style="margin-top:0.5rem"></p>
     </div>`;
   document.getElementById("save-profile-btn").onclick = async () => {
-    const split = (s) => s.split(",").map(x => x.trim()).filter(Boolean);
+    const split = s => s.split(",").map(x => x.trim()).filter(Boolean);
     await api("/api/v1/auth/profile", "PUT", {
       age_range: document.getElementById("hp-age").value || null,
       biological_sex: document.getElementById("hp-sex").value || null,
@@ -544,6 +925,64 @@ async function renderSettings() {
     document.getElementById("settings-status").textContent = "Saved.";
   };
 }
+
+function wireTableRows() {
+  document.querySelectorAll(".data-table tbody tr[data-href]").forEach(row => {
+    row.addEventListener("click", e => {
+      if (e.target.closest("a")) return;
+      const href = row.dataset.href;
+      if (href.startsWith("/")) location.href = href;
+      else location.hash = href;
+    });
+  });
+}
+
+function wireCommandSearch(dash) {
+  const input = document.getElementById("workspace-search");
+  if (!input) return;
+  input.addEventListener("focus", () => openCommandPalette(dash || lastDashboard));
+  input.addEventListener("keydown", e => { if (e.key === "Enter") openCommandPalette(dash || lastDashboard, input.value); });
+}
+
+function openCommandPalette(dash, query = "") {
+  if (!dash) return;
+  const existing = document.getElementById("command-palette-overlay");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "command-palette-overlay";
+  overlay.className = "command-palette-overlay";
+  overlay.innerHTML = `<div class="command-palette" role="dialog" aria-label="Search workspace">
+    <input type="search" id="palette-input" placeholder="Search patients, reports, biomarkers…" value="${esc(query)}">
+    <div class="command-results" id="palette-results"></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const inp = overlay.querySelector("#palette-input");
+  const results = overlay.querySelector("#palette-results");
+  const renderResults = (q) => {
+    const ql = (q || "").toLowerCase();
+    const items = [];
+    for (const p of dash.patients) {
+      if (!ql || p.display_name.toLowerCase().includes(ql)) items.push({ label: p.display_name, sub: "Patient", href: `#patient/${p.id}` });
+    }
+    for (const r of dash.recent_reports) {
+      if (!ql || (r.patient_display_name || "").toLowerCase().includes(ql) || r.title.toLowerCase().includes(ql))
+        items.push({ label: primaryFinding(r.title), sub: r.patient_display_name || "Report", href: `/report.html?report_id=${r.id}` });
+    }
+    results.innerHTML = items.slice(0, 8).map(it => `<a class="command-result" href="${it.href}">${esc(it.label)}<small>${esc(it.sub)}</small></a>`).join("") || `<p class="muted" style="padding:1rem">No results</p>`;
+  };
+  renderResults(query);
+  inp.focus();
+  inp.addEventListener("input", () => renderResults(inp.value));
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  inp.addEventListener("keydown", e => { if (e.key === "Escape") overlay.remove(); });
+}
+
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+    e.preventDefault();
+    openCommandPalette(lastDashboard);
+  }
+});
 
 function setActiveNav(route) {
   document.querySelectorAll("[data-nav]").forEach(a => {
@@ -559,52 +998,51 @@ async function render() {
       return;
     }
     const hash = location.hash.slice(1) || "dashboard";
-    if (hash === "login") {
-      redirectToLogin();
-      return;
-    }
-    if (!(await ensureSession())) {
-      redirectToLogin();
-      return;
-    }
-  document.getElementById("app-nav").classList.remove("hidden");
-  document.getElementById("nav-user").textContent = currentUser?.email || "";
-  document.getElementById("logout-btn").onclick = signOut;
+    if (hash === "login") { redirectToLogin(); return; }
+    if (!(await ensureSession())) { redirectToLogin(); return; }
 
-  const params = new URLSearchParams(hash.split("?")[1] || "");
-  const path = hash.split("?")[0];
+    document.getElementById("app-shell").classList.remove("hidden");
+    document.getElementById("nav-user").textContent = currentUser?.email || "";
+    document.getElementById("logout-btn").onclick = signOut;
 
-  if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
-  else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
-  else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
-  else if (path === "analysis") { setActiveNav("upload"); await renderAnalysisBuilder(params.get("patient")); }
-  else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }
-  else if (path.startsWith("patient/")) {
-    setActiveNav("patients");
-    const parts = path.split("/");
-    const patientId = parts[1];
-    const section = parts[2] || "overview";
-    await renderPatient(patientId, section);
-    if (section === "context") await wirePatientContext(patientId);
-  }
-  else if (path.startsWith("review/")) {
-    setActiveNav("upload");
-    await renderBiomarkerReview(path.split("/")[1]);
-  }
-  else { setActiveNav("dashboard"); await renderDashboard(); }
+    const params = new URLSearchParams(hash.split("?")[1] || "");
+    const path = hash.split("?")[0];
+
+    if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
+    else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
+    else if (path === "reports") { setActiveNav("reports"); await renderReports(); }
+    else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(); }
+    else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
+    else if (path === "analysis") { setActiveNav("analysis"); await renderAnalysisBuilder(params.get("patient")); }
+    else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }
+    else if (path.startsWith("patient/")) {
+      setActiveNav("patients");
+      const parts = path.split("/");
+      await renderPatient(parts[1], parts[2] || "overview");
+      if ((parts[2] || "overview") === "context") await wirePatientContext(parts[1]);
+    }
+    else if (path.startsWith("review/")) {
+      setActiveNav("upload");
+      await renderBiomarkerReview(path.split("/")[1]);
+    }
+    else { setActiveNav("dashboard"); await renderDashboard(); }
   } catch (err) {
-    document.getElementById("app-nav").classList.add("hidden");
+    document.getElementById("app-shell").classList.add("hidden");
     document.getElementById("app-main").innerHTML = `
-      <div class="card">
-        <h2>Something went wrong</h2>
+      <div class="app-card" style="max-width:480px;margin:2rem auto">
+        <h2 style="margin:0 0 0.5rem">Something went wrong</h2>
         <p class="error">${esc(err.message)}</p>
-        <button class="primary" onclick="location.href='/login.html'">Back to sign in</button>
+        <button class="app-btn app-btn-primary" onclick="location.href='/login.html'">Back to sign in</button>
       </div>`;
   }
 }
 
+function redirectToLogin() {
+  const next = encodeURIComponent(location.pathname + location.search + location.hash);
+  location.href = `/login.html?next=${next}`;
+}
+
 window.addEventListener("hashchange", () => render());
-document.getElementById("logout-btn").onclick = () => signOut();
 render();
 </script>
 </body>

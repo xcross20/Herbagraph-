@@ -9,7 +9,11 @@ def test_app_html_serves_workspace_shell():
     assert "/api/v1/analysis-sessions" in html
     assert "link-labs" in html
     assert "#dashboard" in html
+    assert "#reports" in html
     assert "/login.html" in html
     assert "/report.html" in html
     assert "brand-logo.js" in html
     assert "app-nav-logo" in html
+    assert "/css/app.css" in html
+    assert "app-sidebar" in html
+    assert "Needs attention" in html
