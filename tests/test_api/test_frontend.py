@@ -21,3 +21,11 @@ async def test_api_routes_still_work_alongside_static_mount(client):
 async def test_unknown_path_falls_back_to_404_not_swallowed_by_static_mount(client):
     resp = await client.get("/this-path-does-not-exist-anywhere")
     assert resp.status_code == 404
+
+
+async def test_sample_clinical_report_json_is_served(client):
+    resp = await client.get("/data/sample-clinical-report.json")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["executive_summary"]
+    assert len(payload["recommendations"]) >= 1

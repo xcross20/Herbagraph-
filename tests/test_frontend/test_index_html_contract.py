@@ -33,6 +33,8 @@ def test_homepage_is_public_landing(index_html):
     assert 'id="recommendations"' not in index_html
     assert "landing-hero" in index_html
     assert "/mock/" not in index_html
+    assert "/report.html?demo=1" in index_html
+    assert "View sample report" in index_html
 
 
 def test_signup_requires_access_code_field():
@@ -70,6 +72,21 @@ def test_regenerate_and_operator_hint(report_html):
     assert 'id="regenerate-btn"' in report_html
     assert 'id="operator-hint"' in report_html
     assert "Regenerate report" in report_html
+
+
+def test_sample_report_assets_exist():
+    sample = Path(__file__).resolve().parents[2] / "frontend" / "data" / "sample-clinical-report.json"
+    assert sample.is_file()
+    data = sample.read_text(encoding="utf-8")
+    assert "executive_summary" in data
+    assert "recommendations" in data
+
+
+def test_report_demo_mode_hooks(report_html):
+    assert 'id="demo-banner"' in report_html
+    assert "loadSampleReport" in report_html
+    assert 'urlParams.get("demo") === "1"' in report_html
+    assert "/data/sample-clinical-report.json" in report_html
 
 
 def test_report_workspace_shell(report_html):

@@ -1,0 +1,213 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "lab_report_id": "00000000-0000-4000-8000-000000000002",
+  "overall_confidence": 0.78,
+  "model_version": "herbagraph-demo-v1",
+  "executive_summary": "This synthetic inflammatory/metabolic panel shows elevated CRP with borderline glycemic markers, low HDL, suboptimal vitamin D, and elevated homocysteine. HerbaGraph ranks inflammatory and cardiometabolic biology first, then surfaces evidence-graded botanical and nutraceutical considerations with explicit safety context.",
+  "biomarker_summary": {
+    "total_biomarkers": 8,
+    "abnormal_count": 6,
+    "normal_count": 2,
+    "categories_affected": {
+      "inflammatory": 1,
+      "metabolic": 2,
+      "lipid": 2,
+      "nutritional": 2
+    },
+    "measured_biomarkers": [
+      {"biomarker_name": "CRP", "value": 8.2, "unit": "mg/L", "status": "high", "category": "inflammatory", "reference_range_low": 0.0, "reference_range_high": 3.0, "in_catalog": true},
+      {"biomarker_name": "Glucose", "value": 102.0, "unit": "mg/dL", "status": "high", "category": "metabolic", "reference_range_low": 70.0, "reference_range_high": 99.0, "in_catalog": true},
+      {"biomarker_name": "HbA1c", "value": 5.9, "unit": "%", "status": "high", "category": "metabolic", "reference_range_low": 4.0, "reference_range_high": 5.6, "in_catalog": true},
+      {"biomarker_name": "LDL", "value": 142.0, "unit": "mg/dL", "status": "high", "category": "lipid", "reference_range_low": 0.0, "reference_range_high": 99.0, "in_catalog": true},
+      {"biomarker_name": "HDL", "value": 38.0, "unit": "mg/dL", "status": "low", "category": "lipid", "reference_range_low": 40.0, "reference_range_high": 100.0, "in_catalog": true},
+      {"biomarker_name": "Vitamin D", "value": 22.0, "unit": "ng/mL", "status": "low", "category": "nutritional", "reference_range_low": 30.0, "reference_range_high": 100.0, "in_catalog": true},
+      {"biomarker_name": "Ferritin", "value": 285.0, "unit": "ng/mL", "status": "high", "category": "nutritional", "reference_range_low": 20.0, "reference_range_high": 250.0, "in_catalog": true},
+      {"biomarker_name": "Homocysteine", "value": 16.8, "unit": "umol/L", "status": "high", "category": "nutritional", "reference_range_low": 5.0, "reference_range_high": 15.0, "in_catalog": true}
+    ]
+  },
+  "biomarker_interpretations": [
+    {"biomarker_name": "CRP", "status": "high", "interpretation": "Elevated CRP suggests active inflammatory signaling that may amplify cardiometabolic risk."},
+    {"biomarker_name": "Vitamin D", "status": "low", "interpretation": "Suboptimal 25-OH vitamin D may reduce immune modulation and bone-mineral support."}
+  ],
+  "biological_systems": [
+    {"system_code": "inflammation", "system_name": "Inflammation", "signal_level": 3, "signal_label": "Strong", "direction": "activated", "confidence": "high", "drivers": ["CRP"], "pathways": [{"pathway_code": "NF_KB", "pathway_name": "NF-κB Signaling"}]},
+    {"system_code": "cardiovascular_risk", "system_name": "Cardiovascular Risk", "signal_level": 2, "signal_label": "Moderate", "direction": "activated", "confidence": "moderate", "drivers": ["LDL", "HDL"], "pathways": [{"pathway_code": "HEPATIC_LIPID", "pathway_name": "Hepatic Lipid Metabolism"}]},
+    {"system_code": "nutrient_status", "system_name": "Nutrient Status", "signal_level": 2, "signal_label": "Moderate", "direction": "deficient", "confidence": "moderate", "drivers": ["Vitamin D", "Homocysteine"], "pathways": [{"pathway_code": "METHYLATION", "pathway_name": "Methylation Cycle"}]}
+  ],
+  "pathway_activations": [
+    {"pathway_code": "NF_KB", "pathway_name": "NF-κB Signaling", "activation_score": 0.82, "direction": "activated", "contributing_biomarkers": ["CRP"]},
+    {"pathway_code": "HEPATIC_LIPID", "pathway_name": "Hepatic Lipid Metabolism", "activation_score": 0.71, "direction": "activated", "contributing_biomarkers": ["LDL", "HDL", "Triglycerides"]},
+    {"pathway_code": "METHYLATION", "pathway_name": "Methylation Cycle", "activation_score": 0.65, "direction": "activated", "contributing_biomarkers": ["Homocysteine"]}
+  ],
+  "recommendations": [
+    {
+      "rank": 1,
+      "intervention_name": "Berberine",
+      "category": "herb",
+      "mechanism": "AMPK activation and improved glycemic-lipid handling.",
+      "evidence_level": "moderate",
+      "evidence_tier": "emerging",
+      "evidence_tier_label": "Emerging",
+      "confidence_score": 0.74,
+      "typical_dose": "500 mg twice daily with meals",
+      "rationale": "Addresses elevated glucose and LDL in the context of inflammatory cardiometabolic risk.",
+      "safety_risk": "moderate",
+      "safety_notes": ["May lower blood glucose — monitor if on antidiabetic therapy."],
+      "interactions": [],
+      "is_regulated": false,
+      "cited_study_ids": ["demo-study-1"],
+      "cited_urls": [],
+      "food_sources": null,
+      "intervention_narrative": "Often considered when glycemic and lipid markers trend together with inflammatory elevation."
+    },
+    {
+      "rank": 2,
+      "intervention_name": "Omega-3",
+      "category": "supplement",
+      "mechanism": "EPA/DHA modulate inflammatory eicosanoid balance.",
+      "evidence_level": "moderate",
+      "evidence_tier": "established",
+      "evidence_tier_label": "Established",
+      "confidence_score": 0.81,
+      "typical_dose": "2 g EPA+DHA daily",
+      "rationale": "Supports triglyceride and inflammatory biology in dyslipidemia patterns.",
+      "safety_risk": "low",
+      "safety_notes": [],
+      "interactions": ["Anticoagulants — bleeding risk at high doses"],
+      "is_regulated": false,
+      "cited_study_ids": ["demo-study-2"],
+      "cited_urls": [],
+      "food_sources": [{"food": "Wild salmon", "compound": "EPA/DHA", "richness": "high"}],
+      "intervention_narrative": "Food-first sources include fatty fish; supplements used when dietary intake is insufficient."
+    },
+    {
+      "rank": 3,
+      "intervention_name": "Curcumin",
+      "category": "herb",
+      "mechanism": "NF-κB pathway modulation and antioxidant support.",
+      "evidence_level": "moderate",
+      "evidence_tier": "emerging",
+      "evidence_tier_label": "Emerging",
+      "confidence_score": 0.69,
+      "typical_dose": "500 mg twice daily (bioavailable form)",
+      "rationale": "Directly relevant to elevated CRP and inflammatory signaling.",
+      "safety_risk": "low",
+      "safety_notes": [],
+      "interactions": [],
+      "is_regulated": false,
+      "cited_study_ids": ["demo-study-3"],
+      "cited_urls": [],
+      "food_sources": null,
+      "intervention_narrative": null
+    },
+    {
+      "rank": 4,
+      "intervention_name": "Vitamin D3",
+      "category": "supplement",
+      "mechanism": "Supports immune modulation and calcium homeostasis.",
+      "evidence_level": "moderate",
+      "evidence_tier": "established",
+      "evidence_tier_label": "Established",
+      "confidence_score": 0.85,
+      "typical_dose": "2000–4000 IU daily (replete to target range)",
+      "rationale": "Addresses measured 25-OH vitamin D below reference range.",
+      "safety_risk": "low",
+      "safety_notes": ["Recheck level after 8–12 weeks."],
+      "interactions": [],
+      "is_regulated": false,
+      "cited_study_ids": ["demo-study-4"],
+      "cited_urls": [],
+      "food_sources": null,
+      "intervention_narrative": null
+    }
+  ],
+  "citations": [
+    {"id": "demo-study-1", "source": "pubmed", "title": "Berberine and metabolic markers: randomized trial (synthetic demo citation)", "year": 2021, "study_type": "rct", "quality_score": 0.72, "url": "https://pubmed.ncbi.nlm.nih.gov/"},
+    {"id": "demo-study-2", "source": "pubmed", "title": "Omega-3 fatty acids and inflammatory biomarkers (synthetic demo citation)", "year": 2019, "study_type": "rct", "quality_score": 0.78, "url": "https://pubmed.ncbi.nlm.nih.gov/"},
+    {"id": "demo-study-3", "source": "pubmed", "title": "Curcumin effects on CRP: meta-analysis (synthetic demo citation)", "year": 2020, "study_type": "meta_analysis", "quality_score": 0.7, "url": "https://pubmed.ncbi.nlm.nih.gov/"},
+    {"id": "demo-study-4", "source": "pubmed", "title": "Vitamin D repletion protocols (synthetic demo citation)", "year": 2018, "study_type": "rct", "quality_score": 0.8, "url": "https://pubmed.ncbi.nlm.nih.gov/"}
+  ],
+  "clinician_questions": [
+    "Has the patient had recent infection or injury that could explain elevated CRP?",
+    "Is there ongoing statin or antidiabetic therapy affecting lipid and glucose markers?"
+  ],
+  "safety_summary": {
+    "overall_note": "No contraindicated combinations detected in this synthetic demo profile. Review medication context before implementation.",
+    "requires_clinician_review": false,
+    "high_risk_interventions": []
+  },
+  "medication_context": {"has_medications": false, "medications": [], "supplements": [], "notes": [], "biomarker_specific_notes": []},
+  "lab_trends": {"has_prior_labs": false, "trends": [], "summary": ""},
+  "disclaimer": "SAMPLE REPORT — Synthetic demo data only. Not real patient information. HerbaGraph is a research and clinical decision-support tool, not medical advice. Discuss all findings with a qualified healthcare provider.",
+  "overall_confidence_assessment": {"confidence_label": "Moderate", "confidence_percent": 78},
+  "clinical_summary_hero": {
+    "model": "clinical_summary_hero_v1",
+    "positioning": "AI Clinical Reasoning for Precision Nutrition",
+    "title": "HerbaGraph Clinical Summary",
+    "overall_confidence_label": "MODERATE",
+    "overall_confidence_percent": 78,
+    "primary_finding": {"label": "Inflammatory cardiometabolic pattern", "code": "inflammation"},
+    "likely_explanation": "Elevated CRP with dyslipidemia and borderline glycemic markers suggests coordinated inflammatory and metabolic stress.",
+    "alternative_explanations": ["Acute infection may transiently elevate CRP", "Non-fasting glucose may overestimate glycemic burden"],
+    "most_important_next_tests": [
+      {"label": "ApoB", "star_label": "★★★★☆", "clinical_tags": ["Lipids", "Risk"]},
+      {"label": "Fasting insulin", "star_label": "★★★★☆", "clinical_tags": ["Metabolic"]},
+      {"label": "Methylmalonic acid", "star_label": "★★★☆☆", "clinical_tags": ["B12 status"]}
+    ],
+    "highest_leverage_interventions": [
+      {"label": "Omega-3 (EPA/DHA)", "icon": "🐟", "medal": "🥇"},
+      {"label": "Berberine", "icon": "🌿", "medal": "🥈"},
+      {"label": "Vitamin D3 repletion", "icon": "☀️", "medal": "🥉"}
+    ],
+    "confidence_if_added": [
+      {"label": "Current panel", "confidence_percent": 78, "is_current": true},
+      {"label": "Add ApoB", "confidence_percent": 84, "biomarker": "ApoB"},
+      {"label": "Add fasting insulin", "confidence_percent": 89, "biomarker": "Insulin"}
+    ]
+  },
+  "dual_clinical_rankings": {
+    "model": "dual_ranking_v1",
+    "clinical_priorities": [
+      {"problem_label": "Inflammatory signaling (CRP)", "star_label": "★★★★★", "rank": 1},
+      {"problem_label": "Cardiometabolic dyslipidemia", "star_label": "★★★★☆", "rank": 2},
+      {"problem_label": "Micronutrient gaps (Vitamin D / homocysteine)", "star_label": "★★★☆☆", "rank": 3}
+    ],
+    "network_leverage_groups": [],
+    "clinical_priority_table": [],
+    "ranking_questions": {}
+  },
+  "biological_hierarchy": {
+    "model": "biology_hierarchy_v1",
+    "cascade": {"systems_evaluated": 3, "pathways_activated": 3, "interventions_mapped": 4},
+    "dominant_biology": {"label": "Inflammation", "summary": "CRP-driven inflammatory biology ranks highest for clinical attention in this demo panel."},
+    "systems_tree": [],
+    "network_influence_table": [],
+    "ranking_priorities": ["Address inflammatory drivers", "Improve lipid particle quality", "Replete vitamin D"]
+  },
+  "recommendation_tiers": {
+    "model": "decision_map_v1",
+    "clinical_executive_summary": "Four evidence-graded considerations surfaced across botanical and nutraceutical lanes, ranked by biological relevance to this synthetic inflammatory/metabolic panel.",
+    "total_considerations": 4,
+    "displayed_by_default": 4,
+    "lanes": {
+      "direct_biomarker": {
+        "label": "Direct biomarker targets",
+        "short_label": "Direct targets",
+        "items": [
+          {"intervention_name": "Berberine", "category": "herb", "evidence_tier": "emerging", "evidence_tier_label": "Emerging", "confidence_score": 0.74, "safety_risk": "moderate", "is_regulated": false, "mechanism": "AMPK activation", "rationale": "Glycemic-lipid pattern", "rank": 1},
+          {"intervention_name": "Omega-3", "category": "supplement", "evidence_tier": "established", "evidence_tier_label": "Established", "confidence_score": 0.81, "safety_risk": "low", "is_regulated": false, "mechanism": "Anti-inflammatory lipids", "rationale": "CRP + triglycerides", "rank": 2}
+        ],
+        "all_items": [
+          {"intervention_name": "Berberine", "category": "herb", "evidence_tier": "emerging", "evidence_tier_label": "Emerging", "confidence_score": 0.74, "safety_risk": "moderate", "is_regulated": false, "mechanism": "AMPK activation", "rationale": "Glycemic-lipid pattern", "rank": 1},
+          {"intervention_name": "Omega-3", "category": "supplement", "evidence_tier": "established", "evidence_tier_label": "Established", "confidence_score": 0.81, "safety_risk": "low", "is_regulated": false, "mechanism": "Anti-inflammatory lipids", "rationale": "CRP + triglycerides", "rank": 2},
+          {"intervention_name": "Curcumin", "category": "herb", "evidence_tier": "emerging", "evidence_tier_label": "Emerging", "confidence_score": 0.69, "safety_risk": "low", "is_regulated": false, "mechanism": "NF-κB modulation", "rationale": "Elevated CRP", "rank": 3},
+          {"intervention_name": "Vitamin D3", "category": "supplement", "evidence_tier": "established", "evidence_tier_label": "Established", "confidence_score": 0.85, "safety_risk": "low", "is_regulated": false, "mechanism": "Vitamin D repletion", "rationale": "Low 25-OH vitamin D", "rank": 4}
+        ],
+        "total_count": 4,
+        "hidden_count": 0
+      }
+    }
+  },
+  "created_at": "2026-01-16T12:00:00Z",
+  "generated_at": "2026-01-16T12:00:00Z"
+}
