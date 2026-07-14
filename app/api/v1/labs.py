@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_verified_user, get_db
 from app.config import settings
+from app.core.background_jobs import dispatch_celery_task, save_encrypted_lab_file
 from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, save_lab_file
 from app.models.enums import LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
@@ -64,7 +65,9 @@ async def upload_lab_report(
     )
     db.add(lab_report)
     await db.flush()  # assign lab_report.id before persisting the encrypted file to disk
-    lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
+    lab_report.encrypted_file_path = save_encrypted_lab_file(
+        save_lab_file, file_bytes, lab_report.id, lab_report.original_filename
+    )
     await record_audit_event(
         db,
         action=AuditAction.LAB_UPLOADED,
@@ -79,7 +82,7 @@ async def upload_lab_report(
     await db.commit()
     await db.refresh(lab_report)
 
-    task = process_lab_report_task.delay(str(lab_report.id))
+    task = dispatch_celery_task(process_lab_report_task, str(lab_report.id))
 
     return LabUploadResponse(
         lab_report_id=lab_report.id,

@@ -353,7 +353,16 @@ async function renderUpload(preselectedPatient) {
         body: fd,
       });
     }
-    if (!resp.ok) throw new Error(await resp.text());
+    if (!resp.ok) {
+      const text = await resp.text();
+      try {
+        const j = JSON.parse(text);
+        throw new Error(j.detail || text);
+      } catch (e) {
+        if (e instanceof Error && e.message !== text) throw e;
+        throw new Error(text || `Upload failed (${resp.status})`);
+      }
+    }
     return resp.json();
   }
 

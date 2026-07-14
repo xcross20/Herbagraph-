@@ -7,7 +7,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app import __version__
 from app.config import settings
+from app.core.background_jobs import redis_reachable
 from app.database import AsyncSessionLocal
+from app.workers.celery_app import celery_app
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -40,9 +42,22 @@ async def system_status():
             except Exception:
                 payload["schema_ready"] = False
         payload["database"] = "connected"
+        payload["encryption_configured"] = bool(settings.encryption_key.strip())
+        payload["redis_reachable"] = redis_reachable(celery_app)
+        payload["uploads_ready"] = (
+            payload.get("schema_ready")
+            and payload["encryption_configured"]
+            and payload["redis_reachable"]
+        )
         if settings.auth_provider == "supabase" and not payload.get("schema_ready"):
             payload["status"] = "degraded"
             payload["hint"] = "Run alembic upgrade head on the linked Postgres database."
+        elif not payload["encryption_configured"]:
+            payload["status"] = "degraded"
+            payload["hint"] = "Set ENCRYPTION_KEY on web and worker (python scripts/generate_encryption_key.py)."
+        elif not payload["redis_reachable"]:
+            payload["status"] = "degraded"
+            payload["hint"] = "Add Redis, set REDIS_URL on web + worker, and deploy the Celery worker service."
         return payload
     except Exception as exc:
         return JSONResponse(

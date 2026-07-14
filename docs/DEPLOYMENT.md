@@ -68,10 +68,16 @@ docker compose exec api python scripts/reseed_db.py
 1. **PostgreSQL** — copy `DATABASE_URL` (use `postgresql+asyncpg://` prefix).
 2. **Redis** — copy `REDIS_URL`.
 3. **Web service** — Dockerfile, port 8000, health check `/health`. Migrations run on container start.
-4. **Worker service** — same image, command:
+4. **Redis** — required for lab uploads and report generation (`REDIS_URL` on web + worker).
+5. **Worker service** — same repo/image, `railway.worker.toml` or start command:
    ```
    celery -A app.workers.celery_app worker --loglevel=info
    ```
+6. **ENCRYPTION_KEY** — required for lab file uploads (Fernet). Generate once:
+   ```bash
+   python scripts/generate_encryption_key.py
+   ```
+   Set the same key on **web and worker**.
 
 **Deploy steps:**
 

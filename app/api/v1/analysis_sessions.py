@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_verified_user, get_db
 from app.config import settings
+from app.core.background_jobs import dispatch_celery_task, save_encrypted_lab_file
 from app.core.file_storage import ALLOWED_EXTENSIONS, save_lab_file
 from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport
 from app.models.enums import AnalysisSessionStatus, AuditAction, LabProcessingStage, LabReportStatus
@@ -191,7 +192,9 @@ async def upload_lab_reports_to_session(
         )
         db.add(lab_report)
         await db.flush()
-        lab_report.encrypted_file_path = save_lab_file(file_bytes, lab_report.id, lab_report.original_filename)
+        lab_report.encrypted_file_path = save_encrypted_lab_file(
+            save_lab_file, file_bytes, lab_report.id, lab_report.original_filename
+        )
 
         panel_label = infer_panel_label(lab_report.original_filename)
         db.add(
@@ -203,7 +206,7 @@ async def upload_lab_reports_to_session(
         )
         await db.flush()
 
-        task = process_lab_report_task.delay(str(lab_report.id))
+        task = dispatch_celery_task(process_lab_report_task, str(lab_report.id))
         uploaded.append(
             {
                 "lab_report_id": str(lab_report.id),
@@ -329,7 +332,7 @@ async def run_integrated_analysis(
     )
     await db.commit()
 
-    task = run_integrated_analysis_task.delay(str(analysis_session.id), str(current_user.id))
+    task = dispatch_celery_task(run_integrated_analysis_task, str(analysis_session.id), str(current_user.id))
     return AnalysisSessionRunResponse(
         analysis_session_id=analysis_session.id,
         task_id=task.id,

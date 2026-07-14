@@ -14,6 +14,7 @@ from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
 from app.schemas.report import RecommendationReportRead, RecommendationReportSummary, ReportGenerationResponse
 from app.services.audit import record_audit_event
+from app.core.background_jobs import dispatch_celery_task
 from app.workers.tasks import generate_recommendation_report_task
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -102,7 +103,7 @@ async def generate_recommendation_report(
     )
     await db.commit()
 
-    task = generate_recommendation_report_task.delay(str(lab_report.id), str(current_user.id))
+    task = dispatch_celery_task(generate_recommendation_report_task, str(lab_report.id), str(current_user.id))
 
     return ReportGenerationResponse(
         lab_report_id=lab_report.id,
