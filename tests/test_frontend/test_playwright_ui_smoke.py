@@ -51,11 +51,11 @@ def browser_page():
 
 
 def test_ui_dom_contract(browser_page):
-    """Core report sections and controls exist."""
-    for section_id in ("upload-section", "executive-summary", "biological-network", "intervention-library"):
+    """Core report sections and shell exist."""
+    for section_id in ("executive-summary", "biological-network", "intervention-library"):
         assert browser_page.locator(f"#{section_id}").count() == 1, section_id
-    assert browser_page.locator("#analyze-btn").count() == 1
-    assert browser_page.locator("#regenerate-btn").count() == 1
+    assert browser_page.locator("#nav-logo .logo").count() == 1
+    assert browser_page.locator("#report-empty").count() == 1
 
 
 @pytest.mark.parametrize("case_id,fixture_path,expected_recs", LIVE_FIXTURES)
@@ -65,7 +65,7 @@ def test_ui_upload_to_report(browser_page, case_id: str, fixture_path, expected_
 
     # Fresh guest session per case (avoids stale localStorage from prior uploads).
     browser_page.evaluate("localStorage.clear()")
-    browser_page.goto(f"{ui_base_url()}/report.html", wait_until="domcontentloaded")
+    browser_page.goto(f"{ui_base_url()}/app.html#upload", wait_until="domcontentloaded")
 
     upload_and_analyze(browser_page, fixture_path)
     assert_no_ui_failure_copy(browser_page)

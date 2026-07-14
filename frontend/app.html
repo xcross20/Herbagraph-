@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>HerbaGraph Workspace</title>
+<link rel="stylesheet" href="/css/site.css">
 <style>
   :root {
     --bg: #f5f5f7; --surface: #fff; --text: #1d1d1f; --muted: #6e6e73;
@@ -15,7 +16,7 @@
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
   .top-nav { display: flex; align-items: center; gap: 1.25rem; padding: 0.85rem 1.5rem; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
-  .brand { font-weight: 700; font-size: 1.1rem; color: var(--text); text-decoration: none; }
+  .top-nav .logo { color: var(--text); }
   .nav-links { display: flex; gap: 0.5rem; flex: 1; }
   .nav-links a { padding: 0.4rem 0.75rem; border-radius: 8px; color: var(--muted); font-size: 0.9rem; }
   .nav-links a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
@@ -54,7 +55,7 @@
 </head>
 <body>
 <nav class="top-nav hidden" id="app-nav">
-  <a class="brand" href="/">HerbaGraph</a>
+  <span id="app-nav-logo"></span>
   <div class="nav-links">
     <a href="#dashboard" data-nav="dashboard">Dashboard</a>
     <a href="#patients" data-nav="patients">Patients</a>
@@ -65,8 +66,10 @@
   <button type="button" id="logout-btn">Sign out</button>
 </nav>
 <main class="shell" id="app-main"></main>
+<script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script>
+document.getElementById("app-nav-logo").innerHTML = herbagraphLogoLink("/app.html#dashboard");
 const API = window.location.origin;
 const Auth = window.HerbaGraphAuth;
 let currentUser = null;
@@ -528,11 +531,6 @@ async function renderSettings() {
       <div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions||[]).join(", "))}"></div>
       <button class="primary" id="save-profile-btn">Save profile</button>
       <p id="settings-status" class="muted"></p>
-    </div>
-    <div class="card">
-      <h2>Report viewer</h2>
-      <p class="muted">Open the full clinical report UI with PDF export.</p>
-      <a class="btn" href="/report.html">Open report viewer</a>
     </div>`;
   document.getElementById("save-profile-btn").onclick = async () => {
     const split = (s) => s.split(",").map(x => x.trim()).filter(Boolean);

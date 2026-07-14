@@ -54,24 +54,37 @@ def assert_no_ui_failure_copy(page) -> None:
 
 
 def wait_for_report_ready(page, *, timeout_ms: int = 180_000) -> None:
+    page.wait_for_url(re.compile(r"report\.html\?report_id="), timeout=timeout_ms)
     page.wait_for_selector("#report", state="visible", timeout=timeout_ms)
     page.wait_for_function(
         """() => {
-          const status = document.getElementById('status-line');
-          const done = status && !status.classList.contains('error') &&
-            (status.textContent || '').trim().toLowerCase() === 'done.';
           const recs = document.getElementById('intervention-library-body');
           const hasRec = recs && recs.innerText && recs.innerText.trim().length > 20;
           const systems = document.getElementById('biological-network-body');
           const hasTable = systems && systems.querySelector('table');
-          return done && (hasRec || hasTable);
+          return hasRec || hasTable;
         }""",
         timeout=timeout_ms,
     )
 
 
 def upload_and_analyze(page, fixture_path: Path) -> None:
-    page.set_input_files("#file-input", str(fixture_path))
-    page.click("#analyze-btn")
-    page.wait_for_selector("#progress-panel", state="visible", timeout=30_000)
+    page.wait_for_selector("#upload-files", state="visible", timeout=30_000)
+    page.set_input_files("#upload-files", str(fixture_path))
+    page.click("#upload-btn")
+    page.wait_for_selector("#upload-status", state="visible", timeout=30_000)
+    page.wait_for_function(
+        """() => {
+          const el = document.getElementById('upload-status');
+          return el && (el.textContent || '').toLowerCase().includes('upload complete');
+        }""",
+        timeout=180_000,
+    )
+    patient_id = page.evaluate("""() => {
+      const m = location.hash.match(/#patient\\/([^/]+)/);
+      return m ? m[1] : '';
+    }""")
+    page.goto(f"{ui_base_url()}/app.html#analysis?patient={patient_id}", wait_until="domcontentloaded")
+    page.wait_for_selector("#run-analysis-btn", timeout=30_000)
+    page.click("#run-analysis-btn")
     wait_for_report_ready(page)

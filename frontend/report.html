@@ -2,15 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>HerbaGraph</title>
+<title>Clinical Report — HerbaGraph</title>
+<link rel="stylesheet" href="/css/site.css">
 <style>
   :root {
     --bg: #f5f5f7;
     --surface: #ffffff;
     --text: #1d1d1f;
     --muted: #6e6e73;
-    --accent: #0071e3;
-    --accent-soft: #e8f2ff;
+    --accent: #117744;
+    --accent-soft: #f4fbf7;
     --border: #d2d2d7;
     --success: #1a7f4b;
     --warning: #b8860b;
@@ -45,8 +46,44 @@
   button:hover:not(:disabled) { background: #f0f0f2; }
   button:disabled { opacity: 0.5; cursor: not-allowed; }
   button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button.primary:hover:not(:disabled) { background: #0077ed; }
-  input[type=file] { display: block; margin: 0.5rem 0; font-size: 0.92rem; }
+  button.primary:hover:not(:disabled) { background: #0d5c38; }
+  .app-top-nav {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.5rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+  .app-top-nav .nav-links { flex: 1; }
+  .app-top-nav .nav-back {
+    color: var(--muted);
+    font-size: 0.9rem;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .app-top-nav .nav-back:hover { color: var(--accent); text-decoration: none; }
+  .app-top-nav .nav-actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .report-page-header { margin: 0 0 1rem; }
+  .report-state-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 1.5rem;
+    text-align: center;
+    margin: 1.5rem 0;
+    box-shadow: var(--shadow);
+  }
+  .report-state-card h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
+  .operator-hint {
+    font-size: 0.88rem;
+    color: var(--muted);
+    max-width: 42rem;
+    margin: 0 0 1rem;
+  }
   .status { color: var(--muted); font-style: normal; font-size: 0.92rem; }
   .error { color: #d70015; }
   table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
@@ -175,8 +212,8 @@
     .report-sidebar a.active { border-bottom-color: var(--accent); background: transparent; }
   }
   @media print {
-    .report-sidebar, #upload-section, #status-line, #progress-panel, .print-actions, .pdf-hint, #report-feedback { display: none !important; }
-    .app-shell > h1, .app-shell > .tag, .app-shell > hr:first-of-type { display: none !important; }
+    .report-sidebar, .app-top-nav, #report-loading, #report-empty, #status-line, .print-actions, .pdf-hint, #report-feedback, #operator-hint { display: none !important; }
+    .report-page-header { display: none !important; }
     .print-only-header { display: block !important; margin: 0 0 1rem; padding-bottom: 0.65rem; border-bottom: 1px solid #ccc; }
     .print-only-header h2 { margin: 0 0 0.2rem; font-size: 1.35rem; }
     .print-only-header p { margin: 0; color: #444; font-size: 0.9rem; }
@@ -291,37 +328,38 @@
 </style>
 </head>
 <body>
+<nav class="app-top-nav" aria-label="Report navigation">
+  <div id="nav-logo"></div>
+  <div class="nav-links">
+    <a class="nav-back" href="/app.html#dashboard">← Workspace</a>
+  </div>
+  <div class="nav-actions">
+    <button id="regenerate-btn" type="button" style="display:none">Regenerate report</button>
+  </div>
+</nav>
+
 <div class="app-shell">
+  <header class="report-page-header" id="report-page-header">
+    <h1 id="report-page-title">Clinical report</h1>
+    <p class="tag" id="report-page-subtitle">Research tool, not medical advice.</p>
+  </header>
 
-<h1>HerbaGraph</h1>
-<p class="tag">AI Clinical Reasoning for Precision Nutrition. Research tool, not medical advice.</p>
-<hr>
+  <div id="report-loading" class="report-state-card">
+    <p class="status">Loading report…</p>
+  </div>
 
-<section id="upload-section">
-  <p><strong>Single Lab Report</strong></p>
-  <input type="file" id="file-input" accept=".pdf,.txt,.csv,.png,.jpg,.jpeg">
-  <button id="analyze-btn">Analyze</button>
-  <button id="regenerate-btn" style="display:none; margin-left:0.5rem;">Regenerate Report</button>
-  <p id="operator-hint" class="status" style="display:none; margin-top:0.75rem; max-width:42rem;">
-    After pipeline updates: click <strong>Regenerate Report</strong>, then hard-refresh the page (Cmd+Shift+R).
-    Avoid clearing browser storage. Guest sessions live in localStorage and clearing it creates a new account.
+  <div id="report-empty" class="report-state-card" style="display:none">
+    <h2>No report selected</h2>
+    <p class="muted">Upload labs or run analysis from your workspace, then open a report from the dashboard or patient chart.</p>
+    <p style="margin-top:1.25rem"><a class="btn primary" href="/app.html#dashboard" style="display:inline-block;padding:0.55rem 1.1rem;border-radius:980px;background:var(--accent);color:#fff;text-decoration:none;font-weight:500">Go to workspace</a></p>
+  </div>
+
+  <p id="operator-hint" class="operator-hint" style="display:none">
+    After pipeline updates, use <strong>Regenerate report</strong> to rebuild with the latest evidence engine.
   </p>
-  <hr style="margin:1.25rem 0;">
-  <p><strong>Integrated Lab Analysis</strong></p>
-  <p class="status" style="max-width:42rem;">Upload multiple lab files (CBC, CMP, lipids, etc.). HerbaGraph merges biomarkers and produces one integrated report.</p>
-  <input type="file" id="integrated-file-input" accept=".pdf,.txt,.csv,.png,.jpg,.jpeg" multiple>
-  <button id="integrated-analyze-btn">Run Integrated Analysis</button>
-</section>
+  <p id="status-line" class="status"></p>
 
-<div id="progress-panel">
-  <p id="progress-label" class="status"></p>
-  <div class="progress-track"><div id="progress-fill" class="progress-fill"></div></div>
-  <ul id="stage-list" class="stage-list"></ul>
-</div>
-
-<p id="status-line" class="status"></p>
-
-<div id="report">
+<div id="report" style="display:none">
   <div id="integrated-banner" class="integrated-banner" style="display:none;"></div>
 
   <div class="report-layout">
@@ -411,54 +449,12 @@
 </div>
 </div>
 
+<script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script>
 const API = "";
 const POLL_INTERVAL_MS = 2000;
 const MAX_WAIT_MS = 15 * 60 * 1000; // 15 minutes for OCR + evidence + LLM
-
-const PIPELINE_STAGES = [
-  { id: "upload", label: "Uploading lab file" },
-  { id: "queued", label: "Queued for parsing" },
-  { id: "parsing", label: "Parsing lab report (OCR + LLM if needed)" },
-  { id: "normalizing", label: "Normalizing biomarkers" },
-  { id: "pathway_mapping", label: "Mapping biological pathways" },
-  { id: "evidence_retrieval", label: "Retrieving scientific evidence" },
-  { id: "llm_reasoning", label: "Generating evidence-backed reasoning" },
-  { id: "evidence_confidence", label: "Computing evidence confidence & explainability" },
-  { id: "safety_check", label: "Running safety checks" },
-  { id: "report_assembly", label: "Assembling final report" },
-  { id: "complete", label: "Complete" },
-];
-
-function stageIndex(stageId) {
-  const idx = PIPELINE_STAGES.findIndex((s) => s.id === stageId);
-  return idx >= 0 ? idx : 0;
-}
-
-function showProgressPanel(activeStageId) {
-  const panel = document.getElementById("progress-panel");
-  const list = document.getElementById("stage-list");
-  const fill = document.getElementById("progress-fill");
-  const label = document.getElementById("progress-label");
-  panel.style.display = "block";
-
-  const activeIdx = stageIndex(activeStageId);
-  const pct = Math.round((activeIdx / (PIPELINE_STAGES.length - 1)) * 100);
-  fill.style.width = pct + "%";
-  label.textContent = PIPELINE_STAGES[activeIdx]?.label || "Processing...";
-
-  list.innerHTML = PIPELINE_STAGES.map((stage, i) => {
-    let cls = "";
-    if (stage.id === activeStageId) cls = "active";
-    else if (i < activeIdx) cls = "done";
-    return `<li class="${cls}">${stage.label}</li>`;
-  }).join("");
-}
-
-function hideProgressPanel() {
-  document.getElementById("progress-panel").style.display = "none";
-}
 
 async function api(path, method, body) {
   await ensureAuth();
@@ -488,102 +484,6 @@ async function api(path, method, body) {
     throw new Error(`${method || "GET"} ${path} failed (${resp.status}): ${text}`);
   }
   return resp.status === 204 ? null : resp.json();
-}
-
-async function apiUpload(path, file) {
-  await ensureAuth();
-  const form = new FormData();
-  form.append("file", file);
-  const headers = {};
-  if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
-  const resp = await fetch(API + path, { method: "POST", headers, body: form });
-  if (resp.status === 401 && window.hgRefreshToken) {
-    await refreshAccessToken();
-    headers["Authorization"] = "Bearer " + window.hgToken;
-    const retry = await fetch(API + path, { method: "POST", headers, body: form });
-    if (!retry.ok) {
-      const text = await retry.text();
-      throw new Error(`upload failed (${retry.status}): ${text}`);
-    }
-    return retry.json();
-  }
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`upload failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
-}
-
-async function apiUploadMultiple(path, files) {
-  await ensureAuth();
-  const form = new FormData();
-  for (const file of files) form.append("files", file);
-  const headers = {};
-  if (window.hgToken) headers["Authorization"] = "Bearer " + window.hgToken;
-  const resp = await fetch(API + path, { method: "POST", headers, body: form });
-  if (resp.status === 401 && window.hgRefreshToken) {
-    await refreshAccessToken();
-    headers["Authorization"] = "Bearer " + window.hgToken;
-    const retry = await fetch(API + path, { method: "POST", headers, body: form });
-    if (!retry.ok) {
-      const text = await retry.text();
-      throw new Error(`upload failed (${retry.status}): ${text}`);
-    }
-    return retry.json();
-  }
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`upload failed (${resp.status}): ${text}`);
-  }
-  return resp.json();
-}
-
-async function waitForAnalysisSessionComplete(sessionId) {
-  const deadline = Date.now() + MAX_WAIT_MS;
-  while (Date.now() < deadline) {
-    const session = await api(`/api/v1/analysis-sessions/${sessionId}`);
-
-    if (session.status === "parsing") {
-      const pending = (session.lab_reports || []).filter((r) => r.status === "processing" || r.status === "pending");
-      const failed = (session.lab_reports || []).filter((r) => r.status === "failed");
-      if (failed.length) {
-        const names = failed.map((r) => r.original_filename || "upload").join(", ");
-        throw new Error(
-          `Lab parsing failed for: ${names}. Re-upload a text/CSV export or a clearer PDF for those files.`
-        );
-      }
-      showProgressPanel(pending.length ? "parsing" : "normalizing");
-      setStatus(
-        pending.length
-          ? `Parsing lab files... (${pending.length} still processing)`
-          : "Finishing lab parsing before merge..."
-      );
-    } else if (session.status === "merging") {
-      showProgressPanel("normalizing");
-      setStatus("Merging biomarkers from lab reports...");
-    } else if (session.status === "analyzing") {
-      const anchorId = session.anchor_lab_report_id || (session.lab_reports || [])[0]?.lab_report_id;
-      if (anchorId) {
-        const lab = await api(`/api/v1/labs/${anchorId}`);
-        const stage = currentStageFromLab(lab);
-        showProgressPanel(stage);
-        setStatus(`Generating integrated report... (${stage.replace(/_/g, " ")})`);
-      } else {
-        showProgressPanel("evidence_retrieval");
-        setStatus("Generating integrated report...");
-      }
-    } else if (session.status === "pending") {
-      showProgressPanel("queued");
-      setStatus("Queued for integrated analysis...");
-    }
-
-    if (session.status === "complete" && session.latest_report_id) return session;
-    if (session.status === "failed") {
-      throw new Error(session.error_message || "Integrated analysis failed.");
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-  throw new Error("Timed out waiting for integrated analysis to finish.");
 }
 
 async function refreshAccessToken() {
@@ -647,30 +547,12 @@ function currentStageFromLab(lab) {
   return lab.status;
 }
 
-async function waitForLabComplete(labReportId) {
-  const deadline = Date.now() + MAX_WAIT_MS;
-  while (Date.now() < deadline) {
-    const lab = await api(`/api/v1/labs/${labReportId}`);
-    const stage = currentStageFromLab(lab);
-    showProgressPanel(stage);
-    setStatus(`Processing lab report... (${stage.replace(/_/g, " ")})`);
-
-    if (lab.status === "complete") return lab;
-    if (lab.status === "failed") {
-      throw new Error("Lab processing failed: " + (lab.error_message || "unknown error"));
-    }
-    await sleep(POLL_INTERVAL_MS);
-  }
-  throw new Error("Timed out waiting for lab processing to finish. Large PDFs with OCR can take several minutes. Try again or use a text export.");
-}
-
 async function waitForReportComplete(labReportId) {
   const deadline = Date.now() + MAX_WAIT_MS;
   while (Date.now() < deadline) {
     const lab = await api(`/api/v1/labs/${labReportId}`);
     const stage = currentStageFromLab(lab);
-    showProgressPanel(stage);
-    setStatus(`Generating report... (${stage.replace(/_/g, " ")})`);
+    setStatus(`Generating report… (${stage.replace(/_/g, " ")})`);
 
     if (lab.report_stage === "complete" && lab.latest_report_id) return lab;
     if (lab.report_stage === "failed") {
@@ -737,6 +619,17 @@ async function renderReport(report, labReportId) {
   const showRegen = Boolean(window.lastLabReportId) && !integrated;
   regenBtn.style.display = showRegen ? "inline-block" : "none";
   operatorHint.style.display = showRegen ? "block" : "none";
+
+  document.getElementById("report-loading").style.display = "none";
+  document.getElementById("report-empty").style.display = "none";
+  const titleEl = document.getElementById("report-page-title");
+  const subtitleEl = document.getElementById("report-page-subtitle");
+  if (titleEl) {
+    titleEl.textContent = integrated ? "Integrated clinical report" : "Clinical report";
+  }
+  if (subtitleEl && report.generated_at) {
+    subtitleEl.textContent = `Generated ${new Date(report.generated_at).toLocaleString()} · Research tool, not medical advice.`;
+  }
 
   renderIntegratedBanner(report);
 
@@ -1924,83 +1817,42 @@ function escapeHtml(s) {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-async function analyze() {
-  const fileInput = document.getElementById("file-input");
-  const analyzeBtn = document.getElementById("analyze-btn");
-  if (!fileInput.files.length) {
-    setStatus("Choose a file first.", true);
-    return;
-  }
-  document.getElementById("report").style.display = "none";
-  analyzeBtn.disabled = true;
-  try {
-    setStatus("Signing in...");
-    await ensureAuth();
-
-    showProgressPanel("upload");
-    setStatus("Uploading lab report...");
-    const upload = await apiUpload("/api/v1/labs/upload", fileInput.files[0]);
-
-    await waitForLabComplete(upload.lab_report_id);
-
-    showProgressPanel("pathway_mapping");
-    setStatus("Starting report generation...");
-    await api(`/api/v1/reports/generate/${upload.lab_report_id}`, "POST");
-
-    const lab = await waitForReportComplete(upload.lab_report_id);
-    showProgressPanel("complete");
-    const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
-    renderReport(report, upload.lab_report_id);
-    setStatus("Done.");
-  } catch (err) {
-    showProgressPanel("failed");
-    setStatus(err.message, true);
-  } finally {
-    analyzeBtn.disabled = false;
-  }
-}
-
-async function loadLatestReport() {
+async function loadReportFromUrl() {
+  const loading = document.getElementById("report-loading");
+  const empty = document.getElementById("report-empty");
+  const emptyMsg = empty.querySelector("p.muted");
   try {
     await ensureAuth();
     const urlParams = new URLSearchParams(window.location.search);
     const reportId = urlParams.get("report_id");
-    if (reportId) {
-      const report = await api(`/api/v1/reports/${reportId}`);
-      const labs = await api("/api/v1/labs");
-      const anchor = labs.find(l => l.latest_report_id === reportId) || labs[0];
-      renderReport(report, anchor?.id || null);
-      setStatus("Loaded saved report. Return to workspace: /app.html#dashboard");
+    if (!reportId) {
+      loading.style.display = "none";
+      empty.style.display = "block";
       return;
     }
-    const labs = await api("/api/v1/labs");
-    if (!labs.length) return;
-    const latest = labs[0];
-    if (latest.status === "failed") {
-      setStatus("Your last upload failed: " + (latest.error_message || "unknown error") + ". Please re-upload.", true);
-      return;
+    const report = await api(`/api/v1/reports/${reportId}`);
+    let labReportId = urlParams.get("lab_report_id");
+    if (!labReportId) {
+      const sessionId = urlParams.get("session_id");
+      if (sessionId) {
+        try {
+          const session = await api(`/api/v1/analysis-sessions/${sessionId}`);
+          labReportId = session.anchor_lab_report_id || (session.lab_reports || [])[0]?.lab_report_id;
+        } catch (_) { /* optional */ }
+      }
+      if (!labReportId) {
+        const labs = await api("/api/v1/labs");
+        const anchor = labs.find((l) => l.latest_report_id === reportId);
+        labReportId = anchor?.id || null;
+      }
     }
-    if (latest.status === "processing" || latest.status === "pending") {
-      setStatus("A lab upload is still processing. Click Analyze after choosing the file, or wait and refresh.");
-      return;
-    }
-    if (latest.status === "complete" && latest.report_stage !== "complete") {
-      setStatus("Finishing report for your last upload...");
-      await api(`/api/v1/reports/generate/${latest.id}`, "POST");
-      await waitForReportComplete(latest.id);
-      const lab = await api(`/api/v1/labs/${latest.id}`);
-      const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
-      renderReport(report, latest.id);
-      setStatus("Showing your most recent report. Upload a new file to analyze again.");
-      return;
-    }
-    if (latest.status !== "complete" || !latest.latest_report_id) return;
-    const report = await api(`/api/v1/reports/${latest.latest_report_id}`);
-    renderReport(report, latest.id);
-    setStatus("Showing your most recent report. Click Regenerate Report to rebuild with the latest pipeline, or upload a new file.");
+    await renderReport(report, labReportId);
+    setStatus("");
   } catch (err) {
-    // Guest auth or network hiccup on first load. User can still upload manually.
-    console.warn("Could not load latest report:", err);
+    loading.style.display = "none";
+    empty.style.display = "block";
+    if (emptyMsg) emptyMsg.textContent = humanizeError(err.message || "Could not load this report.");
+    setStatus(err.message, true);
   }
 }
 
@@ -2010,70 +1862,27 @@ async function regenerateReport() {
     return;
   }
   const regenBtn = document.getElementById("regenerate-btn");
-  const analyzeBtn = document.getElementById("analyze-btn");
   regenBtn.disabled = true;
-  analyzeBtn.disabled = true;
   try {
-    setStatus("Regenerating report with latest evidence pipeline...");
-    showProgressPanel("pathway_mapping");
+    setStatus("Regenerating report with latest evidence pipeline…");
     await api(`/api/v1/reports/generate/${window.lastLabReportId}`, "POST");
     const lab = await waitForReportComplete(window.lastLabReportId);
     const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
-    renderReport(report, window.lastLabReportId);
+    await renderReport(report, window.lastLabReportId);
     const names = (report.recommendations || []).map((r) => r.intervention_name);
     setStatus(
       names.length
         ? `Report regenerated. Recommendations: ${names.join(", ")}`
-        : "Report regenerated, but no recommendations were surfaced. Check that H. pylori parsed as DETECTED in Patient Summary."
+        : "Report regenerated."
     );
   } catch (err) {
-    showProgressPanel("failed");
     setStatus(err.message, true);
   } finally {
     regenBtn.disabled = false;
-    analyzeBtn.disabled = false;
   }
 }
 
-async function analyzeIntegrated() {
-  const fileInput = document.getElementById("integrated-file-input");
-  const btn = document.getElementById("integrated-analyze-btn");
-  if (!fileInput.files.length) {
-    setStatus("Choose at least one lab file for integrated analysis.", true);
-    return;
-  }
-  document.getElementById("report").style.display = "none";
-  btn.disabled = true;
-  try {
-    setStatus("Signing in...");
-    await ensureAuth();
-
-    showProgressPanel("upload");
-    setStatus("Creating analysis session...");
-    const session = await api("/api/v1/analysis-sessions", "POST", { title: "Integrated Lab Analysis" });
-
-    setStatus(`Uploading ${fileInput.files.length} lab files...`);
-    await apiUploadMultiple(`/api/v1/analysis-sessions/${session.id}/upload`, Array.from(fileInput.files));
-
-    setStatus("Starting integrated analysis...");
-    await api(`/api/v1/analysis-sessions/${session.id}/run`, "POST");
-
-    const completed = await waitForAnalysisSessionComplete(session.id);
-    showProgressPanel("complete");
-    const report = await api(`/api/v1/reports/${completed.latest_report_id}`);
-    const anchorLabId = (completed.lab_reports || [])[0]?.lab_report_id || null;
-    renderReport(report, anchorLabId);
-    setStatus("Integrated analysis complete.");
-  } catch (err) {
-    showProgressPanel("failed");
-    setStatus(err.message, true);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-document.getElementById("analyze-btn").addEventListener("click", analyze);
-document.getElementById("integrated-analyze-btn").addEventListener("click", analyzeIntegrated);
+document.getElementById("nav-logo").innerHTML = herbagraphLogoLink("/app.html#dashboard");
 document.getElementById("regenerate-btn").addEventListener("click", regenerateReport);
 function snapshotDetailsState(root) {
   return Array.from(root.querySelectorAll("details")).map((el) => ({ el, open: el.open }));
@@ -2126,7 +1935,7 @@ function printHerbaGraphReport(mode) {
 if (!window.__hgAuthRedirecting) {
   document.getElementById("download-pdf-summary").addEventListener("click", () => printHerbaGraphReport("summary"));
   document.getElementById("download-pdf-full").addEventListener("click", () => printHerbaGraphReport("full"));
-  loadLatestReport();
+  loadReportFromUrl();
 }
 </script>
 </body>

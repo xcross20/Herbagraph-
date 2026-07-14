@@ -60,16 +60,18 @@ def test_biological_network_render_target(report_html):
 def test_regenerate_and_operator_hint(report_html):
     assert 'id="regenerate-btn"' in report_html
     assert 'id="operator-hint"' in report_html
-    assert "Regenerate Report" in report_html
-    assert "localStorage" in report_html
+    assert "Regenerate report" in report_html
 
 
-def test_integrated_lab_analysis_ui(report_html):
-    assert 'id="integrated-file-input"' in report_html
-    assert 'id="integrated-analyze-btn"' in report_html
-    assert "Integrated Lab Analysis" in report_html
+def test_report_workspace_shell(report_html):
+    assert 'id="nav-logo"' in report_html
+    assert "brand-logo.js" in report_html
+    assert "/css/site.css" in report_html
+    assert 'id="report-empty"' in report_html
+    assert 'href="/app.html#dashboard"' in report_html
     assert 'id="integrated-banner"' in report_html
-    assert "/api/v1/analysis-sessions" in report_html
+    assert 'id="upload-section"' not in report_html
+    assert 'id="analyze-btn"' not in report_html
 
 
 def test_intervention_library_and_sidebar(report_html):

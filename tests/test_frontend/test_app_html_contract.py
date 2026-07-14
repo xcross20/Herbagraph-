@@ -11,3 +11,5 @@ def test_app_html_serves_workspace_shell():
     assert "#dashboard" in html
     assert "/login.html" in html
     assert "/report.html" in html
+    assert "brand-logo.js" in html
+    assert "app-nav-logo" in html
