@@ -46,8 +46,29 @@
 
 .app-body * { box-sizing: border-box; }
 
-.app-body a { color: var(--app-green); text-decoration: none; }
-.app-body a:hover { text-decoration: underline; }
+.app-body a:not(.app-btn) { color: var(--app-green); text-decoration: none; }
+.app-body a:not(.app-btn):hover { text-decoration: underline; }
+
+.app-body a.app-btn {
+  color: var(--app-ink);
+  text-decoration: none;
+}
+
+.app-body a.app-btn:hover {
+  text-decoration: none;
+}
+
+.app-body a.app-btn-primary {
+  color: #fff;
+}
+
+.app-body a.app-btn-primary:hover {
+  color: #fff;
+}
+
+.app-body a.app-btn-ghost {
+  color: var(--app-ink);
+}
 
 .hidden { display: none !important; }
 
@@ -231,12 +252,16 @@
 .app-btn-primary:hover { background: var(--app-green-deep); border-color: var(--app-green-deep); color: #fff; }
 
 .app-btn-ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--app-muted);
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-ink);
 }
 
-.app-btn-ghost:hover { color: var(--app-ink); background: rgba(20, 24, 21, 0.04); }
+.app-btn-ghost:hover {
+  color: var(--app-ink);
+  background: rgba(20, 24, 21, 0.04);
+  border-color: rgba(20, 24, 21, 0.16);
+}
 
 /* Command bar */
 .command-bar {

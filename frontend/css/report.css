@@ -86,6 +86,16 @@ body.report-body {
   border-color: var(--accent);
 }
 
+.report-shell a.btn {
+  text-decoration: none;
+  color: var(--text);
+}
+
+.report-shell a.btn.primary,
+.report-shell a.btn.primary:hover {
+  color: #fff;
+}
+
 /* Shell */
 .report-shell {
   max-width: 1320px;

@@ -81,16 +81,26 @@ a:hover { text-decoration: underline; }
 }
 .btn:hover { background: #f9fafb; text-decoration: none; }
 .btn:active { transform: scale(0.98); }
+a.btn { text-decoration: none; color: var(--text); }
+a.btn:hover { text-decoration: none; }
 .btn.primary {
   background: var(--hg-ink);
   color: #fff;
   border-color: var(--hg-ink);
+}
+a.btn.primary,
+a.btn.primary:hover {
+  color: #fff;
 }
 .btn.primary:hover { background: #000; border-color: #000; }
 .btn.blue {
   background: var(--hg-blue);
   color: #fff;
   border-color: var(--hg-blue);
+}
+a.btn.blue,
+a.btn.blue:hover {
+  color: #fff;
 }
 .btn.blue:hover { background: var(--hg-blue-deep); border-color: var(--hg-blue-deep); }
 
