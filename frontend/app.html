@@ -56,6 +56,7 @@
 </div>
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/reasoning-graph.js"></script>
 <script>
 document.getElementById("app-nav-logo").innerHTML = herbagraphLogoLink("/app.html#dashboard");
 const API = window.location.origin;
@@ -443,24 +444,109 @@ async function renderPatients() {
   };
 }
 
-function reasoningGraphSvg(overview) {
-  const biomarker = overview.recent_abnormal_biomarkers[0];
-  const priority = overview.top_priorities[0] || "Biological pattern";
-  const bName = biomarker ? biomarker.biomarker_name : "Biomarker";
-  return `<svg viewBox="0 0 280 200" aria-hidden="true">
-    <line x1="40" y1="40" x2="40" y2="90" stroke="rgba(105,120,216,0.5)" stroke-width="1.5"/>
-    <line x1="40" y1="90" x2="40" y2="140" stroke="#6978d8" stroke-width="1.5" stroke-dasharray="4 6"/>
-    <line x1="40" y1="140" x2="40" y2="175" stroke="rgba(105,120,216,0.35)" stroke-width="1"/>
-    <circle cx="40" cy="40" r="22" fill="rgba(20,24,21,0.04)" stroke="#69706b" stroke-width="1"/>
-    <text x="40" y="44" text-anchor="middle" font-size="8" fill="#69706b">${esc(bName).slice(0, 12)}</text>
-    <rect x="12" y="72" width="56" height="28" rx="10" fill="rgba(46,125,87,0.1)" stroke="#2e7d57" stroke-width="1"/>
-    <text x="40" y="90" text-anchor="middle" font-size="7" fill="#2e7d57">System</text>
-    <rect x="8" y="124" width="64" height="28" rx="4" fill="rgba(105,120,216,0.08)" stroke="#6978d8" stroke-width="1" transform="rotate(0 40 138)"/>
-    <text x="40" y="142" text-anchor="middle" font-size="7" fill="#6978d8">Pathway</text>
-    <polygon points="40,168 52,178 40,188 28,178" fill="rgba(105,120,216,0.06)" stroke="#6978d8" stroke-width="1"/>
-    <text x="40" y="182" text-anchor="middle" font-size="6" fill="#69706b">Candidates</text>
-    <text x="120" y="30" font-size="9" fill="#69706b">${esc(priority).slice(0, 28)}</text>
-  </svg>`;
+function buildAnalysisFindingsHtml(report) {
+  const systems = (report.biological_systems || []).slice(0, 4);
+  const biomarkers = ((report.biomarker_summary || {}).measured_biomarkers || [])
+    .filter(b => b.status && b.status !== "normal").slice(0, 5);
+  const recs = (report.recommendations || []).slice(0, 4);
+  let html = `<div class="analysis-findings-list">`;
+  if (systems.length) {
+    html += `<p class="muted" style="margin:0 0 0.35rem;font-size:0.78rem">Biological systems</p>`;
+    systems.forEach(s => {
+      html += `<div class="analysis-finding-item" data-finding-type="system" data-finding-label="${esc(s.system_name)}">
+        <strong>${esc(s.system_name)}</strong><br><span class="muted">${esc(s.signal_label || "")} · ${esc((s.drivers || []).join(", "))}</span>
+      </div>`;
+    });
+  }
+  if (biomarkers.length) {
+    html += `<p class="muted" style="margin:0.75rem 0 0.35rem;font-size:0.78rem">Key biomarkers</p>`;
+    biomarkers.forEach(b => {
+      html += `<div class="analysis-finding-item" data-finding-type="biomarker" data-finding-label="${esc(b.biomarker_name)}">
+        <span class="mono">${esc(b.biomarker_name)}</span> <span class="mono">${b.value} ${esc(b.unit || "")}</span> · ${esc(b.status)}
+      </div>`;
+    });
+  }
+  if (recs.length) {
+    html += `<p class="muted" style="margin:0.75rem 0 0.35rem;font-size:0.78rem">Intervention candidates</p>`;
+    recs.forEach(r => {
+      html += `<div class="analysis-finding-item" data-finding-type="intervention" data-finding-label="${esc(r.intervention_name)}" data-rec-index="${r.rank || 0}">
+        <strong>${esc(r.intervention_name)}</strong><br><span class="muted">${esc(r.evidence_tier_label || r.evidence_level || "")}</span>
+      </div>`;
+    });
+  }
+  html += `</div>`;
+  return html;
+}
+
+function analysisGraphShell(title) {
+  return `<div class="reasoning-panel" style="margin-bottom:1.25rem">
+    <div class="app-card">
+      <h3 style="margin:0 0 0.75rem;font-size:0.95rem">${esc(title)}</h3>
+      <div id="analysis-findings-panel"></div>
+      <div id="analysis-path-panel" class="reasoning-path" style="display:none"></div>
+    </div>
+    <div class="app-card reasoning-graph-panel">
+      <h3>Reasoning graph</h3>
+      <div class="reasoning-graph-layout">
+        <div class="reasoning-graph-mount" id="analysis-graph-mount"></div>
+        <div class="reasoning-graph-detail" data-graph-detail>Click a node to inspect the reasoning path.</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function mountAnalysisGraph(report) {
+  const RG = window.HerbaGraphReasoningGraph;
+  if (!RG || !report) return;
+  const findings = document.getElementById("analysis-findings-panel");
+  if (findings) findings.innerHTML = buildAnalysisFindingsHtml(report);
+  const graph = RG.buildFromReport(report);
+  const controller = RG.mount(document.getElementById("analysis-graph-mount"), graph, {
+    onSelect(node) {
+      const pathPanel = document.getElementById("analysis-path-panel");
+      if (pathPanel && node.recommendation) {
+        pathPanel.style.display = "block";
+        const steps = RG.buildReasoningPathSteps(report, node.recommendation);
+        pathPanel.innerHTML = `<p class="reasoning-path-title">Reasoning path · ${esc(node.recommendation.intervention_name)}</p>${RG.renderPathHtml(steps, { interactive: false })}`;
+      }
+      document.querySelectorAll(".analysis-finding-item").forEach(el => {
+        el.classList.toggle("is-active", el.dataset.findingLabel === node.label);
+      });
+    },
+  });
+  document.querySelectorAll(".analysis-finding-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const label = el.dataset.findingLabel;
+      const match = graph.nodes.find(n => n.label === label);
+      if (match && controller) controller.highlight(match.id);
+    });
+  });
+}
+
+async function buildAnalysisWorkspace(patientId, overview, sessionRows) {
+  let workspace = "";
+  if (overview.latest_report_id) {
+    try {
+      const report = await api(`/api/v1/reports/${overview.latest_report_id}`);
+      window._pendingAnalysisReport = report;
+      workspace = analysisGraphShell("Analysis summary") + `
+        <p style="margin:0 0 0.75rem"><a class="app-btn app-btn-primary" href="/report.html?report_id=${overview.latest_report_id}">Open full clinical report</a></p>`;
+    } catch (_) {
+      workspace = `<div class="app-card empty-state"><p class="muted">Could not load analysis report. Try opening from the sessions table below.</p></div>`;
+    }
+  } else {
+    workspace = `<div class="app-card empty-state">
+      <h3>No analysis yet</h3>
+      <p>Upload labs and run an integrated analysis to open the reasoning workspace.</p>
+      <a class="app-btn app-btn-primary" href="#analysis?patient=${patientId}">Run analysis</a>
+    </div>`;
+  }
+  return `${workspace}
+    <div class="workspace-section">
+      <h2>Analysis history</h2>
+      <div class="data-table-wrap"><table class="data-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Confidence</th><th></th></tr></thead><tbody>${sessionRows}</tbody></table></div>
+      <p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="#analysis?patient=${patientId}">Run integrated analysis</a></p>
+    </div>`;
 }
 
 async function renderPatient(patientId, section = "overview") {
@@ -537,8 +623,15 @@ async function renderPatient(patientId, section = "overview") {
           <p style="margin:0.5rem 0 0"><strong>Why?</strong> <span class="muted">${overview.recent_abnormal_biomarkers.length ? "Abnormal markers and pathway context from latest labs." : "Upload labs to begin reasoning."}</span></p>
           ${overview.latest_report_id ? `<p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="/report.html?report_id=${overview.latest_report_id}">Open full report</a></p>` : ""}
         </div>
-        <div class="reasoning-graph">${reasoningGraphSvg(overview)}</div>
+        <div class="reasoning-graph-panel" id="overview-graph-shell" style="${overview.latest_report_id ? "" : "display:none"}">
+          <h3>Reasoning preview</h3>
+          <div class="reasoning-graph-layout">
+            <div class="reasoning-graph-mount" id="overview-graph-mount"></div>
+            <div class="reasoning-graph-detail" data-graph-detail>Biological relationships from the latest analysis.</div>
+          </div>
+        </div>
       </div>`;
+    window._pendingOverviewReportId = overview.latest_report_id || null;
   } else if (section === "labs") {
     if (!overview.lab_reports.length) {
       sectionBody = `<div class="app-card empty-state">
@@ -551,8 +644,7 @@ async function renderPatient(patientId, section = "overview") {
       sectionBody = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Status</th><th>Uploaded</th><th></th></tr></thead><tbody>${labRows}</tbody></table></div>`;
     }
   } else if (section === "analyses") {
-    sectionBody = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>Title</th><th>Type</th><th>Status</th><th>Confidence</th><th></th></tr></thead><tbody>${sessionRows}</tbody></table></div>
-      <p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="#analysis?patient=${patientId}">Run integrated analysis</a></p>`;
+    sectionBody = await buildAnalysisWorkspace(patientId, overview, sessionRows);
   } else if (section === "context") {
     sectionBody = renderPatientContextForm(patientId, overview);
   }
@@ -577,6 +669,17 @@ async function renderPatient(patientId, section = "overview") {
     </nav>
     ${sectionBody}`;
   wireTableRows();
+  if (window._pendingAnalysisReport) {
+    mountAnalysisGraph(window._pendingAnalysisReport);
+    window._pendingAnalysisReport = null;
+  }
+  if (window._pendingOverviewReportId) {
+    api(`/api/v1/reports/${window._pendingOverviewReportId}`).then(report => {
+      const RG = window.HerbaGraphReasoningGraph;
+      if (RG) RG.mount(document.getElementById("overview-graph-mount"), RG.buildFromReport(report));
+    }).catch(() => {});
+    window._pendingOverviewReportId = null;
+  }
 }
 
 function renderPatientContextForm(patientId, overview) {

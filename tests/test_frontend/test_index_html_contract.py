@@ -96,7 +96,10 @@ def test_report_demo_mode_hooks(report_html):
 def test_report_workspace_shell(report_html):
     assert 'id="nav-logo"' in report_html
     assert "brand-logo.js" in report_html
+    assert "reasoning-graph.js" in report_html
+    assert "/css/report.css" in report_html
     assert "/css/site.css" in report_html
+    assert "report-outline" in report_html
     assert 'id="report-empty"' in report_html
     assert 'href="/app.html#dashboard"' in report_html
     assert 'id="integrated-banner"' in report_html

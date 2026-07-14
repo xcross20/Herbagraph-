@@ -3,7 +3,11 @@
 <head>
 <meta charset="utf-8">
 <title>Clinical Report — HerbaGraph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/report.css">
 <style>
   :root {
     --bg: #f5f5f7;
@@ -339,8 +343,8 @@
 
 </style>
 </head>
-<body>
-<nav class="app-top-nav" aria-label="Report navigation">
+<body class="report-body">
+<nav class="report-top-nav app-top-nav" aria-label="Report navigation">
   <div id="nav-logo"></div>
   <div class="nav-links">
     <a class="nav-back" id="nav-back-link" href="/app.html#dashboard">← Workspace</a>
@@ -350,15 +354,19 @@
   </div>
 </nav>
 
-<div class="app-shell">
+<div class="report-shell app-shell">
   <div id="demo-banner" class="demo-banner" style="display:none">
     <strong>Sample report</strong> — synthetic demo data from <code>demo_01_inflammatory_quest.txt</code>. Not a real patient.
     <a href="/signup.html">Create an account</a> to upload your own labs.
   </div>
 
-  <header class="report-page-header" id="report-page-header">
+  <header class="report-doc-header report-page-header" id="report-page-header">
     <h1 id="report-page-title">Clinical report</h1>
     <p class="tag" id="report-page-subtitle">Research tool, not medical advice.</p>
+    <div class="report-doc-meta" id="report-doc-meta" style="display:none">
+      <span id="report-meta-confidence"></span>
+      <span id="report-meta-model"></span>
+    </div>
   </header>
 
   <div id="report-loading" class="report-state-card">
@@ -383,18 +391,19 @@
   <div id="integrated-banner" class="integrated-banner" style="display:none;"></div>
 
   <div class="report-layout">
-    <nav id="report-sidebar" class="report-sidebar" aria-label="Report sections">
+    <nav id="report-sidebar" class="report-outline report-sidebar" aria-label="Report outline">
+      <p class="report-outline-title">Report outline</p>
       <ul>
-        <li><a href="#executive-summary" data-nav="overview" class="active">Overview</a></li>
-        <li><a href="#clinical-priorities" data-nav="clinical-priorities">Clinical Priorities</a></li>
-        <li><a href="#diagnostic-optimization" data-nav="diagnostic-optimization">Diagnostic Optimization</a></li>
-        <li><a href="#biological-network" data-nav="biological-network">Biological Network</a></li>
-        <li><a href="#intervention-library" data-nav="interventions">Interventions</a></li>
-        <li><a href="#patient-data" data-nav="patient-data">Patient Data</a></li>
-        <li><a href="#trends-section" data-nav="trends">Trends</a></li>
-        <li><a href="#medication-context" data-nav="medication">Medication</a></li>
-        <li><a href="#research-appendix" data-nav="research">Research Appendix</a></li>
-        <li><a href="#report-feedback" data-nav="feedback">Feedback</a></li>
+        <li><a href="#executive-summary" data-nav="overview" class="active"><span class="outline-num">01</span> Executive summary</a></li>
+        <li><a href="#clinical-priorities" data-nav="clinical-priorities"><span class="outline-num">02</span> Key findings</a></li>
+        <li><a href="#patient-data" data-nav="patient-data"><span class="outline-num">03</span> Biomarker interpretation</a></li>
+        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">04</span> Biological systems</a></li>
+        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">05</span> Pathway context</a></li>
+        <li><a href="#intervention-library" data-nav="interventions"><span class="outline-num">06</span> Interventions</a></li>
+        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">07</span> Evidence profile</a></li>
+        <li><a href="#medication-context" data-nav="medication"><span class="outline-num">08</span> Safety</a></li>
+        <li><a href="#diagnostic-optimization" data-nav="diagnostic-optimization"><span class="outline-num">09</span> Uncertainty</a></li>
+        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">10</span> Sources</a></li>
       </ul>
     </nav>
 
@@ -471,6 +480,7 @@
 
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/reasoning-graph.js"></script>
 <script>
 const API = "";
 const POLL_INTERVAL_MS = 2000;
@@ -654,6 +664,17 @@ async function renderReport(report, labReportId) {
   if (subtitleEl && report.generated_at) {
     subtitleEl.textContent = `Generated ${new Date(report.generated_at).toLocaleString()} · Research tool, not medical advice.`;
   }
+  const metaEl = document.getElementById("report-doc-meta");
+  if (metaEl) {
+    metaEl.style.display = "flex";
+    const confEl = document.getElementById("report-meta-confidence");
+    const modelEl = document.getElementById("report-meta-model");
+    if (confEl) {
+      const pct = report.overall_confidence != null ? Math.round(report.overall_confidence * 100) : null;
+      confEl.textContent = pct != null ? `Analysis confidence · ${pct >= 80 ? "High" : pct >= 60 ? "Moderate" : "Low"}` : "";
+    }
+    if (modelEl) modelEl.textContent = report.model_version ? `Model · ${report.model_version}` : "";
+  }
 
   renderIntegratedBanner(report);
 
@@ -683,6 +704,58 @@ async function renderReport(report, labReportId) {
     printTitle.textContent = integrated ? "HerbaGraph Integrated Clinical Report" : "HerbaGraph Clinical Report";
   }
   document.getElementById("report").style.display = "block";
+  mountReportReasoningGraph(report);
+  wireReasoningPathToggles();
+}
+
+function mountReportReasoningGraph(report) {
+  const RG = window.HerbaGraphReasoningGraph;
+  if (!RG) return;
+  window._lastReportGraph = RG.buildFromReport(report);
+  const mountEl = document.getElementById("report-reasoning-graph-mount");
+  if (mountEl) {
+    RG.mount(mountEl, window._lastReportGraph, {
+      onSelect(node) {
+        const pathEl = document.getElementById("report-graph-path-preview");
+        if (!pathEl || !node.recommendation) return;
+        const steps = RG.buildReasoningPathSteps(report, node.recommendation);
+        pathEl.innerHTML = `<p class="reasoning-path-title">Reasoning path</p>${RG.renderPathHtml(steps, { interactive: false })}`;
+      },
+    });
+  }
+}
+
+function wireReasoningPathToggles() {
+  document.querySelectorAll(".reasoning-path-toggle").forEach(btn => {
+    if (btn._hgBound) return;
+    btn._hgBound = true;
+    btn.addEventListener("click", () => {
+      const path = btn.closest(".reasoning-path");
+      if (!path) return;
+      const collapsed = path.classList.toggle("reasoning-path-collapsed");
+      btn.textContent = collapsed ? "Show full reasoning path" : "Collapse path";
+    });
+  });
+}
+
+function renderReasoningPathBlock(report, rec) {
+  const RG = window.HerbaGraphReasoningGraph;
+  if (!RG || !rec) return "";
+  const steps = RG.buildReasoningPathSteps(report, rec);
+  const id = `reasoning-path-${String(rec.intervention_name || rec.rank).replace(/\W+/g, "-").toLowerCase()}`;
+  return `<div class="reasoning-path reasoning-path-collapsed" id="${id}">
+    <p class="reasoning-path-title">Reasoning path</p>
+    ${RG.renderPathHtml(steps)}
+    <button type="button" class="reasoning-path-toggle">Show full reasoning path</button>
+  </div>`;
+}
+
+function confidenceMeter(label, level) {
+  const map = { low: 3, moderate: 5, established: 7, strong: 8, high: 8 };
+  const key = String(level || "moderate").toLowerCase();
+  const filled = map[key] || 5;
+  const segs = Array.from({ length: 8 }, (_, i) => `<span class="confidence-meter-seg${i < filled ? " on" : ""}"></span>`).join("");
+  return `<div class="confidence-meter"><div class="confidence-meter-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(level || "—")}</span></div><div class="confidence-meter-bars">${segs}</div></div>`;
 }
 
 function reportTiers(report) {
@@ -892,7 +965,17 @@ function renderBiologicalNetwork(report) {
 
   const hierarchy = biologicalHierarchy(report);
   const body = document.getElementById("biological-network-body");
-  let html = `<div class="network-stats">`;
+  let html = `<div class="reasoning-graph-panel">
+    <h3>Interactive reasoning graph</h3>
+    <div class="reasoning-graph-layout">
+      <div class="reasoning-graph-mount" id="report-reasoning-graph-mount"></div>
+      <div>
+        <div class="reasoning-graph-detail" data-graph-detail>Click a node to inspect biomarker → system → pathway → intervention relationships.</div>
+        <div id="report-graph-path-preview" style="margin-top:0.75rem"></div>
+      </div>
+    </div>
+  </div>`;
+  html += `<div class="network-stats">`;
   html += `<span><strong>${stats.systems}</strong> Systems</span>`;
   html += `<span><strong>${stats.pathways}</strong> Pathways</span>`;
   html += `<span><strong>${stats.connections}</strong> Evidence Connections</span>`;
@@ -1001,7 +1084,7 @@ function safetyBadgeClass(label) {
   return "safety-high";
 }
 
-function renderWalletCard(r) {
+function renderWalletCard(r, report) {
   const priority = r.clinical_priority_score != null ? `${r.clinical_priority_score}/100` : "—";
   const fit = r.patient_fit_label || "Moderate";
   const intent = r.intent_label || intentLabel(r.display_intent);
@@ -1013,7 +1096,7 @@ function renderWalletCard(r) {
   html += `<span class="badge ${fitBadgeClass(fit)}">Fit: ${escapeHtml(fit)}</span>`;
   html += `<span class="badge intent">${escapeHtml(intent)}</span>`;
   html += `</span></summary>`;
-  html += `<div class="wallet-body">${renderRecommendationCard(r, { compact: false, hideSafety: true })}</div>`;
+  html += `<div class="wallet-body">${renderRecommendationCard(r, { compact: false, hideSafety: true, report })}</div>`;
   html += `</details>`;
   return html;
 }
@@ -1035,7 +1118,7 @@ function renderInterventionLane(lane, options) {
   html += `<h3>${escapeHtml(lane.short_label || lane.label || "")}</h3>`;
   if (!showAll) html += `<span class="lane-count">Top ${items.length}</span>`;
   html += `</div>`;
-  for (const r of items) html += renderWalletCard(r);
+  for (const r of items) html += renderWalletCard(r, options.report);
   html += `</div>`;
   return html;
 }
@@ -1060,10 +1143,10 @@ function renderInterventionLibrary(report) {
       const lane = lanes[spec.code];
       if (!lane || !(lane.items || []).length) continue;
       hasAny = true;
-      html += renderInterventionLane(lane, { showAll: false });
+      html += renderInterventionLane(lane, { showAll: false, report });
       if ((lane.hidden_count || 0) > 0) {
         html += `<details class="tier-panel"><summary>View all ${lane.short_label || spec.fallback} (${lane.total_count || lane.all_items.length})</summary>`;
-        html += `<div class="tier-panel-body">${renderInterventionLane(lane, { showAll: true })}</div></details>`;
+        html += `<div class="tier-panel-body">${renderInterventionLane(lane, { showAll: true, report })}</div></details>`;
       }
     }
     if (!hasAny) {
@@ -1076,11 +1159,12 @@ function renderInterventionLibrary(report) {
       for (const spec of LANE_ORDER) {
         const lane = lanes[spec.code];
         if (!lane || !(lane.all_items || []).length) continue;
-        html += renderInterventionLane({ ...lane, items: lane.all_items }, { showAll: true });
+        html += renderInterventionLane({ ...lane, items: lane.all_items }, { showAll: true, report });
       }
       html += `</div></details>`;
     }
     body.innerHTML = html;
+    wireReasoningPathToggles();
     return;
   }
 
@@ -1091,13 +1175,14 @@ function renderInterventionLibrary(report) {
     return;
   }
   let html = "";
-  for (const r of topRecs) html += renderWalletCard(r);
+  for (const r of topRecs) html += renderWalletCard(r, report);
   if (allRecs.length > topRecs.length) {
     html += `<details class="tier-panel"><summary>View all interventions (${allRecs.length})</summary><div class="tier-panel-body">`;
-    for (const r of allRecs.slice(topRecs.length)) html += renderWalletCard(r);
+    for (const r of allRecs.slice(topRecs.length)) html += renderWalletCard(r, report);
     html += `</div></details>`;
   }
   body.innerHTML = html;
+  wireReasoningPathToggles();
 }
 
 function renderPatientData(report) {
@@ -1777,8 +1862,12 @@ function renderRecommendationCard(r, options) {
   if (!compact) html += renderPriorityMetaRow(r, options);
   if (!compact) {
     html += renderEvidenceSynthesisLead(r);
+    html += confidenceMeter("Human evidence", r.evidence_level || r.evidence_tier_label);
+    html += confidenceMeter("Mechanistic evidence", r.mechanism ? "Strong" : "Moderate");
+    html += confidenceMeter("Safety confidence", r.safety_risk || "low");
     html += renderEvidencePassport(r, options);
     html += renderCitationLinks(r);
+    if (options.report) html += renderReasoningPathBlock(options.report, r);
   } else {
     html += `<p class="tier-muted"><span class="evidence-badge">${escapeHtml(evidenceBadge((r.explainability || {}).evidence_passport, r))}</span>`;
     if (r.evidence_tier_label) html += ` · ${escapeHtml(r.evidence_tier_label)}`;

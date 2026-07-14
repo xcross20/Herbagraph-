@@ -17,3 +17,5 @@ def test_app_html_serves_workspace_shell():
     assert "/css/app.css" in html
     assert "app-sidebar" in html
     assert "Needs attention" in html
+    assert "reasoning-graph.js" in html
+    assert "mountAnalysisGraph" in html
