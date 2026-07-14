@@ -57,9 +57,21 @@ def test_landing_visual_assets_exist():
 def test_signup_requires_access_code_field():
     html = (Path(__file__).resolve().parents[2] / "frontend" / "signup.html").read_text(encoding="utf-8")
     assert 'id="auth-access-code"' in html
+    assert 'id="auth-access-wrap"' in html
+    assert "/css/auth.css" in html
+    assert 'name="account-type"' in html
+    assert "Create your HerbaGraph account" in html
     assert "verify-signup-access" in (Path(__file__).resolve().parents[2] / "frontend" / "js" / "herbagraph-auth.js").read_text(
         encoding="utf-8"
     )
+
+
+def test_login_auth_redesign():
+    html = (Path(__file__).resolve().parents[2] / "frontend" / "login.html").read_text(encoding="utf-8")
+    assert "/css/auth.css" in html
+    assert "auth-page-v2" in html
+    assert "Sign in to HerbaGraph" in html
+    assert "See the system behind the data" in html
 
 
 def test_report_html_exists():

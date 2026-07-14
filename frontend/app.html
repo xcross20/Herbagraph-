@@ -323,6 +323,44 @@ function renderSignalBars(signals) {
     </div>`).join("")}</div>`;
 }
 
+function renderOnboardingBanner() {
+  const pending = localStorage.getItem("hg_onboarding_pending") === "1"
+    || new URLSearchParams(location.search).get("onboard") === "1";
+  if (!pending) return "";
+  const accountType = localStorage.getItem("hg_account_type") || "individual";
+  const isClinician = accountType === "clinician";
+  const profileCta = isClinician
+    ? `<a class="app-btn app-btn-primary" href="#patients">Add a patient</a>`
+    : `<a class="app-btn app-btn-primary" href="#patients">Create my profile</a>`;
+  return `
+    <div class="app-card onboarding-welcome" style="margin-bottom:1.25rem;border-color:rgba(46,125,87,0.25);background:linear-gradient(180deg,#f8fcf9 0%,#fff 100%)">
+      <h2 style="margin:0 0 0.35rem;font-size:1.15rem">Welcome to HerbaGraph</h2>
+      <p class="muted" style="margin:0 0 0.85rem">Let's set up your workspace and run your first analysis.</p>
+      <ol style="margin:0 0 1rem;padding-left:1.2rem;color:#555;font-size:0.9rem;line-height:1.55">
+        <li>Account creation</li>
+        <li>Workspace setup</li>
+        <li>First analysis</li>
+      </ol>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">
+        ${profileCta}
+        <a class="app-btn" href="#upload">Upload your first lab report</a>
+        <button type="button" class="app-btn app-btn-ghost" id="dismiss-onboarding">Enter workspace</button>
+      </div>
+    </div>`;
+}
+
+function wireOnboardingBanner() {
+  const btn = document.getElementById("dismiss-onboarding");
+  if (!btn) return;
+  btn.onclick = () => {
+    localStorage.removeItem("hg_onboarding_pending");
+    const url = new URL(location.href);
+    url.searchParams.delete("onboard");
+    history.replaceState({}, "", url.pathname + url.search + url.hash);
+    btn.closest(".onboarding-welcome")?.remove();
+  };
+}
+
 async function renderDashboard() {
   const dash = await api("/api/v1/workspace/dashboard");
   lastDashboard = dash;
@@ -354,6 +392,7 @@ async function renderDashboard() {
     </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No reports yet</td></tr>`;
 
   document.getElementById("app-main").innerHTML = `
+    ${renderOnboardingBanner()}
     ${pageHeader(`${greeting()}${name}`, "Here is what changed across your workspace.", `<a class="app-btn app-btn-primary" href="#upload">Upload labs</a>`)}
     ${commandBar()}
     <div class="metric-grid">
@@ -390,6 +429,7 @@ async function renderDashboard() {
     </div>`;
   wireTableRows();
   wireCommandSearch(dash);
+  wireOnboardingBanner();
 }
 
 async function renderPatients() {

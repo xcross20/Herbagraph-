@@ -205,7 +205,9 @@ window.HerbaGraphAuth = (function () {
     }
   }
 
-  async function signUp(email, password, fullName, accessCode) {
+  async function signUp(email, password, fullName, accessCode, options) {
+    options = options || {};
+    const role = options.role === "clinician" ? "clinician" : "individual";
     const cfg = await loadConfig();
     if (cfg.signup_access_required) {
       if (!accessCode || !String(accessCode).trim()) {
@@ -219,7 +221,10 @@ window.HerbaGraphAuth = (function () {
         email,
         password,
         options: {
-          data: { full_name: fullName || null },
+          data: {
+            full_name: fullName || null,
+            account_type: role,
+          },
           emailRedirectTo: `${window.location.origin}/app.html#dashboard`,
         },
       });
@@ -239,6 +244,7 @@ window.HerbaGraphAuth = (function () {
         password,
         full_name: fullName || null,
         access_code: accessCode || null,
+        role,
       }),
     });
     if (!resp.ok) throw new Error(await resp.text());
