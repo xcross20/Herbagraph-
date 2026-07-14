@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Railway and other PaaS hosts inject PORT; default to 8000 locally.
+# Worker Service: set SERVICE_ROLE=worker (same start command as web).
 set -euo pipefail
+
+if [[ "${SERVICE_ROLE:-web}" == "worker" ]]; then
+  exec bash "$(dirname "$0")/start_worker.sh"
+fi
+
 PORT="${PORT:-8000}"
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
