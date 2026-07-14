@@ -4,10 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HerbaGraph — AI Clinical Reasoning for Precision Nutrition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/landing.css">
 </head>
-<body>
-<header class="site-header">
+<body class="landing-page">
+
+<header class="landing-nav" aria-label="Site navigation">
   <a class="logo" href="/">
     <svg class="logo-mark" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
     <span class="logo-stack">
@@ -15,77 +20,441 @@
       <span class="logo-tag">AI Clinical Reasoning for Precision Nutrition</span>
     </span>
   </a>
-  <nav class="nav-actions">
-    <a class="btn" href="/login.html">Sign in</a>
-    <a class="btn primary" href="/signup.html">Create account</a>
+  <nav class="landing-nav-links" aria-label="Primary">
+    <a href="#product">Product</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#evidence">Evidence</a>
+    <a href="#methodology">Methodology</a>
   </nav>
+  <div class="landing-nav-actions">
+    <a class="landing-btn landing-btn-ghost" href="/login.html">Sign in</a>
+    <a class="landing-btn landing-btn-primary" href="/signup.html">Analyze labs</a>
+  </div>
 </header>
-<main class="shell">
-  <section class="landing-hero">
-    <div>
-      <h1>Biological reasoning you can explain</h1>
-      <p class="lede">
-        Map lab biomarkers to evidence-graded interventions with clinical priority scoring,
-        pathway transparency, and citations practitioners can defend.
+
+<main>
+  <!-- Hero: Observatory -->
+  <section class="env-observatory landing-hero" aria-labelledby="hero-title">
+    <div class="hero-copy">
+      <h1 id="hero-title">
+        Your lab results are data points.<br>
+        HerbaGraph <span class="accent">connects the system</span> behind them.
+      </h1>
+      <p class="hero-lede">
+        Map biomarkers to biological systems, pathways, and evidence-graded interventions.
+        Every conclusion is explainable. Every uncertainty is visible.
       </p>
-      <div class="nav-actions">
-        <a class="btn primary" href="/signup.html">Create account</a>
-        <a class="btn" href="/login.html">Sign in</a>
-        <a class="btn" href="/report.html?demo=1">View sample report</a>
+      <div class="hero-ctas">
+        <a class="landing-btn landing-btn-primary" href="/signup.html">Analyze labs</a>
+        <a class="landing-btn landing-btn-ghost" href="/report.html?demo=1">View sample report</a>
       </div>
     </div>
-    <a class="preview-card" href="/report.html?demo=1" aria-label="View sample clinical report">
-      <div class="preview-head">
-        <span class="preview-badge">Clinical summary</span>
-        <span class="preview-metric">HIGH</span>
+
+    <div class="hero-graph-wrap" aria-hidden="true">
+      <div class="hero-meta hero-meta-tl">
+        <strong>Entity type</strong>
+        Biomarker
+        <strong style="margin-top:0.5rem">Confidence</strong>
+        0.82
       </div>
-      <ul class="preview-list">
-        <li><span class="preview-dot"></span><span><strong>Iron deficiency biology</strong> ranked first by severity and treatability</span></li>
-        <li><span class="preview-dot"></span><span><strong>Four-lane library</strong> botanical, nutraceutical, peptide, lifestyle</span></li>
-        <li><span class="preview-dot"></span><span><strong>Evidence passport</strong> methodology and gaps on every report</span></li>
-      </ul>
-      <p class="muted" style="margin:0.85rem 0 0;font-size:0.82rem">Tap to open the full sample report →</p>
-    </a>
+      <div class="hero-meta hero-meta-br">
+        <strong>Relationships</strong>
+        <span>14</span>
+        <strong style="margin-top:0.5rem">Source class</strong>
+        Human + mechanistic
+      </div>
+
+      <svg class="hero-graph-svg" viewBox="0 0 520 420" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glow"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <!-- Edges -->
+        <path class="hero-graph-line" d="M120 180 L200 120"/>
+        <path class="hero-graph-line" d="M200 120 L280 100"/>
+        <path class="hero-graph-line" d="M280 100 L360 140"/>
+        <path class="hero-graph-line" d="M120 180 L180 260"/>
+        <path class="hero-graph-line" d="M180 260 L260 300"/>
+        <path class="hero-graph-line" d="M260 300 L340 280"/>
+        <path class="hero-graph-line" d="M340 280 L400 220"/>
+        <path class="hero-graph-line" d="M360 140 L400 220"/>
+        <path class="hero-graph-line active" d="M120 180 L200 120 L280 100 L360 140 L400 220 L340 280 L260 300"/>
+        <path class="hero-graph-line" d="M400 220 L440 160"/>
+        <path class="hero-graph-line" d="M400 220 L460 240"/>
+        <!-- Biomarker: hs-CRP -->
+        <circle class="graph-node-biomarker" cx="120" cy="180" r="36"/>
+        <text class="graph-node-label" x="120" y="184" text-anchor="middle">hs-CRP</text>
+        <!-- System: NF-κB -->
+        <rect class="graph-node-system" x="164" y="84" width="72" height="36" rx="16"/>
+        <text class="graph-node-label" x="200" y="106" text-anchor="middle">NF-κB</text>
+        <!-- Pathway -->
+        <rect class="graph-node-pathway" x="248" y="78" width="64" height="44" rx="4" transform="rotate(45 280 100)"/>
+        <text class="graph-node-label" x="280" y="104" text-anchor="middle">IL-6</text>
+        <!-- System -->
+        <rect class="graph-node-system" x="324" y="118" width="72" height="44" rx="16"/>
+        <text class="graph-node-label" x="360" y="144" text-anchor="middle">Oxidative stress</text>
+        <!-- Biomarker -->
+        <circle class="graph-node-biomarker" cx="180" cy="260" r="32"/>
+        <text class="graph-node-label" x="180" y="264" text-anchor="middle">Nrf2</text>
+        <!-- Intervention -->
+        <polygon class="graph-node-intervention" points="260,268 290,288 260,308 230,288"/>
+        <text class="graph-node-label" x="260" y="292" text-anchor="middle">Curcumin</text>
+        <polygon class="graph-node-intervention" points="340,252 370,272 340,292 310,272"/>
+        <text class="graph-node-label" x="340" y="276" text-anchor="middle">Omega-3</text>
+        <!-- Hub -->
+        <circle class="graph-node-biomarker" cx="400" cy="220" r="40" stroke="rgba(124,140,248,0.6)" stroke-width="1.5"/>
+        <text class="graph-node-label" x="400" y="216" text-anchor="middle">Exercise</text>
+        <text class="graph-node-label" x="400" y="230" text-anchor="middle" style="font-size:8px;fill:rgba(124,140,248,0.8)">reasoning</text>
+        <!-- Evidence -->
+        <circle class="graph-node-evidence" cx="440" cy="160" r="18"/>
+        <text class="graph-node-label" x="440" y="164" text-anchor="middle" style="font-size:8px">Evidence</text>
+        <!-- Safety -->
+        <circle class="graph-node-safety" cx="460" cy="240" r="20"/>
+        <text class="graph-node-label" x="460" y="244" text-anchor="middle" style="font-size:8px">Safety</text>
+      </svg>
+    </div>
   </section>
 
-  <section class="workflow" aria-label="How it works">
-    <div class="workflow-step">
-      <p class="step-num">01</p>
-      <h3>Upload labs</h3>
-      <p>Parse biomarkers from PDFs and structured files into a patient workspace.</p>
+  <!-- Proof strip -->
+  <div class="proof-strip" aria-label="Platform metrics">
+    <div class="proof-item">
+      <div class="proof-num">17+</div>
+      <div class="proof-label">Biomarkers</div>
     </div>
-    <div class="workflow-step">
-      <p class="step-num">02</p>
-      <h3>Run analysis</h3>
-      <p>Integrated multi-report reasoning surfaces pathway signals and priorities.</p>
+    <div class="proof-item">
+      <div class="proof-num">16</div>
+      <div class="proof-label">Biological pathways</div>
     </div>
-    <div class="workflow-step">
-      <p class="step-num">03</p>
-      <h3>Review report</h3>
-      <p>Open the clinical report with intervention lanes, confidence, and citations.</p>
+    <div class="proof-item">
+      <div class="proof-num">Linked</div>
+      <div class="proof-label">Evidence recommendations</div>
+    </div>
+    <div class="proof-item">
+      <div class="proof-num">Explainable</div>
+      <div class="proof-label">Reasoning paths</div>
+    </div>
+  </div>
+
+  <!-- Biomarker journey: Laboratory -->
+  <section class="env-laboratory landing-section biomarker-journey" id="how-it-works" aria-labelledby="journey-title">
+    <div class="landing-section-inner journey-sticky">
+      <div class="journey-value-block">
+        <p class="section-eyebrow">One number to a system</p>
+        <h2 class="section-title" id="journey-title" style="font-size:clamp(1.5rem,3vw,2rem);margin-bottom:0.5rem">A lab value is not an isolated fact.</h2>
+        <div class="journey-value" aria-hidden="true">4.8</div>
+        <div class="journey-unit">hs-CRP · mg/L</div>
+      </div>
+      <div class="journey-stages">
+        <div class="journey-stage" data-stage="1">
+          <div class="journey-stage-label">Stage 1</div>
+          <h3>Isolated measurement</h3>
+          <p>A single biomarker reading on a lab report.</p>
+        </div>
+        <div class="journey-stage" data-stage="2">
+          <div class="journey-stage-label">Stage 2</div>
+          <h3>Graph node</h3>
+          <p>The value becomes a node in a biological network.</p>
+          <div class="journey-mini-graph">hs-CRP <span class="arrow">→</span> node</div>
+        </div>
+        <div class="journey-stage" data-stage="3">
+          <div class="journey-stage-label">Stage 3</div>
+          <h3>System connection</h3>
+          <p>Linked to inflammatory signaling biology.</p>
+          <div class="journey-mini-graph">hs-CRP<br><span class="arrow">↓</span><br>Inflammatory signaling</div>
+        </div>
+        <div class="journey-stage" data-stage="4">
+          <div class="journey-stage-label">Stage 4</div>
+          <h3>Pathway context</h3>
+          <p>Mechanistic relationships surface.</p>
+          <div class="journey-mini-graph">NF-κB · IL-6 · Nrf2</div>
+        </div>
+        <div class="journey-stage" data-stage="5">
+          <div class="journey-stage-label">Stage 5</div>
+          <h3>Interventions and evidence</h3>
+          <p>Contextual recommendations with inspectable citations.</p>
+          <div class="journey-mini-graph">Curcumin · Omega-3 · 14 sources</div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="trust-band">
-    <div class="trust-panel">
-      <h2>Built for clinicians</h2>
-      <p class="muted">Explain every conclusion. Quantify uncertainty. Separate evidence from opinion. Assist decision-making without replacing it.</p>
+  <!-- Editorial -->
+  <section class="editorial-statement env-laboratory">
+    <p>Biology is connected.</p>
+    <p>Your health data should be too.</p>
+  </section>
+
+  <!-- Product demo -->
+  <section class="env-laboratory landing-section" id="product" aria-labelledby="product-title">
+    <div class="landing-section-inner product-demo-header reveal">
+      <p class="section-eyebrow">The application</p>
+      <h2 class="section-title" id="product-title">See the reasoning.<br>Not just the recommendation.</h2>
+      <p class="section-lede">Clinical reports with biological systems, pathway context, evidence confidence, and integrated safety.</p>
     </div>
-    <div class="trust-panel dark">
-      <a class="logo" href="/">
-        <svg class="logo-mark on-ink" viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22 L13 14 L20 18 L27 8" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5" cy="22" r="2.25" fill="currentColor"/><circle cx="13" cy="14" r="2.25" fill="currentColor"/><circle cx="20" cy="18" r="2.25" fill="currentColor"/><circle cx="27" cy="8" r="2.75" fill="#2f7df6"/></svg>
-        <span class="logo-word">HerbaGraph</span>
-      </a>
-      <p class="muted" style="margin-top:1.25rem">Research and clinical decision-support. Not medical advice.</p>
+
+    <div class="product-frame reveal">
+      <div class="product-frame-bar">
+        <span class="product-frame-dot"></span>
+        <span class="product-frame-dot"></span>
+        <span class="product-frame-dot"></span>
+        <span class="product-frame-url">herbagraph.com/report</span>
+      </div>
+      <div class="product-frame-body">
+        <div class="product-mock">
+          <div class="product-mock-sidebar">
+            <div class="product-mock-nav-item active">Executive Summary</div>
+            <div class="product-mock-nav-item">Clinical Priorities</div>
+            <div class="product-mock-nav-item">Biological Network</div>
+            <div class="product-mock-nav-item">Intervention Library</div>
+            <div class="product-mock-nav-item">Evidence</div>
+          </div>
+          <div class="product-mock-main">
+            <div class="product-mock-hero-card">
+              <span class="badge">Clinical summary</span>
+              <h4>Inflammatory cardiometabolic pattern</h4>
+              <p style="margin:0.5rem 0 0;font-size:0.85rem;color:var(--text-secondary)">Elevated CRP with dyslipidemia and borderline glycemic markers suggests coordinated inflammatory and metabolic stress.</p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+              <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:0.75rem;font-size:0.8rem">
+                <strong style="color:var(--accent-biological)">Inflammation</strong><br>
+                <span style="color:var(--text-secondary)">CRP-driven · Strong signal</span>
+              </div>
+              <div style="border:1px solid var(--border-subtle);border-radius:12px;padding:0.75rem;font-size:0.8rem">
+                <strong style="color:var(--accent-intelligence)">Omega-3</strong><br>
+                <span style="color:var(--text-secondary)">Established · 0.81 confidence</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="product-callouts reveal">
+      <div class="product-callout">
+        <h4>Biological Systems</h4>
+        <p>Multiple biomarkers analyzed together.</p>
+      </div>
+      <div class="product-callout">
+        <h4>Pathway Context</h4>
+        <p>Potential mechanistic relationships.</p>
+      </div>
+      <div class="product-callout">
+        <h4>Evidence Confidence</h4>
+        <p>Strength and limitations made visible.</p>
+      </div>
+      <div class="product-callout">
+        <h4>Safety</h4>
+        <p>Context surfaced before recommendations.</p>
+      </div>
     </div>
   </section>
 
-  <p class="disclaimer-foot">
+  <!-- Traditional vs HerbaGraph -->
+  <section class="env-laboratory landing-section" aria-labelledby="transform-title">
+    <div class="landing-section-inner reveal">
+      <p class="section-eyebrow">Interpretation model</p>
+      <h2 class="section-title" id="transform-title">From isolated values to connected biology.</h2>
+      <div class="transform-grid">
+        <div class="transform-panel">
+          <h3>Traditional interpretation</h3>
+          <div class="transform-lines">
+            <div>CRP <span class="status-high">HIGH</span></div>
+            <div>Vitamin D <span class="status-low">LOW</span></div>
+            <div>HbA1c <span class="status-normal">NORMAL</span></div>
+            <div>Ferritin <span class="status-normal">NORMAL</span></div>
+          </div>
+        </div>
+        <div class="transform-panel hg">
+          <h3>HerbaGraph</h3>
+          <div class="transform-lines">
+            <div>CRP <span class="link-line">─────────</span> Inflammation</div>
+            <div style="padding-left:2rem">│</div>
+            <div>Vitamin D <span class="link-line">─</span> Immune regulation</div>
+            <div style="padding-left:2rem">│</div>
+            <div>HbA1c <span class="link-line">─────</span> Metabolic signaling</div>
+            <div style="padding-left:2rem;color:var(--text-secondary);font-size:0.75rem">NF-κB · IL-6 · Evidence layer</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-table-wrap">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Traditional interpretation</th>
+              <th class="col-hg">HerbaGraph</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Biomarkers</td><td>Viewed individually</td><td class="col-hg">Connected across systems</td></tr>
+            <tr><td>Biological context</td><td>Limited</td><td class="col-hg">Pathways and systems</td></tr>
+            <tr><td>Recommendations</td><td>Generic</td><td class="col-hg">Contextualized</td></tr>
+            <tr><td>Evidence</td><td>Often hidden</td><td class="col-hg">Inspectable</td></tr>
+            <tr><td>Uncertainty</td><td>Rarely surfaced</td><td class="col-hg">Explicit</td></tr>
+            <tr><td>Safety</td><td>Separate</td><td class="col-hg">Integrated context</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Editorial -->
+  <section class="editorial-statement env-laboratory">
+    <p>One biomarker is a data point.</p>
+    <p>The system is the story.</p>
+  </section>
+
+  <!-- Knowledge graph: Atlas -->
+  <section class="env-atlas landing-section" aria-labelledby="graph-title">
+    <div class="landing-section-wide reveal">
+      <p class="section-eyebrow">Knowledge graph</p>
+      <h2 class="section-title" id="graph-title">From isolated data to connected biology.</h2>
+      <p class="section-lede">Active reasoning paths, related nodes, and faint contextual networks create depth without chaos.</p>
+
+      <div class="knowledge-graph-wrap">
+        <svg class="knowledge-graph-svg" viewBox="0 0 900 320" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Context layer 12% -->
+          <g opacity="0.12">
+            <circle cx="120" cy="80" r="8" fill="none" stroke="#5d635f" stroke-width="1"/>
+            <circle cx="780" cy="240" r="8" fill="none" stroke="#5d635f" stroke-width="1"/>
+            <circle cx="450" cy="40" r="6" fill="none" stroke="#5d635f" stroke-width="1"/>
+            <line x1="120" y1="80" x2="300" y2="160" stroke="#5d635f" stroke-width="0.5"/>
+            <line x1="780" y1="240" x2="600" y2="180" stroke="#5d635f" stroke-width="0.5"/>
+          </g>
+          <!-- Related 45% -->
+          <g opacity="0.45">
+            <rect x="220" y="120" width="64" height="32" rx="12" fill="none" stroke="#75a78c" stroke-width="1"/>
+            <text x="252" y="140" text-anchor="middle" font-size="10" fill="#5d635f">Vitamin D</text>
+            <rect x="620" y="100" width="72" height="32" rx="12" fill="none" stroke="#75a78c" stroke-width="1"/>
+            <text x="656" y="120" text-anchor="middle" font-size="10" fill="#5d635f">HbA1c</text>
+            <line x1="284" y1="136" x2="380" y2="160" stroke="#75a78c" stroke-width="1"/>
+            <line x1="620" y1="116" x2="520" y2="150" stroke="#75a78c" stroke-width="1"/>
+          </g>
+          <!-- Active path 100% -->
+          <path d="M80 200 L200 160 L340 140 L480 160 L620 200 L720 240" stroke="#7c8cf8" stroke-width="1.5" fill="none" filter="url(#kglow)"/>
+          <defs><filter id="kglow"><feGaussianBlur stdDeviation="2"/></filter></defs>
+          <circle cx="80" cy="200" r="28" fill="rgba(124,140,248,0.1)" stroke="#7c8cf8" stroke-width="1"/>
+          <text x="80" y="204" text-anchor="middle" font-size="10" fill="#171918">hs-CRP</text>
+          <rect x="168" y="140" width="64" height="36" rx="14" fill="rgba(117,167,140,0.12)" stroke="#75a78c" stroke-width="1"/>
+          <text x="200" y="162" text-anchor="middle" font-size="10" fill="#171918">NF-κB</text>
+          <rect x="308" y="122" width="64" height="36" rx="14" fill="rgba(117,167,140,0.12)" stroke="#75a78c" stroke-width="1"/>
+          <text x="340" y="144" text-anchor="middle" font-size="10" fill="#171918">Inflammation</text>
+          <polygon points="480,148 500,168 480,188 460,168" fill="rgba(124,140,248,0.08)" stroke="#7c8cf8" stroke-width="1"/>
+          <text x="480" y="172" text-anchor="middle" font-size="9" fill="#171918">Curcumin</text>
+          <circle cx="620" cy="200" r="22" fill="none" stroke="#7c8cf8" stroke-width="1"/>
+          <text x="620" y="204" text-anchor="middle" font-size="9" fill="#171918">Evidence</text>
+          <circle cx="720" cy="240" r="24" fill="rgba(124,140,248,0.08)" stroke="#7c8cf8" stroke-width="1.5"/>
+          <text x="720" y="244" text-anchor="middle" font-size="9" fill="#171918">Safety</text>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- How HerbaGraph thinks -->
+  <section class="env-laboratory landing-section" id="methodology" aria-labelledby="pipeline-title">
+    <div class="landing-section-inner reveal">
+      <p class="section-eyebrow">Reasoning pipeline</p>
+      <h2 class="section-title" id="pipeline-title">How HerbaGraph thinks.</h2>
+      <p class="section-lede">Each stage activates as biological context deepens from raw labs to safe, evidence-linked recommendations.</p>
+
+      <div class="pipeline-diagram" aria-label="Analysis pipeline">
+        <div class="pipeline-step is-active"><div class="pipeline-node">Labs</div><span>Labs</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Bio</div><span>Biomarkers</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Sys</div><span>Systems</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Path</div><span>Pathways</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Intv</div><span>Interventions</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Evd</div><span>Evidence</span></div>
+        <span class="pipeline-arrow">↓</span>
+        <div class="pipeline-step"><div class="pipeline-node">Safe</div><span>Safety</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Editorial -->
+  <section class="editorial-statement env-laboratory">
+    <p>The recommendation is not the answer.</p>
+    <p>The reasoning is.</p>
+  </section>
+
+  <!-- Evidence -->
+  <section class="env-laboratory landing-section" id="evidence" aria-labelledby="evidence-title">
+    <div class="landing-section-inner reveal">
+      <p class="section-eyebrow">Evidence layer</p>
+      <h2 class="section-title" id="evidence-title">Inspectable confidence, not star ratings.</h2>
+      <p class="section-lede">Human, mechanistic, and consistency signals made visible on every intervention.</p>
+
+      <div class="evidence-grid">
+        <article class="evidence-card">
+          <h3>Curcumin</h3>
+          <p class="pathway">Potential pathway relevance: NF-κB signaling</p>
+          <div class="confidence-row"><span>Human evidence</span><span>Moderate</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg"></span><span class="confidence-seg"></span>
+          </div>
+          <div class="confidence-row" style="margin-top:0.75rem"><span>Mechanistic evidence</span><span>Strong</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span>
+          </div>
+          <div class="confidence-row" style="margin-top:0.75rem"><span>Safety confidence</span><span>Moderate</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg"></span><span class="confidence-seg"></span><span class="confidence-seg"></span>
+          </div>
+          <p class="evidence-sources">14 sources</p>
+        </article>
+        <article class="evidence-card">
+          <h3>Omega-3 (EPA/DHA)</h3>
+          <p class="pathway">Anti-inflammatory eicosanoid modulation</p>
+          <div class="confidence-row"><span>Human evidence</span><span>Established</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg"></span>
+          </div>
+          <div class="confidence-row" style="margin-top:0.75rem"><span>Mechanistic evidence</span><span>Strong</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span>
+          </div>
+          <div class="confidence-row" style="margin-top:0.75rem"><span>Safety confidence</span><span>High</span></div>
+          <div class="confidence-bar" aria-hidden="true">
+            <span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span><span class="confidence-seg filled"></span>
+          </div>
+          <p class="evidence-sources">22 sources</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA: Observatory -->
+  <section class="env-observatory env-dark final-cta" aria-labelledby="cta-title">
+    <svg class="final-cta-bg" viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <circle cx="200" cy="100" r="4" fill="rgba(255,255,255,0.04)"/>
+      <circle cx="400" cy="200" r="4" fill="rgba(255,255,255,0.04)"/>
+      <circle cx="600" cy="150" r="4" fill="rgba(255,255,255,0.04)"/>
+      <circle cx="300" cy="300" r="4" fill="rgba(255,255,255,0.04)"/>
+      <circle cx="500" cy="80" r="4" fill="rgba(255,255,255,0.04)"/>
+      <path d="M100 250 L300 180 L500 220 L700 160" stroke="rgba(124,140,248,0.25)" stroke-width="1" fill="none"/>
+      <path d="M300 180 L500 220 L650 280" stroke="#7c8cf8" stroke-width="1.5" fill="none" opacity="0.6"/>
+    </svg>
+    <div class="final-cta-content reveal">
+      <h2 id="cta-title">Stop looking at biomarkers in isolation.</h2>
+      <p>Build a connected view of your biological data.</p>
+      <div class="final-cta-actions">
+        <a class="landing-btn landing-btn-primary" href="/signup.html">Analyze your labs</a>
+        <a class="landing-btn landing-btn-ghost" href="/report.html?demo=1">Explore a sample analysis</a>
+      </div>
+    </div>
+  </section>
+
+  <p class="landing-disclaimer">
     <strong>Clinical disclaimer.</strong> HerbaGraph does not diagnose, treat, or replace professional medical judgment.
-    Discuss all recommendations with a qualified healthcare provider.
+    Discuss all recommendations with a qualified healthcare provider. Research and clinical decision-support tool, not medical advice.
   </p>
-  <footer class="site-footer">HerbaGraph · Research tool, not medical advice.</footer>
+  <footer class="landing-footer">HerbaGraph · AI Clinical Reasoning for Precision Nutrition</footer>
 </main>
-<script src="/js/herbagraph-auth.js"></script>
+
+<script src="/js/landing.js"></script>
 </body>
 </html>

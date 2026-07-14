@@ -35,6 +35,10 @@ def test_homepage_is_public_landing(index_html):
     assert "/mock/" not in index_html
     assert "/report.html?demo=1" in index_html
     assert "View sample report" in index_html
+    assert "/css/landing.css" in index_html
+    assert "connects the system" in index_html
+    assert "Clinical disclaimer" in index_html
+    assert "AI Clinical Reasoning for Precision Nutrition" in index_html
 
 
 def test_signup_requires_access_code_field():
