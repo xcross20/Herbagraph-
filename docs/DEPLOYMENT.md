@@ -122,12 +122,50 @@ curl https://www.herbagraph.com/api/v1/system/status
 1. Create Supabase project.
 2. Authentication → URL configuration:
    - Site URL: `https://yourdomain.com`
-   - Redirect URLs: `https://yourdomain.com/app.html`
+   - Redirect URLs (add all):
+     - `https://yourdomain.com/app.html`
+     - `https://yourdomain.com/login.html`
+     - `https://yourdomain.com/signup.html`
 3. Copy **Project URL** → `SUPABASE_URL`
-4. Copy **anon/public key** → `SUPABASE_ANON_KEY`
+4. Copy **anon/public key** → `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`
 5. Enable email confirmation if `REQUIRE_EMAIL_VERIFICATION=true`.
 
-Users sign in via `/app.html`; local user rows are created on `/api/v1/auth/sync`.
+Users sign in via `/login.html` or `/signup.html`; local user rows are created on `POST /api/v1/auth/sync`.
+
+## Google OAuth (Supabase)
+
+Google sign-in is handled by **Supabase Auth** (no Google client secret in the HerbaGraph API).
+
+### 1. Google Cloud Console
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
+2. Create **OAuth 2.0 Client ID** (Web application)
+3. Authorized JavaScript origins:
+   - `https://yourdomain.com`
+   - `https://YOUR_PROJECT.supabase.co`
+4. Authorized redirect URIs:
+   - `https://YOUR_PROJECT.supabase.co/auth/v1/callback`
+5. Copy **Client ID** and **Client Secret**
+
+### 2. Supabase Dashboard
+
+1. Authentication → Providers → **Google** → Enable
+2. Paste Google Client ID and Client Secret
+3. Save
+
+### 3. HerbaGraph env vars (Railway web service)
+
+```env
+AUTH_PROVIDER=supabase
+GOOGLE_OAUTH_ENABLED=true
+APP_PUBLIC_URL=https://www.herbagraph.com
+```
+
+Redeploy the web service. The login and signup pages show **Continue with Google** when `google_oauth_enabled` is true in `/api/v1/auth/config`.
+
+### Private preview + Google signup
+
+When `SIGNUP_ACCESS_CODE` is set, users must enter a valid access code on the signup page before **Continue with Google**. The frontend exchanges the code for a short-lived approval token (`POST /api/v1/auth/verify-access-code`) and sends it on the first `/auth/sync` after OAuth.
 
 ## Admin console (password-protected)
 

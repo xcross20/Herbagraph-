@@ -368,6 +368,48 @@ async def test_register_requires_access_code_when_enabled(client, monkeypatch):
     assert resp.status_code == 403
 
 
+async def test_auth_config_includes_google_oauth_flag(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "google_oauth_enabled", True)
+    monkeypatch.setattr(settings, "auth_provider", "local")
+    resp = await client.get("/api/v1/auth/config")
+    assert resp.status_code == 200
+    assert resp.json()["google_oauth_enabled"] is False
+
+    monkeypatch.setattr(settings, "auth_provider", "supabase")
+    monkeypatch.setattr(settings, "supabase_url", "https://example.supabase.co")
+    monkeypatch.setattr(settings, "supabase_anon_key", "test-anon-key")
+    resp2 = await client.get("/api/v1/auth/config")
+    assert resp2.status_code == 200
+    assert resp2.json()["google_oauth_enabled"] is True
+
+
+async def test_verify_access_code_issues_oauth_approval_token(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_access_code", "19922026")
+    resp = await client.post(
+        "/api/v1/auth/verify-access-code",
+        json={"access_code": "19922026"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["approval_token"]
+    assert body["expires_in"] == 900
+
+
+async def test_verify_access_code_rejects_invalid_code(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "signup_access_code", "19922026")
+    resp = await client.post(
+        "/api/v1/auth/verify-access-code",
+        json={"access_code": "nope"},
+    )
+    assert resp.status_code == 403
+
+
 async def test_register_succeeds_after_access_code_verified(client, monkeypatch):
     from app.config import settings
 

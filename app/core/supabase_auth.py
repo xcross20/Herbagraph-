@@ -103,11 +103,14 @@ def _claims_from_payload(payload: dict) -> dict:
         app_meta = payload.get("app_metadata") or {}
         email_verified = bool(app_meta.get("email_verified"))
 
+    meta = payload.get("user_metadata") or {}
+    full_name = meta.get("full_name") or meta.get("name") or meta.get("fullName")
     return {
         "sub": str(sub),
         "email": str(email).lower(),
         "email_verified": email_verified,
-        "full_name": (payload.get("user_metadata") or {}).get("full_name"),
+        "full_name": full_name,
+        "auth_method": (payload.get("app_metadata") or {}).get("provider"),
     }
 
 

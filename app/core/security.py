@@ -20,7 +20,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def _create_token(
     subject: str,
     expires_delta: timedelta,
-    token_type: Literal["access", "refresh", "admin_master"],
+    token_type: Literal["access", "refresh", "admin_master", "signup_approval"],
 ) -> str:
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -58,6 +58,23 @@ def create_admin_master_token() -> str:
         timedelta(hours=12),
         "admin_master",
     )
+
+
+def create_signup_approval_token() -> str:
+    """Short-lived token proving signup access code was verified (OAuth signup flow)."""
+    return _create_token(
+        "signup_gate",
+        timedelta(minutes=15),
+        "signup_approval",
+    )
+
+
+def verify_signup_approval_token(token: str) -> bool:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except JWTError:
+        return False
+    return payload.get("type") == "signup_approval" and payload.get("sub") == "signup_gate"
 
 
 def verify_admin_master_token(token: str) -> bool:

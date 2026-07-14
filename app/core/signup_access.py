@@ -7,6 +7,7 @@ import time
 from fastapi import HTTPException, status
 
 from app.config import settings
+from app.core.security import create_signup_approval_token, verify_signup_approval_token
 
 # email -> expiry unix timestamp (short-lived approval after code check)
 _approved_emails: dict[str, float] = {}
@@ -41,6 +42,20 @@ def _prune_expired() -> None:
     expired = [email for email, expiry in _approved_emails.items() if expiry <= now]
     for email in expired:
         _approved_emails.pop(email, None)
+
+
+def issue_signup_approval_token(access_code: str) -> str:
+    """Verify access code and return a short-lived OAuth signup approval token."""
+    verify_access_code(access_code)
+    return create_signup_approval_token()
+
+
+def apply_signup_approval_token(token: str | None, email: str) -> None:
+    """If signup is gated, allow OAuth registration when a valid approval token is presented."""
+    if not signup_access_required() or not token:
+        return
+    if verify_signup_approval_token(token):
+        approve_email_for_signup(email)
 
 
 def require_approved_email(email: str) -> None:

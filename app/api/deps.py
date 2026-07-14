@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings, settings
 from app.core.auth_providers import AuthConfigurationError, verify_external_token
 from app.core.security import InvalidTokenError, decode_token, verify_admin_master_token
+from app.core.signup_access import apply_signup_approval_token
 from app.core.supabase_auth import get_or_create_user_from_supabase
 from app.database import AsyncSessionLocal
 from app.models.user import User
@@ -48,7 +49,13 @@ async def _user_from_local_token(token: str, db: AsyncSession) -> User:
     return user
 
 
-async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
+async def _user_from_supabase_token(
+    token: str,
+    db: AsyncSession,
+    *,
+    signup_approval_token: str | None = None,
+    email_for_approval: str | None = None,
+) -> User:
     try:
         claims = await verify_external_token(token)
     except AuthConfigurationError as exc:
@@ -60,8 +67,13 @@ async def _user_from_supabase_token(token: str, db: AsyncSession) -> User:
             detail="Email verification required before accessing patient data. Check your inbox.",
         )
 
+    if email_for_approval:
+        apply_signup_approval_token(signup_approval_token, email_for_approval)
+
     try:
         return await get_or_create_user_from_supabase(db, claims)
+    except HTTPException:
+        raise
     except SQLAlchemyError as exc:
         _raise_db_unavailable(exc)
     except (OSError, ssl.SSLError) as exc:

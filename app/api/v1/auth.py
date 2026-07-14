@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,18 +18,24 @@ from app.core.security import (
 
 from app.models.enums import AuditAction
 from app.models.user import HealthProfile, User
+from app.core.oauth import google_oauth_enabled
 from app.core.signup_access import (
+    apply_signup_approval_token,
     approve_email_for_signup,
+    issue_signup_approval_token,
     require_approved_email,
     signup_access_required,
     verify_access_code,
 )
+from app.core.supabase_auth import SupabaseAuthError, verify_supabase_access_token
 from app.schemas.auth import (
+    AccessCodeOnlyVerify,
     AuthConfigRead,
     HealthProfileRead,
     HealthProfileUpdate,
     RefreshTokenRequest,
     SignupAccessVerify,
+    SignupApprovalTokenRead,
     Token,
     UserCreate,
     UserLogin,
@@ -37,6 +44,7 @@ from app.schemas.auth import (
 from app.services.audit import record_audit_event
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def _require_local_auth_enabled() -> None:
@@ -56,6 +64,7 @@ async def get_auth_config() -> AuthConfigRead:
         require_email_verification=settings.require_email_verification,
         allow_guest_auth=settings.allow_guest_auth and settings.auth_provider == "local",
         signup_access_required=signup_access_required(),
+        google_oauth_enabled=google_oauth_enabled(),
     )
 
 
@@ -66,25 +75,63 @@ async def verify_signup_access(payload: SignupAccessVerify) -> None:
     approve_email_for_signup(payload.email)
 
 
+@router.post("/verify-access-code", response_model=SignupApprovalTokenRead)
+async def verify_access_code_for_oauth(payload: AccessCodeOnlyVerify) -> SignupApprovalTokenRead:
+    """Verify preview access code and issue a short-lived token for Google OAuth signup."""
+    if not signup_access_required():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Signup access code is not required for this environment.",
+        )
+    return SignupApprovalTokenRead(approval_token=issue_signup_approval_token(payload.access_code))
+
+
 @router.post("/sync", response_model=UserRead)
 async def sync_external_user(
     request: Request,
-    current_user: User = Depends(get_current_user),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Provision or refresh the local user row after Supabase sign-in."""
+    """Provision or refresh the local user row after Supabase or OAuth sign-in."""
     if settings.auth_provider != "supabase":
-        return current_user
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account sync is only used with Supabase Auth.",
+        )
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    try:
+        claims = verify_supabase_access_token(credentials.credentials)
+    except SupabaseAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+
+    if settings.require_email_verification and not claims.get("email_verified"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Email verification required before accessing patient data. Check your inbox.",
+        )
+
+    approval_token = request.headers.get("X-Signup-Approval-Token")
+    apply_signup_approval_token(approval_token, claims["email"])
+
+    from app.core.supabase_auth import get_or_create_user_from_supabase
+
+    try:
+        user = await get_or_create_user_from_supabase(db, claims)
+    except HTTPException:
+        raise
 
     await record_audit_event(
         db,
         action=AuditAction.USER_SYNC,
-        summary=f"User synced via Supabase ({current_user.email})",
-        user=current_user,
+        summary=f"User synced via Supabase ({user.email})",
+        user=user,
         request=request,
     )
     await db.commit()
-    return current_user
+    await db.refresh(user)
+    return user
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)

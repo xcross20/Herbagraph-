@@ -54,6 +54,15 @@ class UserRead(BaseModel):
     created_at: datetime
 
 
+class AccessCodeOnlyVerify(BaseModel):
+    access_code: str
+
+
+class SignupApprovalTokenRead(BaseModel):
+    approval_token: str
+    expires_in: int = 900
+
+
 class AuthConfigRead(BaseModel):
     auth_provider: str
     supabase_url: str | None = None
@@ -61,6 +70,7 @@ class AuthConfigRead(BaseModel):
     require_email_verification: bool
     allow_guest_auth: bool
     signup_access_required: bool = False
+    google_oauth_enabled: bool = False
 
 
 class Token(BaseModel):

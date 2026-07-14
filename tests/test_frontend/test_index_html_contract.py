@@ -72,6 +72,13 @@ def test_login_auth_redesign():
     assert "auth-page-v2" in html
     assert "Sign in to HerbaGraph" in html
     assert "See the system behind the data" in html
+    assert "google-login-btn" in html
+    assert "signInWithGoogle" in (Path(__file__).resolve().parents[2] / "frontend" / "js" / "herbagraph-auth.js").read_text(
+        encoding="utf-8"
+    )
+    assert "verify-access-code" in (Path(__file__).resolve().parents[2] / "frontend" / "js" / "herbagraph-auth.js").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_report_html_exists():

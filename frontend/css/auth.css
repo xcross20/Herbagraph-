@@ -525,6 +525,63 @@
 
 .auth-guest-btn:hover { color: var(--auth-ink); border-color: #c5cac4; }
 
+.auth-oauth-block {
+  margin-bottom: 1.25rem;
+}
+
+.auth-google-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 9px;
+  border: 1px solid var(--auth-input-border);
+  background: #fff;
+  color: var(--auth-ink);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.auth-google-btn:hover:not(:disabled) {
+  border-color: #c5cac4;
+  background: #fafaf8;
+  transform: translateY(-1px);
+}
+
+.auth-google-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.auth-google-mark {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.15rem 0 1.25rem;
+  font-size: 0.78rem;
+  color: var(--auth-muted);
+  text-transform: lowercase;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--auth-border);
+}
+
 .auth-success-overlay {
   position: fixed;
   inset: 0;

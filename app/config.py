@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     admin_master_password: str = ""
     # Private preview: require matching code on signup (set SIGNUP_ACCESS_CODE in production).
     signup_access_code: str = "19922026"
+    # Google OAuth via Supabase Auth (enable in Supabase Dashboard + set GOOGLE_OAUTH_ENABLED=true).
+    google_oauth_enabled: bool = False
+    # Public site URL for OAuth redirect documentation (e.g. https://www.herbagraph.com).
+    app_public_url: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
