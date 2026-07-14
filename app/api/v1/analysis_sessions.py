@@ -298,10 +298,10 @@ async def run_integrated_analysis(
 ) -> AnalysisSessionRunResponse:
     analysis_session = await _get_owned_session(session_id, current_user, db)
 
-    if len(analysis_session.lab_links) < 2:
+    if len(analysis_session.lab_links) < 1:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Integrated analysis requires at least two lab reports in the session.",
+            detail="Integrated analysis requires at least one lab report in the session.",
         )
 
     active_statuses = {

@@ -456,7 +456,7 @@ async function renderAnalysisBuilder(preselectedPatient) {
   const checkboxes = labs.filter(l => l.status === "complete").map(l => `
     <label style="display:block;margin:0.35rem 0">
       <input type="checkbox" class="analysis-lab" value="${l.id}" checked> ${esc(l.original_filename)}
-    </label>`).join("") || `<p class="muted">Upload at least two parsed lab reports for this patient.</p>`;
+    </label>`).join("") || `<p class="muted">Upload at least one parsed lab report for this patient.</p>`;
   const opts = patients.map(p => `<option value="${p.id}" ${p.id===patientId?"selected":""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
     <h1>Analysis builder</h1>
@@ -481,7 +481,7 @@ async function renderAnalysisBuilder(preselectedPatient) {
   document.getElementById("run-analysis-btn").onclick = async () => {
     const st = document.getElementById("analysis-status");
     const selected = [...document.querySelectorAll(".analysis-lab:checked")].map(el => el.value);
-    if (selected.length < 2) { st.textContent = "Select at least two lab reports."; return; }
+    if (selected.length < 1) { st.textContent = "Select at least one lab report."; return; }
     st.textContent = "Creating session...";
     try {
       const session = await api("/api/v1/analysis-sessions", "POST", {

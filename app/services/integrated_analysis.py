@@ -166,8 +166,8 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
                 AnalysisSessionLabReport.analysis_session_id == analysis_session.id
             )
         ).scalars().all()
-        if len(links) < 2:
-            return {"status": "failed", "error": "integrated_analysis_requires_at_least_two_lab_reports"}
+        if len(links) < 1:
+            return {"status": "failed", "error": "integrated_analysis_requires_at_least_one_lab_report"}
 
         lab_report_ids = [link.lab_report_id for link in links]
         panel_labels = {str(link.lab_report_id): link.panel_label for link in links if link.panel_label}

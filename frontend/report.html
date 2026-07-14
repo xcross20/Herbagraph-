@@ -2039,11 +2039,7 @@ async function analyzeIntegrated() {
   const fileInput = document.getElementById("integrated-file-input");
   const btn = document.getElementById("integrated-analyze-btn");
   if (!fileInput.files.length) {
-    setStatus("Choose at least two lab files for integrated analysis.", true);
-    return;
-  }
-  if (fileInput.files.length < 2) {
-    setStatus("Integrated analysis needs at least two lab files.", true);
+    setStatus("Choose at least one lab file for integrated analysis.", true);
     return;
   }
   document.getElementById("report").style.display = "none";

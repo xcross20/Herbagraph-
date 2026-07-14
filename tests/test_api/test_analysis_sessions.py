@@ -62,13 +62,31 @@ async def test_upload_multiple_files_to_session(authed_client):
     assert len(session["lab_reports"]) == 2
 
 
-async def test_run_requires_at_least_two_lab_reports(authed_client):
+async def test_run_requires_at_least_one_lab_report(authed_client):
     create = await authed_client.post("/api/v1/analysis-sessions", json={})
     session_id = create.json()["id"]
 
     resp = await authed_client.post(f"/api/v1/analysis-sessions/{session_id}/run")
     assert resp.status_code == 409
-    assert "two" in resp.json()["detail"].lower()
+    assert "one" in resp.json()["detail"].lower()
+
+
+@patch("app.workers.tasks.run_integrated_analysis")
+async def test_run_integrated_analysis_accepts_single_lab_report(mock_run, authed_client):
+    mock_run.return_value = {"status": "complete", "report_id": str(uuid.uuid4())}
+
+    create = await authed_client.post("/api/v1/analysis-sessions", json={})
+    session_id = create.json()["id"]
+
+    upload = await authed_client.post(
+        f"/api/v1/analysis-sessions/{session_id}/upload",
+        files=[_lab_file(VALID_LAB_TEXT, "cbc.txt")],
+    )
+    assert upload.status_code == 201
+
+    resp = await authed_client.post(f"/api/v1/analysis-sessions/{session_id}/run")
+    assert resp.status_code == 202, resp.text
+    mock_run.assert_called_once()
 
 
 @patch("app.workers.tasks.run_integrated_analysis")
