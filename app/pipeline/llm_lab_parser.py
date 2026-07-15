@@ -13,7 +13,7 @@ import json
 import logging
 
 from app.config import get_settings
-from app.pipeline.llm_client import create_sync_client, llm_configured, sync_chat_json
+from app.pipeline.llm_client import create_sync_client, llm_configured, sync_chat_json_with_fallback
 from app.core.privacy import deidentify_text
 from app.schemas.pipeline import ParsedLabResult
 
@@ -130,14 +130,14 @@ def parse_lab_text_with_llm(text: str) -> list[ParsedLabResult]:
         return []
 
     payload = cleaned[:_MAX_TEXT_CHARS]
-    client = _client()
-    raw = sync_chat_json(
-        client,
+    raw, fallback_provider = sync_chat_json_with_fallback(
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": f"Extract biomarker rows from this lab report text:\n\n{payload}"},
         ],
     )
+    if fallback_provider:
+        logger.info("Lab text parse used fallback LLM provider: %s", fallback_provider)
     rows = parse_llm_response(raw)
     logger.info("LLM text parser extracted %d rows", len(rows))
     return rows
@@ -175,15 +175,16 @@ def parse_lab_pdf_with_vision(file_bytes: bytes) -> list[ParsedLabResult]:
         b64 = base64.standard_b64encode(image_bytes).decode("ascii")
         content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}})
 
-    client = _client()
-    raw = sync_chat_json(
-        client,
+    _client()  # validate API key before vision request
+    raw, fallback_provider = sync_chat_json_with_fallback(
         model=_vision_model(),
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": content},
         ],
     )
+    if fallback_provider:
+        logger.info("Lab vision parse used fallback LLM provider: %s", fallback_provider)
     rows = parse_llm_response(raw)
     logger.info("LLM vision parser extracted %d rows from %d pages", len(rows), len(images))
     return rows

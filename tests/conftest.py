@@ -37,6 +37,19 @@ celery_app.conf.task_always_eager = True
 celery_app.conf.task_eager_propagates = True
 
 
+@pytest.fixture
+def master_env(monkeypatch, test_user):
+    monkeypatch.setenv("ADMIN_MASTER_PASSWORD", "MasterPass123!")
+    monkeypatch.setenv("ADMIN_EMAILS", test_user.email)
+    from app.config import get_settings
+
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+    monkeypatch.delenv("ADMIN_MASTER_PASSWORD", raising=False)
+    monkeypatch.delenv("ADMIN_EMAILS", raising=False)
+
+
 @pytest_asyncio.fixture
 async def db_session(tmp_path, monkeypatch):
     """A fresh file-backed SQLite DB per test, shared between the async app engine and the

@@ -8,6 +8,7 @@ from app.api.v1 import (
     auth,
     evidence,
     explainability,
+    knowledge,
     labs,
     patient_context,
     patients,
@@ -29,6 +30,7 @@ api_router.include_router(labs.router)
 api_router.include_router(reports.router)
 api_router.include_router(validation.router)
 api_router.include_router(evidence.router)
+api_router.include_router(knowledge.router)
 api_router.include_router(explainability.router)
 api_router.include_router(safety.router)
 api_router.include_router(patients.router)

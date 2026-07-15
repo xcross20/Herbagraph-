@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     minimax_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = "gpt-4o"
+    # Secondary provider when primary hits context/token/rate limits (empty = auto if both keys set).
+    llm_fallback_provider: str = ""
+    llm_fallback_model: str = ""
     # Optional override for PDF vision parsing (MiniMax-M3 supports images; M2.x is text-only).
     llm_vision_model: str = ""
     # Low temperature keeps structured JSON stable across OpenAI and MiniMax.

@@ -10,12 +10,12 @@ into the final report.
 import json
 import os
 
-from app.config import get_settings, settings
+from app.config import get_settings
 from app.pipeline.llm_client import (
     APIConnectionError,
     APITimeoutError,
     AsyncOpenAI,
-    async_chat_json,
+    async_chat_json_with_fallback,
     create_async_client,
     llm_api_key,
 )
@@ -251,14 +251,15 @@ async def generate_reasoning(
         normalized_labs, pathway_activations, evidence_snippets, health_profile, routing=routing
     )
 
+    fallback_provider: str | None = None
     try:
         try:
-            raw_text = await async_chat_json(
-                client,
+            raw_text, fallback_provider = await async_chat_json_with_fallback(
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": json.dumps(payload)},
                 ],
+                client=client,
             )
         except Exception as exc:
             if _catalog_fallback_for_llm_failure(exc):
@@ -274,6 +275,15 @@ async def generate_reasoning(
         if owns_client and hasattr(client, "close"):
             await client.close()
     output = parse_llm_response(raw_text, evidence_snippets)
+    if fallback_provider:
+        note = (
+            f"Primary LLM provider hit a token or rate limit; reasoning completed via {fallback_provider}. "
+        )
+        output = output.model_copy(
+            update={
+                "biomarker_pattern_analysis": note + output.biomarker_pattern_analysis,
+            }
+        )
     if get_settings().llm_stabilize_reasoning:
         output = stabilize_reasoning_output(
             output,

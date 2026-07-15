@@ -1,6 +1,13 @@
 from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport, IntegratedBiomarkerResult
 from app.models.audit import AuditEvent
 from app.models.biomarker import Biomarker
+from app.models.canonical_entity import (
+    CanonicalEntity,
+    EnrichmentQueueItem,
+    EntityExternalId,
+    EntitySynonym,
+    GraphEdge,
+)
 from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
 from app.models.feedback import Feedback
@@ -23,6 +30,11 @@ __all__ = [
     "AnalysisSessionLabReport",
     "IntegratedBiomarkerResult",
     "Biomarker",
+    "CanonicalEntity",
+    "EnrichmentQueueItem",
+    "EntityExternalId",
+    "EntitySynonym",
+    "GraphEdge",
     "Compound",
     "InterventionCompound",
     "Citation",

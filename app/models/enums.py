@@ -301,6 +301,122 @@ class SafetyRelationshipType(str, enum.Enum):
     AFFECTS_PATHWAY = "affects_pathway"
 
 
+class CanonicalEntityType(str, enum.Enum):
+    """Level 1 intervention universe taxonomy."""
+
+    FOOD = "food"
+    BOTANICAL = "botanical"
+    NUTRIENT = "nutrient"
+    SUPPLEMENT = "supplement"
+    COMPOUND = "compound"
+    LIFESTYLE = "lifestyle"
+    MEDICATION = "medication"
+    PEPTIDE = "peptide"
+    PROCEDURE = "procedure"
+    DEVICE = "device"
+
+
+class CanonicalEntitySubtype(str, enum.Enum):
+    """Finer classification within entity_type (foods, botanicals, nutrients, supplements)."""
+
+    # Foods
+    FRUIT = "fruit"
+    VEGETABLE = "vegetable"
+    LEGUME = "legume"
+    WHOLE_GRAIN = "whole_grain"
+    NUT = "nut"
+    SEED = "seed"
+    MUSHROOM = "mushroom"
+    SEA_VEGETABLE = "sea_vegetable"
+    SPICE = "spice"
+    BEVERAGE = "beverage"
+    FERMENTED_FOOD = "fermented_food"
+    # Botanicals
+    HERB = "herb"
+    ROOT = "root"
+    BARK = "bark"
+    RHIZOME = "rhizome"
+    FLOWER = "flower"
+    BOTANICAL_SEED = "botanical_seed"
+    BOTANICAL_FRUIT = "botanical_fruit"
+    LEAF = "leaf"
+    RESIN = "resin"
+    EXTRACT = "extract"
+    # Nutrients
+    VITAMIN = "vitamin"
+    MINERAL = "mineral"
+    AMINO_ACID = "amino_acid"
+    FATTY_ACID = "fatty_acid"
+    FIBER = "fiber"
+    OTHER_NUTRIENT = "other_nutrient"
+    # Supplements
+    ISOLATED_COMPOUND = "isolated_compound"
+    STANDARDIZED_EXTRACT = "standardized_extract"
+    METABOLITE = "metabolite"
+    PROBIOTIC = "probiotic"
+    ENZYME = "enzyme"
+    MULTI_INGREDIENT = "multi_ingredient"
+    OTHER = "other"
+
+
+class EntityReviewStatus(str, enum.Enum):
+    """Graph publication lifecycle — nodes and edges."""
+
+    MACHINE_GENERATED = "machine_generated"
+    MACHINE_VERIFIED = "machine_verified"
+    HUMAN_REVIEWED = "human_reviewed"
+    PRODUCTION_APPROVED = "production_approved"
+    DEPRECATED = "deprecated"
+
+
+class CoverageTier(str, enum.Enum):
+    """Entity maturity tier for recommendation surfacing."""
+
+    TIER_A = "tier_a"
+    TIER_B = "tier_b"
+    TIER_C = "tier_c"
+
+
+class GraphRelationshipType(str, enum.Enum):
+    """Biological/compositional edge types."""
+
+    CONTAINS = "contains"
+    INCLUDES = "includes"
+    MODULATES = "modulates"
+    INFLUENCES = "influences"
+    TARGETS = "targets"
+    ACTIVATES = "activates"
+    INHIBITS = "inhibits"
+
+
+class GraphEvidenceType(str, enum.Enum):
+    """Evidence strength for graph edges (Level 4)."""
+
+    PREDICTED = "predicted"
+    MECHANISTIC = "mechanistic"
+    ANIMAL = "animal"
+    OBSERVATIONAL_HUMAN = "observational_human"
+    CLINICAL_HUMAN = "clinical_human"
+    META_ANALYTIC = "meta_analytic"
+
+
+class ExternalIdSource(str, enum.Enum):
+    PUBCHEM = "pubchem"
+    CHEBI = "chebi"
+    USDA_FDC = "usda_fdc"
+    NCBI_TAXON = "ncbi_taxon"
+    INTERVENTION = "intervention"
+    COMPOUND = "compound"
+
+
+class EnrichmentQueueStatus(str, enum.Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    NEEDS_REVIEW = "needs_review"
+
+
 class SafetyWarningEvidenceLevel(str, enum.Enum):
     """Evidence strength supporting a safety warning (distinct from intervention evidence)."""
 
