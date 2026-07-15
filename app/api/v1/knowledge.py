@@ -219,10 +219,10 @@ async def run_enrichment_worker(
     return [EnrichmentQueueItemRead.model_validate(item) for item in processed]
 
 
-@router.post("/bootstrap/interventions", response_model=dict[str, int])
+@router.post("/bootstrap/interventions")
 async def bootstrap_intervention_registry(
     _: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, int]:
-    created = await bootstrap_from_interventions(db)
-    return {"entities_registered": created}
+    """One-time (idempotent) Tier A seed from the curated interventions catalog."""
+    return await bootstrap_from_interventions(db)

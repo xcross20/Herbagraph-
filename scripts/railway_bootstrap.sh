@@ -15,6 +15,8 @@ fi
 echo "=== HerbaGraph Railway bootstrap ==="
 echo "[1/2] Alembic migrations..."
 railway run alembic upgrade head
-echo "[2/2] Knowledge graph reseed..."
+echo "[2/3] Knowledge graph reseed..."
 railway run python scripts/reseed_db.py
+echo "[3/3] Canonical registry bootstrap (Tier A from interventions)..."
+railway run python scripts/bootstrap_canonical_registry.py
 echo "=== Done. Smoke test: curl \$(railway domain)/health ==="

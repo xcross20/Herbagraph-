@@ -8,15 +8,25 @@ import uuid
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.canonical_entity import ENTITY_ID_PREFIX, CanonicalEntity, EntityExternalId, EntitySynonym
+from app.models.canonical_entity import (
+    ENTITY_ID_PREFIX,
+    CanonicalEntity,
+    EntityExternalId,
+    EntitySynonym,
+    GraphEdge,
+)
+from app.models.compound import Compound, InterventionCompound
 from app.models.enums import (
     CanonicalEntitySubtype,
     CanonicalEntityType,
     CoverageTier,
     EntityReviewStatus,
     ExternalIdSource,
+    GraphEvidenceType,
+    GraphRelationshipType,
     InterventionCategory,
 )
+from app.models.food_compound_source import FoodCompoundSource
 from app.models.intervention import Intervention
 
 _NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
@@ -154,33 +164,152 @@ async def register_entity(
     return entity
 
 
+async def _entity_for_intervention_id(
+    db: AsyncSession, intervention_id: uuid.UUID
+) -> CanonicalEntity | None:
+    result = await db.execute(
+        select(CanonicalEntity).where(CanonicalEntity.intervention_id == intervention_id).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _ensure_composition_edge(
+    db: AsyncSession,
+    *,
+    source_entity_id: uuid.UUID,
+    target_entity_id: uuid.UUID,
+    notes: str,
+) -> bool:
+    existing = await db.execute(
+        select(GraphEdge.id)
+        .where(
+            GraphEdge.source_entity_id == source_entity_id,
+            GraphEdge.target_entity_id == target_entity_id,
+            GraphEdge.relationship_type == GraphRelationshipType.CONTAINS.value,
+        )
+        .limit(1)
+    )
+    if existing.scalar_one_or_none() is not None:
+        return False
+    db.add(
+        GraphEdge(
+            source_entity_id=source_entity_id,
+            target_entity_id=target_entity_id,
+            relationship_type=GraphRelationshipType.CONTAINS.value,
+            evidence_type=GraphEvidenceType.MECHANISTIC.value,
+            confidence=0.85,
+            review_status=EntityReviewStatus.PRODUCTION_APPROVED.value,
+            source_provenance="bootstrap_interventions",
+            notes=notes,
+        )
+    )
+    return True
+
+
 async def bootstrap_from_interventions(
     db: AsyncSession,
     *,
     coverage_tier: CoverageTier = CoverageTier.TIER_A,
     review_status: EntityReviewStatus = EntityReviewStatus.PRODUCTION_APPROVED,
-) -> int:
-    """Seed canonical registry from existing curated interventions (Tier A core)."""
-    result = await db.execute(select(Intervention))
-    interventions = list(result.scalars().all())
-    created = 0
+) -> dict[str, int]:
+    """Seed canonical registry from the curated interventions catalog (Tier A core).
+
+    Idempotent: skips entities and composition edges that already exist.
+    """
+    stats = {
+        "interventions_total": 0,
+        "entities_created": 0,
+        "entities_skipped": 0,
+        "compounds_created": 0,
+        "composition_edges_created": 0,
+    }
+
+    intervention_entities: dict[uuid.UUID, CanonicalEntity] = {}
+
+    interventions = list((await db.execute(select(Intervention))).scalars().all())
     for intervention in interventions:
+        stats["interventions_total"] += 1
         entity_type = intervention_category_to_entity_type(intervention.category)
-        before_id = intervention.id
-        existing = await resolve_entity_by_name(db, intervention.name, entity_type=entity_type)
+        existing = await _entity_for_intervention_id(db, intervention.id)
+        if existing is None:
+            existing = await resolve_entity_by_name(db, intervention.name, entity_type=entity_type)
+
         if existing is not None:
+            stats["entities_skipped"] += 1
+            if existing.intervention_id is None:
+                existing.intervention_id = intervention.id
+            intervention_entities[intervention.id] = existing
             continue
-        await register_entity(
+
+        entity = await register_entity(
             db,
             canonical_name=intervention.name,
             display_name=intervention.name,
             entity_type=entity_type,
             coverage_tier=coverage_tier,
             review_status=review_status,
-            intervention_id=before_id,
-            external_ids=[(ExternalIdSource.INTERVENTION, str(before_id))],
+            intervention_id=intervention.id,
+            external_ids=[(ExternalIdSource.INTERVENTION, str(intervention.id))],
             notes="Bootstrapped from interventions table",
         )
-        created += 1
+        stats["entities_created"] += 1
+        intervention_entities[intervention.id] = entity
+
+    await db.flush()
+
+    compound_entities: dict[uuid.UUID, CanonicalEntity] = {}
+    compounds = list((await db.execute(select(Compound))).scalars().all())
+    for compound in compounds:
+        existing = await resolve_entity_by_name(db, compound.name, entity_type=CanonicalEntityType.COMPOUND)
+        if existing is None:
+            entity = await register_entity(
+                db,
+                canonical_name=compound.name,
+                display_name=compound.name,
+                entity_type=CanonicalEntityType.COMPOUND,
+                coverage_tier=coverage_tier,
+                review_status=review_status,
+                compound_id=compound.id,
+                external_ids=[(ExternalIdSource.COMPOUND, str(compound.id))],
+                notes="Bootstrapped from compounds table",
+            )
+            stats["compounds_created"] += 1
+            compound_entities[compound.id] = entity
+        else:
+            compound_entities[compound.id] = existing
+
+    await db.flush()
+
+    intervention_compounds = list((await db.execute(select(InterventionCompound))).scalars().all())
+    for link in intervention_compounds:
+        source = intervention_entities.get(link.intervention_id)
+        target = compound_entities.get(link.compound_id)
+        if source is None or target is None:
+            continue
+        if await _ensure_composition_edge(
+            db,
+            source_entity_id=source.id,
+            target_entity_id=target.id,
+            notes=f"From intervention_compounds ({link.role or 'constituent'})",
+        ):
+            stats["composition_edges_created"] += 1
+
+    food_links = list((await db.execute(select(FoodCompoundSource))).scalars().all())
+    for link in food_links:
+        food_entity = intervention_entities.get(link.food_intervention_id)
+        compound_entity = intervention_entities.get(link.compound_intervention_id)
+        if food_entity is None or compound_entity is None:
+            continue
+        note = f"From food_compound_sources ({link.richness.value})"
+        if link.typical_serving:
+            note += f"; serving: {link.typical_serving}"
+        if await _ensure_composition_edge(
+            db,
+            source_entity_id=food_entity.id,
+            target_entity_id=compound_entity.id,
+            notes=note,
+        ):
+            stats["composition_edges_created"] += 1
+
     await db.commit()
-    return created
+    return stats
