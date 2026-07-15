@@ -11,6 +11,7 @@ from app import __version__
 from app.config import settings
 from app.core.background_jobs import redis_reachable
 from app.database import AsyncSessionLocal
+from app.integrations.usda_fooddata import usda_configured
 from app.workers.celery_app import celery_app
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -45,6 +46,7 @@ async def system_status():
                 payload["schema_ready"] = False
         payload["database"] = "connected"
         payload["encryption_configured"] = bool(settings.encryption_key.strip())
+        payload["usda_configured"] = usda_configured()
         redis_host = urlparse(settings.redis_url).hostname or ""
         payload["redis_host"] = redis_host or None
         payload["redis_looks_local"] = redis_host in ("localhost", "127.0.0.1", "")

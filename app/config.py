@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     ncbi_api_key: str = ""
     ncbi_email: str = "dev@herbagraph.io"
+    # USDA FoodData Central — free key at https://fdc.nal.usda.gov/api-key-signup.html
+    usda_key: str = ""
     upload_dir: str = "/tmp/herbagraph/uploads"
     # auto = database on Railway (web/worker share Postgres), disk locally
     file_storage_backend: str = "auto"
