@@ -65,6 +65,10 @@ async def test_process_queue_item_registers_entity(db_session, monkeypatch):
         "app.knowledge_graph.enrichment_worker.search_food",
         AsyncMock(return_value=[]),
     )
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.get_compound_synonyms",
+        AsyncMock(return_value=[]),
+    )
 
     processed = await process_queue_item(db_session, item, http_client=mock_client)
     assert processed.status in (
@@ -72,3 +76,47 @@ async def test_process_queue_item_registers_entity(db_session, monkeypatch):
         EnrichmentQueueStatus.COMPLETED.value,
     )
     assert processed.entity_id_fk is not None
+
+
+@pytest.mark.asyncio
+async def test_deep_enrich_existing_entity_attaches_pubchem(db_session, monkeypatch):
+    from app.knowledge_graph.entity_registry import register_entity
+    from app.models.enums import CanonicalEntityType, CoverageTier, EntityReviewStatus
+
+    entity = await register_entity(
+        db_session,
+        canonical_name="Quercetin",
+        entity_type=CanonicalEntityType.COMPOUND,
+        coverage_tier=CoverageTier.TIER_A,
+        review_status=EntityReviewStatus.PRODUCTION_APPROVED,
+    )
+    await db_session.commit()
+
+    item = await enqueue_enrichment(db_session, query_name="Quercetin")
+    await db_session.commit()
+
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.get_compound_cid",
+        AsyncMock(return_value=5280343),
+    )
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.get_compound_properties",
+        AsyncMock(return_value={"IUPACName": "quercetin", "MolecularFormula": "C15H10O7"}),
+    )
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.get_compound_synonyms",
+        AsyncMock(return_value=["3,3',4',5,7-Pentahydroxyflavone", "Sophoretin"]),
+    )
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.lookup_chebi_id",
+        AsyncMock(return_value="CHEBI:16243"),
+    )
+    monkeypatch.setattr(
+        "app.knowledge_graph.enrichment_worker.search_food",
+        AsyncMock(return_value=[]),
+    )
+
+    processed = await process_queue_item(db_session, item, http_client=AsyncMock())
+    assert processed.entity_id_fk == entity.id
+    assert "pubchem:5280343" in (processed.result_summary or "")
+    assert processed.status == EnrichmentQueueStatus.NEEDS_REVIEW.value

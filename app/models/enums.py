@@ -417,6 +417,17 @@ class EnrichmentQueueStatus(str, enum.Enum):
     NEEDS_REVIEW = "needs_review"
 
 
+class KnowledgePath(str, enum.Enum):
+    """Which knowledge substrate drives intervention selection during report analysis.
+
+    LEGACY — curated intervention catalogs + tier_a evidence claims (production default).
+    CANONICAL — canonical_entities registry + composition graph, filtered to registry nodes.
+    """
+
+    LEGACY = "legacy"
+    CANONICAL = "canonical"
+
+
 class SafetyWarningEvidenceLevel(str, enum.Enum):
     """Evidence strength supporting a safety warning (distinct from intervention evidence)."""
 

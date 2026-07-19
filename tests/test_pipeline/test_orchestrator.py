@@ -152,7 +152,7 @@ async def test_run_pipeline_clinician_questions_pass_through():
 
 async def test_run_pipeline_disclaimer_present():
     result = await orchestrator.run_pipeline(raw_text=RAW_TEXT, health_profile=HEALTH_PROFILE)
-    assert "not a medical" in result["disclaimer"].lower() or "disclaimer" in result["disclaimer"].lower()
+    assert "does not diagnose" in result["disclaimer"].lower() or "healthcare provider" in result["disclaimer"].lower()
 
 
 async def test_run_pipeline_safety_summary_shape():

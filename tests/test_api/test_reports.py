@@ -405,7 +405,14 @@ async def test_list_reports_summary_shape_omits_recommendations(authed_client, m
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 1
-    assert set(body[0].keys()) == {"id", "lab_report_id", "overall_confidence", "created_at"}
+    assert set(body[0].keys()) == {
+        "id",
+        "lab_report_id",
+        "overall_confidence",
+        "knowledge_path",
+        "created_at",
+    }
+    assert body[0]["knowledge_path"] in ("legacy", "canonical")
 
 
 async def test_delete_report_removes_it(authed_client, monkeypatch):

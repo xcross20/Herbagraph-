@@ -152,7 +152,9 @@ def _anchor_lab_report(lab_reports: list[LabReport]) -> LabReport:
     )
 
 
-async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str) -> dict:
+async def _run_integrated_analysis_async(
+    analysis_session_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
     session = database.get_sync_db()
     try:
         analysis_session = session.get(AnalysisSession, analysis_session_id)
@@ -258,6 +260,7 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
             analysis_session_id=analysis_session.id,
             lab_trends_override=lab_trends,
             patient_id=patient_id,
+            knowledge_path=knowledge_path,
         )
 
         analysis_session.latest_report_id = report.id
@@ -295,15 +298,20 @@ async def _run_integrated_analysis_async(analysis_session_id: str, user_id: str)
         session.close()
 
 
-def run_integrated_analysis(analysis_session_id: str, user_id: str) -> dict:
+def run_integrated_analysis(
+    analysis_session_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(_run_integrated_analysis_async(analysis_session_id, user_id))
+        return asyncio.run(
+            _run_integrated_analysis_async(analysis_session_id, user_id, knowledge_path)
+        )
 
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
         return executor.submit(
-            asyncio.run, _run_integrated_analysis_async(analysis_session_id, user_id)
+            asyncio.run,
+            _run_integrated_analysis_async(analysis_session_id, user_id, knowledge_path),
         ).result()

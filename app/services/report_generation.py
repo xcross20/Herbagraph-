@@ -53,7 +53,13 @@ async def _run_pipeline_stages(
     analysis_session_id: uuid.UUID | None = None,
     lab_trends_override: dict | None = None,
     patient_id: uuid.UUID | None = None,
+    knowledge_path: str = "legacy",
 ) -> RecommendationReport:
+    from app.models.enums import KnowledgePath
+    from app.pipeline.canonical_graph import build_interventions_for_canonical_path
+    from app.pipeline.knowledge_path import parse_knowledge_path
+
+    path = parse_knowledge_path(knowledge_path)
     memory = build_patient_memory(session, patient_id, lab_report.user_id)
     merged_profile = {**health_profile, **memory.get("patient_context", {})}
     custom_biomarkers = []
@@ -75,8 +81,17 @@ async def _run_pipeline_stages(
     routing = route_recommendation_trees(normalized, pathway_activations)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.EVIDENCE_RETRIEVAL)
+    knowledge_meta: dict = {"knowledge_path": path.value}
+    pathway_to_interventions = None
+    if path == KnowledgePath.CANONICAL:
+        pathway_to_interventions, knowledge_meta = build_interventions_for_canonical_path(
+            routing, pathway_activations, normalized, session
+        )
     evidence_snippets = await retrieve_evidence(
-        pathway_activations, routing=routing, normalized_labs=normalized
+        pathway_activations,
+        routing=routing,
+        normalized_labs=normalized,
+        pathway_to_interventions=pathway_to_interventions,
     )
 
     _set_report_stage(session, lab_report, ReportGenerationStage.LLM_REASONING)
@@ -88,7 +103,13 @@ async def _run_pipeline_stages(
 
     _set_report_stage(session, lab_report, ReportGenerationStage.SAFETY_CHECK)
     safety_report = check_safety(reasoning.recommendations, merged_profile, normalized_labs=normalized)
-    intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
+    if path == KnowledgePath.CANONICAL and pathway_to_interventions is not None:
+        intervention_pathways = {
+            name: [code for code, names in pathway_to_interventions.items() if name in names]
+            for name in {n for names in pathway_to_interventions.values() for n in names}
+        }
+    else:
+        intervention_pathways = build_intervention_pathway_map(routing, pathway_activations, normalized)
 
     _set_report_stage(session, lab_report, ReportGenerationStage.REPORT_ASSEMBLY)
     medication_context = build_medication_context(normalized, merged_profile)
@@ -128,6 +149,11 @@ async def _run_pipeline_stages(
         health_profile=merged_profile,
         integrated_analysis=integrated_analysis,
     )
+    insights = payload.get("report_insights") or {}
+    insights["knowledge_path"] = path.value
+    insights["knowledge_path_meta"] = knowledge_meta
+    payload["report_insights"] = insights
+    payload["model_version"] = f"{payload['model_version']}-{path.value}"
 
     report = RecommendationReport(
         lab_report_id=lab_report.id,
@@ -135,6 +161,7 @@ async def _run_pipeline_stages(
         user_id=lab_report.user_id,
         overall_confidence=payload["overall_confidence"],
         model_version=payload["model_version"],
+        knowledge_path=path.value,
         executive_summary=payload["executive_summary"],
         biomarker_summary=payload["biomarker_summary"],
         biomarker_interpretations=payload["biomarker_interpretations"],
@@ -202,13 +229,19 @@ async def _run_pipeline_stages(
         patient_id=patient_id or lab_report.patient_id,
         resource_type="report",
         resource_id=str(report.id),
-        detail={"overall_confidence": report.overall_confidence, "lab_report_id": str(lab_report.id)},
+        detail={
+            "overall_confidence": report.overall_confidence,
+            "lab_report_id": str(lab_report.id),
+            "knowledge_path": report.knowledge_path,
+        },
     )
     session.commit()
     return report
 
 
-async def _generate_report_async(lab_report_id: str, user_id: str) -> dict:
+async def _generate_report_async(
+    lab_report_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
     session = database.get_sync_db()
     try:
         lab_report = session.get(LabReport, lab_report_id)
@@ -228,9 +261,17 @@ async def _generate_report_async(lab_report_id: str, user_id: str) -> dict:
         health_profile = _health_profile_dict(profile)
 
         report = await _run_pipeline_stages(
-            lab_report, health_profile, session, patient_id=lab_report.patient_id
+            lab_report,
+            health_profile,
+            session,
+            patient_id=lab_report.patient_id,
+            knowledge_path=knowledge_path,
         )
-        return {"status": "complete", "report_id": str(report.id)}
+        return {
+            "status": "complete",
+            "report_id": str(report.id),
+            "knowledge_path": report.knowledge_path,
+        }
     except Exception as exc:  # noqa: BLE001
         session.rollback()
         lab_report = session.get(LabReport, lab_report_id)
@@ -243,15 +284,19 @@ async def _generate_report_async(lab_report_id: str, user_id: str) -> dict:
         session.close()
 
 
-def run_report_generation(lab_report_id: str, user_id: str) -> dict:
+def run_report_generation(
+    lab_report_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
     """Synchronous entry point for Celery workers (and eager in-process test runs)."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(_generate_report_async(lab_report_id, user_id))
+        return asyncio.run(_generate_report_async(lab_report_id, user_id, knowledge_path))
 
     # pytest-asyncio (and other nested-loop callers): run in a fresh thread+loop.
     import concurrent.futures
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        return executor.submit(asyncio.run, _generate_report_async(lab_report_id, user_id)).result()
+        return executor.submit(
+            asyncio.run, _generate_report_async(lab_report_id, user_id, knowledge_path)
+        ).result()

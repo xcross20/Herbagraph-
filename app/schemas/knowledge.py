@@ -114,3 +114,23 @@ class KnowledgeCoverageSummary(BaseModel):
     evidence_coverage_label: str
     entity_coverage_label: str
     last_evidence_review: str
+
+
+class KnowledgeIntegrationsStatus(BaseModel):
+    """Operator-facing integration readiness for enrichment + bootstrap."""
+
+    usda_configured: bool
+    usda_key_present: bool
+    usda_live_ok: bool | None = None
+    usda_sample_count: int | None = None
+    usda_error: str | None = None
+    openai_configured: bool
+    minimax_configured: bool
+    ncbi_configured: bool
+    knowledge_paths: list[str] = ["legacy", "canonical"]
+
+
+class DeepEnrichmentSeedResponse(BaseModel):
+    enqueued: int
+    skipped_with_ids: int
+    scanned: int

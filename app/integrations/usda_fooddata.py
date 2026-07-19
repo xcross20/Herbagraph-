@@ -53,7 +53,7 @@ async def search_food(
         )
     response.raise_for_status()
     foods = response.json().get("foods") or []
-    return [
+    results = [
         {
             "fdcId": item.get("fdcId"),
             "description": item.get("description"),
@@ -63,3 +63,23 @@ async def search_food(
         for item in foods
         if item.get("fdcId")
     ]
+    return rank_usda_foods(results)
+
+
+_USDA_DATA_TYPE_RANK = {
+    "Foundation": 0,
+    "SR Legacy": 1,
+    "Survey (FNDDS)": 2,
+    "Branded": 3,
+}
+
+
+def rank_usda_foods(foods: list[dict]) -> list[dict]:
+    """Prefer Foundation / SR Legacy over branded supermarket SKUs."""
+    return sorted(
+        foods,
+        key=lambda item: (
+            _USDA_DATA_TYPE_RANK.get(str(item.get("dataType") or ""), 9),
+            str(item.get("description") or ""),
+        ),
+    )

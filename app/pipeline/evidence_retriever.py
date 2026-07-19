@@ -89,15 +89,21 @@ async def retrieve_evidence(
     *,
     routing: RecommendationRoutingContext | None = None,
     normalized_labs: list[NormalizedLabResult] | None = None,
+    pathway_to_interventions: dict[str, list[str]] | None = None,
 ) -> list[EvidenceSnippet]:
-    """Retrieve, deduplicate, and rank evidence for routed interventions."""
+    """Retrieve, deduplicate, and rank evidence for routed interventions.
+
+    When ``pathway_to_interventions`` is provided (e.g. canonical graph path),
+    it is used instead of the legacy catalog routing map.
+    """
     owns_client = client is None
     client = client or httpx.AsyncClient(timeout=15.0)
 
     try:
-        pathway_to_interventions = interventions_for_activations(
-            pathway_activations, routing=routing, normalized_labs=normalized_labs
-        )
+        if pathway_to_interventions is None:
+            pathway_to_interventions = interventions_for_activations(
+                pathway_activations, routing=routing, normalized_labs=normalized_labs
+            )
         pathway_names = {a.pathway_code: a.pathway_name for a in pathway_activations}
 
         seen_interventions: set[str] = set()

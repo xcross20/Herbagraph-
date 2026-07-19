@@ -2,7 +2,7 @@
   "version": 1,
   "project": "herbagraph",
   "description": "Vertical slices for production-grade biomarker intelligence. Consumed by the herbagraph-ops Grok skill.",
-  "updated_at": "2026-07-07",
+  "updated_at": "2026-07-18",
   "definition_of_done": [
     "pytest exits 0 (full suite)",
     "scripts/validate_pathway_coverage.py exits 0 (266/266 biomarkers mapped)",
@@ -30,10 +30,19 @@
         "scripts/ci_gates.sh runs all mandatory gates",
         ".github/workflows/ci.yml runs on push and PR"
       ],
-      "non_goals": ["Playwright browser E2E in CI (slice SLICE-003)"],
+      "non_goals": [
+        "Playwright browser E2E in CI (slice SLICE-003)"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["gates too slow", "skill too verbose to follow"],
-      "artifacts": ["ops/BACKLOG.json", ".grok/skills/herbagraph-ops/SKILL.md", "scripts/ci_gates.sh"]
+      "risk_hotspots": [
+        "gates too slow",
+        "skill too verbose to follow"
+      ],
+      "artifacts": [
+        "ops/BACKLOG.json",
+        ".grok/skills/herbagraph-ops/SKILL.md",
+        "scripts/ci_gates.sh"
+      ]
     },
     {
       "id": "SLICE-001",
@@ -45,10 +54,18 @@
         "Every REFERENCE_DATA biomarker has >=1 pathway rule (validate_pathway_coverage.py)",
         "tests/test_pipeline/test_pathway_coverage.py passes"
       ],
-      "non_goals": ["Per-biomarker clinical validation of pathway weights"],
+      "non_goals": [
+        "Per-biomarker clinical validation of pathway weights"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["category defaults too generic", "false-positive nutrient signals"],
-      "artifacts": ["app/pipeline/pathway_mapping_catalog.py", "scripts/validate_pathway_coverage.py"]
+      "risk_hotspots": [
+        "category defaults too generic",
+        "false-positive nutrient signals"
+      ],
+      "artifacts": [
+        "app/pipeline/pathway_mapping_catalog.py",
+        "scripts/validate_pathway_coverage.py"
+      ]
     },
     {
       "id": "SLICE-002",
@@ -63,14 +80,24 @@
         "scripts/remap_lab_result_biomarkers.py remaps stale rows",
         "Macrocytic scenario: Nutrient Status signal + B12/Folate/Iron routed"
       ],
-      "non_goals": ["Perfect OCR for all PDF layouts"],
+      "non_goals": [
+        "Perfect OCR for all PDF layouts"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["boundaries: parser vs normalizer", "guest localStorage session", "DB biomarker_name drift"],
-      "artifacts": ["app/pipeline/user_biomarker_profile.py", "app/pipeline/biomarker_normalizer.py", "samples/lab_scenarios/raw/nutritional_macrocytic_cbc.txt"]
+      "risk_hotspots": [
+        "boundaries: parser vs normalizer",
+        "guest localStorage session",
+        "DB biomarker_name drift"
+      ],
+      "artifacts": [
+        "app/pipeline/user_biomarker_profile.py",
+        "app/pipeline/biomarker_normalizer.py",
+        "samples/lab_scenarios/raw/nutritional_macrocytic_cbc.txt"
+      ]
     },
     {
       "id": "SLICE-003",
-      "title": "E2E API contract: upload → report → systems + recommendations",
+      "title": "E2E API contract: upload \u2192 report \u2192 systems + recommendations",
       "status": "done",
       "priority": 1,
       "problem": "Unit tests pass while UI/API integration still shows empty recommendations for real uploads.",
@@ -80,9 +107,15 @@
         "Assert recommendations include B12, Folate, and Iron",
         "Test runs in CI without OPENAI_API_KEY (mock LLM or catalog-only path)"
       ],
-      "non_goals": ["Full browser Playwright in first pass"],
+      "non_goals": [
+        "Full browser Playwright in first pass"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["LLM non-determinism", "Celery async timing", "shared state: lab_results table"],
+      "risk_hotspots": [
+        "LLM non-determinism",
+        "Celery async timing",
+        "shared state: lab_results table"
+      ],
       "artifacts": [
         "tests/test_api/test_macrocytic_e2e.py",
         "app/pipeline/catalog_evidence.py",
@@ -101,9 +134,13 @@
         "lab_scenario_loader validates pathway activations and min recommendation count where specified",
         "At least 12 CI scenarios with recommendation assertions"
       ],
-      "non_goals": ["Live PubMed in scenario CI"],
+      "non_goals": [
+        "Live PubMed in scenario CI"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["evidence retrieval flakiness"],
+      "risk_hotspots": [
+        "evidence retrieval flakiness"
+      ],
       "artifacts": [
         "app/pipeline/lab_scenario_loader.py",
         "samples/lab_scenarios/manifest.json",
@@ -121,14 +158,21 @@
         "Fails CI on any catalog biomarker whose primary alias does not resolve",
         "Outputs suggested supplemental aliases for failures"
       ],
-      "non_goals": ["ML-based alias learning"],
+      "non_goals": [
+        "ML-based alias learning"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["alias collisions"],
-      "artifacts": ["scripts/audit_alias_resolution.py", "scripts/ci_gates.sh"]
+      "risk_hotspots": [
+        "alias collisions"
+      ],
+      "artifacts": [
+        "scripts/audit_alias_resolution.py",
+        "scripts/ci_gates.sh"
+      ]
     },
     {
       "id": "SLICE-006",
-      "title": "Evidence gap filler: pathway → intervention claims",
+      "title": "Evidence gap filler: pathway \u2192 intervention claims",
       "status": "done",
       "priority": 2,
       "problem": "Pathways activate but no catalog evidence routes interventions when biomarker-direct claims missing.",
@@ -137,9 +181,14 @@
         "Top 20 clinical pathways have >=3 nutritional_repletion or primary claims",
         "tier_a_evidence.py updated; reseed count assertions still pass"
       ],
-      "non_goals": ["Inventing PMIDs"],
+      "non_goals": [
+        "Inventing PMIDs"
+      ],
       "reversibility": "one-way",
-      "risk_hotspots": ["evidence quality", "reseed migration"],
+      "risk_hotspots": [
+        "evidence quality",
+        "reseed migration"
+      ],
       "artifacts": [
         "scripts/audit_evidence_gaps.py",
         "app/knowledge_graph/tier_a_evidence.py"
@@ -157,9 +206,14 @@
         "Food-compound links >= 200; lifestyle methods >= 10 per category",
         "New entries have at least one evidence claim or documented deferral"
       ],
-      "non_goals": ["200 new biomarkers in one slice"],
+      "non_goals": [
+        "200 new biomarkers in one slice"
+      ],
       "reversibility": "mostly two-way",
-      "risk_hotspots": ["seed count drift", "duplicate canonical names"],
+      "risk_hotspots": [
+        "seed count drift",
+        "duplicate canonical names"
+      ],
       "artifacts": [
         "scripts/generate_biomarker_catalog.py",
         "app/knowledge_graph/biomarker_catalog.py",
@@ -179,9 +233,14 @@
         "API test asserts latest_report_id matches newest recommendation_report",
         "Optional: Playwright smoke for macrocytic fixture (local gate)"
       ],
-      "non_goals": ["Full visual regression"],
+      "non_goals": [
+        "Full visual regression"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["guest localStorage", "cached report id"],
+      "risk_hotspots": [
+        "guest localStorage",
+        "cached report id"
+      ],
       "artifacts": [
         "frontend/index.html",
         "tests/test_api/test_reports.py"
@@ -200,9 +259,14 @@
         "culture_urine_positive routes D-Mannose and Lactoferrin",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Live PubMed retrieval for niche compounds"],
+      "non_goals": [
+        "Live PubMed retrieval for niche compounds"
+      ],
       "reversibility": "mostly two-way",
-      "risk_hotspots": ["preclinical biofilm claims overstated", "PGx context surfaced as treatment"],
+      "risk_hotspots": [
+        "preclinical biofilm claims overstated",
+        "PGx context surfaced as treatment"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -224,9 +288,14 @@
         "Lactoferrin phytochemical + Kefir/Greek Yogurt food-compound links",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Causal trend attribution in recommendations"],
+      "non_goals": [
+        "Causal trend attribution in recommendations"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["trend_pair double-parses scenarios", "audit pathway list growth"],
+      "risk_hotspots": [
+        "trend_pair double-parses scenarios",
+        "audit pathway list growth"
+      ],
       "artifacts": [
         "app/pipeline/lab_scenario_loader.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -248,9 +317,15 @@
         "signaling_hyperuricemia and signaling_renal_egfr_low scenarios assert Quercetin and Omega-3",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["DRUG_METABOLISM_VARIANT primary claims (PGx stays context_only)", "Bulk PMID remediation across legacy claims"],
+      "non_goals": [
+        "DRUG_METABOLISM_VARIANT primary claims (PGx stays context_only)",
+        "Bulk PMID remediation across legacy claims"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["preclinical berberine uric acid claim", "negative omega-3 renal trials mis-cited"],
+      "risk_hotspots": [
+        "preclinical berberine uric acid claim",
+        "negative omega-3 renal trials mis-cited"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "scripts/audit_evidence_gaps.py",
@@ -270,9 +345,13 @@
         "culture_sputum_positive scenario asserts Lactoferrin and NAC recommendations",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Antibiotic stewardship directives"],
+      "non_goals": [
+        "Antibiotic stewardship directives"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["preclinical claims overstated as treatment"],
+      "risk_hotspots": [
+        "preclinical claims overstated as treatment"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "samples/lab_scenarios/manifest.json",
@@ -290,9 +369,13 @@
         "niche_fecal_lactoferrin_elevated asserts etiological primary + Lactoferrin and Colostrum",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["New RecommendationTree enum for GI-inflammation"],
+      "non_goals": [
+        "New RecommendationTree enum for GI-inflammation"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["gi_stool category over-broad etiological routing"],
+      "risk_hotspots": [
+        "gi_stool category over-broad etiological routing"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -311,9 +394,13 @@
         "Assert Omega-3 and Curcumin recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["DMARD or biologic medication context"],
+      "non_goals": [
+        "DMARD or biologic medication context"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["alias resolution for RF/Anti-CCP lab strings"],
+      "risk_hotspots": [
+        "alias resolution for RF/Anti-CCP lab strings"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/autoimmune_rheumatoid_rf_positive.txt"
@@ -331,9 +418,13 @@
         "Intermittent Fasting in recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Pharmacologic antidiabetic directives"],
+      "non_goals": [
+        "Pharmacologic antidiabetic directives"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["Insulin ref-range edge cases (value must exceed catalog high)"],
+      "risk_hotspots": [
+        "Insulin ref-range edge cases (value must exceed catalog high)"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/signaling_mtor_metabolic.txt"
@@ -351,9 +442,13 @@
         "Fecal Calprotectin in _GI_INFLAMMATION_MARKERS",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["IBD treatment protocols or biologic context"],
+      "non_goals": [
+        "IBD treatment protocols or biologic context"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["preclinical GI claims overstated"],
+      "risk_hotspots": [
+        "preclinical GI claims overstated"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "app/pipeline/test_type_router.py",
@@ -367,16 +462,21 @@
       "title": "PMID integrity audit gate (IMP-012)",
       "status": "done",
       "priority": 2,
-      "problem": "Legacy tier_a_evidence PMIDs cite unrelated PubMed articles (e.g. Berberine → curcumin liver review), undermining trust.",
+      "problem": "Legacy tier_a_evidence PMIDs cite unrelated PubMed articles (e.g. Berberine \u2192 curcumin liver review), undermining trust.",
       "acceptance": [
-        "scripts/audit_pmid_integrity.py validates PMID ↔ intervention alignment",
+        "scripts/audit_pmid_integrity.py validates PMID \u2194 intervention alignment",
         "ci_gates.sh runs PMID audit as mandatory gate",
         "KNOWN_MISMATCHES denylist catches Berberine/19811613",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Bulk remediation of all legacy wrong PMIDs in one slice"],
+      "non_goals": [
+        "Bulk remediation of all legacy wrong PMIDs in one slice"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["network flakiness in CI", "keyword heuristic false positives"],
+      "risk_hotspots": [
+        "network flakiness in CI",
+        "keyword heuristic false positives"
+      ],
       "artifacts": [
         "scripts/audit_pmid_integrity.py",
         "scripts/ci_gates.sh",
@@ -388,14 +488,18 @@
       "title": "Biological systems expects on signaling + GI niche scenarios",
       "status": "done",
       "priority": 2,
-      "problem": "Scenario matrix asserts pathways and recommendations but not biological_systems rollups — macrocytic-only coverage misses metabolic and inflammation signal regressions.",
+      "problem": "Scenario matrix asserts pathways and recommendations but not biological_systems rollups \u2014 macrocytic-only coverage misses metabolic and inflammation signal regressions.",
       "acceptance": [
         "signaling_mtor_metabolic, signaling_hyperuricemia, niche_fecal_calprotectin_elevated, signaling_inflammatory_quest include biological_systems must_include",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["All 29 scenarios get biological_systems blocks"],
+      "non_goals": [
+        "All 29 scenarios get biological_systems blocks"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["signal_level threshold drift when pathway weights change"],
+      "risk_hotspots": [
+        "signal_level threshold drift when pathway weights change"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json"
       ]
@@ -412,9 +516,13 @@
         "Ashwagandha in recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Levothyroxine prescribing directives"],
+      "non_goals": [
+        "Levothyroxine prescribing directives"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["Ashwagandha HPA routing vs thyroid-specific evidence"],
+      "risk_hotspots": [
+        "Ashwagandha HPA routing vs thyroid-specific evidence"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/signaling_thyroid_hypothyroid.txt",
@@ -433,9 +541,13 @@
         "nutritional_pancreatic_elastase_low scenario asserts Pancreatin and Vitamin D",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Pancreatic enzyme dosing protocols"],
+      "non_goals": [
+        "Pancreatic enzyme dosing protocols"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["gi_stool category routing precedence"],
+      "risk_hotspots": [
+        "gi_stool category routing precedence"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/knowledge_graph/tier_a_catalog.py",
@@ -457,9 +569,13 @@
         "tests/test_scripts/test_audit_pmid_integrity.py passes",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Full 145-title strict audit remediation"],
+      "non_goals": [
+        "Full 145-title strict audit remediation"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["context-specific PMID per biomarker claim"],
+      "risk_hotspots": [
+        "context-specific PMID per biomarker claim"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "app/knowledge_graph/lifestyle_evidence.py",
@@ -477,10 +593,16 @@
         "signaling_renal_egfr_low, autoimmune_rheumatoid_rf_positive, culture_sputum_positive, etiological_hepatitis_b_surf_positive include pathways and biological_systems blocks",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full 31-scenario biological_systems coverage"],
+      "non_goals": [
+        "Full 31-scenario biological_systems coverage"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["signal_level threshold drift"],
-      "artifacts": ["samples/lab_scenarios/manifest.json"]
+      "risk_hotspots": [
+        "signal_level threshold drift"
+      ],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
     },
     {
       "id": "SLICE-023",
@@ -494,9 +616,13 @@
         "pipeline_diagnostics.py runs PMID audit and reports biological_systems scenario count",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Iodine tier-A claims"],
+      "non_goals": [
+        "Iodine tier-A claims"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["selenium toxicity at high doses"],
+      "risk_hotspots": [
+        "selenium toxicity at high doses"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "samples/lab_scenarios/manifest.json",
@@ -515,9 +641,13 @@
         "tests/test_pipeline/test_biological_systems.py covers new rollups",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["New eighth biological system"],
+      "non_goals": [
+        "New eighth biological system"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["inflammation system score inflation on pathogen panels"],
+      "risk_hotspots": [
+        "inflammation system score inflation on pathogen panels"
+      ],
       "artifacts": [
         "app/pipeline/biological_systems.py",
         "samples/lab_scenarios/manifest.json",
@@ -535,9 +665,13 @@
         "audit_pmid_integrity.py denylist extended",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full lifestyle_evidence strict audit"],
+      "non_goals": [
+        "Full lifestyle_evidence strict audit"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["shared PMID across related sleep interventions"],
+      "risk_hotspots": [
+        "shared PMID across related sleep interventions"
+      ],
       "artifacts": [
         "app/knowledge_graph/lifestyle_evidence.py",
         "scripts/audit_pmid_integrity.py"
@@ -554,10 +688,14 @@
         "biological_systems blocks on exposure/throat/lactoferrin scenarios",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["PGx biological_systems (DRUG_METABOLISM_VARIANT stays context-only)"],
+      "non_goals": [
+        "PGx biological_systems (DRUG_METABOLISM_VARIANT stays context-only)"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["samples/lab_scenarios/manifest.json"]
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
     },
     {
       "id": "SLICE-027",
@@ -570,9 +708,13 @@
         ".github/workflows/ci.yml runs hint step on pull_request",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Automated Postgres reseed in GitHub Actions"],
+      "non_goals": [
+        "Automated Postgres reseed in GitHub Actions"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["false positives on doc-only edits in catalog files"],
+      "risk_hotspots": [
+        "false positives on doc-only edits in catalog files"
+      ],
       "artifacts": [
         "scripts/ci_catalog_reseed_hint.sh",
         ".github/workflows/ci.yml"
@@ -589,7 +731,9 @@
         "tests/test_scripts/test_ci_catalog_reseed_hint.py passes",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full scenario biological_systems coverage"],
+      "non_goals": [
+        "Full scenario biological_systems coverage"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -608,10 +752,15 @@
         "test_hepatotropic_viral_rolls_into_liver_detox_stress passes",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["New biological system for viral hepatitis"],
+      "non_goals": [
+        "New biological system for viral hepatitis"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["app/pipeline/biological_systems.py", "tests/test_pipeline/test_biological_systems.py"]
+      "artifacts": [
+        "app/pipeline/biological_systems.py",
+        "tests/test_pipeline/test_biological_systems.py"
+      ]
     },
     {
       "id": "SLICE-030",
@@ -623,10 +772,16 @@
         "signaling_labcorp_hl_flags, signaling_comprehensive_quest, format_csv_mixed_panel, format_pipe_delimited, format_quest_hdl_ldl_flags include biological_systems blocks",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["kitchen_sink scenario"],
+      "non_goals": [
+        "kitchen_sink scenario"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["signal_level threshold drift"],
-      "artifacts": ["samples/lab_scenarios/manifest.json"]
+      "risk_hotspots": [
+        "signal_level threshold drift"
+      ],
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
     },
     {
       "id": "SLICE-031",
@@ -639,9 +794,13 @@
         "audit denylist extended",
         "scripts/ci_gates.sh passes; ops_reseed when Docker up"
       ],
-      "non_goals": ["Full strict audit remediation"],
+      "non_goals": [
+        "Full strict audit remediation"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["context_only medication claims"],
+      "risk_hotspots": [
+        "context_only medication claims"
+      ],
       "artifacts": [
         "app/knowledge_graph/lifestyle_evidence.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -658,10 +817,14 @@
         "kitchen_sink_quest_excerpt includes GASTRIC_COLONIZATION pathways and inflammation biological_systems",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full kitchen_sink recommendation matrix"],
+      "non_goals": [
+        "Full kitchen_sink recommendation matrix"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["samples/lab_scenarios/manifest.json"]
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
     },
     {
       "id": "SLICE-033",
@@ -674,10 +837,17 @@
         "scripts/ci_gates.sh runs scenario coverage as gate 7/10",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["100% scenario coverage"],
+      "non_goals": [
+        "100% scenario coverage"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["threshold drift as scenarios added"],
-      "artifacts": ["scripts/audit_scenario_coverage.py", "scripts/ci_gates.sh"]
+      "risk_hotspots": [
+        "threshold drift as scenarios added"
+      ],
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "scripts/ci_gates.sh"
+      ]
     },
     {
       "id": "SLICE-034",
@@ -690,10 +860,15 @@
         "MIN_PATHWAY_SCENARIOS raised to 26",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["custom_unknown_biomarker pathways"],
+      "non_goals": [
+        "custom_unknown_biomarker pathways"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["samples/lab_scenarios/manifest.json", "scripts/audit_scenario_coverage.py"]
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json",
+        "scripts/audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-035",
@@ -706,10 +881,14 @@
         "culture_urine_no_growth documents negative_control with max_abnormal 0",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Lp(a) Mass HEPATIC_LIPID pathway alias"],
+      "non_goals": [
+        "Lp(a) Mass HEPATIC_LIPID pathway alias"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["samples/lab_scenarios/manifest.json"]
+      "artifacts": [
+        "samples/lab_scenarios/manifest.json"
+      ]
     },
     {
       "id": "SLICE-036",
@@ -722,9 +901,13 @@
         "audit_pmid_integrity.py denylist extended for retired PMIDs",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full strict-audit remediation"],
+      "non_goals": [
+        "Full strict-audit remediation"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["PubMed title keyword drift"],
+      "risk_hotspots": [
+        "PubMed title keyword drift"
+      ],
       "artifacts": [
         "app/knowledge_graph/lifestyle_evidence.py",
         "scripts/audit_pmid_integrity.py"
@@ -741,7 +924,9 @@
         "MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS, MIN_RECOMMENDATION_SCENARIOS raised to 28",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["pgx_cyp2d6 biological_systems"],
+      "non_goals": [
+        "pgx_cyp2d6 biological_systems"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -757,12 +942,16 @@
       "problem": "Strict audit flagged 39 lifestyle PMID title mismatches in exercise, sleep, diet, and medication-context rows.",
       "acceptance": [
         "12 lifestyle_evidence PMIDs replaced with PubMed-verified titles",
-        "HIIT and Norwegian 4×4 keyword mappings added to audit_pmid_integrity.py",
+        "HIIT and Norwegian 4\u00d74 keyword mappings added to audit_pmid_integrity.py",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Tier-a peptide strict remediation"],
+      "non_goals": [
+        "Tier-a peptide strict remediation"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["Shared PMIDs across related interventions"],
+      "risk_hotspots": [
+        "Shared PMIDs across related interventions"
+      ],
       "artifacts": [
         "app/knowledge_graph/lifestyle_evidence.py",
         "scripts/audit_pmid_integrity.py"
@@ -779,7 +968,9 @@
         "audit_pmid_integrity.py denylist extended",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full tier_a strict remediation"],
+      "non_goals": [
+        "Full tier_a strict remediation"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -798,7 +989,9 @@
         "Lifestyle strict mismatches reduced to near-zero",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Tier-a peptide PMID batch"],
+      "non_goals": [
+        "Tier-a peptide PMID batch"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -838,9 +1031,13 @@
         "nutritional_portal_aliases scenario passes with pathways, systems, and recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["PDF OCR for garbled nutrient names"],
+      "non_goals": [
+        "PDF OCR for garbled nutrient names"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["saturation alias ambiguity"],
+      "risk_hotspots": [
+        "saturation alias ambiguity"
+      ],
       "artifacts": [
         "app/pipeline/user_biomarker_profile.py",
         "app/knowledge_graph/biomarker_catalog.py",
@@ -851,7 +1048,7 @@
     },
     {
       "id": "SLICE-043",
-      "title": "IMP-013 tier_a/peptide PMID batch 8–10 remediation",
+      "title": "IMP-013 tier_a/peptide PMID batch 8\u201310 remediation",
       "status": "done",
       "priority": 1,
       "problem": "Legacy tier_a and peptide PMIDs cited unrelated PubMed articles; strict HERBAGRAPH_PMID_AUDIT_STRICT=1 surfaced 69+ title mismatches undermining evidence trust.",
@@ -861,9 +1058,14 @@
         "HERBAGRAPH_PMID_AUDIT_STRICT=1 reports 0 title mismatches",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Re-validating every preclinical peptide claim clinically"],
+      "non_goals": [
+        "Re-validating every preclinical peptide claim clinically"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["PubMed title keyword false negatives", "peptide preclinical keyword gaps"],
+      "risk_hotspots": [
+        "PubMed title keyword false negatives",
+        "peptide preclinical keyword gaps"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "app/knowledge_graph/peptide_catalog.py",
@@ -881,10 +1083,17 @@
         "Unit test asserts calcium deficiency pathway activation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Ionized calcium vs total calcium parsing variants"],
+      "non_goals": [
+        "Ionized calcium vs total calcium parsing variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["hypercalcemia false positives"],
-      "artifacts": ["app/pipeline/pathway_mapper.py", "tests/test_pipeline/test_pathway_mapper.py"]
+      "risk_hotspots": [
+        "hypercalcemia false positives"
+      ],
+      "artifacts": [
+        "app/pipeline/pathway_mapper.py",
+        "tests/test_pipeline/test_pathway_mapper.py"
+      ]
     },
     {
       "id": "SLICE-045",
@@ -898,9 +1107,13 @@
         "nutritional_calcium_low scenario passes with pathways, systems, and Calcium recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Ionized calcium panel variants"],
+      "non_goals": [
+        "Ionized calcium panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["portal Calcium, Total alias"],
+      "risk_hotspots": [
+        "portal Calcium, Total alias"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -920,9 +1133,13 @@
         "pgx_cyp2d6_intermediate scenario still passes",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["PGx biological_systems asserts"],
+      "non_goals": [
+        "PGx biological_systems asserts"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["over-broad supplement CYP warnings"],
+      "risk_hotspots": [
+        "over-broad supplement CYP warnings"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "scripts/audit_evidence_gaps.py"
@@ -940,9 +1157,13 @@
         "nutritional_potassium_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["RBC vs serum potassium reference range splitting"],
+      "non_goals": [
+        "RBC vs serum potassium reference range splitting"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["hyperkalemia safety flags"],
+      "risk_hotspots": [
+        "hyperkalemia safety flags"
+      ],
       "artifacts": [
         "app/pipeline/pathway_mapper.py",
         "app/knowledge_graph/tier_a_catalog.py",
@@ -961,9 +1182,13 @@
         "nutritional_portal_aliases extended with low Ca/K + recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Ionized calcium variants"],
+      "non_goals": [
+        "Ionized calcium variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["comma-suffix strip ambiguity"],
+      "risk_hotspots": [
+        "comma-suffix strip ambiguity"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "app/pipeline/user_biomarker_profile.py",
@@ -982,9 +1207,13 @@
         "tests/test_scripts/test_ci_catalog_reseed_hint.py covers skip path",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Reseed on every PR"],
+      "non_goals": [
+        "Reseed on every PR"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["GHA postgres startup flake"],
+      "risk_hotspots": [
+        "GHA postgres startup flake"
+      ],
       "artifacts": [
         "scripts/ci_reseed_postgres.sh",
         ".github/workflows/ci.yml",
@@ -1002,9 +1231,13 @@
         "nutritional_portal_aliases must_include Magnesium recommendation",
         "scripts/ci_gates.sh passes with 253 evidence claims"
       ],
-      "non_goals": ["Dedicated nutritional_magnesium_low scenario"],
+      "non_goals": [
+        "Dedicated nutritional_magnesium_low scenario"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["Magnesium, RBC vs serum reference ranges"],
+      "risk_hotspots": [
+        "Magnesium, RBC vs serum reference ranges"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "samples/lab_scenarios/manifest.json",
@@ -1023,9 +1256,13 @@
         "format_quest_hdl_ldl_flags scenario includes F-prefixed rows with must_track_in_catalog",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["LLM alias resolver for unresolved abnormals"],
+      "non_goals": [
+        "LLM alias resolver for unresolved abnormals"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["false-positive strip on rare analyte names starting with F/H/L + space"],
+      "risk_hotspots": [
+        "false-positive strip on rare analyte names starting with F/H/L + space"
+      ],
       "artifacts": [
         "app/pipeline/user_biomarker_profile.py",
         "app/pipeline/lab_parser.py",
@@ -1046,7 +1283,10 @@
       "non_goals": [],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "tests/test_scripts/test_audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-108",
@@ -1058,7 +1298,9 @@
         "nutritional_cbc_indices_high scenario passes with B12, Folate, and Iron recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Portal alias rows for MCV/MCH/RDW"],
+      "non_goals": [
+        "Portal alias rows for MCV/MCH/RDW"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1076,7 +1318,9 @@
         "nutritional_mcv_low scenario passes with Iron recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MCV portal row"],
+      "non_goals": [
+        "MCV portal row"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1094,7 +1338,9 @@
         "nutritional_mcv_high scenario passes with B12 and Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MCV portal row"],
+      "non_goals": [
+        "MCV portal row"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1112,7 +1358,9 @@
         "nutritional_mch_high scenario passes with B12 and Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MCH portal row"],
+      "non_goals": [
+        "MCH portal row"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1130,7 +1378,9 @@
         "nutritional_rdw_high scenario passes with Iron recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["RDW portal row"],
+      "non_goals": [
+        "RDW portal row"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1149,7 +1399,9 @@
         "scripts/playwright_macrocytic_smoke.sh skips unless HERBAGRAPH_PLAYWRIGHT=1",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Playwright in GitHub Actions"],
+      "non_goals": [
+        "Playwright in GitHub Actions"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1167,9 +1419,13 @@
         "nutritional_micronutrient_quest_excerpt scenario passes with 17 abnormal rows",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Iron panel rows"],
+      "non_goals": [
+        "Iron panel rows"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation count cap at 17 abnormalities"],
+      "risk_hotspots": [
+        "recommendation count cap at 17 abnormalities"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_micronutrient_quest_excerpt.txt"
@@ -1188,7 +1444,10 @@
       "non_goals": [],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "tests/test_scripts/test_audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-099",
@@ -1200,9 +1459,13 @@
         "nutritional_anemia_iron_macrocytic scenario passes with Iron, B12, Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Reticulocyte count"],
+      "non_goals": [
+        "Reticulocyte count"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["mixed micro/macrocytic patterns"],
+      "risk_hotspots": [
+        "mixed micro/macrocytic patterns"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_anemia_iron_macrocytic.txt"
@@ -1219,7 +1482,9 @@
         "Matrix extended to 26 abnormal rows",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Hematocrit row"],
+      "non_goals": [
+        "Hematocrit row"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1238,9 +1503,13 @@
         "format_ocr_garbled_cbc scenario passes; eGFR rows are not reversed",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full PDF layout OCR models"],
+      "non_goals": [
+        "Full PDF layout OCR models"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["false-positive token reversal on valid analyte names"],
+      "risk_hotspots": [
+        "false-positive token reversal on valid analyte names"
+      ],
       "artifacts": [
         "app/pipeline/lab_parser.py",
         "samples/lab_scenarios/manifest.json",
@@ -1258,10 +1527,14 @@
         "Pathway/recommendation/system counts use must_include blocks",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Auto-bump MIN_* thresholds"],
+      "non_goals": [
+        "Auto-bump MIN_* thresholds"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/pipeline_diagnostics.py"]
+      "artifacts": [
+        "scripts/pipeline_diagnostics.py"
+      ]
     },
     {
       "id": "SLICE-095",
@@ -1273,7 +1546,9 @@
         "nutritional_vitamin_c_zinc_low scenario passes with Vitamin C and Zinc recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Selenium in same panel"],
+      "non_goals": [
+        "Selenium in same panel"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1291,9 +1566,13 @@
         "format_ocr_garbled_cbc scenario passes with MCV/MCH normalization and B12/Folate/Iron recs",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Full OCR PDF fixture in CI"],
+      "non_goals": [
+        "Full OCR PDF fixture in CI"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["eGFR false reversal"],
+      "risk_hotspots": [
+        "eGFR false reversal"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/format_ocr_garbled_cbc.txt"
@@ -1310,9 +1589,13 @@
         "nutritional_hemoglobin_low scenario passes with Iron recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Reticulocyte count panels"],
+      "non_goals": [
+        "Reticulocyte count panels"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["non-iron anemia false positives"],
+      "risk_hotspots": [
+        "non-iron anemia false positives"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "samples/lab_scenarios/manifest.json",
@@ -1332,7 +1615,10 @@
       "non_goals": [],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "tests/test_scripts/test_audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-091",
@@ -1344,9 +1630,13 @@
         "nutritional_b_complex_low scenario passes with B1, B2, B6, B12, Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Biotin or niacin markers"],
+      "non_goals": [
+        "Biotin or niacin markers"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation count cap with five B vitamins"],
+      "risk_hotspots": [
+        "recommendation count cap with five B vitamins"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_b_complex_low.txt"
@@ -1362,9 +1652,13 @@
         "nutritional_macrocytic_one_carbon scenario passes with B12, Folate, Iron recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MMA in same panel"],
+      "non_goals": [
+        "MMA in same panel"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["mixed-panel signaling deferral"],
+      "risk_hotspots": [
+        "mixed-panel signaling deferral"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_macrocytic_one_carbon.txt"
@@ -1381,9 +1675,13 @@
         "nutritional_portal_aliases extended to 25 abnormal rows",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["UIBC vs TIBC mutual exclusivity"],
+      "non_goals": [
+        "UIBC vs TIBC mutual exclusivity"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["duplicate iron indices in portal panel"],
+      "risk_hotspots": [
+        "duplicate iron indices in portal panel"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json"
@@ -1399,24 +1697,33 @@
         "MIN_RECOMMENDATION_SCENARIOS, MIN_PATHWAY_SCENARIOS, MIN_BIOLOGICAL_SYSTEMS_SCENARIOS set to 55",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Dynamic threshold from scenario count"],
+      "non_goals": [
+        "Dynamic threshold from scenario count"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/audit_scenario_coverage.py", "tests/test_scripts/test_audit_scenario_coverage.py"]
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py",
+        "tests/test_scripts/test_audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-087",
       "title": "IMP-041: Combined fat-soluble + vitamin D panel scenario",
       "status": "done",
       "priority": 2,
-      "problem": "Fat-soluble and vitamin D had isolated/combined gaps — no four-vitamin A/D/E/K panel scenario.",
+      "problem": "Fat-soluble and vitamin D had isolated/combined gaps \u2014 no four-vitamin A/D/E/K panel scenario.",
       "acceptance": [
         "nutritional_fat_soluble_vitd_low scenario passes with Vitamin D, A, E, K2 recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Beta-carotene lab naming"],
+      "non_goals": [
+        "Beta-carotene lab naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation ranking with four vitamins"],
+      "risk_hotspots": [
+        "recommendation ranking with four vitamins"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_fat_soluble_vitd_low.txt"
@@ -1432,7 +1739,9 @@
         "nutritional_b12_folate_low scenario passes with B12 and Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MTHFR genotype"],
+      "non_goals": [
+        "MTHFR genotype"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1452,9 +1761,13 @@
         "nutritional_uibc_high scenario passes",
         "scripts/ci_gates.sh passes with 270 evidence claims"
       ],
-      "non_goals": ["UIBC portal row in nutritional_portal_aliases"],
+      "non_goals": [
+        "UIBC portal row in nutritional_portal_aliases"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["TIBC vs UIBC alias collision"],
+      "risk_hotspots": [
+        "TIBC vs UIBC alias collision"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/pipeline/pathway_mapper.py",
@@ -1472,9 +1785,13 @@
         "nutritional_trace_mineral_panel scenario passes with Zinc, Copper, Selenium recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Manganese or molybdenum"],
+      "non_goals": [
+        "Manganese or molybdenum"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["copper-zinc interaction ranking"],
+      "risk_hotspots": [
+        "copper-zinc interaction ranking"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_trace_mineral_panel.txt"
@@ -1490,10 +1807,14 @@
         "audit_scenario_coverage.py skips gap reporting when expect.negative_control or max_abnormal=0",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["New negative-control scenarios"],
+      "non_goals": [
+        "New negative-control scenarios"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
-      "artifacts": ["scripts/audit_scenario_coverage.py"]
+      "artifacts": [
+        "scripts/audit_scenario_coverage.py"
+      ]
     },
     {
       "id": "SLICE-082",
@@ -1505,9 +1826,13 @@
         "nutritional_electrolyte_panel scenario passes with Calcium, Potassium, Magnesium recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Sodium or chloride electrolytes"],
+      "non_goals": [
+        "Sodium or chloride electrolytes"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation count caps with multi-mineral panel"],
+      "risk_hotspots": [
+        "recommendation count caps with multi-mineral panel"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_electrolyte_panel.txt"
@@ -1523,9 +1848,13 @@
         "nutritional_iron_comprehensive scenario passes with 5 abnormal iron markers",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Hemoglobin in iron panel"],
+      "non_goals": [
+        "Hemoglobin in iron panel"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["duplicate iron evidence ranking"],
+      "risk_hotspots": [
+        "duplicate iron evidence ranking"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_iron_comprehensive.txt"
@@ -1543,9 +1872,13 @@
         "nutritional_tibc_high scenario and portal row pass",
         "scripts/ci_gates.sh passes with 269 evidence claims"
       ],
-      "non_goals": ["UIBC panel variants"],
+      "non_goals": [
+        "UIBC panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["TIBC vs UIBC alias collision"],
+      "risk_hotspots": [
+        "TIBC vs UIBC alias collision"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/pipeline/pathway_mapper.py",
@@ -1565,9 +1898,13 @@
         "tests/test_scripts/test_audit_scenario_coverage.py guards floor",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["100% scenario assertion coverage"],
+      "non_goals": [
+        "100% scenario assertion coverage"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["threshold drift on negative-control scenarios"],
+      "risk_hotspots": [
+        "threshold drift on negative-control scenarios"
+      ],
       "artifacts": [
         "scripts/audit_scenario_coverage.py",
         "tests/test_scripts/test_audit_scenario_coverage.py"
@@ -1583,9 +1920,13 @@
         "nutritional_one_carbon_panel scenario passes with B12 and Folate recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MTHFR genotype routing"],
+      "non_goals": [
+        "MTHFR genotype routing"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation ranking with multiple one-carbon contributors"],
+      "risk_hotspots": [
+        "recommendation ranking with multiple one-carbon contributors"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_one_carbon_panel.txt"
@@ -1602,7 +1943,9 @@
         "audit_scenario_coverage.py ignores documented skips in gap report",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["DRUG_METABOLISM_VARIANT biological system rollup"],
+      "non_goals": [
+        "DRUG_METABOLISM_VARIANT biological system rollup"
+      ],
       "reversibility": "two-way",
       "risk_hotspots": [],
       "artifacts": [
@@ -1620,9 +1963,13 @@
         "nutritional_folate_low scenario passes with Folate recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["RBC folate panel variants"],
+      "non_goals": [
+        "RBC folate panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["folate optimal band vs normal status asserts"],
+      "risk_hotspots": [
+        "folate optimal band vs normal status asserts"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_folate_low.txt"
@@ -1638,9 +1985,13 @@
         "nutritional_b12_low scenario passes with B12 recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Active B12 vs serum B12 naming"],
+      "non_goals": [
+        "Active B12 vs serum B12 naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["B12 optimal band vs normal status asserts"],
+      "risk_hotspots": [
+        "B12 optimal band vs normal status asserts"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_b12_low.txt"
@@ -1656,9 +2007,13 @@
         "nutritional_magnesium_low scenario passes with Magnesium recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Magnesium RBC vs serum reference splitting"],
+      "non_goals": [
+        "Magnesium RBC vs serum reference splitting"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["magnesium rbc alias confusion"],
+      "risk_hotspots": [
+        "magnesium rbc alias confusion"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_magnesium_low.txt"
@@ -1674,9 +2029,13 @@
         "nutritional_zinc_low scenario passes with Zinc recommendation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["RBC zinc panel variants"],
+      "non_goals": [
+        "RBC zinc panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["copper-zinc interaction messaging"],
+      "risk_hotspots": [
+        "copper-zinc interaction messaging"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_zinc_low.txt"
@@ -1694,9 +2053,13 @@
         "ONE_CARBON_METHYLATION pathway assert holds",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["MMA urine panel variants"],
+      "non_goals": [
+        "MMA urine panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["long analyte name parsing"],
+      "risk_hotspots": [
+        "long analyte name parsing"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json",
@@ -1716,9 +2079,13 @@
         "ONE_CARBON_METHYLATION pathway assert added",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Homocyst(e)ine OCR garble variants"],
+      "non_goals": [
+        "Homocyst(e)ine OCR garble variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["mixed-panel signaling deferral with many low nutrients"],
+      "risk_hotspots": [
+        "mixed-panel signaling deferral with many low nutrients"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json",
@@ -1737,9 +2104,13 @@
         "nutritional_portal_aliases extended to 21 abnormal rows",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["TIBC row"],
+      "non_goals": [
+        "TIBC row"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["long analyte name line wrap"],
+      "risk_hotspots": [
+        "long analyte name line wrap"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json"
@@ -1757,9 +2128,13 @@
         "nutritional_stfr_high scenario passes with normal ferritin",
         "scripts/ci_gates.sh passes with 268 evidence claims"
       ],
-      "non_goals": ["TIBC panel variants"],
+      "non_goals": [
+        "TIBC panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["long Quest analyte name parsing"],
+      "risk_hotspots": [
+        "long Quest analyte name parsing"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1778,9 +2153,13 @@
         "Glutamine and Vitamin C in recommendation asserts",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["sTfR portal row"],
+      "non_goals": [
+        "sTfR portal row"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["20-abnormal recommendation cap"],
+      "risk_hotspots": [
+        "20-abnormal recommendation cap"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json",
@@ -1799,9 +2178,13 @@
         "16 vitamin/mineral recommendations asserted",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Vitamin C portal row"],
+      "non_goals": [
+        "Vitamin C portal row"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["comma-suffix strip on vitamin names"],
+      "risk_hotspots": [
+        "comma-suffix strip on vitamin names"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "app/pipeline/user_biomarker_profile.py",
@@ -1819,9 +2202,13 @@
         "nutritional_b_vitamins_low scenario passes with B1, B2, and B6 recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["B12/folate in same panel"],
+      "non_goals": [
+        "B12/folate in same panel"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation ranking when many B vitamins abnormal"],
+      "risk_hotspots": [
+        "recommendation ranking when many B vitamins abnormal"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_b_vitamins_low.txt"
@@ -1837,9 +2224,13 @@
         "nutritional_fat_soluble_low scenario passes with A, E, and K2 recommendations",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["Vitamin D in same panel"],
+      "non_goals": [
+        "Vitamin D in same panel"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["recommendation count caps per pathway route"],
+      "risk_hotspots": [
+        "recommendation count caps per pathway route"
+      ],
       "artifacts": [
         "samples/lab_scenarios/manifest.json",
         "samples/lab_scenarios/raw/nutritional_fat_soluble_low.txt"
@@ -1856,9 +2247,13 @@
         "nutritional_vitamin_k_low scenario passes with Vitamin K2 recommendation",
         "scripts/ci_gates.sh passes with 267 evidence claims"
       ],
-      "non_goals": ["Warfarin interaction UI surfacing"],
+      "non_goals": [
+        "Warfarin interaction UI surfacing"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["vitamin K vs warfarin contraindication flags"],
+      "risk_hotspots": [
+        "vitamin K vs warfarin contraindication flags"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1876,9 +2271,13 @@
         "nutritional_vitamin_e_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 266 evidence claims"
       ],
-      "non_goals": ["Vitamin K coupling"],
+      "non_goals": [
+        "Vitamin K coupling"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["anticoagulant interaction safety flags"],
+      "risk_hotspots": [
+        "anticoagulant interaction safety flags"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1896,9 +2295,13 @@
         "nutritional_vitamin_a_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 265 evidence claims"
       ],
-      "non_goals": ["Beta-carotene vs retinol lab naming"],
+      "non_goals": [
+        "Beta-carotene vs retinol lab naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["pregnancy teratogenicity safety flags"],
+      "risk_hotspots": [
+        "pregnancy teratogenicity safety flags"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1916,9 +2319,13 @@
         "nutritional_vitamin_b2_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 264 evidence claims"
       ],
-      "non_goals": ["FAD/FMN lab analyte naming"],
+      "non_goals": [
+        "FAD/FMN lab analyte naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["riboflavin vs vitamin B2 display names"],
+      "risk_hotspots": [
+        "riboflavin vs vitamin B2 display names"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1938,9 +2345,13 @@
         "nutritional_vitamin_b1_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 263 evidence claims"
       ],
-      "non_goals": ["Benfotiamine variant naming"],
+      "non_goals": [
+        "Benfotiamine variant naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["thiamine vs thiamin spelling in lab exports"],
+      "risk_hotspots": [
+        "thiamine vs thiamin spelling in lab exports"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1960,9 +2371,13 @@
         "nutritional_vitamin_b6_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 262 evidence claims"
       ],
-      "non_goals": ["Pyridoxal phosphate vs pyridoxine lab naming"],
+      "non_goals": [
+        "Pyridoxal phosphate vs pyridoxine lab naming"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["high-dose B6 neuropathy safety flags"],
+      "risk_hotspots": [
+        "high-dose B6 neuropathy safety flags"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -1983,9 +2398,13 @@
         "nutritional_prealbumin_low scenario passes with Glutamine recommendation",
         "scripts/ci_gates.sh passes with 261 evidence claims"
       ],
-      "non_goals": ["Albumin hepatic panel routing"],
+      "non_goals": [
+        "Albumin hepatic panel routing"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["glutamine vs whey protein intervention choice"],
+      "risk_hotspots": [
+        "glutamine vs whey protein intervention choice"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "app/pipeline/pathway_mapper.py",
@@ -2005,9 +2424,13 @@
         "nutritional_portal_aliases extended to 12 abnormal rows including low transferrin saturation",
         "scripts/ci_gates.sh passes"
       ],
-      "non_goals": ["TIBC / iron binding capacity rows"],
+      "non_goals": [
+        "TIBC / iron binding capacity rows"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["duplicate iron signals from Iron + % Saturation"],
+      "risk_hotspots": [
+        "duplicate iron signals from Iron + % Saturation"
+      ],
       "artifacts": [
         "samples/lab_scenarios/raw/nutritional_portal_aliases.txt",
         "samples/lab_scenarios/manifest.json"
@@ -2025,9 +2448,13 @@
         "nutritional_homocysteine_high scenario passes with B12 and Folate recommendations",
         "scripts/ci_gates.sh passes with 260 evidence claims"
       ],
-      "non_goals": ["MTHFR genotype routing"],
+      "non_goals": [
+        "MTHFR genotype routing"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["inflammatory category vs nutritional tree overlap"],
+      "risk_hotspots": [
+        "inflammatory category vs nutritional tree overlap"
+      ],
       "artifacts": [
         "app/pipeline/test_type_router.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -2047,9 +2474,13 @@
         "nutritional_transferrin_saturation_low scenario passes with normal ferritin",
         "scripts/ci_gates.sh passes with 258 evidence claims"
       ],
-      "non_goals": ["TIBC / iron binding capacity panel variants"],
+      "non_goals": [
+        "TIBC / iron binding capacity panel variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["% prefix regex ambiguity with units"],
+      "risk_hotspots": [
+        "% prefix regex ambiguity with units"
+      ],
       "artifacts": [
         "app/pipeline/lab_parser.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -2070,9 +2501,13 @@
         "nutritional_mma_high scenario passes with B12 recommendation",
         "scripts/ci_gates.sh passes with 257 evidence claims"
       ],
-      "non_goals": ["Homocysteine paired MMA panel"],
+      "non_goals": [
+        "Homocysteine paired MMA panel"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["normal serum B12 with high MMA clinical nuance"],
+      "risk_hotspots": [
+        "normal serum B12 with high MMA clinical nuance"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_evidence.py",
         "app/pipeline/pathway_mapper.py",
@@ -2094,9 +2529,13 @@
         "nutritional_vitamin_c_low scenario passes end-to-end",
         "scripts/ci_gates.sh passes with 256 evidence claims"
       ],
-      "non_goals": ["Vitamin C portal alias variants"],
+      "non_goals": [
+        "Vitamin C portal alias variants"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["mg/dL vs umol/L unit confusion"],
+      "risk_hotspots": [
+        "mg/dL vs umol/L unit confusion"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
@@ -2117,15 +2556,79 @@
         "nutritional_portal_aliases extended with Copper, Serum and Selenium, Serum",
         "scripts/ci_gates.sh passes with 255 evidence claims"
       ],
-      "non_goals": ["Manganese or molybdenum trace minerals"],
+      "non_goals": [
+        "Manganese or molybdenum trace minerals"
+      ],
       "reversibility": "two-way",
-      "risk_hotspots": ["zinc-induced copper deficiency messaging", "selenium toxicity at high dose"],
+      "risk_hotspots": [
+        "zinc-induced copper deficiency messaging",
+        "selenium toxicity at high dose"
+      ],
       "artifacts": [
         "app/knowledge_graph/tier_a_catalog.py",
         "app/knowledge_graph/tier_a_evidence.py",
         "app/pipeline/pathway_mapper.py",
         "samples/lab_scenarios/manifest.json",
         "tests/test_pipeline/test_pathway_mapper.py"
+      ]
+    },
+    {
+      "id": "SLICE-111",
+      "title": "Dual knowledge path A/B: legacy catalogs vs canonical graph",
+      "status": "done",
+      "priority": 111,
+      "problem": "Operators cannot compare production intervention/evidence catalogs against the new canonical_entities graph when analyzing the same lab report, so the better substrate cannot be selected with evidence.",
+      "acceptance": [
+        "POST /api/v1/reports/generate/{id} accepts knowledge_path legacy|canonical",
+        "POST /api/v1/analysis-sessions/{id}/run accepts knowledge_path",
+        "RecommendationReport persists knowledge_path and exposes it on read APIs",
+        "Workspace + report UI show knowledge path chooser before analysis/regenerate",
+        "Canonical path filters interventions to registry entities",
+        "Tests cover knowledge_path parse, generate request, and canonical filter"
+      ],
+      "non_goals": [
+        "Full graph-native pathway MODULATES edges",
+        "Removing legacy catalogs"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "Empty canonical registry without bootstrap",
+        "Celery knowledge_path arg"
+      ],
+      "artifacts": [
+        "app/pipeline/canonical_graph.py",
+        "app/pipeline/knowledge_path.py",
+        "frontend/js/knowledge-path-picker.js",
+        "alembic/versions/m3n4o5p6q7r8_knowledge_path_on_reports.py"
+      ]
+    },
+    {
+      "id": "SLICE-112",
+      "title": "Deep enrichment: external IDs, USDA rank, PubChem synonyms",
+      "status": "done",
+      "priority": 112,
+      "problem": "Canonical entities bootstrap without PubChem/ChEBI/USDA IDs or synonym expansion, so the graph cannot resolve foods/compounds to authoritative external identifiers.",
+      "acceptance": [
+        "USDA_KEY verified locally and on Railway via scripts/verify_usda_key.py",
+        "GET /knowledge/integrations reports usda_configured and optional live probe",
+        "Enrichment re-attaches external IDs on existing entities; USDA ranks Foundation/SR first",
+        "PubChem synonyms expand entity aliases during enrichment",
+        "scripts/deep_enrichment_pass.py and POST /enrichment/seed-missing enqueue Tier A/B gaps",
+        "Unit tests cover USDA ranking and deep-enrich existing entity path"
+      ],
+      "non_goals": [
+        "Human review UI for needs_review queue",
+        "Full multi-hop pathway ontology"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "External API rate limits",
+        "Synonym pollution from PubChem"
+      ],
+      "artifacts": [
+        "app/knowledge_graph/enrichment_worker.py",
+        "scripts/deep_enrichment_pass.py",
+        "scripts/verify_usda_key.py"
       ]
     }
   ],
@@ -2616,6 +3119,20 @@
       "rationale": "Iron intervention claims tie to Ferritin/TIBC/Hemoglobin but not serum Iron; low Iron, Total panels need explicit claim.",
       "priority": "medium",
       "status": "proposed"
+    },
+    {
+      "id": "IMP-055",
+      "title": "Wire canonical graph CONTAINS food sources into report food_sources payloads",
+      "status": "proposed",
+      "priority": "medium",
+      "rationale": "composition_food_sources exists but attach_food_sources still uses static catalogs only."
+    },
+    {
+      "id": "IMP-056",
+      "title": "Admin UI for enrichment queue needs_review triage",
+      "status": "proposed",
+      "priority": "low",
+      "rationale": "Deep enrichment flags entities for review but there is no console surface yet."
     }
   ]
 }

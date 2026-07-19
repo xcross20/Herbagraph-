@@ -5,14 +5,20 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_verified_user, get_db
-from app.models.enums import AuditAction, EVIDENCE_TIER_LABELS, LabReportStatus
+from app.models.enums import AuditAction, LabReportStatus
 from app.models.feedback import Feedback
 from app.models.lab import LabReport
 from app.models.enums import ReportGenerationStage
 from app.models.report import RecommendationReport
 from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackRead
-from app.schemas.report import RecommendationReportRead, RecommendationReportSummary, ReportGenerationResponse
+from app.pipeline.knowledge_path import parse_knowledge_path
+from app.schemas.report import (
+    RecommendationReportRead,
+    RecommendationReportSummary,
+    ReportGenerationRequest,
+    ReportGenerationResponse,
+)
 from app.services.audit import record_audit_event
 from app.core.background_jobs import dispatch_celery_task
 from app.workers.tasks import generate_recommendation_report_task
@@ -55,6 +61,7 @@ async def _get_owned_lab_report(lab_report_id: uuid.UUID, current_user: User, db
 async def generate_recommendation_report(
     lab_report_id: uuid.UUID,
     request: Request,
+    payload: ReportGenerationRequest | None = None,
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> ReportGenerationResponse:
@@ -87,6 +94,12 @@ async def generate_recommendation_report(
             detail="Report generation is already in progress for this lab report",
         )
 
+    body = payload or ReportGenerationRequest()
+    try:
+        knowledge_path = parse_knowledge_path(body.knowledge_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
     lab_report.report_stage = ReportGenerationStage.QUEUED
     lab_report.report_error_message = None
     await db.commit()
@@ -94,22 +107,32 @@ async def generate_recommendation_report(
     await record_audit_event(
         db,
         action=AuditAction.ANALYSIS_STARTED,
-        summary=f"Report generation started for lab {lab_report.original_filename}",
+        summary=(
+            f"Report generation started for lab {lab_report.original_filename} "
+            f"(knowledge_path={knowledge_path.value})"
+        ),
         user=current_user,
         patient_id=lab_report.patient_id,
         resource_type="lab_report",
         resource_id=str(lab_report.id),
         request=request,
+        detail={"knowledge_path": knowledge_path.value},
     )
     await db.commit()
 
-    task = dispatch_celery_task(generate_recommendation_report_task, str(lab_report.id), str(current_user.id))
+    task = dispatch_celery_task(
+        generate_recommendation_report_task,
+        str(lab_report.id),
+        str(current_user.id),
+        knowledge_path.value,
+    )
 
     return ReportGenerationResponse(
         lab_report_id=lab_report.id,
         task_id=task.id,
         report_stage=ReportGenerationStage.QUEUED,
-        message="Report generation has started.",
+        knowledge_path=knowledge_path,
+        message=f"Report generation has started ({knowledge_path.value} knowledge path).",
     )
 
 
@@ -298,6 +321,7 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         lab_report_id=report.lab_report_id,
         overall_confidence=report.overall_confidence,
         model_version=report.model_version,
+        knowledge_path=getattr(report, "knowledge_path", None) or "legacy",
         executive_summary=report.executive_summary,
         biomarker_summary=report.biomarker_summary,
         biomarker_interpretations=report.biomarker_interpretations,

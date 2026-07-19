@@ -4,7 +4,7 @@ from sqlalchemy import JSON, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import EvidenceLevel, EvidenceTier, InterventionCategory, SafetyRiskLevel
+from app.models.enums import EvidenceLevel, EvidenceTier, InterventionCategory, KnowledgePath, SafetyRiskLevel
 from app.models.mixins import GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
@@ -18,6 +18,9 @@ class RecommendationReport(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False)
     overall_confidence: Mapped[float] = mapped_column(Float, nullable=False)
     model_version: Mapped[str] = mapped_column(String(30), nullable=False)
+    knowledge_path: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=KnowledgePath.LEGACY.value
+    )
     executive_summary: Mapped[str] = mapped_column(Text, nullable=False)
     biomarker_summary: Mapped[dict] = mapped_column(JSON, default=dict)
     biomarker_interpretations: Mapped[list] = mapped_column(JSON, default=list)

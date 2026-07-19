@@ -19,3 +19,6 @@ def test_app_html_serves_workspace_shell():
     assert "Needs attention" in html
     assert "reasoning-graph.js" in html
     assert "mountAnalysisGraph" in html
+    assert "knowledge-path-picker.js" in html
+    assert "hgPickKnowledgePath" in html
+    assert "knowledge_path" in html

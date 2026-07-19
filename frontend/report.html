@@ -512,6 +512,7 @@
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script src="/js/reasoning-graph.js"></script>
+<script src="/js/knowledge-path-picker.js"></script>
 <script>
 const API = "";
 const POLL_INTERVAL_MS = 2000;
@@ -692,11 +693,18 @@ async function renderReport(report, labReportId) {
   if (titleEl) {
     titleEl.textContent = integrated ? "Integrated clinical report" : "Clinical report";
   }
-  if (subtitleEl && report.generated_at) {
-    subtitleEl.textContent = `Generated ${new Date(report.generated_at).toLocaleString()}`;
-  } else if (subtitleEl) {
-    subtitleEl.textContent = "";
-    subtitleEl.style.display = "none";
+  if (subtitleEl) {
+    const bits = [];
+    if (report.created_at || report.generated_at) {
+      bits.push(`Generated ${new Date(report.created_at || report.generated_at).toLocaleString()}`);
+    }
+    const path = report.knowledge_path || (report.report_insights || {}).knowledge_path;
+    if (path) {
+      bits.push(path === "canonical" ? "Canonical graph path" : "Legacy catalog path");
+    }
+    if (report.model_version) bits.push(`model ${report.model_version}`);
+    subtitleEl.textContent = bits.join(" · ");
+    subtitleEl.style.display = bits.length ? "" : "none";
   }
 
   renderIntegratedBanner(report);
@@ -2055,19 +2063,27 @@ async function regenerateReport() {
     setStatus("No lab report loaded to regenerate.", true);
     return;
   }
+  const knowledgePath = await window.hgPickKnowledgePath({
+    title: "Regenerate with which knowledge path?",
+    subtitle: "Re-run analysis using legacy catalogs or the experimental canonical graph.",
+  });
+  if (!knowledgePath) return;
   const regenBtn = document.getElementById("regenerate-btn");
   regenBtn.disabled = true;
   try {
-    setStatus("Regenerating report with latest evidence pipeline…");
-    await api(`/api/v1/reports/generate/${window.lastLabReportId}`, "POST");
+    setStatus(`Regenerating report (${knowledgePath} knowledge path)…`);
+    await api(`/api/v1/reports/generate/${window.lastLabReportId}`, "POST", {
+      knowledge_path: knowledgePath,
+    });
     const lab = await waitForReportComplete(window.lastLabReportId);
     const report = await api(`/api/v1/reports/${lab.latest_report_id}`);
     await renderReport(report, window.lastLabReportId);
     const names = (report.recommendations || []).map((r) => r.intervention_name);
+    const pathLabel = report.knowledge_path || knowledgePath;
     setStatus(
       names.length
-        ? `Report regenerated. Recommendations: ${names.join(", ")}`
-        : "Report regenerated."
+        ? `Report regenerated (${pathLabel}). Recommendations: ${names.join(", ")}`
+        : `Report regenerated (${pathLabel}).`
     );
   } catch (err) {
     setStatus(err.message, true);

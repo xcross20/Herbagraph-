@@ -53,6 +53,7 @@ The platform is intended for research, evidence synthesis, educational use, and 
 - [Recommendation Trees & Etiological Pathways](#recommendation-trees--etiological-pathways)
 - [Biological Systems & Signal Scoring](#biological-systems--signal-scoring)
 - [Intervention Ontology](#intervention-ontology)
+- [Knowledge Paths (Legacy vs Canonical)](#knowledge-paths-legacy-vs-canonical)
 - [Food → Compound Layer](#food--compound-layer)
 - [Tech Stack](#tech-stack)
 - [Quick Start](#quick-start)
@@ -295,6 +296,64 @@ Intervention  →  Compound  →  Target  →  Pathway  →  Biomarker  →  Cli
 
 This is why the reasoning layer never says "eat blueberries" — it reasons about the compound (Anthocyanins), which carries the same Target/Pathway/Biomarker/evidence machinery as any herb, and then attaches `food_sources` so the food is just one of several ways to obtain it (see below).
 
+### Canonical intervention registry (Level 1–5)
+
+Alongside the curated catalogs, HerbaGraph now has a **canonical entity registry** (`canonical_entities`, synonyms, external IDs, graph edges, enrichment queue):
+
+| Layer | Purpose |
+|---|---|
+| Canonical entities | HG IDs (`HG-FOOD-…`, `HG-BOT-…`, `HG-CMP-…`) for foods, botanicals, compounds, lifestyle, peptides |
+| Synonyms | Normalized alias resolution |
+| External IDs | PubChem, ChEBI, USDA FDC, intervention/compound UUIDs |
+| Graph edges | Composition `CONTAINS` (and future MODULATES/TARGETS) |
+| Enrichment queue | Machine expansion with external ID + synonym deep enrichment |
+
+**Bootstrap (after reseed):**
+
+```bash
+python scripts/reseed_db.py
+python scripts/bootstrap_canonical_registry.py
+# or one-shot on Railway:
+bash scripts/railway_bootstrap.sh
+```
+
+**Deep enrichment:**
+
+```bash
+python scripts/verify_usda_key.py          # local or: railway run python scripts/verify_usda_key.py
+python scripts/deep_enrichment_pass.py    # enqueue missing IDs + process queue batch
+```
+
+---
+
+## Knowledge Paths (Legacy vs Canonical)
+
+When you **generate or regenerate a report**, the workspace asks which knowledge substrate to use:
+
+| Path | Value | Behavior |
+|---|---|---|
+| **Legacy catalogs** | `legacy` | Production default. Curated intervention catalogs + Tier A evidence claims + live literature retrieval. |
+| **Canonical graph** | `canonical` | Experimental A/B. Filters routed interventions to entities present in `canonical_entities` (run bootstrap first). Tags the report with `knowledge_path` + meta stats. |
+
+**API:**
+
+```http
+POST /api/v1/reports/generate/{lab_report_id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{ "knowledge_path": "canonical" }
+```
+
+```http
+POST /api/v1/analysis-sessions/{session_id}/run
+Content-Type: application/json
+
+{ "knowledge_path": "legacy" }
+```
+
+Reports persist `knowledge_path` and expose it on `GET /reports/{id}` (also reflected in `model_version` as `1.0.0-legacy` / `1.0.0-canonical`). The UI picker is `frontend/js/knowledge-path-picker.js`.
+
 ---
 
 ## Food → Compound Layer
@@ -459,6 +518,7 @@ docker-compose exec api python scripts/seed_db.py
 | `REDIS_URL` | `redis://localhost:6379/0` | Celery broker URL |
 | `NCBI_API_KEY` | — | NCBI Entrez API key (optional; increases rate limit to 10 req/s) |
 | `NCBI_EMAIL` | `dev@herbagraph.io` | Required by NCBI Entrez API terms of service |
+| `USDA_KEY` | — | USDA FoodData Central API key for food entity enrichment ([signup](https://fdc.nal.usda.gov/api-key-signup.html)) |
 | `UPLOAD_DIR` | `/tmp/herbagraph/uploads` | Encrypted lab file storage directory |
 | `MAX_FILE_SIZE_MB` | `10` | Maximum lab file upload size |
 | `DEBUG` | `false` | Enables verbose logging and relaxed CORS |
@@ -613,10 +673,22 @@ Authorization: Bearer {token}
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/reports/generate/{lab_report_id}` | (Re-)generate an evidence report |
+| `POST` | `/reports/generate/{lab_report_id}` | (Re-)generate an evidence report; optional body `{ "knowledge_path": "legacy" \| "canonical" }` |
 | `GET` | `/reports` | List all reports |
-| `GET` | `/reports/{id}` | Get full recommendation report |
+| `GET` | `/reports/{id}` | Get full recommendation report (includes `knowledge_path`) |
 | `DELETE` | `/reports/{id}` | Delete a report |
+
+### Knowledge registry
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/knowledge/coverage` | Entity counts by tier / review status |
+| `GET` | `/knowledge/integrations?probe_usda=true` | USDA / LLM key readiness (+ optional live USDA probe) |
+| `GET` | `/knowledge/entities` | List/search canonical entities |
+| `POST` | `/knowledge/bootstrap/interventions` | Admin: seed registry from interventions catalog |
+| `POST` | `/knowledge/enrichment/queue` | Admin: enqueue entity for enrichment |
+| `POST` | `/knowledge/enrichment/run` | Admin: process enrichment queue batch |
+| `POST` | `/knowledge/enrichment/seed-missing` | Admin: enqueue Tier A/B entities missing external IDs |
 
 #### Get Recommendation Report
 ```http

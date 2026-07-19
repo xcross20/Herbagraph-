@@ -57,6 +57,7 @@
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script src="/js/reasoning-graph.js"></script>
+<script src="/js/knowledge-path-picker.js"></script>
 <script>
 document.getElementById("app-nav-logo").innerHTML = herbagraphLogoLink("/app.html#dashboard");
 const API = window.location.origin;
@@ -950,9 +951,14 @@ async function renderBiomarkerReview(labId) {
   if (genBtn) {
     genBtn.onclick = async () => {
       const st = document.getElementById("review-status");
-      st.textContent = "Starting analysis…";
+      const knowledgePath = await window.hgPickKnowledgePath({
+        title: "Choose knowledge path for this analysis",
+        subtitle: "Same biomarkers. Different knowledge substrate — compare legacy catalogs vs the canonical intervention graph.",
+      });
+      if (!knowledgePath) return;
+      st.textContent = `Starting analysis (${knowledgePath})…`;
       try {
-        await api(`/api/v1/reports/generate/${labId}`, "POST");
+        await api(`/api/v1/reports/generate/${labId}`, "POST", { knowledge_path: knowledgePath });
         for (let i = 0; i < 180; i++) {
           const refreshed = await api(`/api/v1/labs/${labId}`);
           if (refreshed.report_stage === "complete" && refreshed.latest_report_id) {
@@ -1008,7 +1014,12 @@ async function renderAnalysisBuilder(preselectedPatient) {
     const pipeline = document.getElementById("analysis-pipeline");
     const selected = [...document.querySelectorAll(".analysis-lab:checked")].map(el => el.value);
     if (selected.length < 1) { st.textContent = "Select at least one lab report."; return; }
-    st.textContent = "Creating session…";
+    const knowledgePath = await window.hgPickKnowledgePath({
+      title: "Choose knowledge path for integrated analysis",
+      subtitle: "Pick legacy catalogs or the canonical graph before merging reports into one reasoning run.",
+    });
+    if (!knowledgePath) return;
+    st.textContent = `Creating session (${knowledgePath})…`;
     pipeline.style.display = "block";
     pipeline.innerHTML = renderAnalysisPipeline(0);
     try {
@@ -1018,7 +1029,7 @@ async function renderAnalysisBuilder(preselectedPatient) {
         analysis_type: document.getElementById("analysis-type").value,
       });
       await api(`/api/v1/analysis-sessions/${session.id}/link-labs`, "POST", { lab_report_ids: selected });
-      await api(`/api/v1/analysis-sessions/${session.id}/run`, "POST");
+      await api(`/api/v1/analysis-sessions/${session.id}/run`, "POST", { knowledge_path: knowledgePath });
       for (let i = 0; i < 180; i++) {
         const s = await api(`/api/v1/analysis-sessions/${session.id}`);
         if (s.status === "complete" && s.latest_report_id) {

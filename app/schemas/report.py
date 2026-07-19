@@ -7,6 +7,7 @@ from app.models.enums import (
     EvidenceLevel,
     EvidenceTier,
     InterventionCategory,
+    KnowledgePath,
     LabResultStatus,
     PathwayDirection,
     ReportGenerationStage,
@@ -215,6 +216,12 @@ class RecommendationTiersRead(BaseModel):
     clinical_executive_summary: str = ""
 
 
+class ReportGenerationRequest(BaseModel):
+    """Optional body for POST /reports/generate/{lab_report_id}."""
+
+    knowledge_path: KnowledgePath = KnowledgePath.LEGACY
+
+
 class RecommendationReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -222,6 +229,7 @@ class RecommendationReportRead(BaseModel):
     lab_report_id: uuid.UUID
     overall_confidence: float
     model_version: str
+    knowledge_path: KnowledgePath | str = KnowledgePath.LEGACY
     executive_summary: str
     biomarker_summary: BiomarkerSummary
     biomarker_interpretations: list[BiomarkerInterpretation] = []
@@ -256,6 +264,7 @@ class RecommendationReportSummary(BaseModel):
     id: uuid.UUID
     lab_report_id: uuid.UUID
     overall_confidence: float
+    knowledge_path: KnowledgePath | str = KnowledgePath.LEGACY
     created_at: datetime
 
 
@@ -263,4 +272,5 @@ class ReportGenerationResponse(BaseModel):
     lab_report_id: uuid.UUID
     task_id: str
     report_stage: ReportGenerationStage
+    knowledge_path: KnowledgePath | str = KnowledgePath.LEGACY
     message: str

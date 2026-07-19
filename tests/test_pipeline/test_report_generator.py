@@ -447,7 +447,8 @@ def test_disclaimer_always_present_and_contains_disclaimer_keyword():
         intervention_pathways={},
     )
     assert report["disclaimer"] == DISCLAIMER
-    assert "DISCLAIMER" in report["disclaimer"]
+    assert "does not diagnose" in report["disclaimer"].lower()
+    assert "healthcare provider" in report["disclaimer"].lower()
 
 
 def test_safety_summary_reflects_high_risk_and_review_flag():

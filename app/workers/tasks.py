@@ -125,15 +125,21 @@ def process_lab_report_task(lab_report_id: str) -> dict:
     return process_lab_report(lab_report_id)
 
 
-def generate_recommendation_report(lab_report_id: str, user_id: str) -> dict:
-    return run_report_generation(lab_report_id, user_id)
+def generate_recommendation_report(
+    lab_report_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
+    return run_report_generation(lab_report_id, user_id, knowledge_path=knowledge_path)
 
 
 @celery_app.task(name="generate_recommendation_report")
-def generate_recommendation_report_task(lab_report_id: str, user_id: str) -> dict:
-    return generate_recommendation_report(lab_report_id, user_id)
+def generate_recommendation_report_task(
+    lab_report_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
+    return generate_recommendation_report(lab_report_id, user_id, knowledge_path=knowledge_path)
 
 
 @celery_app.task(name="run_integrated_analysis")
-def run_integrated_analysis_task(analysis_session_id: str, user_id: str) -> dict:
-    return run_integrated_analysis(analysis_session_id, user_id)
+def run_integrated_analysis_task(
+    analysis_session_id: str, user_id: str, knowledge_path: str = "legacy"
+) -> dict:
+    return run_integrated_analysis(analysis_session_id, user_id, knowledge_path=knowledge_path)

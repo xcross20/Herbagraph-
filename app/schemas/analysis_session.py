@@ -3,13 +3,19 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import AnalysisSessionStatus, AnalysisType, LabReportStatus
+from app.models.enums import AnalysisSessionStatus, AnalysisType, KnowledgePath, LabReportStatus
 
 
 class AnalysisSessionCreate(BaseModel):
     title: str = "Integrated Lab Analysis"
     patient_id: uuid.UUID | None = None
     analysis_type: AnalysisType = AnalysisType.MULTI_REPORT_SNAPSHOT
+
+
+class AnalysisSessionRunRequest(BaseModel):
+    """Optional body for POST /analysis-sessions/{id}/run."""
+
+    knowledge_path: KnowledgePath = KnowledgePath.LEGACY
 
 
 class AnalysisSessionLabLinkRead(BaseModel):
@@ -40,6 +46,7 @@ class AnalysisSessionRunResponse(BaseModel):
     analysis_session_id: uuid.UUID
     task_id: str
     status: AnalysisSessionStatus
+    knowledge_path: KnowledgePath | str = KnowledgePath.LEGACY
     message: str
 
 

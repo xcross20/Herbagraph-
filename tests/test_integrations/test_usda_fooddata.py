@@ -5,7 +5,7 @@ import pytest
 import respx
 
 from app.config import get_settings
-from app.integrations.usda_fooddata import search_food, usda_api_key, usda_configured
+from app.integrations.usda_fooddata import rank_usda_foods, search_food, usda_api_key, usda_configured
 
 pytestmark = pytest.mark.unit
 
@@ -70,3 +70,16 @@ async def test_search_food_404_returns_empty_list(client):
     respx.get(_SEARCH_URL).mock(return_value=httpx.Response(404))
     results = await search_food("nonexistent-food-xyz", client, api_key="test-key")
     assert results == []
+
+
+def test_rank_usda_foods_prefers_foundation_over_branded():
+    ranked = rank_usda_foods(
+        [
+            {"fdcId": 1, "description": "SPINACH", "dataType": "Branded"},
+            {"fdcId": 2, "description": "Spinach, raw", "dataType": "Foundation"},
+            {"fdcId": 3, "description": "Spinach", "dataType": "SR Legacy"},
+        ]
+    )
+    assert ranked[0]["fdcId"] == 2
+    assert ranked[1]["fdcId"] == 3
+    assert ranked[2]["fdcId"] == 1

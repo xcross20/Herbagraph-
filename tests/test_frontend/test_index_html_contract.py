@@ -111,6 +111,9 @@ def test_regenerate_and_operator_hint(report_html):
     assert 'id="regenerate-btn"' in report_html
     assert 'id="operator-hint"' in report_html
     assert "Regenerate report" in report_html
+    assert "knowledge-path-picker.js" in report_html
+    assert "hgPickKnowledgePath" in report_html
+    assert "knowledge_path" in report_html
 
 
 def test_sample_report_assets_exist():

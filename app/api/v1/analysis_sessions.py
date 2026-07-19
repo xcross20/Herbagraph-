@@ -17,10 +17,12 @@ from app.models.patient import Patient
 from app.models.user import User
 from app.services.audit import record_audit_event
 from app.pipeline.integrated_merge import infer_panel_label
+from app.pipeline.knowledge_path import parse_knowledge_path
 from app.schemas.analysis_session import (
     AnalysisSessionCreate,
     AnalysisSessionLinkLabsRequest,
     AnalysisSessionRead,
+    AnalysisSessionRunRequest,
     AnalysisSessionRunResponse,
     IntegratedUploadResponse,
 )
@@ -293,6 +295,7 @@ async def link_existing_lab_reports(
 async def run_integrated_analysis(
     session_id: uuid.UUID,
     request: Request,
+    payload: AnalysisSessionRunRequest | None = None,
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> AnalysisSessionRunResponse:
@@ -315,6 +318,12 @@ async def run_integrated_analysis(
             detail="Integrated analysis is already in progress for this session.",
         )
 
+    body = payload or AnalysisSessionRunRequest()
+    try:
+        knowledge_path = parse_knowledge_path(body.knowledge_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+
     analysis_session.status = AnalysisSessionStatus.PENDING
     analysis_session.error_message = None
     await db.commit()
@@ -322,22 +331,34 @@ async def run_integrated_analysis(
     await record_audit_event(
         db,
         action=AuditAction.ANALYSIS_STARTED,
-        summary=f"Integrated analysis started ({analysis_session.title})",
+        summary=(
+            f"Integrated analysis started ({analysis_session.title}) "
+            f"(knowledge_path={knowledge_path.value})"
+        ),
         user=current_user,
         patient_id=analysis_session.patient_id,
         resource_type="analysis_session",
         resource_id=str(analysis_session.id),
-        detail={"lab_count": len(analysis_session.lab_links)},
+        detail={
+            "lab_count": len(analysis_session.lab_links),
+            "knowledge_path": knowledge_path.value,
+        },
         request=request,
     )
     await db.commit()
 
-    task = dispatch_celery_task(run_integrated_analysis_task, str(analysis_session.id), str(current_user.id))
+    task = dispatch_celery_task(
+        run_integrated_analysis_task,
+        str(analysis_session.id),
+        str(current_user.id),
+        knowledge_path.value,
+    )
     return AnalysisSessionRunResponse(
         analysis_session_id=analysis_session.id,
         task_id=task.id,
         status=AnalysisSessionStatus.PENDING,
-        message="Integrated analysis has started.",
+        knowledge_path=knowledge_path,
+        message=f"Integrated analysis has started ({knowledge_path.value} knowledge path).",
     )
 
 

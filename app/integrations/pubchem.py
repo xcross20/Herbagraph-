@@ -35,3 +35,30 @@ async def get_compound_properties(cid: int, client: httpx.AsyncClient) -> dict |
     response.raise_for_status()
     properties = response.json().get("PropertyTable", {}).get("Properties", [])
     return properties[0] if properties else None
+
+
+@_retry_transient
+async def get_compound_synonyms(cid: int, client: httpx.AsyncClient, *, limit: int = 12) -> list[str]:
+    """Fetch PubChem synonyms for a CID (used by deep enrichment for alias expansion)."""
+    response = await client.get(f"{_BASE_URL}/compound/cid/{cid}/synonyms/JSON")
+    if response.status_code == 404:
+        return []
+    response.raise_for_status()
+    info = response.json().get("InformationList", {}).get("Information", [])
+    if not info:
+        return []
+    synonyms = info[0].get("Synonym") or []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for synonym in synonyms:
+        text = str(synonym).strip()
+        if not text or len(text) > 120:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        cleaned.append(text)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
