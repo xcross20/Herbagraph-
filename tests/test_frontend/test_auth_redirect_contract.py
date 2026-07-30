@@ -12,10 +12,19 @@ def test_handle_auth_redirect_only_returns_true_on_callback():
     assert "return true;" not in src.split("async function handleAuthRedirect")[1].split("function storeLocalTokens")[0]
 
 
-def test_render_returns_after_auth_callback_redirect():
+def test_render_continues_after_auth_callback():
+    """OAuth/email callbacks must fall through into session + dashboard render.
+
+    Early-return after handleAuthRedirect() left mobile users on a gray blank page when
+    hash was already #dashboard (hashchange never fired).
+    """
     src = _APP_HTML.read_text(encoding="utf-8")
-    assert "if (await Auth.handleAuthRedirect()) {" in src
-    assert "return;" in src.split("if (await Auth.handleAuthRedirect())")[1].split("const hash = location.hash")[0]
+    assert "await Auth.handleAuthRedirect()" in src
+    assert "if (await Auth.handleAuthRedirect())" not in src
+    # After auth redirect, ensureSession + shell reveal still run
+    assert "ensureSession()" in src
+    assert 'classList.remove("hidden")' in src
+    assert "showAppError" in src
 
 
 def test_auth_js_routes_recovery_to_reset_password_page():

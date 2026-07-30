@@ -28,4 +28,9 @@ def test_app_html_serves_workspace_shell():
     assert 'id="sidebar-backdrop"' in html
     assert "wireMobileNav" in html
     assert "setSidebarOpen" in html
+    assert "showAppError" in html
+    # Auth callback must continue into render (not early-return blank gray screen)
+    assert "await Auth.handleAuthRedirect()" in html
+    assert "if (await Auth.handleAuthRedirect())" not in html
+    assert "showAppError(err)" in html
     assert 'name="viewport"' in html

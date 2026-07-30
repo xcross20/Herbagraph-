@@ -957,7 +957,7 @@
   }
 
   .sidebar-backdrop {
-    display: block;
+    display: none;
     position: fixed;
     inset: 0;
     z-index: 110;
@@ -967,10 +967,18 @@
     margin: 0;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    pointer-events: none;
+  }
+
+  /* Only show when menu is open — never leave a full-screen gray veil on screen */
+  .sidebar-backdrop.is-visible {
+    display: block !important;
+    pointer-events: auto;
   }
 
   .sidebar-backdrop[hidden] {
     display: none !important;
+    pointer-events: none !important;
   }
 
   .mobile-topbar {

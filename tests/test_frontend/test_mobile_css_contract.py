@@ -12,9 +12,12 @@ def test_app_css_has_mobile_drawer_styles():
     assert ".mobile-topbar" in css
     assert ".app-sidebar.is-open" in css
     assert ".sidebar-backdrop" in css
+    assert ".sidebar-backdrop.is-visible" in css
     assert "translateX" in css
     assert "env(safe-area-inset-top)" in css
     assert "100dvh" in css or "100vh" in css
+    # Backdrop default must not paint a permanent gray veil
+    assert "pointer-events: none" in css
 
 
 def test_report_css_has_mobile_breakpoints():

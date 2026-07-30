@@ -92,17 +92,20 @@ function setSidebarOpen(open) {
   const backdrop = document.getElementById("sidebar-backdrop");
   const toggle = document.getElementById("mobile-nav-toggle");
   if (!sidebar) return;
-  sidebar.classList.toggle("is-open", open);
-  shell?.classList.toggle("sidebar-open", open);
+  const shouldOpen = Boolean(open) && isMobileNav();
+  sidebar.classList.toggle("is-open", shouldOpen);
+  shell?.classList.toggle("sidebar-open", shouldOpen);
   if (backdrop) {
-    backdrop.hidden = !open;
-    backdrop.setAttribute("aria-hidden", open ? "false" : "true");
+    // Class-based visibility — more reliable than [hidden] vs display:block on iOS Safari
+    backdrop.classList.toggle("is-visible", shouldOpen);
+    backdrop.hidden = !shouldOpen;
+    backdrop.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
   }
   if (toggle) {
-    toggle.setAttribute("aria-expanded", open ? "true" : "false");
-    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    toggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+    toggle.setAttribute("aria-label", shouldOpen ? "Close menu" : "Open menu");
   }
-  document.body.classList.toggle("nav-locked", open && isMobileNav());
+  document.body.classList.toggle("nav-locked", shouldOpen);
 }
 
 function closeSidebar() {
@@ -119,27 +122,32 @@ function toggleSidebar() {
 }
 
 function wireMobileNav() {
+  if (window.__hgMobileNavWired) {
+    closeSidebar();
+    return;
+  }
+  window.__hgMobileNavWired = true;
+
   const toggle = document.getElementById("mobile-nav-toggle");
   const closeBtn = document.getElementById("sidebar-close");
   const backdrop = document.getElementById("sidebar-backdrop");
-  if (toggle && !toggle.dataset.wired) {
-    toggle.dataset.wired = "1";
+  if (toggle) {
     toggle.addEventListener("click", (e) => {
       e.preventDefault();
+      e.stopPropagation();
       toggleSidebar();
     });
   }
-  if (closeBtn && !closeBtn.dataset.wired) {
-    closeBtn.dataset.wired = "1";
-    closeBtn.addEventListener("click", closeSidebar);
+  if (closeBtn) {
+    closeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeSidebar();
+    });
   }
-  if (backdrop && !backdrop.dataset.wired) {
-    backdrop.dataset.wired = "1";
+  if (backdrop) {
     backdrop.addEventListener("click", closeSidebar);
   }
   document.querySelectorAll(".sidebar-link").forEach((link) => {
-    if (link.dataset.navWired) return;
-    link.dataset.navWired = "1";
     link.addEventListener("click", () => {
       if (isMobileNav()) closeSidebar();
     });
@@ -149,6 +157,29 @@ function wireMobileNav() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeSidebar();
+  });
+  closeSidebar();
+}
+
+function showAppError(err) {
+  // Keep shell visible so the error is not hidden with the chrome (was a pure gray screen).
+  const shell = document.getElementById("app-shell");
+  shell?.classList.remove("hidden");
+  closeSidebar();
+  document.body.classList.remove("nav-locked");
+  const main = document.getElementById("app-main");
+  if (!main) return;
+  main.innerHTML = `
+    <div class="app-card app-error-card" style="max-width:480px;margin:1.5rem auto">
+      <h2 style="margin:0 0 0.5rem">Something went wrong</h2>
+      <p class="error">${esc(err?.message || err || "Unknown error")}</p>
+      <div class="page-header-actions" style="margin-top:1rem">
+        <button type="button" class="app-btn app-btn-primary" id="error-retry-btn">Try again</button>
+        <a class="app-btn" href="/login.html">Back to sign in</a>
+      </div>
+    </div>`;
+  document.getElementById("error-retry-btn")?.addEventListener("click", () => {
+    location.reload();
   });
 }
 
@@ -1234,10 +1265,14 @@ function setActiveNav(route) {
 async function render() {
   try {
     if (window.__hgAuthRedirecting) return;
-    if (await Auth.handleAuthRedirect()) {
-      location.hash = "#dashboard";
-      return;
+    // OAuth / email-confirm may land with tokens in the URL. Clean them, then always continue rendering.
+    // Previously we returned early after setting #dashboard — if hash was already #dashboard,
+    // hashchange never fired and the shell stayed hidden (gray screen on mobile).
+    await Auth.handleAuthRedirect();
+    if (!location.hash || location.hash === "#") {
+      history.replaceState({}, document.title, location.pathname + location.search + "#dashboard");
     }
+
     const hash = location.hash.slice(1) || "dashboard";
     if (hash === "login") { redirectToLogin(); return; }
     if (!(await ensureSession())) { redirectToLogin(); return; }
@@ -1246,6 +1281,7 @@ async function render() {
     document.getElementById("nav-user").textContent = currentUser?.email || "";
     document.getElementById("logout-btn").onclick = signOut;
     wireMobileNav();
+    closeSidebar();
 
     const params = new URLSearchParams(hash.split("?")[1] || "");
     const path = hash.split("?")[0];
@@ -1269,13 +1305,8 @@ async function render() {
     }
     else { setActiveNav("dashboard"); await renderDashboard(); }
   } catch (err) {
-    document.getElementById("app-shell").classList.add("hidden");
-    document.getElementById("app-main").innerHTML = `
-      <div class="app-card" style="max-width:480px;margin:2rem auto">
-        <h2 style="margin:0 0 0.5rem">Something went wrong</h2>
-        <p class="error">${esc(err.message)}</p>
-        <button class="app-btn app-btn-primary" onclick="location.href='/login.html'">Back to sign in</button>
-      </div>`;
+    console.error("HerbaGraph workspace render failed:", err);
+    showAppError(err);
   }
 }
 
