@@ -495,16 +495,76 @@ th {
 
 @media (max-width: 960px) {
   .report-layout { grid-template-columns: 1fr; }
+
+  .report-top-nav {
+    flex-wrap: wrap;
+    gap: 0.55rem;
+    padding: max(0.65rem, env(safe-area-inset-top)) 0.85rem 0.65rem;
+  }
+
+  .report-top-nav .nav-links {
+    order: 2;
+    flex: 1 1 100%;
+  }
+
+  .report-top-nav .nav-actions {
+    margin-left: 0;
+    width: 100%;
+    order: 3;
+  }
+
+  .report-top-nav .nav-actions button,
+  .report-top-nav .nav-actions a.btn {
+    flex: 1 1 auto;
+    min-height: 42px;
+    justify-content: center;
+  }
+
+  .report-shell,
+  .app-shell {
+    padding: 0.85rem 0.75rem max(2rem, env(safe-area-inset-bottom));
+    max-width: none;
+  }
+
   .report-outline {
     position: static;
     display: flex;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
     padding: 0.35rem;
+    margin-bottom: 0.75rem;
   }
   .report-outline ul { display: flex; gap: 0.15rem; }
-  .report-outline a { white-space: nowrap; border-left: none; border-bottom: 2px solid transparent; padding: 0.45rem 0.75rem; }
+  .report-outline a {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.55rem 0.75rem;
+    min-height: 40px;
+  }
   .report-outline a.active { border-bottom-color: var(--accent); background: transparent; }
   .reasoning-graph-layout { grid-template-columns: 1fr; }
+
+  .report-section {
+    padding: 0.95rem 0.9rem;
+    overflow-x: auto;
+  }
+
+  .report-doc-header h1 {
+    font-size: 1.35rem;
+  }
+
+  table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 560px) {
+  .report-doc-header h1 { font-size: 1.2rem; }
+  .report-top-nav #nav-logo { max-width: 42vw; overflow: hidden; }
 }
 
 @media print {

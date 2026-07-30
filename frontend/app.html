@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HerbaGraph Workspace</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,8 +12,14 @@
 </head>
 <body class="app-body">
 <div class="app-shell hidden" id="app-shell">
-  <aside class="app-sidebar" id="app-sidebar">
-    <div class="sidebar-brand" id="app-nav-logo"></div>
+  <div class="sidebar-backdrop" id="sidebar-backdrop" hidden aria-hidden="true"></div>
+  <aside class="app-sidebar" id="app-sidebar" aria-label="Primary navigation">
+    <div class="sidebar-brand-row">
+      <div class="sidebar-brand" id="app-nav-logo"></div>
+      <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
     <nav class="sidebar-nav" aria-label="Workspace">
       <a class="sidebar-link" href="#dashboard" data-nav="dashboard">
         <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -51,6 +57,15 @@
     </div>
   </aside>
   <div class="workspace-main">
+    <header class="mobile-topbar" id="mobile-topbar">
+      <button type="button" class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open menu" aria-controls="app-sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+      <div class="mobile-topbar-brand" id="mobile-topbar-brand"></div>
+      <a class="mobile-topbar-action app-btn app-btn-primary" href="#upload" aria-label="Upload labs">Upload</a>
+    </header>
     <div class="workspace-content" id="app-main"></div>
   </div>
 </div>
@@ -60,10 +75,82 @@
 <script src="/js/knowledge-path-picker.js"></script>
 <script>
 document.getElementById("app-nav-logo").innerHTML = herbagraphLogoLink("/app.html#dashboard");
+const mobileBrand = document.getElementById("mobile-topbar-brand");
+if (mobileBrand) mobileBrand.innerHTML = herbagraphLogoLink("/app.html#dashboard");
 const API = window.location.origin;
 const Auth = window.HerbaGraphAuth;
 let currentUser = null;
 let lastDashboard = null;
+
+function isMobileNav() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function setSidebarOpen(open) {
+  const shell = document.getElementById("app-shell");
+  const sidebar = document.getElementById("app-sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  const toggle = document.getElementById("mobile-nav-toggle");
+  if (!sidebar) return;
+  sidebar.classList.toggle("is-open", open);
+  shell?.classList.toggle("sidebar-open", open);
+  if (backdrop) {
+    backdrop.hidden = !open;
+    backdrop.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+  if (toggle) {
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+    toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  }
+  document.body.classList.toggle("nav-locked", open && isMobileNav());
+}
+
+function closeSidebar() {
+  setSidebarOpen(false);
+}
+
+function openSidebar() {
+  setSidebarOpen(true);
+}
+
+function toggleSidebar() {
+  const sidebar = document.getElementById("app-sidebar");
+  setSidebarOpen(!sidebar?.classList.contains("is-open"));
+}
+
+function wireMobileNav() {
+  const toggle = document.getElementById("mobile-nav-toggle");
+  const closeBtn = document.getElementById("sidebar-close");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  if (toggle && !toggle.dataset.wired) {
+    toggle.dataset.wired = "1";
+    toggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      toggleSidebar();
+    });
+  }
+  if (closeBtn && !closeBtn.dataset.wired) {
+    closeBtn.dataset.wired = "1";
+    closeBtn.addEventListener("click", closeSidebar);
+  }
+  if (backdrop && !backdrop.dataset.wired) {
+    backdrop.dataset.wired = "1";
+    backdrop.addEventListener("click", closeSidebar);
+  }
+  document.querySelectorAll(".sidebar-link").forEach((link) => {
+    if (link.dataset.navWired) return;
+    link.dataset.navWired = "1";
+    link.addEventListener("click", () => {
+      if (isMobileNav()) closeSidebar();
+    });
+  });
+  window.addEventListener("resize", () => {
+    if (!isMobileNav()) closeSidebar();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSidebar();
+  });
+}
 
 const ICON_GRID = '<svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" fill="none" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
 
@@ -1158,6 +1245,7 @@ async function render() {
     document.getElementById("app-shell").classList.remove("hidden");
     document.getElementById("nav-user").textContent = currentUser?.email || "";
     document.getElementById("logout-btn").onclick = signOut;
+    wireMobileNav();
 
     const params = new URLSearchParams(hash.split("?")[1] || "");
     const path = hash.split("?")[0];

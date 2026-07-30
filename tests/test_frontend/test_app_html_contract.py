@@ -22,3 +22,10 @@ def test_app_html_serves_workspace_shell():
     assert "knowledge-path-picker.js" in html
     assert "hgPickKnowledgePath" in html
     assert "knowledge_path" in html
+    # Mobile navigation shell
+    assert 'id="mobile-nav-toggle"' in html
+    assert 'id="mobile-topbar"' in html
+    assert 'id="sidebar-backdrop"' in html
+    assert "wireMobileNav" in html
+    assert "setSidebarOpen" in html
+    assert 'name="viewport"' in html

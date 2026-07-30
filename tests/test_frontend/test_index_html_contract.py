@@ -140,6 +140,7 @@ def test_report_workspace_shell(report_html):
     assert "brand-logo.js" in report_html
     assert "reasoning-graph.js" in report_html
     assert "/css/report.css" in report_html
+    assert 'name="viewport"' in report_html
     assert "/css/site.css" in report_html
     assert "report-outline" in report_html
     assert 'id="report-empty"' in report_html
