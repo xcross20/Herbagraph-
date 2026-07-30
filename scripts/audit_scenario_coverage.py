@@ -10,9 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.pipeline.lab_scenario_loader import list_scenarios, load_manifest
 
-MIN_RECOMMENDATION_SCENARIOS = 70
-MIN_PATHWAY_SCENARIOS = 70
-MIN_BIOLOGICAL_SYSTEMS_SCENARIOS = 70
+MIN_RECOMMENDATION_SCENARIOS = 75
+MIN_PATHWAY_SCENARIOS = 75
+MIN_BIOLOGICAL_SYSTEMS_SCENARIOS = 72
 
 
 def main() -> int:

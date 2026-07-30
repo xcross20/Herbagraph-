@@ -1,0 +1,7 @@
+SYNTHETIC AUTOIMMUNE PANEL (NOT REAL PATIENT DATA)
+RF + Anti-CCP seropositive rheumatoid pattern
+
+RF                           45.00  IU/mL  (0.00-14.00)
+Anti-CCP                     80.00  U/mL   (0.00-20.00)
+CRP                          6.20   mg/L   (0.00-3.00)
+Vitamin D, 25-OH             22.00  ng/mL  (30.00-100.00)

@@ -153,42 +153,49 @@ def composition_food_sources(
     *,
     limit: int = 8,
 ) -> list[dict]:
-    """Return CONTAINS targets for a food/botanical entity as food-source style dicts."""
+    """Return whole-food sources for an intervention from CONTAINS edges.
+
+    Bootstrap edges are food/botanical → compound (source CONTAINS target). For a
+    compound/phytochemical intervention we walk *incoming* CONTAINS edges to list
+    foods. For a food intervention we return empty (the food is itself the source).
+    """
     index = load_registry_index(session)
     entity = index.resolve(intervention_name)
     if entity is None:
         return []
 
-    edges = list(
+    # Prefer foods that contain this entity (compound/phytochemical path).
+    incoming = list(
         session.execute(
             select(GraphEdge).where(
-                GraphEdge.source_entity_id == entity.id,
+                GraphEdge.target_entity_id == entity.id,
                 GraphEdge.relationship_type == GraphRelationshipType.CONTAINS.value,
             )
         ).scalars().all()
     )
-    if not edges:
-        return []
+    if incoming:
+        source_ids = [e.source_entity_id for e in incoming]
+        sources = {
+            t.id: t
+            for t in session.execute(
+                select(CanonicalEntity).where(CanonicalEntity.id.in_(source_ids))
+            ).scalars().all()
+        }
+        results: list[dict] = []
+        for edge in incoming[:limit]:
+            source = sources.get(edge.source_entity_id)
+            if source is None:
+                continue
+            results.append(
+                {
+                    "food_name": source.display_name or source.canonical_name,
+                    "richness": "moderate",
+                    "typical_serving": None,
+                    "entity_id": source.entity_id,
+                    "source": "canonical_graph",
+                }
+            )
+        return results
 
-    target_ids = [e.target_entity_id for e in edges]
-    targets = {
-        t.id: t
-        for t in session.execute(
-            select(CanonicalEntity).where(CanonicalEntity.id.in_(target_ids))
-        ).scalars().all()
-    }
-    results: list[dict] = []
-    for edge in edges[:limit]:
-        target = targets.get(edge.target_entity_id)
-        if target is None:
-            continue
-        results.append(
-            {
-                "food_name": target.display_name or target.canonical_name,
-                "richness": "moderate",
-                "typical_serving": None,
-                "entity_id": target.entity_id,
-                "source": "canonical_graph",
-            }
-        )
-    return results
+    # Fallback: outgoing CONTAINS (food → constituents) is not a food_sources list.
+    return []

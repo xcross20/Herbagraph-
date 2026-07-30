@@ -182,6 +182,16 @@ _INTERVENTION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Pancreatin": ("pancreatin", "pancreatic", "exocrine pancreatic"),
     "Colostrum": ("colostrum",),
     "Lactoferrin": ("lactoferrin",),
+    "Andrographis": ("andrographis", "andrographolide", "kalmegh"),
+    "Rhodiola rosea": ("rhodiola", "rosavin", "salidroside"),
+    "Olive Leaf": ("olive", "oleuropein", "olive leaf"),
+    "Chamomile": ("chamomile", "matricaria", "chamomilla"),
+    "Peppermint": ("peppermint", "mentha", "menthol"),
+    "Holy Basil": ("holy basil", "ocimum", "tulsi", "sanctum"),
+    "Slippery Elm": ("slippery elm", "ulmus", "mucilage"),
+    "Goldenseal": ("goldenseal", "hydrastis", "berberine"),
+    "Licorice Root": ("licorice", "liquorice", "glycyrrhiza", "glycyrrhizin"),
+    "Mindfulness-Based Stress Reduction": ("mindfulness", "mbsr", "meditation", "stress"),
 }
 
 

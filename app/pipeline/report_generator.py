@@ -298,6 +298,7 @@ def generate_report(
     custom_biomarkers: list[dict] | None = None,
     health_profile: dict | None = None,
     integrated_analysis: dict | None = None,
+    graph_food_sources_by_intervention: dict[str, list[dict]] | None = None,
 ) -> dict:
     """Stage 8 entry point: score, rank, and assemble the final report payload (pre-persistence)."""
     biomarker_summary = _biomarker_summary(
@@ -306,6 +307,7 @@ def generate_report(
         integrated_analysis=integrated_analysis,
     )
     evidence_by_id = {e.external_id: e for e in evidence_snippets}
+    graph_food_map = graph_food_sources_by_intervention or {}
 
     explainability_list, report_versioning = build_explainability_bundle(
         safety_report.approved_recommendations,
@@ -331,7 +333,11 @@ def generate_report(
             tier_rec = rec.model_copy(update={"cited_study_ids": explainability.supporting_study_ids})
         evidence_tier = determine_evidence_tier(tier_rec, evidence_by_id)
         category = rec.category.value if hasattr(rec.category, "value") else str(rec.category)
-        food_sources, linked_compound = attach_food_sources(rec.intervention_name, category)
+        food_sources, linked_compound = attach_food_sources(
+            rec.intervention_name,
+            category,
+            graph_food_sources=graph_food_map.get(rec.intervention_name),
+        )
         abnormal_names = {
             lab.biomarker_name
             for lab in normalized_labs

@@ -15,14 +15,48 @@ from app.services.audit import record_audit_event_sync
 from app.models.lab import LabReport, LabResult
 from app.models.user import HealthProfile
 from app.pipeline.biomarker_normalizer import canonical_name_for_persist, normalize_lab_results
+from app.pipeline.llm_alias_resolver import apply_alias_map_to_parsed, resolve_aliases_with_llm
 from app.pipeline.user_biomarker_profile import (
     prune_custom_biomarkers_overlapping_catalog,
     register_discovered_biomarkers,
+    resolve_canonical_name,
 )
 from app.pipeline.lab_parser import parse_lab_file_with_llm_fallback
 from app.services.integrated_analysis import run_integrated_analysis
 from app.services.report_generation import run_report_generation
 from app.workers.celery_app import celery_app
+
+
+def _apply_llm_alias_assist(parsed: list, custom_biomarkers: list | None) -> list:
+    """IMP-053: after deterministic aliases fail, ask LLM (or mock heuristics)."""
+    unresolved = [
+        p.raw_test_name
+        for p in parsed
+        if p.raw_test_name and not resolve_canonical_name(p.raw_test_name, custom_biomarkers)
+    ]
+    if not unresolved:
+        return parsed
+    try:
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            alias_map = asyncio.run(
+                resolve_aliases_with_llm(unresolved, custom_biomarkers=custom_biomarkers)
+            )
+        else:
+            # Nested loop (pytest-asyncio): run in a worker thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                alias_map = pool.submit(
+                    asyncio.run,
+                    resolve_aliases_with_llm(unresolved, custom_biomarkers=custom_biomarkers),
+                ).result()
+        return apply_alias_map_to_parsed(parsed, alias_map)
+    except Exception:  # noqa: BLE001 — never fail parse pipeline on alias assist
+        return parsed
 
 
 def _set_processing_stage(session, lab_report: LabReport, stage: LabProcessingStage) -> None:
@@ -64,6 +98,7 @@ def process_lab_report(lab_report_id: str) -> dict:
                 profile.custom_biomarkers = custom_biomarkers
                 session.add(profile)
 
+            parsed = _apply_llm_alias_assist(parsed, custom_biomarkers)
             normalized = normalize_lab_results(parsed, custom_biomarkers=custom_biomarkers)
 
             if profile is not None:

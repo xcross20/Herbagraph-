@@ -1,11 +1,14 @@
 {
   "version": 1,
-  "description": "Master lab scenario matrix for HerbaGraph parse → normalize → route validation.",
+  "description": "Master lab scenario matrix for HerbaGraph parse \u2192 normalize \u2192 route validation.",
   "scenarios": [
     {
       "scenario_id": "signaling_inflammatory_quest",
-      "description": "Quest paren format — inflammatory/metabolic signaling panel",
-      "tags": ["signaling", "format_quest_paren"],
+      "description": "Quest paren format \u2014 inflammatory/metabolic signaling panel",
+      "tags": [
+        "signaling",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/signaling_inflammatory_quest.txt",
       "health_profile": {
         "age_range": "40-49",
@@ -14,29 +17,50 @@
         "known_conditions": []
       },
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "CRP", "status": "high" },
-            { "biomarker_name": "Glucose", "status": "high" },
-            { "biomarker_name": "LDL", "status": "high" }
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Glucose",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "LDL",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "signaling",
-          "trees": ["signaling"],
+          "trees": [
+            "signaling"
+          ],
           "min_abnormal": 5
         },
         "pathways": {
-          "must_include": ["NF_KB", "INSULIN_PI3K_AKT"]
+          "must_include": [
+            "NF_KB",
+            "INSULIN_PI3K_AKT"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin"],
+          "must_include": [
+            "Quercetin"
+          ],
           "min_count": 5
         }
       }
@@ -44,140 +68,256 @@
     {
       "scenario_id": "signaling_labcorp_hl_flags",
       "description": "LabCorp plain format with H/L flags",
-      "tags": ["signaling", "format_labcorp"],
+      "tags": [
+        "signaling",
+        "format_labcorp"
+      ],
       "raw_file": "raw/signaling_labcorp_hl_flags.txt",
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Glucose", "status": "high" },
-            { "biomarker_name": "HDL", "status": "low" }
+            {
+              "biomarker_name": "Glucose",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "HDL",
+              "status": "low"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 5 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 5
+        },
         "pathways": {
-          "must_include": ["INSULIN_PI3K_AKT", "HEPATIC_LIPID"]
+          "must_include": [
+            "INSULIN_PI3K_AKT",
+            "HEPATIC_LIPID"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "metabolic_health", "min_signal_level": 2 },
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "metabolic_health",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin"],
+          "must_include": [
+            "Quercetin"
+          ],
           "min_count": 5
         }
       }
     },
     {
       "scenario_id": "signaling_hyperuricemia",
-      "description": "Elevated uric acid panel — PURINE_URIC_ACID pathway + Quercetin routing",
-      "tags": ["signaling", "purine_uric_acid", "format_labcorp"],
+      "description": "Elevated uric acid panel \u2014 PURINE_URIC_ACID pathway + Quercetin routing",
+      "tags": [
+        "signaling",
+        "purine_uric_acid",
+        "format_labcorp"
+      ],
       "raw_file": "raw/signaling_hyperuricemia.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Uric Acid", "status": "high" }
+            {
+              "biomarker_name": "Uric Acid",
+              "status": "high"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 4 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 4
+        },
         "pathways": {
-          "must_include": ["PURINE_URIC_ACID"]
+          "must_include": [
+            "PURINE_URIC_ACID"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin"],
+          "must_include": [
+            "Quercetin"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "signaling_mtor_metabolic",
-      "description": "Insulin resistance panel — MTOR_AUTOPHAGY pathway + Intermittent Fasting routing",
-      "tags": ["signaling", "mtor_autophagy", "format_labcorp"],
+      "description": "Insulin resistance panel \u2014 MTOR_AUTOPHAGY pathway + Intermittent Fasting routing",
+      "tags": [
+        "signaling",
+        "mtor_autophagy",
+        "format_labcorp"
+      ],
       "raw_file": "raw/signaling_mtor_metabolic.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Insulin", "status": "high" },
-            { "biomarker_name": "Glucose", "status": "high" }
+            {
+              "biomarker_name": "Insulin",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Glucose",
+              "status": "high"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 3 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 3
+        },
         "pathways": {
-          "must_include": ["MTOR_AUTOPHAGY", "INSULIN_PI3K_AKT"]
+          "must_include": [
+            "MTOR_AUTOPHAGY",
+            "INSULIN_PI3K_AKT"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "metabolic_health", "min_signal_level": 2 },
-            { "system_code": "oxidative_stress_mitochondrial", "min_signal_level": 2 }
+            {
+              "system_code": "metabolic_health",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "oxidative_stress_mitochondrial",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Intermittent Fasting"],
+          "must_include": [
+            "Intermittent Fasting"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "signaling_thyroid_hypothyroid",
-      "description": "Elevated TSH + low Free T4 — THYROID_HPT pathway + endocrine signaling",
-      "tags": ["signaling", "thyroid_hpt", "format_labcorp"],
+      "description": "Elevated TSH + low Free T4 \u2014 THYROID_HPT pathway + endocrine signaling",
+      "tags": [
+        "signaling",
+        "thyroid_hpt",
+        "format_labcorp"
+      ],
       "raw_file": "raw/signaling_thyroid_hypothyroid.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "TSH", "status": "high" },
-            { "biomarker_name": "Free T4", "status": "low" }
+            {
+              "biomarker_name": "TSH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Free T4",
+              "status": "low"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 2 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 2
+        },
         "pathways": {
-          "must_include": ["THYROID_HPT", "HPA_AXIS"]
+          "must_include": [
+            "THYROID_HPT",
+            "HPA_AXIS"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "thyroid_endocrine", "min_signal_level": 2 }
+            {
+              "system_code": "thyroid_endocrine",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Ashwagandha", "Selenium"],
+          "must_include": [
+            "Ashwagandha",
+            "Selenium"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "signaling_renal_egfr_low",
-      "description": "Reduced eGFR + elevated creatinine — RENAL_FILTRATION pathway + Omega-3 routing",
-      "tags": ["signaling", "renal_filtration", "format_labcorp"],
+      "description": "Reduced eGFR + elevated creatinine \u2014 RENAL_FILTRATION pathway + Omega-3 routing",
+      "tags": [
+        "signaling",
+        "renal_filtration",
+        "format_labcorp"
+      ],
       "raw_file": "raw/signaling_renal_egfr_low.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "eGFR", "status": "low" },
-            { "biomarker_name": "Creatinine", "status": "high" }
+            {
+              "biomarker_name": "eGFR",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Creatinine",
+              "status": "high"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 4 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 4
+        },
         "pathways": {
-          "must_include": ["RENAL_FILTRATION"]
+          "must_include": [
+            "RENAL_FILTRATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Omega-3"],
+          "must_include": [
+            "Omega-3"
+          ],
           "min_count": 3
         }
       }
@@ -185,26 +325,48 @@
     {
       "scenario_id": "signaling_comprehensive_quest",
       "description": "Full MVP Quest panel (~25 biomarkers); low Vitamin D makes nutritional_repletion primary",
-      "tags": ["signaling", "nutritional_repletion", "format_quest_paren", "demo"],
+      "tags": [
+        "signaling",
+        "nutritional_repletion",
+        "format_quest_paren",
+        "demo"
+      ],
       "raw_file": "../lab_reports/demo_03_comprehensive_quest.txt",
       "expect": {
-        "parse": { "min_rows": 20 },
+        "parse": {
+          "min_rows": 20
+        },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 8
         },
         "pathways": {
-          "must_include": ["VITAMIN_D_RECEPTOR", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "VITAMIN_D_RECEPTOR",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 },
-            { "system_code": "metabolic_health", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "metabolic_health",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin D", "Quercetin"],
+          "must_include": [
+            "Vitamin D",
+            "Quercetin"
+          ],
           "min_count": 8
         }
       }
@@ -212,27 +374,53 @@
     {
       "scenario_id": "format_csv_mixed_panel",
       "description": "CSV table upload format (low Vitamin D 25-OH routes nutritional_repletion)",
-      "tags": ["signaling", "format_csv", "nutritional_repletion"],
+      "tags": [
+        "signaling",
+        "format_csv",
+        "nutritional_repletion"
+      ],
       "raw_file": "../lab_reports/demo_05_mixed_panel.csv",
       "expect": {
-        "parse": { "min_rows": 8 },
+        "parse": {
+          "min_rows": 8
+        },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 5
         },
         "pathways": {
-          "must_include": ["NF_KB", "INSULIN_PI3K_AKT", "VITAMIN_D_RECEPTOR", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NF_KB",
+            "INSULIN_PI3K_AKT",
+            "VITAMIN_D_RECEPTOR",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 },
-            { "system_code": "metabolic_health", "min_signal_level": 2 },
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "metabolic_health",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin", "Vitamin D"],
+          "must_include": [
+            "Quercetin",
+            "Vitamin D"
+          ],
           "min_count": 5
         }
       }
@@ -240,59 +428,112 @@
     {
       "scenario_id": "format_pipe_delimited",
       "description": "Pipe-delimited table format (low Vitamin D 25-OH routes nutritional_repletion)",
-      "tags": ["signaling", "format_pipe", "nutritional_repletion"],
+      "tags": [
+        "signaling",
+        "format_pipe",
+        "nutritional_repletion"
+      ],
       "raw_file": "../lab_reports/demo_06_pipe_delimited.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 3
         },
         "pathways": {
-          "must_include": ["NF_KB", "IL6_JAK_STAT3", "VITAMIN_D_RECEPTOR", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NF_KB",
+            "IL6_JAK_STAT3",
+            "VITAMIN_D_RECEPTOR",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 },
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin", "Vitamin D", "Folate"],
+          "must_include": [
+            "Quercetin",
+            "Vitamin D",
+            "Folate"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "format_ocr_garbled_cbc",
-      "description": "OCR-reversed mean-cell CBC names — parser post-process + alias resolution",
-      "tags": ["nutritional_repletion", "format_ocr", "cbc", "alias"],
+      "description": "OCR-reversed mean-cell CBC names \u2014 parser post-process + alias resolution",
+      "tags": [
+        "nutritional_repletion",
+        "format_ocr",
+        "cbc",
+        "alias"
+      ],
       "raw_file": "raw/format_ocr_garbled_cbc.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "MCH", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "MCH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 2
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate", "Iron"],
+          "must_include": [
+            "B12",
+            "Folate",
+            "Iron"
+          ],
           "min_count": 3
         }
       }
@@ -300,28 +541,53 @@
     {
       "scenario_id": "format_quest_hdl_ldl_flags",
       "description": "Compact flag + range formats (HDL L, LDL NEAR OPTIMAL, Quest PDF F-column bleed)",
-      "tags": ["signaling", "format_flag_range", "format_pdf_column_prefix"],
+      "tags": [
+        "signaling",
+        "format_flag_range",
+        "format_pdf_column_prefix"
+      ],
       "raw_file": "raw/format_quest_hdl_ldl_flags.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "HDL" },
-            { "biomarker_name": "LDL", "status": "high" }
+            {
+              "biomarker_name": "HDL"
+            },
+            {
+              "biomarker_name": "LDL",
+              "status": "high"
+            }
           ],
-          "must_track_in_catalog": ["HDL", "LDL"]
+          "must_track_in_catalog": [
+            "HDL",
+            "LDL"
+          ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 1 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 1
+        },
         "pathways": {
-          "must_include": ["HEPATIC_LIPID"]
+          "must_include": [
+            "HEPATIC_LIPID"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Berberine", "Omega-3"],
+          "must_include": [
+            "Berberine",
+            "Omega-3"
+          ],
           "min_count": 3
         }
       }
@@ -329,14 +595,25 @@
     {
       "scenario_id": "format_healow_lipid_panel",
       "description": "Healow/eClinicalWorks lipid panel: F-column bleed, <= ranges, Cholesterol Total comma suffix",
-      "tags": ["signaling", "format_healow", "format_pdf_column_prefix"],
+      "tags": [
+        "signaling",
+        "format_healow",
+        "format_pdf_column_prefix"
+      ],
       "raw_file": "raw/format_healow_lipid_panel.txt",
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "HDL" },
-            { "biomarker_name": "LDL", "status": "high" }
+            {
+              "biomarker_name": "HDL"
+            },
+            {
+              "biomarker_name": "LDL",
+              "status": "high"
+            }
           ],
           "must_track_in_catalog": [
             "Total Cholesterol",
@@ -347,28 +624,44 @@
             "Chol/HDL Ratio"
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 1 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 1
+        },
         "pathways": {
-          "must_include": ["HEPATIC_LIPID"]
+          "must_include": [
+            "HEPATIC_LIPID"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Berberine"],
+          "must_include": [
+            "Berberine"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "etiological_h_pylori_urea_breath",
-      "description": "Active H. pylori urea breath — etiological primary (Mastic Gum path)",
-      "tags": ["etiological", "infectious_disease", "format_quest_qualitative"],
+      "description": "Active H. pylori urea breath \u2014 etiological primary (Mastic Gum path)",
+      "tags": [
+        "etiological",
+        "infectious_disease",
+        "format_quest_qualitative"
+      ],
       "raw_file": "raw/etiological_h_pylori_urea_breath.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
             {
@@ -380,33 +673,56 @@
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["etiological", "signaling"],
+          "trees": [
+            "etiological",
+            "signaling"
+          ],
           "biomarkers_by_tree": {
-            "etiological": ["H. pylori Urea Breath Test"]
+            "etiological": [
+              "H. pylori Urea Breath Test"
+            ]
           }
         },
         "pathways": {
-          "must_include": ["GASTRIC_COLONIZATION", "GI_MUCOSAL_BARRIER"]
+          "must_include": [
+            "GASTRIC_COLONIZATION",
+            "GI_MUCOSAL_BARRIER"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 },
-            { "system_code": "nutrient_status", "min_signal_level": 1 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 1
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Mastic Gum", "DGL Licorice"],
+          "must_include": [
+            "Mastic Gum",
+            "DGL Licorice"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "exposure_h_pylori_igg",
-      "description": "Prior H. pylori exposure serology — exposure context (not active infection)",
-      "tags": ["exposure", "infectious_disease", "format_quest_qualitative"],
+      "description": "Prior H. pylori exposure serology \u2014 exposure context (not active infection)",
+      "tags": [
+        "exposure",
+        "infectious_disease",
+        "format_quest_qualitative"
+      ],
       "raw_file": "raw/exposure_h_pylori_igg.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
             {
@@ -418,159 +734,274 @@
         },
         "routing": {
           "primary_tree": "exposure",
-          "trees": ["exposure", "signaling"],
+          "trees": [
+            "exposure",
+            "signaling"
+          ],
           "biomarkers_by_tree": {
-            "exposure": ["H. pylori IgG Antibody"]
+            "exposure": [
+              "H. pylori IgG Antibody"
+            ]
           }
         },
         "pathways": {
-          "must_include": ["GASTRIC_COLONIZATION"]
+          "must_include": [
+            "GASTRIC_COLONIZATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Mastic Gum", "DGL Licorice"],
+          "must_include": [
+            "Mastic Gum",
+            "DGL Licorice"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "culture_urine_positive",
-      "description": "Positive urine culture — culture + etiological trees (primary etiological per router priority)",
-      "tags": ["culture", "microbiology"],
+      "description": "Positive urine culture \u2014 culture + etiological trees (primary etiological per router priority)",
+      "tags": [
+        "culture",
+        "microbiology"
+      ],
       "raw_file": "raw/culture_urine_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Urine Culture", "status": "high" }
+            {
+              "biomarker_name": "Urine Culture",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["culture", "etiological", "signaling"],
+          "trees": [
+            "culture",
+            "etiological",
+            "signaling"
+          ],
           "biomarkers_by_tree": {
-            "culture": ["Urine Culture"]
+            "culture": [
+              "Urine Culture"
+            ]
           }
         },
         "pathways": {
-          "must_include": ["URINARY_PATHOGEN", "PATHOGEN_BURDEN"]
+          "must_include": [
+            "URINARY_PATHOGEN",
+            "PATHOGEN_BURDEN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Curcumin", "D-Mannose", "Lactoferrin"],
+          "must_include": [
+            "Curcumin",
+            "D-Mannose",
+            "Lactoferrin"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "culture_urine_no_growth",
-      "description": "Negative culture control — no abnormal labs, default signaling tree; pathways/recommendations intentionally omitted",
-      "tags": ["culture", "negative_control"],
+      "description": "Negative culture control \u2014 no abnormal labs, default signaling tree; pathways/recommendations intentionally omitted",
+      "tags": [
+        "culture",
+        "negative_control"
+      ],
       "raw_file": "raw/culture_urine_no_growth.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Urine Culture", "status": "optimal" }
+            {
+              "biomarker_name": "Urine Culture",
+              "status": "optimal"
+            }
           ]
         },
-        "routing": { "max_abnormal": 0, "primary_tree": "signaling" },
+        "routing": {
+          "max_abnormal": 0,
+          "primary_tree": "signaling"
+        },
         "negative_control": true
       }
     },
     {
       "scenario_id": "celiac_ttg_iga_positive",
-      "description": "Positive tTG IgA — celiac tree + gluten elimination routing",
-      "tags": ["celiac", "format_quest_qualitative"],
+      "description": "Positive tTG IgA \u2014 celiac tree + gluten elimination routing",
+      "tags": [
+        "celiac",
+        "format_quest_qualitative"
+      ],
       "raw_file": "raw/celiac_ttg_iga_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "tTG IgA", "status": "high", "qualitative_label": "POSITIVE" }
+            {
+              "biomarker_name": "tTG IgA",
+              "status": "high",
+              "qualitative_label": "POSITIVE"
+            }
           ]
         },
         "routing": {
           "primary_tree": "celiac",
-          "trees": ["celiac", "nutritional_repletion"],
-          "biomarkers_by_tree": { "celiac": ["tTG IgA"] }
+          "trees": [
+            "celiac",
+            "nutritional_repletion"
+          ],
+          "biomarkers_by_tree": {
+            "celiac": [
+              "tTG IgA"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["FOOD_ANTIGEN_EXPOSURE"]
+          "must_include": [
+            "FOOD_ANTIGEN_EXPOSURE"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Gluten Elimination Diet"],
+          "must_include": [
+            "Gluten Elimination Diet"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "allergy_peanut_ige_high",
-      "description": "Elevated Peanut IgE — allergy sensitization tree",
-      "tags": ["allergy", "format_quest_paren"],
+      "description": "Elevated Peanut IgE \u2014 allergy sensitization tree",
+      "tags": [
+        "allergy",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/allergy_peanut_ige_high.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Peanut IgE", "status": "high" },
-            { "biomarker_name": "Total IgE", "status": "high" }
+            {
+              "biomarker_name": "Peanut IgE",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Total IgE",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "allergy",
-          "trees": ["allergy"],
-          "biomarkers_by_tree": { "allergy": ["Peanut IgE", "Total IgE"] }
+          "trees": [
+            "allergy"
+          ],
+          "biomarkers_by_tree": {
+            "allergy": [
+              "Peanut IgE",
+              "Total IgE"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["IGE_SENSITIZATION"]
+          "must_include": [
+            "IGE_SENSITIZATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin", "Luteolin"],
+          "must_include": [
+            "Quercetin",
+            "Luteolin"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "pgx_cyp2d6_intermediate",
-      "description": "CYP2D6 intermediate metabolizer — PGx context only",
-      "tags": ["pgx_context", "format_pgx"],
+      "description": "CYP2D6 intermediate metabolizer \u2014 PGx context only",
+      "tags": [
+        "pgx_context",
+        "format_pgx"
+      ],
       "raw_file": "raw/pgx_cyp2d6_intermediate.txt",
       "expect": {
-        "parse": { "min_rows": 1 },
+        "parse": {
+          "min_rows": 1
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "CYP2D6 Genotype", "status": "high" }
+            {
+              "biomarker_name": "CYP2D6 Genotype",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "pgx_context",
-          "trees": ["pgx_context"],
-          "biomarkers_by_tree": { "pgx_context": ["CYP2D6 Genotype"] }
+          "trees": [
+            "pgx_context"
+          ],
+          "biomarkers_by_tree": {
+            "pgx_context": [
+              "CYP2D6 Genotype"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["DRUG_METABOLISM_VARIANT"]
+          "must_include": [
+            "DRUG_METABOLISM_VARIANT"
+          ]
         },
         "recommendations": {
-          "must_include": ["Berberine"],
+          "must_include": [
+            "Berberine"
+          ],
           "min_count": 1
         },
         "biological_systems_skip": "PGx context-only; DRUG_METABOLISM_VARIANT is not rolled into biological systems"
@@ -578,1624 +1009,2984 @@
     },
     {
       "scenario_id": "autoimmune_rheumatoid_rf_positive",
-      "description": "RF + Anti-CCP positive — rheumatoid-pattern autoimmune routing",
-      "tags": ["autoimmune", "format_labcorp"],
+      "description": "RF + Anti-CCP positive \u2014 rheumatoid-pattern autoimmune routing",
+      "tags": [
+        "autoimmune",
+        "format_labcorp"
+      ],
       "raw_file": "raw/autoimmune_rheumatoid_rf_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "RF", "status": "high" },
-            { "biomarker_name": "Anti-CCP", "status": "high" }
+            {
+              "biomarker_name": "RF",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Anti-CCP",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "autoimmune",
-          "trees": ["autoimmune", "signaling"],
-          "biomarkers_by_tree": { "autoimmune": ["RF", "Anti-CCP"] }
+          "trees": [
+            "autoimmune",
+            "signaling"
+          ],
+          "biomarkers_by_tree": {
+            "autoimmune": [
+              "RF",
+              "Anti-CCP"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["AUTOIMMUNE_TARGETING"]
+          "must_include": [
+            "AUTOIMMUNE_TARGETING"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Omega-3", "Curcumin"],
+          "must_include": [
+            "Omega-3",
+            "Curcumin"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "autoimmune_ana_positive",
-      "description": "Elevated ANA titer — autoimmune tree",
-      "tags": ["autoimmune", "format_quest_paren"],
+      "description": "Elevated ANA titer \u2014 autoimmune tree",
+      "tags": [
+        "autoimmune",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/autoimmune_ana_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "ANA", "status": "high" }
+            {
+              "biomarker_name": "ANA",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "autoimmune",
-          "trees": ["autoimmune", "signaling"],
-          "biomarkers_by_tree": { "autoimmune": ["ANA"] }
+          "trees": [
+            "autoimmune",
+            "signaling"
+          ],
+          "biomarkers_by_tree": {
+            "autoimmune": [
+              "ANA"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["AUTOIMMUNE_TARGETING"]
+          "must_include": [
+            "AUTOIMMUNE_TARGETING"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Curcumin"],
+          "must_include": [
+            "Curcumin"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_macrocytic_cbc",
-      "description": "High MCH/MCV/RDW with mean-cell lab naming — nutrient repletion routing",
-      "tags": ["nutritional_repletion", "cbc", "format_mean_cell"],
+      "description": "High MCH/MCV/RDW with mean-cell lab naming \u2014 nutrient repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_macrocytic_cbc.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCH", "status": "high" },
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "RDW", "status": "high" }
+            {
+              "biomarker_name": "MCH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "RDW",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 3
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate", "Iron"],
+          "must_include": [
+            "B12",
+            "Folate",
+            "Iron"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_mch_high",
-      "description": "Isolated elevated MCH — CBC nutritional indicator routing",
-      "tags": ["nutritional_repletion", "cbc", "mch", "format_mean_cell"],
+      "description": "Isolated elevated MCH \u2014 CBC nutritional indicator routing",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "mch",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_mch_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCH", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Ferritin", "status": "normal" }
+            {
+              "biomarker_name": "MCH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate"],
+          "must_include": [
+            "B12",
+            "Folate"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_rdw_high",
-      "description": "Isolated elevated RDW — CBC nutritional indicator routing",
-      "tags": ["nutritional_repletion", "cbc", "rdw"],
+      "description": "Isolated elevated RDW \u2014 CBC nutritional indicator routing",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "rdw"
+      ],
       "raw_file": "raw/nutritional_rdw_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "RDW", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Ferritin", "status": "normal" }
+            {
+              "biomarker_name": "RDW",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_mcv_high",
-      "description": "Isolated elevated MCV — CBC nutritional indicator routing",
-      "tags": ["nutritional_repletion", "cbc", "mcv", "format_mean_cell"],
+      "description": "Isolated elevated MCV \u2014 CBC nutritional indicator routing",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "mcv",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_mcv_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Ferritin", "status": "normal" }
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate"],
+          "must_include": [
+            "B12",
+            "Folate"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_mcv_low",
-      "description": "Isolated low MCV — microcytic CBC nutritional indicator routing",
-      "tags": ["nutritional_repletion", "cbc", "mcv", "format_mean_cell"],
+      "description": "Isolated low MCV \u2014 microcytic CBC nutritional indicator routing",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "mcv",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_mcv_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCV", "status": "low" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Ferritin", "status": "normal" }
+            {
+              "biomarker_name": "MCV",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_cbc_indices_high",
-      "description": "High MCV/MCH/RDW with mean-cell lab naming — combined CBC nutritional indices",
-      "tags": ["nutritional_repletion", "cbc", "format_mean_cell"],
+      "description": "High MCV/MCH/RDW with mean-cell lab naming \u2014 combined CBC nutritional indices",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_cbc_indices_high.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "MCH", "status": "high" },
-            { "biomarker_name": "RDW", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "MCH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "RDW",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 3
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate", "Iron"],
+          "must_include": [
+            "B12",
+            "Folate",
+            "Iron"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_anemia_iron_macrocytic",
-      "description": "Iron-deficiency anemia pattern — low hemoglobin, ferritin, iron with macrocytic MCV and low B12",
-      "tags": ["nutritional_repletion", "iron", "cbc", "anemia", "panel", "format_quest_paren"],
+      "description": "Iron-deficiency anemia pattern \u2014 low hemoglobin, ferritin, iron with macrocytic MCV and low B12",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "cbc",
+        "anemia",
+        "panel",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_anemia_iron_macrocytic.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Hemoglobin", "status": "low" },
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "critical_low" },
-            { "biomarker_name": "Iron", "status": "low" },
-            { "biomarker_name": "B12", "status": "low" }
+            {
+              "biomarker_name": "Hemoglobin",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "critical_low"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 5
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron", "B12", "Folate"],
+          "must_include": [
+            "Iron",
+            "B12",
+            "Folate"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_macrocytic_one_carbon",
-      "description": "Macrocytic CBC indices with high homocysteine and low B12/folate — combined hematologic + one-carbon panel",
-      "tags": ["nutritional_repletion", "cbc", "homocysteine", "panel", "format_mean_cell"],
+      "description": "Macrocytic CBC indices with high homocysteine and low B12/folate \u2014 combined hematologic + one-carbon panel",
+      "tags": [
+        "nutritional_repletion",
+        "cbc",
+        "homocysteine",
+        "panel",
+        "format_mean_cell"
+      ],
       "raw_file": "raw/nutritional_macrocytic_one_carbon.txt",
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "MCV", "status": "high" },
-            { "biomarker_name": "MCH", "status": "high" },
-            { "biomarker_name": "RDW", "status": "high" },
-            { "biomarker_name": "Homocysteine", "status": "high" },
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "low" }
+            {
+              "biomarker_name": "MCV",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "MCH",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "RDW",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Homocysteine",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 6
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate", "Iron"],
+          "must_include": [
+            "B12",
+            "Folate",
+            "Iron"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_pancreatic_elastase_low",
-      "description": "Low fecal pancreatic elastase — exocrine insufficiency nutritional repletion routing",
-      "tags": ["nutritional_repletion", "gi_stool", "exocrine"],
+      "description": "Low fecal pancreatic elastase \u2014 exocrine insufficiency nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "gi_stool",
+        "exocrine"
+      ],
       "raw_file": "raw/nutritional_pancreatic_elastase_low.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Pancreatic Elastase", "status": "critical_low" },
-            { "biomarker_name": "Vitamin D", "status": "low" }
+            {
+              "biomarker_name": "Pancreatic Elastase",
+              "status": "critical_low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 2
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY", "VITAMIN_D_RECEPTOR"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY",
+            "VITAMIN_D_RECEPTOR"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Pancreatin", "Vitamin D"],
+          "must_include": [
+            "Pancreatin",
+            "Vitamin D"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_vitd_low",
-      "description": "Isolated low Vitamin D — nutritional repletion tree",
-      "tags": ["nutritional_repletion"],
+      "description": "Isolated low Vitamin D \u2014 nutritional repletion tree",
+      "tags": [
+        "nutritional_repletion"
+      ],
       "raw_file": "raw/nutritional_vitd_low.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin D", "status": "low" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["VITAMIN_D_RECEPTOR", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "VITAMIN_D_RECEPTOR",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin D"],
+          "must_include": [
+            "Vitamin D"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_b12_low",
-      "description": "Low serum B12 — one-carbon nutritional repletion routing",
-      "tags": ["nutritional_repletion", "b12", "format_quest_paren"],
+      "description": "Low serum B12 \u2014 one-carbon nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "b12",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_b12_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "Folate", "status": "normal" }
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12"],
+          "must_include": [
+            "B12"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_folate_low",
-      "description": "Low serum folate — one-carbon nutritional repletion routing",
-      "tags": ["nutritional_repletion", "folate", "format_quest_paren", "alias"],
+      "description": "Low serum folate \u2014 one-carbon nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "folate",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_folate_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Folate", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Folate"],
+          "must_include": [
+            "Folate"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_b12_folate_low",
-      "description": "Combined low B12 and folate — one-carbon dual repletion routing",
-      "tags": ["nutritional_repletion", "b12", "folate", "panel", "format_quest_paren"],
+      "description": "Combined low B12 and folate \u2014 one-carbon dual repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "b12",
+        "folate",
+        "panel",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_b12_folate_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" }
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 2,
           "max_abnormal": 2
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate"],
+          "must_include": [
+            "B12",
+            "Folate"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_stfr_high",
-      "description": "Elevated soluble transferrin receptor with normal ferritin — functional iron deficiency routing",
-      "tags": ["nutritional_repletion", "iron", "stfr", "format_quest_paren", "alias"],
+      "description": "Elevated soluble transferrin receptor with normal ferritin \u2014 functional iron deficiency routing",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "stfr",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_stfr_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Soluble Transferrin Receptor", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "normal" },
-            { "biomarker_name": "Iron", "status": "optimal" }
+            {
+              "biomarker_name": "Soluble Transferrin Receptor",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN"]
+          "must_include": [
+            "IRON_HEPCIDIN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_transferrin_saturation_low",
-      "description": "Low transferrin saturation with normal ferritin — iron repletion without ferritin signal",
-      "tags": ["nutritional_repletion", "iron", "format_quest_paren", "alias"],
+      "description": "Low transferrin saturation with normal ferritin \u2014 iron repletion without ferritin signal",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_transferrin_saturation_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Transferrin Saturation", "status": "low" },
-            { "biomarker_name": "Ferritin", "status": "normal" },
-            { "biomarker_name": "Iron", "status": "optimal" }
+            {
+              "biomarker_name": "Transferrin Saturation",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN"]
+          "must_include": [
+            "IRON_HEPCIDIN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_tibc_high",
-      "description": "Elevated iron binding capacity with normal ferritin — functional iron deficiency routing",
-      "tags": ["nutritional_repletion", "iron", "tibc", "format_quest_paren", "alias"],
+      "description": "Elevated iron binding capacity with normal ferritin \u2014 functional iron deficiency routing",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "tibc",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_tibc_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "TIBC", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "normal" },
-            { "biomarker_name": "Iron", "status": "optimal" }
+            {
+              "biomarker_name": "TIBC",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN"]
+          "must_include": [
+            "IRON_HEPCIDIN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_uibc_high",
-      "description": "Elevated unsaturated iron binding capacity with normal ferritin — functional iron deficiency routing",
-      "tags": ["nutritional_repletion", "iron", "uibc", "format_quest_paren", "alias"],
+      "description": "Elevated unsaturated iron binding capacity with normal ferritin \u2014 functional iron deficiency routing",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "uibc",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_uibc_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "UIBC", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "normal" },
-            { "biomarker_name": "Iron", "status": "optimal" }
+            {
+              "biomarker_name": "UIBC",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN"]
+          "must_include": [
+            "IRON_HEPCIDIN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_iron_low_ferritin",
-      "description": "Low ferritin and iron — nutritional repletion with lactoferrin adjunct",
-      "tags": ["nutritional_repletion", "iron", "niche_evidence"],
+      "description": "Low ferritin and iron \u2014 nutritional repletion with lactoferrin adjunct",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "niche_evidence"
+      ],
       "raw_file": "raw/nutritional_iron_low_ferritin.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Ferritin", "status": "critical_low" },
-            { "biomarker_name": "Iron", "status": "low" },
-            { "biomarker_name": "Hemoglobin", "status": "low" }
+            {
+              "biomarker_name": "Ferritin",
+              "status": "critical_low"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Hemoglobin",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 3
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron", "Lactoferrin"],
+          "must_include": [
+            "Iron",
+            "Lactoferrin"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_hemoglobin_low",
-      "description": "Low hemoglobin with normal iron stores — anemia nutritional repletion routing",
-      "tags": ["nutritional_repletion", "iron", "cbc", "hemoglobin"],
+      "description": "Low hemoglobin with normal iron stores \u2014 anemia nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "cbc",
+        "hemoglobin"
+      ],
       "raw_file": "raw/nutritional_hemoglobin_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Hemoglobin", "status": "low" },
-            { "biomarker_name": "Ferritin", "status": "normal" },
-            { "biomarker_name": "Iron", "status": "optimal" }
+            {
+              "biomarker_name": "Hemoglobin",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Iron",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN"]
+          "must_include": [
+            "IRON_HEPCIDIN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_iron_comprehensive",
-      "description": "Combined Quest iron panel — low iron, saturation, ferritin with high TIBC and sTfR",
-      "tags": ["nutritional_repletion", "iron", "panel", "format_quest_paren", "alias"],
+      "description": "Combined Quest iron panel \u2014 low iron, saturation, ferritin with high TIBC and sTfR",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "panel",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_iron_comprehensive.txt",
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Iron", "status": "low" },
-            { "biomarker_name": "Transferrin Saturation", "status": "low" },
-            { "biomarker_name": "TIBC", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "critical_low" },
-            { "biomarker_name": "Soluble Transferrin Receptor", "status": "high" },
-            { "biomarker_name": "Vitamin D", "status": "normal" }
+            {
+              "biomarker_name": "Iron",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Transferrin Saturation",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "TIBC",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "critical_low"
+            },
+            {
+              "biomarker_name": "Soluble Transferrin Receptor",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 5,
           "max_abnormal": 5
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Iron"],
+          "must_include": [
+            "Iron"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_potassium_low",
-      "description": "Low serum potassium — nutritional repletion electrolyte routing",
-      "tags": ["nutritional_repletion", "electrolyte", "potassium"],
+      "description": "Low serum potassium \u2014 nutritional repletion electrolyte routing",
+      "tags": [
+        "nutritional_repletion",
+        "electrolyte",
+        "potassium"
+      ],
       "raw_file": "raw/nutritional_potassium_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Potassium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Potassium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Potassium"],
+          "must_include": [
+            "Potassium"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_homocysteine_high",
-      "description": "Elevated homocysteine with normal serum B12 and folate — one-carbon repletion routing",
-      "tags": ["nutritional_repletion", "b12", "folate", "homocysteine", "format_quest_paren"],
+      "description": "Elevated homocysteine with normal serum B12 and folate \u2014 one-carbon repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "b12",
+        "folate",
+        "homocysteine",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_homocysteine_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Homocysteine", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Folate", "status": "optimal" }
+            {
+              "biomarker_name": "Homocysteine",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate"],
+          "must_include": [
+            "B12",
+            "Folate"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_mma_high",
-      "description": "Elevated methylmalonic acid with normal serum B12 — functional deficiency B12 routing",
-      "tags": ["nutritional_repletion", "b12", "mma", "format_quest_paren"],
+      "description": "Elevated methylmalonic acid with normal serum B12 \u2014 functional deficiency B12 routing",
+      "tags": [
+        "nutritional_repletion",
+        "b12",
+        "mma",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_mma_high.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Methylmalonic Acid", "status": "high" },
-            { "biomarker_name": "B12", "status": "normal" },
-            { "biomarker_name": "Folate", "status": "optimal" }
+            {
+              "biomarker_name": "Methylmalonic Acid",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12"],
+          "must_include": [
+            "B12"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_one_carbon_panel",
-      "description": "Combined high Hcy + MMA with low B12 — functional one-carbon deficiency panel",
-      "tags": ["nutritional_repletion", "b12", "folate", "homocysteine", "mma", "panel"],
+      "description": "Combined high Hcy + MMA with low B12 \u2014 functional one-carbon deficiency panel",
+      "tags": [
+        "nutritional_repletion",
+        "b12",
+        "folate",
+        "homocysteine",
+        "mma",
+        "panel"
+      ],
       "raw_file": "raw/nutritional_one_carbon_panel.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Homocysteine", "status": "high" },
-            { "biomarker_name": "Methylmalonic Acid", "status": "high" },
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "normal" }
+            {
+              "biomarker_name": "Homocysteine",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Methylmalonic Acid",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 3,
           "max_abnormal": 3
         },
         "pathways": {
-          "must_include": ["ONE_CARBON_METHYLATION", "NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "ONE_CARBON_METHYLATION",
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["B12", "Folate"],
+          "must_include": [
+            "B12",
+            "Folate"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_b_vitamins_low",
-      "description": "Combined low B1, B2, and B6 — multi B-vitamin repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "b_vitamin", "panel"],
+      "description": "Combined low B1, B2, and B6 \u2014 multi B-vitamin repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "b_vitamin",
+        "panel"
+      ],
       "raw_file": "raw/nutritional_b_vitamins_low.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin B1", "status": "low" },
-            { "biomarker_name": "Vitamin B2", "status": "low" },
-            { "biomarker_name": "Vitamin B6", "status": "low" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin B1",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B2",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B6",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 3,
           "max_abnormal": 3
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin B1", "Vitamin B2", "Vitamin B6"],
+          "must_include": [
+            "Vitamin B1",
+            "Vitamin B2",
+            "Vitamin B6"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_b_complex_low",
-      "description": "Combined low B1, B2, B6, B12, and folate — full B-complex repletion panel",
-      "tags": ["nutritional_repletion", "vitamin", "b_vitamin", "b12", "folate", "panel", "format_quest_paren"],
+      "description": "Combined low B1, B2, B6, B12, and folate \u2014 full B-complex repletion panel",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "b_vitamin",
+        "b12",
+        "folate",
+        "panel",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_b_complex_low.txt",
       "expect": {
-        "parse": { "min_rows": 6 },
+        "parse": {
+          "min_rows": 6
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin B1", "status": "low" },
-            { "biomarker_name": "Vitamin B2", "status": "low" },
-            { "biomarker_name": "Vitamin B6", "status": "low" },
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin B1",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B2",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B6",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 5,
           "max_abnormal": 5
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY", "ONE_CARBON_METHYLATION"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY",
+            "ONE_CARBON_METHYLATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin B1", "Vitamin B2", "Vitamin B6", "B12", "Folate"],
+          "must_include": [
+            "Vitamin B1",
+            "Vitamin B2",
+            "Vitamin B6",
+            "B12",
+            "Folate"
+          ],
           "min_count": 5
         }
       }
     },
     {
       "scenario_id": "nutritional_fat_soluble_low",
-      "description": "Combined low vitamins A, E, and K — multi fat-soluble repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "fat_soluble", "panel"],
+      "description": "Combined low vitamins A, E, and K \u2014 multi fat-soluble repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "fat_soluble",
+        "panel"
+      ],
       "raw_file": "raw/nutritional_fat_soluble_low.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin A", "status": "low" },
-            { "biomarker_name": "Vitamin E", "status": "low" },
-            { "biomarker_name": "Vitamin K", "status": "low" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin A",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin E",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin K",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 3,
           "max_abnormal": 3
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin A", "Vitamin E", "Vitamin K2"],
+          "must_include": [
+            "Vitamin A",
+            "Vitamin E",
+            "Vitamin K2"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_fat_soluble_vitd_low",
-      "description": "Combined low vitamins A, D, E, and K — fat-soluble plus D repletion panel",
-      "tags": ["nutritional_repletion", "vitamin", "fat_soluble", "vitamin_d", "panel"],
+      "description": "Combined low vitamins A, D, E, and K \u2014 fat-soluble plus D repletion panel",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "fat_soluble",
+        "vitamin_d",
+        "panel"
+      ],
       "raw_file": "raw/nutritional_fat_soluble_vitd_low.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin D", "status": "low" },
-            { "biomarker_name": "Vitamin A", "status": "low" },
-            { "biomarker_name": "Vitamin E", "status": "low" },
-            { "biomarker_name": "Vitamin K", "status": "low" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin A",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin E",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin K",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 4,
           "max_abnormal": 4
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY", "VITAMIN_D_RECEPTOR"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY",
+            "VITAMIN_D_RECEPTOR"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin D", "Vitamin A", "Vitamin E", "Vitamin K2"],
+          "must_include": [
+            "Vitamin D",
+            "Vitamin A",
+            "Vitamin E",
+            "Vitamin K2"
+          ],
           "min_count": 4
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_k_low",
-      "description": "Low serum vitamin K — K2 nutritional repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_k", "k2"],
+      "description": "Low serum vitamin K \u2014 K2 nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_k",
+        "k2"
+      ],
       "raw_file": "raw/nutritional_vitamin_k_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin K", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin K",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin K2"],
+          "must_include": [
+            "Vitamin K2"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_b2_low",
-      "description": "Low plasma vitamin B2 (riboflavin) — nutritional repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_b2", "riboflavin"],
+      "description": "Low plasma vitamin B2 (riboflavin) \u2014 nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_b2",
+        "riboflavin"
+      ],
       "raw_file": "raw/nutritional_vitamin_b2_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin B2", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin B2",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin B2"],
+          "must_include": [
+            "Vitamin B2"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_a_low",
-      "description": "Low serum vitamin A (retinol) — fat-soluble nutritional repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_a", "retinol"],
+      "description": "Low serum vitamin A (retinol) \u2014 fat-soluble nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_a",
+        "retinol"
+      ],
       "raw_file": "raw/nutritional_vitamin_a_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin A", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin A",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin A"],
+          "must_include": [
+            "Vitamin A"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_e_low",
-      "description": "Low serum vitamin E (alpha-tocopherol) — antioxidant nutritional repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_e", "tocopherol"],
+      "description": "Low serum vitamin E (alpha-tocopherol) \u2014 antioxidant nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_e",
+        "tocopherol"
+      ],
       "raw_file": "raw/nutritional_vitamin_e_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin E", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin E",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin E"],
+          "must_include": [
+            "Vitamin E"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_b1_low",
-      "description": "Low plasma vitamin B1 (thiamine) — nutritional repletion routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_b1", "thiamine"],
+      "description": "Low plasma vitamin B1 (thiamine) \u2014 nutritional repletion routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_b1",
+        "thiamine"
+      ],
       "raw_file": "raw/nutritional_vitamin_b1_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin B1", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin B1",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin B1"],
+          "must_include": [
+            "Vitamin B1"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_b6_low",
-      "description": "Low plasma vitamin B6 — nutritional repletion pyridoxine routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_b6"],
+      "description": "Low plasma vitamin B6 \u2014 nutritional repletion pyridoxine routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_b6"
+      ],
       "raw_file": "raw/nutritional_vitamin_b6_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin B6", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin B6",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin B6"],
+          "must_include": [
+            "Vitamin B6"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_prealbumin_low",
-      "description": "Low prealbumin — protein repletion routing via glutamine evidence",
-      "tags": ["nutritional_repletion", "protein", "prealbumin"],
+      "description": "Low prealbumin \u2014 protein repletion routing via glutamine evidence",
+      "tags": [
+        "nutritional_repletion",
+        "protein",
+        "prealbumin"
+      ],
       "raw_file": "raw/nutritional_prealbumin_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Prealbumin", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Prealbumin",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Glutamine"],
+          "must_include": [
+            "Glutamine"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_c_low",
-      "description": "Low plasma vitamin C — nutritional repletion antioxidant routing",
-      "tags": ["nutritional_repletion", "vitamin", "vitamin_c"],
+      "description": "Low plasma vitamin C \u2014 nutritional repletion antioxidant routing",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "vitamin_c"
+      ],
       "raw_file": "raw/nutritional_vitamin_c_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin C", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin C",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin C"],
+          "must_include": [
+            "Vitamin C"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_vitamin_c_zinc_low",
-      "description": "Combined low vitamin C and zinc — antioxidant + trace mineral repletion panel",
-      "tags": ["nutritional_repletion", "vitamin", "trace_mineral", "panel", "format_quest_paren"],
+      "description": "Combined low vitamin C and zinc \u2014 antioxidant + trace mineral repletion panel",
+      "tags": [
+        "nutritional_repletion",
+        "vitamin",
+        "trace_mineral",
+        "panel",
+        "format_quest_paren"
+      ],
       "raw_file": "raw/nutritional_vitamin_c_zinc_low.txt",
       "expect": {
-        "parse": { "min_rows": 4 },
+        "parse": {
+          "min_rows": 4
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin C", "status": "low" },
-            { "biomarker_name": "Zinc", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Vitamin C",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Zinc",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 2,
           "max_abnormal": 2
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Vitamin C", "Zinc"],
+          "must_include": [
+            "Vitamin C",
+            "Zinc"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "nutritional_copper_low",
-      "description": "Low serum copper — nutritional repletion trace mineral routing",
-      "tags": ["nutritional_repletion", "trace_mineral", "copper"],
+      "description": "Low serum copper \u2014 nutritional repletion trace mineral routing",
+      "tags": [
+        "nutritional_repletion",
+        "trace_mineral",
+        "copper"
+      ],
       "raw_file": "raw/nutritional_copper_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Copper", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Copper",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Copper"],
+          "must_include": [
+            "Copper"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_selenium_low",
-      "description": "Low serum selenium — nutritional repletion trace mineral routing",
-      "tags": ["nutritional_repletion", "trace_mineral", "selenium"],
+      "description": "Low serum selenium \u2014 nutritional repletion trace mineral routing",
+      "tags": [
+        "nutritional_repletion",
+        "trace_mineral",
+        "selenium"
+      ],
       "raw_file": "raw/nutritional_selenium_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Selenium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Selenium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Selenium"],
+          "must_include": [
+            "Selenium"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_trace_mineral_panel",
-      "description": "Combined low zinc, copper, and selenium — trace mineral repletion panel",
-      "tags": ["nutritional_repletion", "trace_mineral", "panel", "format_quest_paren", "alias"],
+      "description": "Combined low zinc, copper, and selenium \u2014 trace mineral repletion panel",
+      "tags": [
+        "nutritional_repletion",
+        "trace_mineral",
+        "panel",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_trace_mineral_panel.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Zinc", "status": "low" },
-            { "biomarker_name": "Copper", "status": "low" },
-            { "biomarker_name": "Selenium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Zinc",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Copper",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Selenium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 3,
           "max_abnormal": 3
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Zinc", "Copper", "Selenium"],
+          "must_include": [
+            "Zinc",
+            "Copper",
+            "Selenium"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_electrolyte_panel",
-      "description": "Combined low calcium, potassium, and magnesium — electrolyte repletion panel",
-      "tags": ["nutritional_repletion", "electrolyte", "panel", "format_quest_paren", "alias"],
+      "description": "Combined low calcium, potassium, and magnesium \u2014 electrolyte repletion panel",
+      "tags": [
+        "nutritional_repletion",
+        "electrolyte",
+        "panel",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_electrolyte_panel.txt",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Calcium", "status": "low" },
-            { "biomarker_name": "Potassium", "status": "low" },
-            { "biomarker_name": "Magnesium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Calcium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Potassium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Magnesium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 3,
           "max_abnormal": 3
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Calcium", "Potassium", "Magnesium"],
+          "must_include": [
+            "Calcium",
+            "Potassium",
+            "Magnesium"
+          ],
           "min_count": 3
         }
       }
     },
     {
       "scenario_id": "nutritional_calcium_low",
-      "description": "Low serum calcium — nutritional repletion with calcium and vitamin D adjunct",
-      "tags": ["nutritional_repletion", "electrolyte", "calcium"],
+      "description": "Low serum calcium \u2014 nutritional repletion with calcium and vitamin D adjunct",
+      "tags": [
+        "nutritional_repletion",
+        "electrolyte",
+        "calcium"
+      ],
       "raw_file": "raw/nutritional_calcium_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Calcium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "optimal" }
+            {
+              "biomarker_name": "Calcium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "optimal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Calcium"],
+          "must_include": [
+            "Calcium"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_zinc_low",
-      "description": "Low plasma zinc — nutritional repletion trace mineral routing",
-      "tags": ["nutritional_repletion", "trace_mineral", "zinc"],
+      "description": "Low plasma zinc \u2014 nutritional repletion trace mineral routing",
+      "tags": [
+        "nutritional_repletion",
+        "trace_mineral",
+        "zinc"
+      ],
       "raw_file": "raw/nutritional_zinc_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Zinc", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Zinc",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Zinc"],
+          "must_include": [
+            "Zinc"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_magnesium_low",
-      "description": "Low serum magnesium — nutritional repletion mineral routing",
-      "tags": ["nutritional_repletion", "mineral", "magnesium"],
+      "description": "Low serum magnesium \u2014 nutritional repletion mineral routing",
+      "tags": [
+        "nutritional_repletion",
+        "mineral",
+        "magnesium"
+      ],
       "raw_file": "raw/nutritional_magnesium_low.txt",
       "expect": {
-        "parse": { "min_rows": 3 },
+        "parse": {
+          "min_rows": 3
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Magnesium", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "normal" },
-            { "biomarker_name": "B12", "status": "normal" }
+            {
+              "biomarker_name": "Magnesium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "normal"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "normal"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 1,
           "max_abnormal": 1
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Magnesium"],
+          "must_include": [
+            "Magnesium"
+          ],
           "min_count": 1
         }
       }
     },
     {
       "scenario_id": "nutritional_micronutrient_quest_excerpt",
-      "description": "Quest micronutrient excerpt — vitamins, minerals, protein marker without iron panel",
-      "tags": ["nutritional_repletion", "format_quest_paren", "alias", "panel"],
+      "description": "Quest micronutrient excerpt \u2014 vitamins, minerals, protein marker without iron panel",
+      "tags": [
+        "nutritional_repletion",
+        "format_quest_paren",
+        "alias",
+        "panel"
+      ],
       "raw_file": "raw/nutritional_micronutrient_quest_excerpt.txt",
       "expect": {
-        "parse": { "min_rows": 17 },
+        "parse": {
+          "min_rows": 17
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Vitamin D", "status": "low" },
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "low" },
-            { "biomarker_name": "Magnesium", "status": "low" },
-            { "biomarker_name": "Zinc", "status": "low" },
-            { "biomarker_name": "Calcium", "status": "low" },
-            { "biomarker_name": "Potassium", "status": "low" },
-            { "biomarker_name": "Copper", "status": "low" },
-            { "biomarker_name": "Selenium", "status": "low" },
-            { "biomarker_name": "Vitamin A", "status": "low" },
-            { "biomarker_name": "Vitamin E", "status": "low" },
-            { "biomarker_name": "Vitamin K", "status": "low" },
-            { "biomarker_name": "Vitamin B1", "status": "low" },
-            { "biomarker_name": "Vitamin B2", "status": "low" },
-            { "biomarker_name": "Vitamin B6", "status": "low" },
-            { "biomarker_name": "Vitamin C", "status": "low" },
-            { "biomarker_name": "Prealbumin", "status": "low" }
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Magnesium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Zinc",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Calcium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Potassium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Copper",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Selenium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin A",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin E",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin K",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B1",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B2",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B6",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin C",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Prealbumin",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion"],
+          "trees": [
+            "nutritional_repletion"
+          ],
           "min_abnormal": 17,
           "max_abnormal": 17
         },
         "pathways": {
-          "must_include": ["NUTRIENT_DEFICIENCY", "VITAMIN_D_RECEPTOR", "ONE_CARBON_METHYLATION"]
+          "must_include": [
+            "NUTRIENT_DEFICIENCY",
+            "VITAMIN_D_RECEPTOR",
+            "ONE_CARBON_METHYLATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
           "must_include": [
-            "Vitamin D", "B12", "Folate", "Magnesium", "Zinc", "Calcium", "Potassium",
-            "Copper", "Selenium", "Vitamin A", "Vitamin E", "Vitamin K2", "Vitamin B1", "Vitamin B2", "Vitamin B6",
-            "Vitamin C", "Glutamine"
+            "Vitamin D",
+            "B12",
+            "Folate",
+            "Magnesium",
+            "Zinc",
+            "Calcium",
+            "Potassium",
+            "Copper",
+            "Selenium",
+            "Vitamin A",
+            "Vitamin E",
+            "Vitamin K2",
+            "Vitamin B1",
+            "Vitamin B2",
+            "Vitamin B6",
+            "Vitamin C",
+            "Glutamine"
           ],
           "min_count": 15
         }
@@ -2203,59 +3994,169 @@
     },
     {
       "scenario_id": "nutritional_portal_aliases",
-      "description": "Quest/LabCorp portal names for iron, vitamins, and electrolytes — alias resolution + nutrient pathways",
-      "tags": ["nutritional_repletion", "format_quest_paren", "alias"],
+      "description": "Quest/LabCorp portal names for iron, vitamins, and electrolytes \u2014 alias resolution + nutrient pathways",
+      "tags": [
+        "nutritional_repletion",
+        "format_quest_paren",
+        "alias"
+      ],
       "raw_file": "raw/nutritional_portal_aliases.txt",
       "expect": {
-        "parse": { "min_rows": 26 },
+        "parse": {
+          "min_rows": 26
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Iron", "status": "low" },
-            { "biomarker_name": "TIBC", "status": "high" },
-            { "biomarker_name": "UIBC", "status": "high" },
-            { "biomarker_name": "Transferrin Saturation", "status": "low" },
-            { "biomarker_name": "Soluble Transferrin Receptor", "status": "high" },
-            { "biomarker_name": "Ferritin", "status": "critical_low" },
-            { "biomarker_name": "Hemoglobin", "status": "low" },
-            { "biomarker_name": "Vitamin D", "status": "low" },
-            { "biomarker_name": "B12", "status": "low" },
-            { "biomarker_name": "Folate", "status": "low" },
-            { "biomarker_name": "Homocysteine", "status": "high" },
-            { "biomarker_name": "Methylmalonic Acid", "status": "high" },
-            { "biomarker_name": "Magnesium", "status": "low" },
-            { "biomarker_name": "Zinc", "status": "low" },
-            { "biomarker_name": "Calcium", "status": "low" },
-            { "biomarker_name": "Potassium", "status": "low" },
-            { "biomarker_name": "Copper", "status": "low" },
-            { "biomarker_name": "Selenium", "status": "low" },
-            { "biomarker_name": "Vitamin A", "status": "low" },
-            { "biomarker_name": "Vitamin E", "status": "low" },
-            { "biomarker_name": "Vitamin K", "status": "low" },
-            { "biomarker_name": "Vitamin B1", "status": "low" },
-            { "biomarker_name": "Vitamin B2", "status": "low" },
-            { "biomarker_name": "Vitamin B6", "status": "low" },
-            { "biomarker_name": "Vitamin C", "status": "low" },
-            { "biomarker_name": "Prealbumin", "status": "low" }
+            {
+              "biomarker_name": "Iron",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "TIBC",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "UIBC",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Transferrin Saturation",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Soluble Transferrin Receptor",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Ferritin",
+              "status": "critical_low"
+            },
+            {
+              "biomarker_name": "Hemoglobin",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin D",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "B12",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Folate",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Homocysteine",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Methylmalonic Acid",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Magnesium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Zinc",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Calcium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Potassium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Copper",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Selenium",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin A",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin E",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin K",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B1",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B2",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin B6",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Vitamin C",
+              "status": "low"
+            },
+            {
+              "biomarker_name": "Prealbumin",
+              "status": "low"
+            }
           ]
         },
         "routing": {
           "primary_tree": "nutritional_repletion",
-          "trees": ["nutritional_repletion", "signaling"],
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
           "min_abnormal": 26
         },
         "pathways": {
-          "must_include": ["IRON_HEPCIDIN", "NUTRIENT_DEFICIENCY", "VITAMIN_D_RECEPTOR", "ONE_CARBON_METHYLATION"]
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY",
+            "VITAMIN_D_RECEPTOR",
+            "ONE_CARBON_METHYLATION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
           "must_include": [
-            "Iron", "Vitamin D", "B12", "Folate", "Magnesium", "Zinc", "Calcium", "Potassium",
-            "Copper", "Selenium", "Vitamin A", "Vitamin E", "Vitamin K2", "Vitamin B1", "Vitamin B2", "Vitamin B6",
-            "Vitamin C", "Glutamine"
+            "Iron",
+            "Vitamin D",
+            "B12",
+            "Folate",
+            "Magnesium",
+            "Zinc",
+            "Calcium",
+            "Potassium",
+            "Copper",
+            "Selenium",
+            "Vitamin A",
+            "Vitamin E",
+            "Vitamin K2",
+            "Vitamin B1",
+            "Vitamin B2",
+            "Vitamin B6",
+            "Vitamin C",
+            "Glutamine"
           ],
           "min_count": 18
         }
@@ -2263,75 +4164,137 @@
     },
     {
       "scenario_id": "culture_sputum_positive",
-      "description": "Positive sputum culture — lower respiratory pathogen routing",
-      "tags": ["culture", "respiratory_pathogen", "niche_evidence"],
+      "description": "Positive sputum culture \u2014 lower respiratory pathogen routing",
+      "tags": [
+        "culture",
+        "respiratory_pathogen",
+        "niche_evidence"
+      ],
       "raw_file": "raw/culture_sputum_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Sputum Culture", "status": "high" },
-            { "biomarker_name": "CRP", "status": "high" }
+            {
+              "biomarker_name": "Sputum Culture",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["culture", "etiological", "signaling"],
-          "biomarkers_by_tree": { "culture": ["Sputum Culture"] }
+          "trees": [
+            "culture",
+            "etiological",
+            "signaling"
+          ],
+          "biomarkers_by_tree": {
+            "culture": [
+              "Sputum Culture"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["RESPIRATORY_PATHOGEN"]
+          "must_include": [
+            "RESPIRATORY_PATHOGEN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Lactoferrin", "NAC"],
+          "must_include": [
+            "Lactoferrin",
+            "NAC"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "culture_throat_strep_positive",
-      "description": "Positive throat culture — respiratory pathogen + lactoferrin biofilm niche",
-      "tags": ["culture", "respiratory_pathogen", "niche_evidence"],
+      "description": "Positive throat culture \u2014 respiratory pathogen + lactoferrin biofilm niche",
+      "tags": [
+        "culture",
+        "respiratory_pathogen",
+        "niche_evidence"
+      ],
       "raw_file": "raw/culture_throat_strep_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Throat Culture", "status": "high" },
-            { "biomarker_name": "CRP", "status": "high" }
+            {
+              "biomarker_name": "Throat Culture",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["culture", "etiological", "signaling"],
-          "biomarkers_by_tree": { "culture": ["Throat Culture"] }
+          "trees": [
+            "culture",
+            "etiological",
+            "signaling"
+          ],
+          "biomarkers_by_tree": {
+            "culture": [
+              "Throat Culture"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["RESPIRATORY_PATHOGEN", "BIOFILM_ADHESION"]
+          "must_include": [
+            "RESPIRATORY_PATHOGEN",
+            "BIOFILM_ADHESION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Lactoferrin"],
+          "must_include": [
+            "Lactoferrin"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "etiological_hepatitis_b_surf_positive",
-      "description": "Reactive HBsAg with elevated ALT — hepatotropic viral tree",
-      "tags": ["etiological", "hepatotropic_viral", "format_quest_qualitative"],
+      "description": "Reactive HBsAg with elevated ALT \u2014 hepatotropic viral tree",
+      "tags": [
+        "etiological",
+        "hepatotropic_viral",
+        "format_quest_qualitative"
+      ],
       "raw_file": "raw/etiological_hepatitis_b_surf_positive.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
             {
@@ -2339,89 +4302,157 @@
               "status": "high",
               "qualitative_label": "REACTIVE"
             },
-            { "biomarker_name": "ALT", "status": "high" }
+            {
+              "biomarker_name": "ALT",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["etiological", "signaling"],
-          "biomarkers_by_tree": { "etiological": ["Hepatitis B Surface Antigen"] }
+          "trees": [
+            "etiological",
+            "signaling"
+          ],
+          "biomarkers_by_tree": {
+            "etiological": [
+              "Hepatitis B Surface Antigen"
+            ]
+          }
         },
         "pathways": {
-          "must_include": ["HEPATOTROPIC_VIRAL"]
+          "must_include": [
+            "HEPATOTROPIC_VIRAL"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "liver_detox_stress", "min_signal_level": 2 }
+            {
+              "system_code": "liver_detox_stress",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Milk Thistle"],
+          "must_include": [
+            "Milk Thistle"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "niche_fecal_calprotectin_elevated",
-      "description": "Elevated fecal calprotectin — GI mucosal barrier + pathogen burden niche routing",
-      "tags": ["niche_evidence", "gi_stool", "calprotectin"],
+      "description": "Elevated fecal calprotectin \u2014 GI mucosal barrier + pathogen burden niche routing",
+      "tags": [
+        "niche_evidence",
+        "gi_stool",
+        "calprotectin"
+      ],
       "raw_file": "raw/niche_fecal_calprotectin_elevated.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Fecal Calprotectin", "status": "high" },
-            { "biomarker_name": "CRP", "status": "high" }
+            {
+              "biomarker_name": "Fecal Calprotectin",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["etiological", "signaling"],
+          "trees": [
+            "etiological",
+            "signaling"
+          ],
           "min_abnormal": 2
         },
         "pathways": {
-          "must_include": ["GI_MUCOSAL_BARRIER", "PATHOGEN_BURDEN"]
+          "must_include": [
+            "GI_MUCOSAL_BARRIER",
+            "PATHOGEN_BURDEN"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Curcumin", "Colostrum"],
+          "must_include": [
+            "Curcumin",
+            "Colostrum"
+          ],
           "min_count": 2
         }
       }
     },
     {
       "scenario_id": "niche_fecal_lactoferrin_elevated",
-      "description": "Elevated fecal lactoferrin — GI inflammation + biofilm pathway niche routing",
-      "tags": ["niche_evidence", "gi_stool", "biofilm"],
+      "description": "Elevated fecal lactoferrin \u2014 GI inflammation + biofilm pathway niche routing",
+      "tags": [
+        "niche_evidence",
+        "gi_stool",
+        "biofilm"
+      ],
       "raw_file": "raw/niche_fecal_lactoferrin_elevated.txt",
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "Fecal Lactoferrin", "status": "critical_high" },
-            { "biomarker_name": "CRP", "status": "high" }
+            {
+              "biomarker_name": "Fecal Lactoferrin",
+              "status": "critical_high"
+            },
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            }
           ]
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["etiological", "signaling"],
+          "trees": [
+            "etiological",
+            "signaling"
+          ],
           "min_abnormal": 2
         },
         "pathways": {
-          "must_include": ["PATHOGEN_BURDEN", "BIOFILM_ADHESION"]
+          "must_include": [
+            "PATHOGEN_BURDEN",
+            "BIOFILM_ADHESION"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 },
-            { "system_code": "nutrient_status", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Lactoferrin", "Colostrum"],
+          "must_include": [
+            "Lactoferrin",
+            "Colostrum"
+          ],
           "min_count": 2
         }
       }
@@ -2429,12 +4460,19 @@
     {
       "scenario_id": "custom_unknown_biomarker",
       "description": "Unknown biomarker resolved via user custom_biomarkers profile",
-      "tags": ["custom_biomarker", "signaling"],
+      "tags": [
+        "custom_biomarker",
+        "signaling"
+      ],
       "raw_file": "raw/custom_unknown_biomarker.txt",
       "custom_biomarkers": [
         {
           "canonical_name": "Lp(a) Mass",
-          "aliases": ["lp a mass", "lipoprotein a mass", "lp(a) mass"],
+          "aliases": [
+            "lp a mass",
+            "lipoprotein a mass",
+            "lp(a) mass"
+          ],
           "category": "other",
           "unit": "mg/dL",
           "reference_low": 0,
@@ -2445,25 +4483,47 @@
         }
       ],
       "expect": {
-        "parse": { "min_rows": 2 },
+        "parse": {
+          "min_rows": 2
+        },
         "normalize": {
-          "must_resolve_custom": ["Lp(a) Mass"],
+          "must_resolve_custom": [
+            "Lp(a) Mass"
+          ],
           "must_include": [
-            { "biomarker_name": "Lp(a) Mass", "status": "high" }
+            {
+              "biomarker_name": "Lp(a) Mass",
+              "status": "high"
+            }
           ]
         },
-        "routing": { "primary_tree": "signaling", "min_abnormal": 2 },
+        "routing": {
+          "primary_tree": "signaling",
+          "min_abnormal": 2
+        },
         "pathways": {
-          "must_include": ["NF_KB", "IL6_JAK_STAT3", "HEPATIC_LIPID"]
+          "must_include": [
+            "NF_KB",
+            "IL6_JAK_STAT3",
+            "HEPATIC_LIPID"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 },
-            { "system_code": "cardiovascular_risk", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            },
+            {
+              "system_code": "cardiovascular_risk",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Quercetin"],
+          "must_include": [
+            "Quercetin"
+          ],
           "min_count": 3
         }
       }
@@ -2471,17 +4531,28 @@
     {
       "scenario_id": "trend_followup_improved",
       "description": "Follow-up panel paired with signaling_inflammatory_quest for trend QA",
-      "tags": ["trend", "demo", "signaling"],
+      "tags": [
+        "trend",
+        "demo",
+        "signaling"
+      ],
       "raw_file": "../lab_reports/demo_04_followup_improved.txt",
       "paired_with": "signaling_inflammatory_quest",
       "expect": {
-        "parse": { "min_rows": 5 },
+        "parse": {
+          "min_rows": 5
+        },
         "normalize": {
           "must_include": [
-            { "biomarker_name": "CRP", "status": "normal" }
+            {
+              "biomarker_name": "CRP",
+              "status": "normal"
+            }
           ]
         },
-        "routing": { "max_abnormal": 0 },
+        "routing": {
+          "max_abnormal": 0
+        },
         "trend_pair": {
           "baseline_min_recommendations": 3,
           "max_recommendations": 0,
@@ -2491,11 +4562,17 @@
     },
     {
       "scenario_id": "kitchen_sink_quest_excerpt",
-      "description": "Real Quest PDF text export — parser stress test (56 rows, mixed sections)",
-      "tags": ["kitchen_sink", "format_quest_ref", "etiological"],
+      "description": "Real Quest PDF text export \u2014 parser stress test (56 rows, mixed sections)",
+      "tags": [
+        "kitchen_sink",
+        "format_quest_ref",
+        "etiological"
+      ],
       "raw_file": "../../tests/fixtures/quest_labreport_excerpt.txt",
       "expect": {
-        "parse": { "min_rows": 40 },
+        "parse": {
+          "min_rows": 40
+        },
         "normalize": {
           "must_include": [
             {
@@ -2507,19 +4584,30 @@
         },
         "routing": {
           "primary_tree": "etiological",
-          "trees": ["etiological", "signaling"],
+          "trees": [
+            "etiological",
+            "signaling"
+          ],
           "min_abnormal": 1
         },
         "pathways": {
-          "must_include": ["GASTRIC_COLONIZATION", "GI_MUCOSAL_BARRIER"]
+          "must_include": [
+            "GASTRIC_COLONIZATION",
+            "GI_MUCOSAL_BARRIER"
+          ]
         },
         "biological_systems": {
           "must_include": [
-            { "system_code": "inflammation", "min_signal_level": 2 }
+            {
+              "system_code": "inflammation",
+              "min_signal_level": 2
+            }
           ]
         },
         "recommendations": {
-          "must_include": ["Mastic Gum"],
+          "must_include": [
+            "Mastic Gum"
+          ],
           "min_count": 3
         }
       }
@@ -2527,12 +4615,273 @@
     {
       "scenario_id": "llm_fallback_messy",
       "description": "Unstructured text for LLM parser fallback (manual QA; skipped in CI)",
-      "tags": ["llm_fallback", "manual_qa"],
+      "tags": [
+        "llm_fallback",
+        "manual_qa"
+      ],
       "raw_file": "raw/llm_fallback_messy.txt",
       "skip_ci": true,
       "expect": {
-        "parse": { "min_rows": 0 },
+        "parse": {
+          "min_rows": 0
+        },
         "notes": "Run manually with OPENAI_API_KEY; regex parse expected to fail."
+      }
+    },
+    {
+      "scenario_id": "nutritional_serum_iron_low",
+      "description": "IMP-054: isolated low serum Iron routes nutritional Iron repletion",
+      "tags": [
+        "nutritional_repletion",
+        "iron",
+        "imp_054"
+      ],
+      "raw_file": "raw/nutritional_serum_iron_low.txt",
+      "health_profile": {
+        "age_range": "30-39",
+        "biological_sex": "female",
+        "current_medications": [],
+        "known_conditions": []
+      },
+      "expect": {
+        "parse": {
+          "min_rows": 3
+        },
+        "normalize": {
+          "must_include": [
+            {
+              "biomarker_name": "Iron",
+              "status": "low"
+            }
+          ]
+        },
+        "routing": {
+          "primary_tree": "nutritional_repletion",
+          "trees": [
+            "nutritional_repletion",
+            "signaling"
+          ],
+          "min_abnormal": 1
+        },
+        "pathways": {
+          "must_include": [
+            "IRON_HEPCIDIN",
+            "NUTRIENT_DEFICIENCY"
+          ]
+        },
+        "biological_systems": {
+          "must_include": [
+            {
+              "system_code": "nutrient_status",
+              "min_signal_level": 1
+            }
+          ]
+        },
+        "recommendations": {
+          "must_include": [
+            "Iron"
+          ],
+          "min_count": 1
+        }
+      }
+    },
+    {
+      "scenario_id": "etiological_h_pylori_expansion",
+      "description": "H. pylori + CRP densifies etiological recs (Mastic/DGL + inflammatory adjuncts)",
+      "tags": [
+        "etiological",
+        "thin_tree"
+      ],
+      "raw_file": "raw/etiological_h_pylori_andrographis_context.txt",
+      "health_profile": {
+        "age_range": "40-49",
+        "biological_sex": "male",
+        "current_medications": [],
+        "known_conditions": []
+      },
+      "expect": {
+        "parse": {
+          "min_rows": 2
+        },
+        "normalize": {
+          "must_include": [
+            {
+              "biomarker_name": "H. pylori Urea Breath Test",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "CRP",
+              "status": "high"
+            }
+          ]
+        },
+        "routing": {
+          "primary_tree": "etiological",
+          "trees": [
+            "etiological",
+            "signaling"
+          ]
+        },
+        "pathways": {
+          "must_include": [
+            "GASTRIC_COLONIZATION",
+            "NF_KB"
+          ]
+        },
+        "recommendations": {
+          "must_include": [
+            "Mastic Gum",
+            "DGL Licorice"
+          ],
+          "min_count": 2
+        }
+      }
+    },
+    {
+      "scenario_id": "culture_urine_pathogen_dense",
+      "description": "Positive urine culture densifies urinary pathogen recommendations",
+      "tags": [
+        "culture",
+        "etiological",
+        "thin_tree"
+      ],
+      "raw_file": "raw/culture_urine_berberine_context.txt",
+      "health_profile": {
+        "age_range": "30-39",
+        "biological_sex": "female",
+        "current_medications": [],
+        "known_conditions": []
+      },
+      "expect": {
+        "parse": {
+          "min_rows": 2
+        },
+        "normalize": {
+          "must_include": [
+            {
+              "biomarker_name": "Urine Culture",
+              "status": "high"
+            }
+          ]
+        },
+        "routing": {
+          "primary_tree": "etiological",
+          "trees": [
+            "culture",
+            "etiological",
+            "signaling"
+          ]
+        },
+        "pathways": {
+          "must_include": [
+            "URINARY_PATHOGEN"
+          ]
+        },
+        "recommendations": {
+          "must_include": [
+            "D-Mannose"
+          ],
+          "min_count": 2
+        }
+      }
+    },
+    {
+      "scenario_id": "autoimmune_rf_dense",
+      "description": "RF+Anti-CCP densifies autoimmune targeting recs including Omega-3/Curcumin/Vitamin D",
+      "tags": [
+        "autoimmune",
+        "thin_tree"
+      ],
+      "raw_file": "raw/autoimmune_rf_omega3_dense.txt",
+      "health_profile": {
+        "age_range": "50-59",
+        "biological_sex": "female",
+        "current_medications": [],
+        "known_conditions": []
+      },
+      "expect": {
+        "parse": {
+          "min_rows": 3
+        },
+        "normalize": {
+          "must_include": [
+            {
+              "biomarker_name": "RF",
+              "status": "high"
+            },
+            {
+              "biomarker_name": "Anti-CCP",
+              "status": "high"
+            }
+          ]
+        },
+        "routing": {
+          "primary_tree": "autoimmune",
+          "trees": [
+            "autoimmune",
+            "signaling"
+          ]
+        },
+        "pathways": {
+          "must_include": [
+            "AUTOIMMUNE_TARGETING"
+          ]
+        },
+        "recommendations": {
+          "must_include": [
+            "Omega-3",
+            "Curcumin"
+          ],
+          "min_count": 3
+        }
+      }
+    },
+    {
+      "scenario_id": "pgx_cyp2d6_context_dense",
+      "description": "CYP2D6 intermediate densifies PGx context-only recommendations",
+      "tags": [
+        "pgx_context",
+        "thin_tree"
+      ],
+      "raw_file": "raw/pgx_cyp2d6_berberine_context.txt",
+      "health_profile": {
+        "age_range": "40-49",
+        "biological_sex": "male",
+        "current_medications": [
+          "Sertraline"
+        ],
+        "known_conditions": []
+      },
+      "expect": {
+        "parse": {
+          "min_rows": 1
+        },
+        "normalize": {
+          "must_include": [
+            {
+              "biomarker_name": "CYP2D6 Genotype",
+              "status": "high"
+            }
+          ]
+        },
+        "routing": {
+          "primary_tree": "pgx_context",
+          "trees": [
+            "pgx_context"
+          ]
+        },
+        "pathways": {
+          "must_include": [
+            "DRUG_METABOLISM_VARIANT"
+          ]
+        },
+        "recommendations": {
+          "must_include": [
+            "Berberine"
+          ],
+          "min_count": 1
+        },
+        "biological_systems_skip": "PGx context-only"
       }
     }
   ]

@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.knowledge_graph.peptide_catalog import PEPTIDE_EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
-from app.pipeline.pathway_mapper import _PATHWAY_NAMES
+from app.pipeline.pathway_mapper import PATHWAY_DISPLAY_NAMES
 
 ROUTABLE_INTENTS = frozenset({"primary", "nutritional_repletion"})
 
@@ -47,7 +47,8 @@ PRIORITY_PATHWAYS: tuple[str, ...] = (
     "DRUG_METABOLISM_VARIANT",
 )
 
-MIN_PRIORITY_CLAIMS = 3
+# Raised as catalog density grows (was 3).
+MIN_PRIORITY_CLAIMS = 5
 
 
 def _routable_claims() -> list[dict]:
@@ -70,19 +71,19 @@ def main() -> int:
         if code:
             by_pathway[code] += 1
 
-    all_codes = sorted(_PATHWAY_NAMES)
+    all_codes = sorted(PATHWAY_DISPLAY_NAMES)
     zero_routable = [code for code in all_codes if by_pathway[code] == 0]
 
     print(f"Routable catalog claims: {len(claims)}")
     print(f"Pathways with zero routable claims: {len(zero_routable)}")
     for code in zero_routable:
-        print(f"  - {code}: {_PATHWAY_NAMES[code]}")
+        print(f"  - {code}: {PATHWAY_DISPLAY_NAMES[code]}")
 
-    print("\nPriority pathway routable claim counts:")
+    print(f"\nPriority pathway routable claim counts (min {MIN_PRIORITY_CLAIMS}):")
     shortfalls: list[tuple[str, int]] = []
     for code in PRIORITY_PATHWAYS:
         count = by_pathway[code]
-        label = _PATHWAY_NAMES.get(code, code)
+        label = PATHWAY_DISPLAY_NAMES.get(code, code)
         status = "ok" if count >= MIN_PRIORITY_CLAIMS else "SHORT"
         print(f"  [{status}] {code}: {count} ({label})")
         if count < MIN_PRIORITY_CLAIMS:
@@ -92,7 +93,10 @@ def main() -> int:
         print(f"\nFAIL: {len(shortfalls)} priority pathway(s) have < {MIN_PRIORITY_CLAIMS} routable claims.")
         return 1
 
-    print(f"\nAll {len(PRIORITY_PATHWAYS)} priority pathways have >= {MIN_PRIORITY_CLAIMS} routable claims.")
+    print(
+        f"\nAll {len(PRIORITY_PATHWAYS)} priority pathways have "
+        f">= {MIN_PRIORITY_CLAIMS} routable claims."
+    )
     return 0
 
 

@@ -2,12 +2,12 @@
   "version": 1,
   "project": "herbagraph",
   "description": "Vertical slices for production-grade biomarker intelligence. Consumed by the herbagraph-ops Grok skill.",
-  "updated_at": "2026-07-18",
+  "updated_at": "2026-07-30",
   "definition_of_done": [
     "pytest exits 0 (full suite)",
     "scripts/validate_pathway_coverage.py exits 0 (266/266 biomarkers mapped)",
     "scripts/audit_alias_resolution.py exits 0 (catalog aliases + format variants)",
-    "scripts/audit_evidence_gaps.py exits 0 (27 priority pathways >= 3 routable claims)",
+    "scripts/audit_evidence_gaps.py exits 0 (27 priority pathways >= 5 routable claims)",
     "scripts/validate_lab_scenarios.py exits 0 (CI scenarios)",
     "scripts/validate_sample_labs.py exits 0 (demo lab files parse)",
     "scripts/validate_seed_counts.py exits 0",
@@ -2630,6 +2630,61 @@
         "scripts/deep_enrichment_pass.py",
         "scripts/verify_usda_key.py"
       ]
+    },
+    {
+      "id": "SLICE-113",
+      "title": "Evidence expansion sprint: Tier A gaps + thin-tree densification",
+      "status": "done",
+      "priority": 113,
+      "problem": "High-traffic catalog interventions and thin recommendation trees lacked routable evidence claims, so many pathways/scenarios under-delivered recommendations.",
+      "acceptance": [
+        "20-40+ new tier_a evidence claims with PMIDs and intents",
+        "All 9 missing Tier A herbs have claims",
+        "IMP-054 serum Iron biomarker-direct claims",
+        "Thin trees (autoimmune/culture/etiological/PGx) densified",
+        "New scenarios for iron, etiological, culture, autoimmune, PGx",
+        "audit_evidence_gaps MIN_PRIORITY_CLAIMS raised to 5 and green"
+      ],
+      "non_goals": [
+        "Clinical validation of medical advice",
+        "Inventing PMIDs"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "PMID title mismatches in strict audit",
+        "scenario parse format"
+      ],
+      "artifacts": [
+        "app/knowledge_graph/tier_a_evidence.py",
+        "samples/lab_scenarios/"
+      ]
+    },
+    {
+      "id": "SLICE-114",
+      "title": "IMP-055 graph food_sources + IMP-053 LLM alias resolver + evidence gap audit fix",
+      "status": "done",
+      "priority": 114,
+      "problem": "Reports ignored canonical CONTAINS edges for food_sources; unresolved portal names never got LLM assist; audit_evidence_gaps imported a removed symbol.",
+      "acceptance": [
+        "attach_food_sources accepts graph_food_sources fallback",
+        "report_generation loads composition_food_sources from registry",
+        "LLM alias resolver with mock heuristics for CI",
+        "process_lab_report applies alias assist before normalize",
+        "audit_evidence_gaps uses PATHWAY_DISPLAY_NAMES; min claims 5"
+      ],
+      "non_goals": [
+        "Admin enrichment review UI"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "LLM cost/latency on upload",
+        "empty registry food sources"
+      ],
+      "artifacts": [
+        "app/pipeline/llm_alias_resolver.py",
+        "app/pipeline/food_source_resolver.py",
+        "scripts/audit_evidence_gaps.py"
+      ]
     }
   ],
   "improvement_queue": [
@@ -3110,7 +3165,8 @@
       "title": "LLM alias resolver for unresolved abnormal biomarkers",
       "rationale": "Parser/alias fixes handle known permutations; LLM batch normalizer catches novel OCR garbling after Stage 2.",
       "priority": "high",
-      "status": "proposed"
+      "status": "done",
+      "completed_in": "SLICE-113/114"
     },
     {
       "id": "IMP-054",
@@ -3118,14 +3174,16 @@
       "title": "Direct Iron biomarker nutritional_repletion evidence claim",
       "rationale": "Iron intervention claims tie to Ferritin/TIBC/Hemoglobin but not serum Iron; low Iron, Total panels need explicit claim.",
       "priority": "medium",
-      "status": "proposed"
+      "status": "done",
+      "completed_in": "SLICE-113/114"
     },
     {
       "id": "IMP-055",
       "title": "Wire canonical graph CONTAINS food sources into report food_sources payloads",
-      "status": "proposed",
+      "status": "done",
       "priority": "medium",
-      "rationale": "composition_food_sources exists but attach_food_sources still uses static catalogs only."
+      "rationale": "composition_food_sources exists but attach_food_sources still uses static catalogs only.",
+      "completed_in": "SLICE-113/114"
     },
     {
       "id": "IMP-056",

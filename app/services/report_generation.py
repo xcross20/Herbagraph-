@@ -134,6 +134,27 @@ async def _run_pipeline_stages(
             prior_date = prior_report.created_at.isoformat() if prior_report.created_at else None
         lab_trends = build_trend_context(normalized, prior_labs, prior_report_date=prior_date)
 
+    graph_food_map: dict[str, list[dict]] = {}
+    try:
+        from app.pipeline.canonical_graph import composition_food_sources
+
+        for rec in safety_report.approved_recommendations:
+            rows = composition_food_sources(session, rec.intervention_name)
+            if rows:
+                # Graph CONTAINS yields compounds for foods; invert display for food_sources
+                # by treating targets as linked compound foods when intervention is a compound.
+                graph_food_map[rec.intervention_name] = [
+                    {
+                        "food_name": r.get("food_name"),
+                        "richness": r.get("richness") or "moderate",
+                        "typical_serving": r.get("typical_serving"),
+                        "source": "canonical_graph",
+                    }
+                    for r in rows
+                ]
+    except Exception:  # noqa: BLE001 — graph food sources are best-effort
+        graph_food_map = {}
+
     payload = generate_report(
         normalized,
         pathway_activations,
@@ -148,6 +169,7 @@ async def _run_pipeline_stages(
         custom_biomarkers=custom_biomarkers,
         health_profile=merged_profile,
         integrated_analysis=integrated_analysis,
+        graph_food_sources_by_intervention=graph_food_map,
     )
     insights = payload.get("report_insights") or {}
     insights["knowledge_path"] = path.value

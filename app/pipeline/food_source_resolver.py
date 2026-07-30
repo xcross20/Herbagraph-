@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.knowledge_graph.food_seed_data import COMPOUND_TO_FOOD_SOURCES, FOOD_TO_COMPOUNDS
 from app.knowledge_graph.herb_catalog import HERB_INTERVENTIONS
+from app.models.enums import Richness
 from app.schemas.evidence import FoodSourceRead
 
 _RICHNESS_ORDER = {"high": 0, "moderate": 1, "low": 2}
@@ -72,12 +73,41 @@ def resolve_food_compound(intervention_name: str, category: str) -> str | None:
 def attach_food_sources(
     intervention_name: str,
     category: str,
+    *,
+    graph_food_sources: list[dict] | None = None,
 ) -> tuple[list[FoodSourceRead] | None, str | None]:
-    """Return (food sources, linked phytochemical name) for a recommendation."""
+    """Return (food sources, linked phytochemical name) for a recommendation.
+
+    Prefers static compound→food catalog. When empty, falls back to canonical
+    graph CONTAINS composition rows (IMP-055) if provided.
+    """
     compound = resolve_food_compound(intervention_name, category)
-    if not compound:
-        return None, None
-    sources = COMPOUND_TO_FOOD_SOURCES.get(compound)
-    if not sources:
-        return None, None
-    return [FoodSourceRead(**s) for s in sources], compound
+    if compound:
+        sources = COMPOUND_TO_FOOD_SOURCES.get(compound)
+        if sources:
+            return [FoodSourceRead(**s) for s in sources], compound
+
+    if graph_food_sources:
+        parsed: list[FoodSourceRead] = []
+        for row in graph_food_sources:
+            food = row.get("food_name") or row.get("food")
+            if not food:
+                continue
+            richness_raw = row.get("richness") or "moderate"
+            if hasattr(richness_raw, "value"):
+                richness_raw = richness_raw.value
+            try:
+                richness = Richness(str(richness_raw).lower())
+            except ValueError:
+                richness = Richness.MODERATE
+            parsed.append(
+                FoodSourceRead(
+                    food=str(food),
+                    richness=richness,
+                    typical_serving=row.get("typical_serving"),
+                    note=row.get("source") or "canonical_graph",
+                )
+            )
+        if parsed:
+            return parsed, compound
+    return None, compound

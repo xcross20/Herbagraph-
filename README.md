@@ -354,6 +354,19 @@ Content-Type: application/json
 
 Reports persist `knowledge_path` and expose it on `GET /reports/{id}` (also reflected in `model_version` as `1.0.0-legacy` / `1.0.0-canonical`). The UI picker is `frontend/js/knowledge-path-picker.js`.
 
+### Recommendation depth milestones
+
+| Milestone | Status | Meaning |
+|-----------|--------|---------|
+| **M1** Reliable legacy | Done | Abnormal catalog biomarker → pathway → claims → recs in scenarios/UI |
+| **M2** Full catalog depth | In progress | Tier A interventions gain claims; thin trees densified (SLICE-113) |
+| **M3** Graph-backed recs | Partial | Canonical path + CONTAINS food_sources (IMP-055); bootstrap on deploy |
+| **M4** Clinical completeness | Ongoing | All 9 trees balanced; multi-panel scenarios; food/safety attach |
+
+**IMP-053** LLM alias assist runs after parse when deterministic aliases miss (mock heuristics in CI).
+
+**Evidence gates:** `scripts/audit_evidence_gaps.py` requires **≥5** routable claims on each of 28 priority pathways.
+
 ---
 
 ## Food → Compound Layer
