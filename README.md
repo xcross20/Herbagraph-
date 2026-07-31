@@ -383,17 +383,27 @@ python scripts/bootstrap_graph_edges.py
 
 **Evidence gates:** `scripts/audit_evidence_gaps.py` requires **≥5** routable claims on each of 28 priority pathways.
 
-### Growing real PMID claims continuously
+### Growing real PMID claims continuously (cloud)
 
-Use the project skill **`/herbagraph-pmid-growth`**:
+**Always-on (recommended):** GitHub Action `.github/workflows/pmid-growth.yml`
+
+- Runs daily at **14:00 UTC** on GitHub (laptop can be off)
+- Target **100–200** accepted claims/run (default **150**)
+- Searches PubMed via NCBI E-utilities — **never invents PMIDs**
+- Opens PR `chore/pmid-growth-auto` after integrity gates
+- Timing (measured dry-run, no API key): **~100 claims in ~2.7 minutes** (~1.6s/accepted)
 
 ```bash
-# See next claim-less interventions
+# Local
 python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --limit 20
+python3 scripts/pmid_growth_batch.py --limit 100 --dry-run   # time a batch
+python3 scripts/pmid_growth_batch.py --limit 150 --write     # write generated_pmid_claims.py
 
-# In Grok: run /herbagraph-pmid-growth  (adds 10–15 real PMIDs, runs integrity gates)
-# Optional daily durable schedule: ask the agent to scheduler_create interval=1d with that prompt
+# Manual cloud: GitHub → Actions → "PMID growth (cloud)" → Run workflow
+# Optional secrets: NCBI_API_KEY (faster), NCBI_EMAIL
 ```
+
+Interactive Grok skill: **`/herbagraph-pmid-growth`** (smaller review batches).
 
 ---
 

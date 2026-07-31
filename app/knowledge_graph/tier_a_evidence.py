@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.knowledge_graph.catalog_longtail_claims import LONGTAIL_EVIDENCE_CLAIMS
+from app.knowledge_graph.generated_pmid_claims import GENERATED_PMID_CLAIMS
 
 # recommendation_intent: primary | collateral | context_only | nutritional_repletion
 
@@ -1129,3 +1130,5 @@ TIER_A_EVIDENCE_CLAIMS: list[dict] = [
 
 # Long-tail catalog expansion (high-traffic herbs/foods/supplements/phytochemicals).
 TIER_A_EVIDENCE_CLAIMS.extend(LONGTAIL_EVIDENCE_CLAIMS)
+# Cloud/local automated PMID growth batches (scripts/pmid_growth_batch.py).
+TIER_A_EVIDENCE_CLAIMS.extend(GENERATED_PMID_CLAIMS)

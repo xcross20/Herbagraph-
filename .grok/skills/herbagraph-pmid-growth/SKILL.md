@@ -67,30 +67,29 @@ Same as default, but **must** pass `HERBAGRAPH_PMID_AUDIT_STRICT=1`.
 2. Replace bad PMIDs with verified ones.
 3. Re-run strict audit until 0 failures.
 
-### `/herbagraph-pmid-growth schedule`
+### `/herbagraph-pmid-growth schedule` (cloud — laptop can be off)
 
-Tell the user how to keep this running:
+**Primary path: GitHub Actions** (`.github/workflows/pmid-growth.yml`)
 
-**Option A — Grok scheduled task (this session / durable):**
-```
-# Ask the agent to call scheduler_create with:
-interval: "1d"
-recurring: true
-durable: true
-prompt: |
-  Run /herbagraph-pmid-growth default: add 10–15 real PMID claims for claim-less
-  catalog interventions from pmid_growth_queue.py, run integrity gates, update
-  BACKLOG, commit and push on branch if clean.
-```
+| Setting | Value |
+|---------|--------|
+| Schedule | Daily **14:00 UTC** |
+| Default target | **150** accepted claims |
+| Range | 50–200 (workflow_dispatch input) |
+| Runtime for 100 | ~**2.5–4 minutes** without NCBI key; ~**1.5–3 min** with `NCBI_API_KEY` |
+| Output | PR branch `chore/pmid-growth-auto` |
+| Files | `app/knowledge_graph/generated_pmid_claims.py`, `ops/pmid_growth_last_run.json` |
 
-**Option B — Cron on a machine with the repo:**
 ```bash
-0 9 * * 1 cd /path/to/herbagraph && python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --limit 20 >> ops/pmid_growth.log
-# Then open Grok and say: /herbagraph-pmid-growth  (process the queue)
+# Local timed batch
+python3 scripts/pmid_growth_batch.py --limit 100 --dry-run
+python3 scripts/pmid_growth_batch.py --limit 150 --write
+
+# Manual cloud: GitHub → Actions → "PMID growth (cloud)" → Run workflow
+# Secrets (optional but recommended): NCBI_API_KEY, NCBI_EMAIL
 ```
 
-**Option C — CI-assisted queue only** (no auto-commit):
-- Weekly GitHub Action that runs `pmid_growth_queue.py` and opens an issue with the top 25 missing interventions.
+Grok durable schedulers are **not** a substitute — they depend on the agent platform. Use **GitHub Actions** for true always-on cloud.
 
 ## Claim template
 
@@ -101,13 +100,14 @@ prompt: |
  "summary": "One sentence: population + design + outcome; adjunct framing."},
 ```
 
-Prefer putting new high-traffic claims in `catalog_longtail_claims.py` so `tier_a_evidence.py` stays readable.
+- Curated high-traffic → `catalog_longtail_claims.py`
+- Automated cloud batches → `generated_pmid_claims.py` (via `pmid_growth_batch.py`)
 
 ## Batch size
 
-- Default: **10–15 claims per run** (safe review size)
-- Aggressive: **25** max unless user asks for more
-- Always reseed note: claim routing is code-side; `ops_reseed.sh` if DB evidence table consumers matter
+- Cloud default: **100–150/day** (up to **200**)
+- Interactive Grok review batches: **10–25** still fine
+- Claim routing is code-side; reseed only if DB evidence consumers matter
 
 ## Non-goals
 

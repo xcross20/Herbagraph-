@@ -226,6 +226,11 @@ _INTERVENTION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Piperine": ("piperine", "pepper", "bioavailability"),
     "Naringenin": ("naringenin", "citrus", "flavonoid"),
     "Ellagic Acid": ("ellagic", "polyphenol", "pomegranate"),
+    "7-Keto DHEA": ('7 keto dhea', 'keto', 'dhea',),
+    "Agaricus blazei": ('agaricus blazei', 'agaricus', 'blazei',),
+    "Algal DHA": ('algal dha', 'algal', 'dha',),
+    "Alpha-GPC": ('alpha gpc', 'alpha', 'gpc',),
+    "Astaxanthin": ('astaxanthin',),
 }
 
 
