@@ -2739,6 +2739,35 @@
         "frontend/css/how-it-works.css",
         "frontend/js/how-it-works.js"
       ]
+    },
+    {
+      "id": "SLICE-117",
+      "title": "IMP-002: registered user sessions (no ephemeral guests by default)",
+      "status": "done",
+      "priority": 117,
+      "problem": "Guest localStorage created throwaway users; clearing browser lost labs/reports and looked like product breakage.",
+      "acceptance": [
+        "ALLOW_GUEST_AUTH defaults to false",
+        "Guest registration rejected when disabled",
+        "Local auth stores JWT only (not password in localStorage)",
+        "report.html never auto-creates guests",
+        "Login UI promotes registered signup and explains persistence"
+      ],
+      "non_goals": [
+        "Full SSO account linking",
+        "HIPAA BAA"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "Playwright/local demos need ALLOW_GUEST_AUTH=true"
+      ],
+      "artifacts": [
+        "app/config.py",
+        "app/api/v1/auth.py",
+        "frontend/js/herbagraph-auth.js",
+        "frontend/login.html",
+        "frontend/report.html"
+      ]
     }
   ],
   "improvement_queue": [
@@ -2757,7 +2786,9 @@
       "title": "Registered user sessions instead of ephemeral guest accounts",
       "rationale": "Guest localStorage creates new users on clear; users lose reports and think UI is broken.",
       "priority": "high",
-      "status": "proposed"
+      "status": "done",
+      "completed_in": "SLICE-117",
+      "note": "Guest auth default off; local sessions persist JWT only; report never auto-guest"
     },
     {
       "id": "IMP-003",

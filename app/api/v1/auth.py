@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.config import settings
+from app.config import get_settings, settings
 from app.core.security import (
     InvalidTokenError,
     create_access_token,
@@ -57,12 +57,13 @@ def _require_local_auth_enabled() -> None:
 
 @router.get("/config", response_model=AuthConfigRead)
 async def get_auth_config() -> AuthConfigRead:
+    cfg = get_settings()
     return AuthConfigRead(
-        auth_provider=settings.auth_provider,
-        supabase_url=settings.supabase_url or None,
-        supabase_anon_key=settings.supabase_anon_key or settings.supabase_publishable_key or None,
-        require_email_verification=settings.require_email_verification,
-        allow_guest_auth=settings.allow_guest_auth and settings.auth_provider == "local",
+        auth_provider=cfg.auth_provider,
+        supabase_url=cfg.supabase_url or None,
+        supabase_anon_key=cfg.supabase_anon_key or cfg.supabase_publishable_key or None,
+        require_email_verification=cfg.require_email_verification,
+        allow_guest_auth=cfg.allow_guest_auth and cfg.auth_provider == "local",
         signup_access_required=signup_access_required(),
         google_oauth_enabled=google_oauth_enabled(),
     )
@@ -134,6 +135,11 @@ async def sync_external_user(
     return user
 
 
+def _is_guest_email(email: str) -> bool:
+    lowered = (email or "").strip().lower()
+    return lowered.endswith("@guest.herbagraph-app.io") or lowered.startswith("guest-")
+
+
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: UserCreate,
@@ -141,6 +147,11 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     _require_local_auth_enabled()
+    if _is_guest_email(payload.email) and not get_settings().allow_guest_auth:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Guest accounts are disabled. Create a registered account with your email.",
+        )
     if payload.access_code:
         verify_access_code(payload.access_code)
         approve_email_for_signup(payload.email)

@@ -104,16 +104,17 @@
         </div>
 
         <button class="auth-submit" id="login-btn" type="submit">Sign in</button>
-        <button class="auth-guest-btn hidden" id="guest-btn" type="button">Continue as guest</button>
+        <button class="auth-guest-btn hidden" id="guest-btn" type="button">Continue as guest (demo only)</button>
       </form>
 
       <div class="auth-form-links">
         <a href="/forgot-password.html">Forgot password?</a>
+        <a href="/signup.html">Create a registered account</a>
       </div>
 
       <div class="auth-privacy-note">
-        <strong>Private workspace</strong>
-        <p>Your account controls access to your uploaded data.</p>
+        <strong>Registered sessions</strong>
+        <p>Sign in with your account so labs and reports persist across devices and browser clears. Guest mode (if enabled) is ephemeral and loses data when storage is cleared.</p>
       </div>
     </div>
   </div>
@@ -144,7 +145,11 @@ async function init() {
   }
   if (await Auth.ensureSession()) { location.href = nextUrl; return; }
   const cfg = await Auth.loadConfig();
-  document.getElementById("guest-btn").classList.toggle("hidden", !cfg.allow_guest_auth);
+  const guestBtn = document.getElementById("guest-btn");
+  guestBtn.classList.toggle("hidden", !cfg.allow_guest_auth);
+  if (cfg.allow_guest_auth) {
+    guestBtn.title = "Demo only — data is not kept when you clear the browser.";
+  }
   const googleBlock = document.getElementById("google-oauth-block");
   if (googleBlock) googleBlock.hidden = !cfg.google_oauth_enabled;
   UI.initPasswordField("auth-password", null);

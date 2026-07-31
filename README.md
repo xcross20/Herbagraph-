@@ -379,7 +379,21 @@ python scripts/bootstrap_graph_edges.py
 
 **IMP-053** LLM alias assist runs after parse when deterministic aliases miss (mock heuristics in CI).
 
+**IMP-002 registered sessions:** Guest accounts are **off by default** (`ALLOW_GUEST_AUTH=false`). Local auth persists **JWT only** (never the password). Sign up or sign in to keep labs/reports.
+
 **Evidence gates:** `scripts/audit_evidence_gaps.py` requires **≥5** routable claims on each of 28 priority pathways.
+
+### Growing real PMID claims continuously
+
+Use the project skill **`/herbagraph-pmid-growth`**:
+
+```bash
+# See next claim-less interventions
+python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --limit 20
+
+# In Grok: run /herbagraph-pmid-growth  (adds 10–15 real PMIDs, runs integrity gates)
+# Optional daily durable schedule: ask the agent to scheduler_create interval=1d with that prompt
+```
 
 ---
 

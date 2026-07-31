@@ -55,7 +55,9 @@ class Settings(BaseSettings):
     # Auth provider: "local" (bcrypt JWT) or "supabase" (Supabase Auth JWT).
     auth_provider: str = "local"
     require_email_verification: bool = False
-    allow_guest_auth: bool = True
+    # Ephemeral guest accounts (local auth only). Default off — IMP-002 registered sessions.
+    # Set ALLOW_GUEST_AUTH=true only for local/UI smoke demos; never in production.
+    allow_guest_auth: bool = False
     # Supabase — set all three when AUTH_PROVIDER=supabase
     supabase_url: str = ""
     supabase_anon_key: str = ""

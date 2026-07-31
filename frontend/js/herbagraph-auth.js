@@ -140,25 +140,19 @@ window.HerbaGraphAuth = (function () {
       return false;
     }
 
-    const creds = JSON.parse(localStorage.getItem("hg_creds") || "null");
-    if (!creds) return false;
-
+    // Registered sessions: restore JWT pair only. Do not re-auth from stored passwords
+    // (IMP-002 — passwords must not live in localStorage).
     const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
     if (stored?.access_token && stored?.refresh_token) {
       window.hgToken = stored.access_token;
       window.hgRefreshToken = stored.refresh_token;
       return true;
     }
-
-    const login = await fetch(API + "/api/v1/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(creds),
-    });
-    if (!login.ok) return false;
-    const tokens = await login.json();
-    storeLocalTokens(tokens);
-    return true;
+    // Legacy cleanup: old builds stored hg_creds with passwords
+    try {
+      localStorage.removeItem("hg_creds");
+    } catch (_) { /* ignore */ }
+    return false;
   }
 
   async function refreshTokens() {
@@ -189,7 +183,10 @@ window.HerbaGraphAuth = (function () {
       await syncWithBackend(data.session.access_token);
       return;
     }
-    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
+    // Persist tokens only — never store the password (IMP-002).
+    try {
+      localStorage.removeItem("hg_creds");
+    } catch (_) { /* ignore */ }
     localStorage.removeItem("hg_tokens");
     const resp = await fetch(API + "/api/v1/auth/login", {
       method: "POST",
@@ -198,6 +195,7 @@ window.HerbaGraphAuth = (function () {
     });
     if (!resp.ok) throw new Error(await resp.text());
     storeLocalTokens(await resp.json());
+    localStorage.setItem("hg_auth_provider", "local");
   }
 
   async function verifyAccessCodeForOAuth(accessCode) {
@@ -351,12 +349,15 @@ window.HerbaGraphAuth = (function () {
   async function continueAsGuest() {
     const cfg = await loadConfig();
     if (!cfg.allow_guest_auth) {
-      throw new Error("Guest access is disabled. Create an account to continue.");
+      throw new Error("Guest access is disabled. Create an account or sign in to keep your labs and reports.");
     }
+    // Dev/demo only: ephemeral user. Password is not retained after sign-in.
     const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
-    const password = `Guest${Math.random().toString(36).slice(2)}A1`;
-    localStorage.setItem("hg_creds", JSON.stringify({ email, password }));
+    const password = `Guest${Math.random().toString(36).slice(2)}A1!`;
     localStorage.removeItem("hg_tokens");
+    try {
+      localStorage.removeItem("hg_creds");
+    } catch (_) { /* ignore */ }
     const resp = await fetch(API + "/api/v1/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

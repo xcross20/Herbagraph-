@@ -570,12 +570,10 @@ async function ensureAuth() {
     }
     return;
   }
+  // IMP-002: always require a registered session — never auto-create guests.
   if (await Auth.ensureSession()) return;
-  if (!cfg.allow_guest_auth) {
-    window.location.href = `/login.html?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
-    throw new Error("Sign in required");
-  }
-  await Auth.continueAsGuest();
+  window.location.href = `/login.html?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+  throw new Error("Sign in required");
 }
 
 function humanizeError(msg) {

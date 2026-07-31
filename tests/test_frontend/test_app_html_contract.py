@@ -34,3 +34,4 @@ def test_app_html_serves_workspace_shell():
     assert "if (await Auth.handleAuthRedirect())" not in html
     assert "showAppError(err)" in html
     assert 'name="viewport"' in html
+    assert "/how-it-works.html" in html
