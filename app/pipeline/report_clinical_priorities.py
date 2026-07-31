@@ -6,13 +6,12 @@ from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
 from app.models.enums import DisplayIntent, EvidenceLevel, EvidenceTier
-from app.pipeline.biological_systems import SYSTEM_PATHWAYS
 from app.pipeline.report_biological_hierarchy import (
     _enrich_intervention_row,
     _pathway_activation_index,
     evidence_grade_for,
 )
-from app.pipeline.report_intent import REGULATED_CATEGORIES, classify_display_intent
+from app.pipeline.report_intent import classify_display_intent
 
 _ALL_CLAIMS = [*EVIDENCE_CLAIMS, *TIER_A_EVIDENCE_CLAIMS, *LIFESTYLE_EVIDENCE_CLAIMS]
 

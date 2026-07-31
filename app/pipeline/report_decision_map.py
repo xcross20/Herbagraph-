@@ -180,7 +180,6 @@ def _claim_matches_abnormal(claim: dict, abnormal_names: set[str], intervention_
 
 
 def _claims_for_intervention(name: str, abnormal_names: set[str]) -> list[dict]:
-    context = _expanded_abnormal_context(abnormal_names)
     return [
         c
         for c in _ALL_CLAIMS

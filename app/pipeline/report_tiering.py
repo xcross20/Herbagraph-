@@ -12,19 +12,15 @@ import re
 from app.pipeline.report_biological_hierarchy import (
     _pathway_activation_index,
     biology_first_network_score,
-    intervention_network_metrics,
 )
 from app.pipeline.report_decision_map import (
-    LANE_DIRECT,
     LANE_LABELS,
-    LANE_LIFESTYLE,
     LANE_REGULATED,
-    LANE_SUPPORTIVE,
     TOP_PER_LANE_DEFAULT,
     build_lane_groups,
     enrich_intervention_for_decision_map,
 )
-from app.pipeline.report_intent import classify_display_intent, recommendation_intent_for
+from app.pipeline.report_intent import recommendation_intent_for
 from app.models.enums import (
     DisplayIntent,
     EvidenceLevel,

@@ -2,9 +2,9 @@
 
 import pytest
 
-from app.models.enums import EvidenceLevel, InterventionCategory, LabResultStatus, PathwayDirection, StudySource, StudyType
+from app.models.enums import EvidenceLevel, InterventionCategory, PathwayDirection, StudySource, StudyType
 from app.pipeline.catalog_evidence import stabilize_reasoning_output
-from app.schemas.pipeline import EvidenceSnippet, LLMReasoningOutput, LLMRecommendation, NormalizedLabResult, PathwayActivation
+from app.schemas.pipeline import EvidenceSnippet, LLMReasoningOutput, LLMRecommendation, PathwayActivation
 
 pytestmark = pytest.mark.unit
 

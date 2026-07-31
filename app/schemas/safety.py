@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import SafetyRelationshipType, SafetyRiskLevel, SafetyWarningEvidenceLevel
 from app.schemas.pipeline import LLMRecommendation, NormalizedLabResult
-from app.schemas.safety_profile import InterventionSafetyProfile, SafetyWarningDetail
+from app.schemas.safety_profile import InterventionSafetyProfile
 
 
 class SafetyEngineInput(BaseModel):

@@ -11,8 +11,6 @@ from app.models.enums import (
     CanonicalEntityType,
     CoverageTier,
     EntityReviewStatus,
-    GraphEvidenceType,
-    GraphRelationshipType,
     PathwayDirection,
     RecommendationTree,
 )

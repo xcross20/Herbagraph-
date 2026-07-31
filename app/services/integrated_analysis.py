@@ -18,7 +18,7 @@ from app.models.lab import LabReport
 from app.models.user import HealthProfile
 from app.models.enums import LabResultStatus
 from app.pipeline.biomarker_normalizer import classify_lab_value, get_reference_data
-from app.pipeline.integrated_merge import infer_panel_label, merge_lab_reports
+from app.pipeline.integrated_merge import merge_lab_reports
 from app.pipeline.trend_context import build_trend_context
 from app.schemas.pipeline import NormalizedLabResult
 from app.models.enums import AnalysisType

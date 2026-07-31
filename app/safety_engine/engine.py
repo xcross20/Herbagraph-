@@ -159,11 +159,6 @@ def _build_safety_profile(
     regulation_note: str | None,
 ) -> InterventionSafetyProfile:
     rating = worst_severity([w.severity for w in warnings] if warnings else [SafetyRiskLevel.LOW])
-    interactions = [
-        f"{w.target_entity}: {w.mechanism}" + (f" ({w.note})" if w.note else "")
-        for w in warnings
-        if w.warning_type == "interaction"
-    ]
     contraindications = [
         w.mechanism for w in warnings if w.warning_type == "contraindication"
     ]

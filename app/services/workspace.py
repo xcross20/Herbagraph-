@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis_session import AnalysisSession
-from app.models.enums import LabResultStatus, PatientContextType
+from app.models.enums import LabResultStatus
 from app.models.lab import LabReport, LabResult
 from app.models.patient import Patient
 from app.models.patient_context import PatientContext

@@ -79,7 +79,8 @@ jobs:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
           # Avoid loading full app settings that need DB
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          # Quote URL: bare :memory: is invalid YAML (colon ambiguity)
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SECRET_KEY: ci-pmid-growth-secret-key-not-for-prod-0123456789
           ENCRYPTION_KEY: unused-ci-placeholder
           OPENAI_API_KEY: test-openai-api-key
@@ -108,7 +109,7 @@ jobs:
       - name: Integrity gates (when claims written)
         if: steps.batch.outputs.dry_run != 'true'
         env:
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SECRET_KEY: ci-pmid-growth-secret-key-not-for-prod-0123456789
           ENCRYPTION_KEY: unused-ci-placeholder
           OPENAI_API_KEY: test-openai-api-key

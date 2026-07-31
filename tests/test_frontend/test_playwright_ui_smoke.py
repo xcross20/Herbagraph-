@@ -11,7 +11,11 @@ Skipped unless HERBAGRAPH_PLAYWRIGHT=1 and playwright is installed.
 from __future__ import annotations
 
 import pytest
-from playwright.sync_api import sync_playwright
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:  # pragma: no cover - optional browser stack
+    pytest.skip("playwright not installed", allow_module_level=True)
 
 from tests.test_frontend.playwright_helpers import (
     FIXTURES,

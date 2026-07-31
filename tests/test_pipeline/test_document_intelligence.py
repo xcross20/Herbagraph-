@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from app.pipeline.document_detection import LabDocumentProvider, detect_lab_document_provider
-from app.pipeline.lab_parser import parse_lab_document, parse_lab_file, parse_lab_line
-from app.pipeline.parsers.healow import normalize_healow_text, parse_healow_text
+from app.pipeline.lab_parser import parse_lab_document, parse_lab_line
+from app.pipeline.parsers.healow import parse_healow_text
 from app.pipeline.parse_confidence import score_parsed_result
 from app.schemas.pipeline import ParsedLabResult
 

@@ -10,7 +10,7 @@ from app.pipeline.biomarker_normalizer import normalize_lab_results
 from app.pipeline.catalog_evidence import build_catalog_evidence_snippets, build_catalog_reasoning_output
 from app.pipeline.intervention_catalog import build_interventions_for_routing
 from app.pipeline.lab_parser import parse_lab_file
-from app.pipeline.lab_scenario_loader import list_scenarios, load_manifest, resolve_raw_path
+from app.pipeline.lab_scenario_loader import list_scenarios, resolve_raw_path
 from app.pipeline.pathway_mapper import map_pathways
 from app.pipeline.test_type_router import route_recommendation_trees
 from app.pipeline.user_biomarker_profile import is_catalog_biomarker

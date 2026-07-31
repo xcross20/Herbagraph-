@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.analysis_session import AnalysisSession
 from app.models.enums import LabReportStatus, LabResultStatus, PatientContextType
-from app.models.lab import LabReport, LabResult
+from app.models.lab import LabReport
 from app.models.patient import Patient
 from app.models.patient_context import PatientContext
 from app.models.report import RecommendationReport

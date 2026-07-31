@@ -5,7 +5,6 @@ import pytest
 from app.config import settings
 from app.core.file_storage import (
     ALLOWED_EXTENSIONS,
-    DB_STORAGE_PREFIX,
     LabFileSaveResult,
     delete_lab_file,
     load_lab_file,

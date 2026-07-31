@@ -3,7 +3,6 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from urllib.parse import urlparse
 

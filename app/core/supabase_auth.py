@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import secrets
 import time
-from functools import lru_cache
 
 import httpx
 from jose import JWTError, jwk, jwt
