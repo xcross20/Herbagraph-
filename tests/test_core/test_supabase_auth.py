@@ -22,6 +22,7 @@ def _make_token(secret: str, *, email: str = "clinician@example.com", verified: 
 
 def test_verify_supabase_token_success(monkeypatch):
     secret = "test-supabase-jwt-secret-32chars!!"
+    monkeypatch.setattr("app.core.supabase_auth.settings.supabase_url", "https://example.supabase.co")
     monkeypatch.setattr("app.core.supabase_auth.settings.supabase_jwt_secret", secret)
     token = _make_token(secret)
     claims = verify_supabase_access_token(token)
@@ -30,6 +31,7 @@ def test_verify_supabase_token_success(monkeypatch):
 
 
 def test_verify_supabase_token_rejects_invalid(monkeypatch):
+    monkeypatch.setattr("app.core.supabase_auth.settings.supabase_url", "https://example.supabase.co")
     monkeypatch.setattr("app.core.supabase_auth.settings.supabase_jwt_secret", "secret-a")
     token = _make_token("secret-b")
     with pytest.raises(SupabaseAuthError):

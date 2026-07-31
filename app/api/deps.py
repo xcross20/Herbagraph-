@@ -105,10 +105,26 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    if settings.auth_provider == "supabase":
+    provider = (settings.auth_provider or "local").strip().lower()
+
+    if provider == "local":
+        return await _user_from_local_token(credentials.credentials, db)
+
+    if provider == "supabase":
         return await _user_from_supabase_token(credentials.credentials, db)
 
-    return await _user_from_local_token(credentials.credentials, db)
+    # clerk / firebase / unknown: surface configuration clearly (not silently local JWT)
+    try:
+        await verify_external_token(credentials.credentials)
+    except AuthConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(exc),
+        ) from exc
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=f"AUTH_PROVIDER={provider} is not fully implemented.",
+    )
 
 
 async def get_verified_user(current_user: User = Depends(get_current_user)) -> User:

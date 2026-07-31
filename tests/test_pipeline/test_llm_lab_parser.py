@@ -1,7 +1,7 @@
 """LLM-assisted lab parsing fallback tests."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -39,35 +39,29 @@ def test_parse_llm_response_maps_rows():
     assert rows[1].qualitative_result == "DETECTED"
 
 
-@patch("app.pipeline.llm_lab_parser._client")
-def test_parse_lab_text_with_llm(mock_client_factory):
-    mock_client = MagicMock()
-    mock_client_factory.return_value = mock_client
-    mock_client.chat.completions.create.return_value = MagicMock(
-        choices=[
-            MagicMock(
-                message=MagicMock(
-                    content=json.dumps(
-                        {
-                            "results": [
-                                {
-                                    "raw_test_name": "CRP",
-                                    "value": 4.2,
-                                    "unit": "mg/L",
-                                    "reference_range_low": 0,
-                                    "reference_range_high": 3,
-                                }
-                            ]
-                        }
-                    )
-                )
-            )
-        ]
+@patch("app.pipeline.llm_lab_parser.sync_chat_json_with_fallback")
+def test_parse_lab_text_with_llm(mock_chat):
+    mock_chat.return_value = (
+        json.dumps(
+            {
+                "results": [
+                    {
+                        "raw_test_name": "CRP",
+                        "value": 4.2,
+                        "unit": "mg/L",
+                        "reference_range_low": 0,
+                        "reference_range_high": 3,
+                    }
+                ]
+            }
+        ),
+        None,
     )
 
     rows = parse_lab_text_with_llm("Patient: [REDACTED]\nCRP result 4.2 mg/L (0-3)")
     assert len(rows) == 1
     assert rows[0].raw_test_name == "CRP"
+    mock_chat.assert_called_once()
 
 
 @patch("app.pipeline.llm_lab_parser.parse_lab_text_with_llm")
