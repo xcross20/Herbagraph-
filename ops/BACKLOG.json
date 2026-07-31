@@ -2,7 +2,7 @@
   "version": 1,
   "project": "herbagraph",
   "description": "Vertical slices for production-grade biomarker intelligence. Consumed by the herbagraph-ops Grok skill.",
-  "updated_at": "2026-07-30",
+  "updated_at": "2026-07-31",
   "definition_of_done": [
     "pytest exits 0 (full suite)",
     "scripts/validate_pathway_coverage.py exits 0 (266/266 biomarkers mapped)",
@@ -2684,6 +2684,60 @@
         "app/pipeline/llm_alias_resolver.py",
         "app/pipeline/food_source_resolver.py",
         "scripts/audit_evidence_gaps.py"
+      ]
+    },
+    {
+      "id": "SLICE-115",
+      "title": "Full graph recommendation engine with MODULATES/TARGETS edges",
+      "status": "done",
+      "priority": 115,
+      "problem": "Canonical path only filtered legacy routing; ~700 catalog interventions lacked PMID claims and had no graph modulation edges.",
+      "acceptance": [
+        "PATHWAY and BIOMARKER entity types",
+        "bootstrap_graph_modulation_edges from claims + catalog heuristics",
+        "graph_recommendation_engine builds pathway\u2192intervention maps",
+        "canonical knowledge_path uses graph engine with hybrid fill",
+        "longtail high-traffic claims added without inventing seeder-orphan interventions",
+        "scripts/bootstrap_graph_edges.py and POST /knowledge/bootstrap/graph-edges"
+      ],
+      "non_goals": [
+        "Inventing PMIDs for all 700",
+        "Removing hybrid legacy fill"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "graph seed runtime",
+        "synonym unique constraint on pathway display names"
+      ],
+      "artifacts": [
+        "app/pipeline/graph_recommendation_engine.py",
+        "app/knowledge_graph/graph_edge_seed.py",
+        "app/knowledge_graph/catalog_longtail_claims.py"
+      ]
+    },
+    {
+      "id": "SLICE-116",
+      "title": "How It Works methodology page with pipeline graphics and charts",
+      "status": "done",
+      "priority": 116,
+      "problem": "Users could not see how analysis and recommendations are produced end-to-end.",
+      "acceptance": [
+        "/how-it-works.html with 7-stage interactive walkthrough",
+        "Graph anatomy SVG (MODULATES/TARGETS/CONTAINS)",
+        "Tree and pathway density charts",
+        "Linked from landing nav and workspace sidebar"
+      ],
+      "non_goals": [
+        "Live API-driven chart counts"
+      ],
+      "reversibility": "two-way",
+      "risk_hotspots": [
+        "static asset routing"
+      ],
+      "artifacts": [
+        "frontend/how-it-works.html",
+        "frontend/css/how-it-works.css",
+        "frontend/js/how-it-works.js"
       ]
     }
   ],

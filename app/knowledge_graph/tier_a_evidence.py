@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from app.knowledge_graph.catalog_longtail_claims import LONGTAIL_EVIDENCE_CLAIMS
+
 # recommendation_intent: primary | collateral | context_only | nutritional_repletion
 
 TIER_A_EVIDENCE_CLAIMS: list[dict] = [
@@ -1124,3 +1126,6 @@ TIER_A_EVIDENCE_CLAIMS: list[dict] = [
      "recommendation_intent": "primary",
      "summary": "Long-chain omega-3s studied for slowing filtration decline after myocardial infarction."},
 ]
+
+# Long-tail catalog expansion (high-traffic herbs/foods/supplements/phytochemicals).
+TIER_A_EVIDENCE_CLAIMS.extend(LONGTAIL_EVIDENCE_CLAIMS)

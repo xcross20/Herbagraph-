@@ -19,6 +19,7 @@ from app.knowledge_graph.enrichment_worker import (
     run_enrichment_batch,
 )
 from app.knowledge_graph.entity_registry import bootstrap_from_interventions, register_entity, resolve_entity_by_name
+from app.knowledge_graph.graph_edge_seed import bootstrap_graph_modulation_edges
 from app.models.canonical_entity import CanonicalEntity, EnrichmentQueueItem
 from app.models.enums import CoverageTier, EnrichmentQueueStatus, EntityReviewStatus
 from app.models.user import User
@@ -269,6 +270,15 @@ async def bootstrap_intervention_registry(
 ) -> dict[str, int]:
     """One-time (idempotent) Tier A seed from the curated interventions catalog."""
     return await bootstrap_from_interventions(db)
+
+
+@router.post("/bootstrap/graph-edges")
+async def bootstrap_graph_edges(
+    _: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, int]:
+    """Seed MODULATES/TARGETS/INHIBITS edges from claims + catalog mechanisms."""
+    return await bootstrap_graph_modulation_edges(db)
 
 
 @router.post("/enrichment/seed-missing", response_model=DeepEnrichmentSeedResponse)

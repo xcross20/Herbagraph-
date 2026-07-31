@@ -314,6 +314,8 @@ class CanonicalEntityType(str, enum.Enum):
     PEPTIDE = "peptide"
     PROCEDURE = "procedure"
     DEVICE = "device"
+    PATHWAY = "pathway"
+    BIOMARKER = "biomarker"
 
 
 class CanonicalEntitySubtype(str, enum.Enum):

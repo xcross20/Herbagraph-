@@ -31,6 +31,8 @@ ENTITY_ID_PREFIX: dict[CanonicalEntityType, str] = {
     CanonicalEntityType.PEPTIDE: "HG-PEP",
     CanonicalEntityType.PROCEDURE: "HG-PRO",
     CanonicalEntityType.DEVICE: "HG-DEV",
+    CanonicalEntityType.PATHWAY: "HG-PATH",
+    CanonicalEntityType.BIOMARKER: "HG-BMK",
 }
 
 

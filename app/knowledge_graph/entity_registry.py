@@ -139,16 +139,21 @@ async def register_entity(
     db.add(entity)
     await db.flush()
 
-    all_synonyms = {canonical_name, display_name or canonical_name, *(synonyms or [])}
+    all_synonyms = [canonical_name, display_name or canonical_name, *(synonyms or [])]
+    seen_normalized: set[str] = set()
     for synonym in all_synonyms:
-        cleaned = synonym.strip()
+        cleaned = (synonym or "").strip()
         if not cleaned:
             continue
+        normalized = normalize_entity_name(cleaned)
+        if not normalized or normalized in seen_normalized:
+            continue
+        seen_normalized.add(normalized)
         db.add(
             EntitySynonym(
                 entity_id_fk=entity.id,
                 synonym=cleaned,
-                synonym_normalized=normalize_entity_name(cleaned),
+                synonym_normalized=normalized,
             )
         )
 

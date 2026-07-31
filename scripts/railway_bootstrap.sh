@@ -17,6 +17,8 @@ echo "[1/2] Alembic migrations..."
 railway run alembic upgrade head
 echo "[2/3] Knowledge graph reseed..."
 railway run python scripts/reseed_db.py
-echo "[3/3] Canonical registry bootstrap (Tier A from interventions)..."
+echo "[3/4] Canonical registry bootstrap (Tier A from interventions)..."
 railway run python scripts/bootstrap_canonical_registry.py
+echo "[4/4] Graph MODULATES/TARGETS edge seed (full rec engine)..."
+railway run python scripts/bootstrap_graph_edges.py
 echo "=== Done. Smoke test: curl \$(railway domain)/health ==="

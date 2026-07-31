@@ -359,9 +359,23 @@ Reports persist `knowledge_path` and expose it on `GET /reports/{id}` (also refl
 | Milestone | Status | Meaning |
 |-----------|--------|---------|
 | **M1** Reliable legacy | Done | Abnormal catalog biomarker → pathway → claims → recs in scenarios/UI |
-| **M2** Full catalog depth | In progress | Tier A interventions gain claims; thin trees densified (SLICE-113) |
-| **M3** Graph-backed recs | Partial | Canonical path + CONTAINS food_sources (IMP-055); bootstrap on deploy |
+| **M2** Full catalog depth | Advanced | PMID claims for high-traffic catalog; long-tail via predicted graph edges |
+| **M3** Graph-backed recs | Integrated | Full MODULATES/TARGETS engine on `knowledge_path=canonical` (hybrid fill) |
 | **M4** Clinical completeness | Ongoing | All 9 trees balanced; multi-panel scenarios; food/safety attach |
+
+**Graph recommendation engine** (`knowledge_path=canonical`):
+
+1. Register pathway nodes (`HG-PATH-*`) and intervention nodes  
+2. Seed edges from evidence claims (PMID-backed) + catalog mechanism heuristics (PREDICTED for ~700 claim-less items)  
+3. Traverse pathway activations → MODULATES → ranked interventions  
+4. Attach graph CONTAINS food sources; hybrid-fill with legacy when sparse  
+
+```bash
+python scripts/bootstrap_canonical_registry.py
+python scripts/bootstrap_graph_edges.py
+```
+
+**How it works UI:** `/how-it-works.html` — step-by-step pipeline walkthrough with charts.
 
 **IMP-053** LLM alias assist runs after parse when deterministic aliases miss (mock heuristics in CI).
 

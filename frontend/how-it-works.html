@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How It Works | HerbaGraph</title>
+<meta name="description" content="Step-by-step walkthrough of HerbaGraph's 7-stage biomarker analysis and graph recommendation engine — from lab upload to evidence-graded interventions.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/how-it-works.css">
+</head>
+<body class="hiw-body">
+<header class="hiw-nav" aria-label="Site navigation">
+  <div id="hiw-logo"></div>
+  <nav class="hiw-nav-links" aria-label="Primary">
+    <a href="/">Home</a>
+    <a href="/how-it-works.html" aria-current="page">How It Works</a>
+    <a href="/report.html?demo=1">Sample report</a>
+  </nav>
+  <div class="hiw-nav-actions">
+    <a class="hiw-btn hiw-btn-ghost" href="/login.html">Sign in</a>
+    <a class="hiw-btn hiw-btn-primary" href="/signup.html">Analyze labs</a>
+  </div>
+</header>
+
+<main class="hiw-main">
+  <section class="hiw-hero">
+    <p class="hiw-eyebrow">Methodology · Explainable pipeline</p>
+    <h1>How HerbaGraph turns labs into evidence-graded recommendations</h1>
+    <p class="hiw-lede">
+      Seven deterministic stages connect biomarkers to biological systems, pathways,
+      a knowledge graph, and literature-backed intervention classes — with dual
+      knowledge paths you can A/B test.
+    </p>
+    <div class="hiw-hero-stats" id="hiw-hero-stats" aria-label="Engine scale">
+      <div class="hiw-stat"><strong>7</strong><span>pipeline stages</span></div>
+      <div class="hiw-stat"><strong>9</strong><span>recommendation trees</span></div>
+      <div class="hiw-stat"><strong>28</strong><span>biological pathways</span></div>
+      <div class="hiw-stat"><strong>2</strong><span>knowledge paths</span></div>
+    </div>
+  </section>
+
+  <!-- Interactive step navigator -->
+  <section class="hiw-section" aria-labelledby="pipeline-title">
+    <h2 id="pipeline-title">The 7-stage analysis pipeline</h2>
+    <p class="hiw-section-intro">Click a stage to see what happens, what data moves, and where recommendations come from.</p>
+
+    <div class="hiw-pipeline-layout">
+      <ol class="hiw-step-nav" id="hiw-step-nav" role="tablist" aria-label="Pipeline stages"></ol>
+      <div class="hiw-step-panel" id="hiw-step-panel" role="tabpanel"></div>
+    </div>
+
+    <div class="hiw-flow-chart" aria-hidden="true">
+      <svg viewBox="0 0 960 160" class="hiw-flow-svg">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#2e7d57"/>
+          </marker>
+        </defs>
+        <g id="hiw-flow-nodes"></g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- Knowledge paths -->
+  <section class="hiw-section hiw-section-alt" aria-labelledby="paths-title">
+    <h2 id="paths-title">Two knowledge paths — same labs, different substrate</h2>
+    <div class="hiw-cards-2">
+      <article class="hiw-card">
+        <h3>Legacy catalogs</h3>
+        <p>Production default. Curated intervention catalogs, Tier A evidence claims with PMIDs, and live literature retrieval (PubMed / ClinicalTrials / Europe PMC).</p>
+        <ul>
+          <li>Routable claims on 28 priority pathways</li>
+          <li>Nine test-type recommendation trees</li>
+          <li>Deterministic catalog fallback when LLM is unstable</li>
+        </ul>
+        <div class="hiw-badge">Recommended for clinical review</div>
+      </article>
+      <article class="hiw-card hiw-card-accent">
+        <h3>Canonical graph engine</h3>
+        <p>Experimental A/B path. Pathway activations traverse <strong>MODULATES / TARGETS / ACTIVATES / INHIBITS</strong> edges on <code>canonical_entities</code>, ranked by evidence type and confidence.</p>
+        <ul>
+          <li>PMID-backed edges from evidence claims</li>
+          <li>Predicted edges from catalog mechanisms (~700 long-tail interventions)</li>
+          <li>CONTAINS composition for food sources</li>
+        </ul>
+        <div class="hiw-badge hiw-badge-alt">Graph-backed · hybrid fill</div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Graph diagram -->
+  <section class="hiw-section" aria-labelledby="graph-title">
+    <h2 id="graph-title">Knowledge graph anatomy</h2>
+    <p class="hiw-section-intro">Recommendations are not a black box. They are walks on a typed graph with provenance.</p>
+    <div class="hiw-graph-diagram">
+      <svg viewBox="0 0 720 340" role="img" aria-label="Biomarker to pathway to intervention graph">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#2e7d57"/><stop offset="100%" stop-color="#6978d8"/>
+          </linearGradient>
+        </defs>
+        <!-- edges -->
+        <path class="hiw-g-edge" d="M120 80 L280 160" stroke="#2e7d57"/>
+        <path class="hiw-g-edge" d="M120 200 L280 160" stroke="#2e7d57"/>
+        <path class="hiw-g-edge" d="M280 160 L440 100" stroke="#6978d8"/>
+        <path class="hiw-g-edge" d="M280 160 L440 220" stroke="#6978d8"/>
+        <path class="hiw-g-edge" d="M440 100 L600 160" stroke="#b7791f"/>
+        <path class="hiw-g-edge" d="M440 220 L600 160" stroke="#b7791f"/>
+        <path class="hiw-g-edge hiw-g-edge-dashed" d="M600 160 L600 280" stroke="#69706b"/>
+        <!-- nodes -->
+        <g class="hiw-g-node" transform="translate(60,50)">
+          <rect width="120" height="56" rx="10" fill="#fff" stroke="#2e7d57"/>
+          <text x="60" y="24" text-anchor="middle" class="hiw-g-label">Biomarker</text>
+          <text x="60" y="42" text-anchor="middle" class="hiw-g-sub">CRP · Iron · TSH</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(60,170)">
+          <rect width="120" height="56" rx="10" fill="#fff" stroke="#2e7d57"/>
+          <text x="60" y="24" text-anchor="middle" class="hiw-g-label">Lab status</text>
+          <text x="60" y="42" text-anchor="middle" class="hiw-g-sub">high / low / genotype</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(220,130)">
+          <rect width="130" height="60" rx="10" fill="#f4fbf7" stroke="#2e7d57" stroke-width="2"/>
+          <text x="65" y="26" text-anchor="middle" class="hiw-g-label">Pathway</text>
+          <text x="65" y="44" text-anchor="middle" class="hiw-g-sub">NF-κB · IRON · HPA</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(380,70)">
+          <rect width="130" height="60" rx="10" fill="#fff" stroke="#6978d8"/>
+          <text x="65" y="26" text-anchor="middle" class="hiw-g-label">MODULATES</text>
+          <text x="65" y="44" text-anchor="middle" class="hiw-g-sub">edge + confidence</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(380,190)">
+          <rect width="130" height="60" rx="10" fill="#fff" stroke="#6978d8"/>
+          <text x="65" y="26" text-anchor="middle" class="hiw-g-label">TARGETS</text>
+          <text x="65" y="44" text-anchor="middle" class="hiw-g-sub">biomarker / target</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(540,130)">
+          <rect width="140" height="60" rx="10" fill="#eef0fb" stroke="#6978d8" stroke-width="2"/>
+          <text x="70" y="26" text-anchor="middle" class="hiw-g-label">Intervention</text>
+          <text x="70" y="44" text-anchor="middle" class="hiw-g-sub">herb · nutrient · food</text>
+        </g>
+        <g class="hiw-g-node" transform="translate(540,250)">
+          <rect width="140" height="56" rx="10" fill="#fff" stroke="#b7791f"/>
+          <text x="70" y="24" text-anchor="middle" class="hiw-g-label">CONTAINS</text>
+          <text x="70" y="42" text-anchor="middle" class="hiw-g-sub">food → compound</text>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- Charts: tree mix + claim density -->
+  <section class="hiw-section hiw-section-alt" aria-labelledby="charts-title">
+    <h2 id="charts-title">Recommendation trees & pathway density</h2>
+    <div class="hiw-charts">
+      <figure class="hiw-chart-card">
+        <figcaption>Nine recommendation trees</figcaption>
+        <div class="hiw-bar-chart" id="hiw-tree-chart" role="img" aria-label="Bar chart of recommendation trees"></div>
+      </figure>
+      <figure class="hiw-chart-card">
+        <figcaption>Example pathway claim density (illustrative)</figcaption>
+        <div class="hiw-bar-chart" id="hiw-pathway-chart" role="img" aria-label="Bar chart of pathway density"></div>
+      </figure>
+    </div>
+    <p class="hiw-footnote">Charts are schematic for education. Live counts evolve as catalogs and graph edges expand.</p>
+  </section>
+
+  <!-- Decision map -->
+  <section class="hiw-section" aria-labelledby="decision-title">
+    <h2 id="decision-title">From graph hits to the clinical decision map</h2>
+    <ol class="hiw-numbered">
+      <li><strong>Safety layer</strong> — contraindications, drug interactions, regulated flags strip or demote items.</li>
+      <li><strong>Evidence confidence</strong> — study type, quality score, catalog connectivity, and uncertainty.</li>
+      <li><strong>Four lanes</strong> — direct biomarker, lifestyle, supportive adjunct, regulated context.</li>
+      <li><strong>Explainability</strong> — supporting literature, pathway drivers, and limitations stay attached to each recommendation.</li>
+    </ol>
+    <div class="hiw-lanes">
+      <div class="hiw-lane"><span>1</span>Direct biomarker</div>
+      <div class="hiw-lane"><span>2</span>Lifestyle</div>
+      <div class="hiw-lane"><span>3</span>Supportive adjunct</div>
+      <div class="hiw-lane"><span>4</span>Regulated context</div>
+    </div>
+  </section>
+
+  <!-- Safety & limits -->
+  <section class="hiw-section hiw-section-alt" aria-labelledby="limits-title">
+    <h2 id="limits-title">What HerbaGraph does <em>not</em> do</h2>
+    <div class="hiw-cards-2">
+      <article class="hiw-card">
+        <h3>Not a diagnosis</h3>
+        <p>Outputs are evidence synthesis and biological reasoning for research and education. They do not replace licensed medical judgment.</p>
+      </article>
+      <article class="hiw-card">
+        <h3>Not invented literature</h3>
+        <p>Tier A claims carry PMIDs. Predicted graph edges are labeled PREDICTED and scored lower than clinical or meta-analytic edges.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="hiw-cta">
+    <h2>See it on a real-shaped report</h2>
+    <p>Walk a sample clinical report, or upload your own labs in the workspace.</p>
+    <div class="hiw-hero-ctas">
+      <a class="hiw-btn hiw-btn-primary" href="/report.html?demo=1">View sample report</a>
+      <a class="hiw-btn hiw-btn-ghost" href="/signup.html">Create account</a>
+      <a class="hiw-btn hiw-btn-ghost" href="/app.html">Open workspace</a>
+    </div>
+  </section>
+</main>
+
+<footer class="hiw-footer">
+  <p>HerbaGraph · research & decision-support tool · not a medical device</p>
+  <p><a href="/">Home</a> · <a href="/login.html">Sign in</a></p>
+</footer>
+
+<script src="/js/brand-logo.js"></script>
+<script src="/js/how-it-works.js"></script>
+</body>
+</html>

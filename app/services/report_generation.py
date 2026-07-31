@@ -83,16 +83,41 @@ async def _run_pipeline_stages(
     _set_report_stage(session, lab_report, ReportGenerationStage.EVIDENCE_RETRIEVAL)
     knowledge_meta: dict = {"knowledge_path": path.value}
     pathway_to_interventions = None
+    graph_extra_snippets: list = []
     if path == KnowledgePath.CANONICAL:
-        pathway_to_interventions, knowledge_meta = build_interventions_for_canonical_path(
-            routing, pathway_activations, normalized, session
+        from app.pipeline.graph_recommendation_engine import (
+            build_interventions_from_graph,
+            collect_best_hits,
+            graph_hits_to_evidence_snippets,
         )
+
+        pathway_to_interventions, knowledge_meta = build_interventions_from_graph(
+            session, routing, pathway_activations, normalized, hybrid_legacy_fill=True
+        )
+        # If graph has no pathway nodes yet, fall back to registry-filtered legacy
+        if knowledge_meta.get("graph_hits", 0) == 0:
+            from app.pipeline.canonical_graph import build_interventions_for_canonical_path
+
+            pathway_to_interventions, legacy_meta = build_interventions_for_canonical_path(
+                routing, pathway_activations, normalized, session
+            )
+            knowledge_meta = {**knowledge_meta, **legacy_meta, "engine": "canonical_filter_fallback"}
+        else:
+            best_hits = collect_best_hits(session, pathway_activations)
+            graph_extra_snippets = graph_hits_to_evidence_snippets(
+                best_hits, pathway_to_interventions
+            )
+            knowledge_meta["graph_snippet_count"] = len(graph_extra_snippets)
+
     evidence_snippets = await retrieve_evidence(
         pathway_activations,
         routing=routing,
         normalized_labs=normalized,
         pathway_to_interventions=pathway_to_interventions,
     )
+    if graph_extra_snippets:
+        # Prefer graph snippets first for ranking; retrieve_evidence already ranks quality
+        evidence_snippets = [*graph_extra_snippets, *evidence_snippets]
 
     _set_report_stage(session, lab_report, ReportGenerationStage.LLM_REASONING)
     reasoning = await generate_reasoning(
