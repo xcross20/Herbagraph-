@@ -2,94 +2,148 @@
 name: herbagraph-pmid-growth
 description: >
   Continuously grow real PubMed-backed evidence claims for HerbaGraph catalog
-  interventions that lack PMIDs. Use when the user runs /herbagraph-pmid-growth,
-  asks to expand PMIDs, remediate title mismatches, fill claim-less interventions,
-  or schedule ongoing evidence growth. Never invent PMIDs.
+  interventions. Use when the user runs /herbagraph-pmid-growth, asks to expand
+  PMIDs, run a marathon/hour-long growth session, remediate title mismatches,
+  fill claim-less interventions, or schedule ongoing evidence growth. Never invent PMIDs.
 metadata:
-  short-description: "Grow real PMID evidence claims"
+  short-description: "Grow real PMID evidence claims (daily + hour marathon)"
 ---
 
 # HerbaGraph PMID Growth
 
-You expand **real, verifiable** literature claims for interventions in the HerbaGraph catalogs. Predicted graph edges are not enough for M2/M4 depth — this skill fills **PMID-backed** `TIER_A_EVIDENCE_CLAIMS` / longtail claims.
+You expand **real, verifiable** literature claims for interventions in the HerbaGraph catalogs. Predicted graph edges are not enough for M2/M4 depth — this skill fills **PMID-backed** claims (Tier A / longtail / generated).
 
 ## Hard rules
 
 1. **Never invent PMIDs.** Every PMID must be a real PubMed record.
-2. Prefer interventions with **zero claims** first, then thin pathways (`scripts/audit_evidence_gaps.py`).
+2. Prefer interventions with **zero claims** first (`claimless`), then **depth** (extra PMIDs until `min_claims`).
 3. After edits run:
    - `python3 scripts/audit_pmid_integrity.py`
    - `HERBAGRAPH_PMID_AUDIT_STRICT=1 python3 scripts/audit_pmid_integrity.py` when network is available
    - `python3 scripts/audit_evidence_gaps.py`
    - `python3 scripts/validate_seed_counts.py`
-4. Intervention names in claims **must exist** in seeder catalogs (`INTERVENTIONS` / foods / phytochemicals / peptides).
-5. Update `scripts/audit_pmid_integrity.py` `_INTERVENTION_KEYWORDS` for new intervention names.
-6. Add or extend a lab scenario when a claim unlocks a new rec tree path (optional for pure density fills).
-7. Commit with a message that lists intervention names and claim count.
+4. Intervention names in claims **must exist** in seeder catalogs.
+5. Update `scripts/audit_pmid_integrity.py` `_INTERVENTION_KEYWORDS` for new names (batch script does this automatically).
+6. Commit with a message that lists intervention count / mode.
 
 ## Source of truth
 
 | Path | Role |
 |------|------|
-| `app/knowledge_graph/tier_a_evidence.py` | Core Tier A claims |
-| `app/knowledge_graph/catalog_longtail_claims.py` | High-traffic long-tail batch |
-| `app/knowledge_graph/lifestyle_evidence.py` | Lifestyle claims |
-| `app/knowledge_graph/peptide_catalog.py` | Peptide claims |
+| `app/knowledge_graph/tier_a_evidence.py` | Core Tier A claims (+ extends longtail + generated) |
+| `app/knowledge_graph/catalog_longtail_claims.py` | Curated high-traffic long-tail |
+| `app/knowledge_graph/generated_pmid_claims.py` | **Auto cloud batches** (append-only via batch script) |
+| `scripts/pmid_growth_batch.py` | NCBI batch engine (daily + marathon) |
 | `scripts/audit_pmid_integrity.py` | Denylist + keyword map |
-| `scripts/audit_evidence_gaps.py` | Pathway min routable claims |
-| `ops/BACKLOG.json` | Record IMP/slice status |
+| `.github/workflows/pmid-growth.yml` | Cloud schedule + manual dispatch |
 
 ## Invocation
 
-### `/herbagraph-pmid-growth` (default — one batch)
+### `/herbagraph-pmid-growth` (default — interactive batch)
 
-1. Run queue script:
+1. Queue:
    ```bash
    python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --limit 25
    ```
-2. Pick **10–25** interventions from the queue (highest priority first).
-3. For each intervention:
-   - Search PubMed (tooling or `esearch`/`esummary`) for human trials / meta-analyses when possible.
-   - Add claim(s) with: `intervention_name`, `biomarker_name` and/or `pathway_code`, `effect`, `evidence_level`, `pmid`, `recommendation_intent`, `summary`.
-   - Intent rules: `nutritional_repletion` for deficiency repletion; `primary` for tree-driving recs; `context_only` for PGx; `collateral` for secondary.
-4. Add keywords to `_INTERVENTION_KEYWORDS`.
-5. Run integrity + evidence-gap gates.
-6. Update `ops/BACKLOG.json` (new SLICE or mark IMP progress).
-7. Commit and push if the user wants shipping.
+2. Pick **10–25** interventions; search PubMed; add claims; run integrity gates; commit if asked.
 
 ### `/herbagraph-pmid-growth strict`
 
-Same as default, but **must** pass `HERBAGRAPH_PMID_AUDIT_STRICT=1`.
+Must pass `HERBAGRAPH_PMID_AUDIT_STRICT=1`.
 
 ### `/herbagraph-pmid-growth remediate`
 
-1. Run strict audit; collect TITLE_MISMATCH / KNOWN_MISMATCH.
-2. Replace bad PMIDs with verified ones.
-3. Re-run strict audit until 0 failures.
+Replace TITLE_MISMATCH / KNOWN_MISMATCH PMIDs; re-audit until clean.
 
-### `/herbagraph-pmid-growth schedule` (cloud — laptop can be off)
+### `/herbagraph-pmid-growth schedule` (cloud daily)
 
-**Primary path: GitHub Actions** (`.github/workflows/pmid-growth.yml`)
+GitHub Actions daily at **14:00 UTC**, limit **150**, mode **claimless**.
 
-| Setting | Value |
-|---------|--------|
-| Schedule | Daily **14:00 UTC** |
-| Default target | **150** accepted claims |
-| Range | 50–200 (workflow_dispatch input) |
-| Runtime for 100 | ~**2.5–4 minutes** without NCBI key; ~**1.5–3 min** with `NCBI_API_KEY` |
-| Output | PR branch `chore/pmid-growth-auto` |
-| Files | `app/knowledge_graph/generated_pmid_claims.py`, `ops/pmid_growth_last_run.json` |
+Secrets (repo Actions): `NCBI_API_KEY`, `NCBI_EMAIL`.
+
+### `/herbagraph-pmid-growth marathon` (hour-long — thousands)
+
+**Use this when the user wants a long continuous run / thousands of results.**
+
+Runs the batch engine until **wall-clock duration** or **limit**, whichever first. Hybrid queue = claimless first, then depth (extra PMIDs per intervention up to `min_claims`).
+
+| Setting | Marathon default |
+|---------|------------------|
+| Duration | **60 minutes** (`--max-seconds 3600`) |
+| Limit | **4000** accepted (hard cap 8000) |
+| Mode | **hybrid** |
+| min_claims | **5** (multiple PMIDs per intervention) |
+| Checkpoint | every **50** accepts (crash-safe) |
+| Expected yield | ~**2000–3500**/hour with `NCBI_API_KEY`; ~**800–1500**/hour without |
+| Job timeout | 120 minutes (install + gates + PR) |
+
+#### Cloud (preferred)
 
 ```bash
-# Local timed batch
-python3 scripts/pmid_growth_batch.py --limit 100 --dry-run
-python3 scripts/pmid_growth_batch.py --limit 150 --write
+# Via GitHub CLI — hour marathon on main
+gh workflow run "PMID growth (cloud)" --ref main \
+  -f mode=marathon \
+  -f limit=4000 \
+  -f duration_minutes=60 \
+  -f dry_run=false
 
-# Manual cloud: GitHub → Actions → "PMID growth (cloud)" → Run workflow
-# Secrets (optional but recommended): NCBI_API_KEY, NCBI_EMAIL
+# Or: Actions → PMID growth (cloud) → Run workflow
+#   mode: marathon
+#   limit: 4000
+#   duration_minutes: 60
 ```
 
-Grok durable schedulers are **not** a substitute — they depend on the agent platform. Use **GitHub Actions** for true always-on cloud.
+#### Local
+
+```bash
+export NCBI_API_KEY=...   # strongly recommended
+export NCBI_EMAIL=you@example.com
+
+python3 scripts/pmid_growth_batch.py \
+  --max-seconds 3600 \
+  --limit 5000 \
+  --mode hybrid \
+  --min-claims 5 \
+  --checkpoint-every 50 \
+  --write \
+  --json-out ops/pmid_growth_last_run.json
+
+# Then gates + PR/commit as usual
+python3 scripts/audit_pmid_integrity.py
+python3 scripts/audit_evidence_gaps.py
+python3 scripts/validate_seed_counts.py
+```
+
+#### Agent behavior for marathon
+
+1. Confirm `NCBI_API_KEY` is set in GitHub secrets (or local env). Log must show `api_key=yes`.
+2. Prefer **cloud** (`gh workflow run` / Actions) so laptop can sleep.
+3. Do **not** invent PMIDs or lower title-match quality for speed.
+4. After run: open/merge the auto PR (`chore/pmid-growth-auto`); summarize `accepted`, `elapsed`, `stop_reason`, `est_accepted_per_hour` from `ops/pmid_growth_last_run.json`.
+5. If queue starves (`stop_reason=queue_exhausted` early): raise `--min-claims` (e.g. 5) or expand catalog; claimless alone caps near catalog size (~800–900 names).
+
+## Queue modes
+
+| Mode | Who gets searched |
+|------|-------------------|
+| `claimless` | Zero PMID claims (daily default) |
+| `depth` | Has claims but fewer than `min_claims` |
+| `hybrid` | Claimless first, then depth (marathon) |
+
+```bash
+python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --mode hybrid --limit 50
+```
+
+## Batch size guide
+
+| Goal | Command / input |
+|------|-----------------|
+| Daily steady | limit 100–150, mode daily / claimless |
+| First quality PR | limit 100, dry_run optional |
+| **Hour / thousands** | **mode=marathon, duration=60, limit=4000** |
+| Interactive review | 10–25 curated claims |
+
+Throughput (measured with key): ~**1.1 s/accepted** → theoretical ~**3200/hour**; real ~**2000–3500** after skips.
 
 ## Claim template
 
@@ -101,16 +155,11 @@ Grok durable schedulers are **not** a substitute — they depend on the agent pl
 ```
 
 - Curated high-traffic → `catalog_longtail_claims.py`
-- Automated cloud batches → `generated_pmid_claims.py` (via `pmid_growth_batch.py`)
-
-## Batch size
-
-- Cloud default: **100–150/day** (up to **200**)
-- Interactive Grok review batches: **10–25** still fine
-- Claim routing is code-side; reseed only if DB evidence consumers matter
+- Automated cloud / marathon → `generated_pmid_claims.py`
 
 ## Non-goals
 
 - Inventing PMIDs or fake trials
 - Clinical validation / medical advice
-- Replacing predicted graph edges (they stay for long-tail until PMID exists)
+- Replacing predicted graph edges (they stay until PMID exists)
+- Running marathon without integrity gates after write

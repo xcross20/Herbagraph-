@@ -387,23 +387,31 @@ python scripts/bootstrap_graph_edges.py
 
 **Always-on (recommended):** GitHub Action `.github/workflows/pmid-growth.yml`
 
-- Runs daily at **14:00 UTC** on GitHub (laptop can be off)
-- Target **100–200** accepted claims/run (default **150**)
+- **Daily** at **14:00 UTC**: ~**100–200** accepted claims (default **150**, claimless queue)
+- **Marathon** (manual): up to **60 minutes** hybrid queue → ~**thousands** of claims (`mode=marathon`)
 - Searches PubMed via NCBI E-utilities — **never invents PMIDs**
 - Opens PR `chore/pmid-growth-auto` after integrity gates
-- Timing (measured dry-run, no API key): **~100 claims in ~2.7 minutes** (~1.6s/accepted)
+- Timing with `NCBI_API_KEY`: ~**1.1 s/accepted** (~100 in ~2 min; hour marathon ~2k–3.5k)
 
 ```bash
-# Local
+# Local daily
 python3 .grok/skills/herbagraph-pmid-growth/scripts/pmid_growth_queue.py --limit 20
-python3 scripts/pmid_growth_batch.py --limit 100 --dry-run   # time a batch
-python3 scripts/pmid_growth_batch.py --limit 150 --write     # write generated_pmid_claims.py
+python3 scripts/pmid_growth_batch.py --limit 100 --dry-run
+python3 scripts/pmid_growth_batch.py --limit 150 --write
 
-# Manual cloud: GitHub → Actions → "PMID growth (cloud)" → Run workflow
-# Optional secrets: NCBI_API_KEY (faster), NCBI_EMAIL
+# Local hour marathon (hybrid + checkpoints)
+python3 scripts/pmid_growth_batch.py --max-seconds 3600 --limit 5000 \
+  --mode hybrid --min-claims 5 --checkpoint-every 50 --write \
+  --json-out ops/pmid_growth_last_run.json
+
+# Cloud marathon
+gh workflow run "PMID growth (cloud)" --ref main \
+  -f mode=marathon -f limit=4000 -f duration_minutes=60 -f dry_run=false
+
+# Secrets (Actions): NCBI_API_KEY, NCBI_EMAIL
 ```
 
-Interactive Grok skill: **`/herbagraph-pmid-growth`** (smaller review batches).
+Skill: **`/herbagraph-pmid-growth`** · marathon: **`/herbagraph-pmid-growth marathon`**.
 
 ---
 

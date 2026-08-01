@@ -26,6 +26,21 @@
 - Core clinical Tier A → `tier_a_evidence.py`
 - Lifestyle methods → `lifestyle_evidence.py`
 - Peptides → `peptide_catalog.py` `PEPTIDE_EVIDENCE_CLAIMS`
+- Automated daily / **hour marathon** batches → `generated_pmid_claims.py` via `scripts/pmid_growth_batch.py`
+
+## Marathon (hour / thousands)
+
+```bash
+# Cloud
+gh workflow run "PMID growth (cloud)" --ref main \
+  -f mode=marathon -f limit=4000 -f duration_minutes=60 -f dry_run=false
+
+# Local
+python3 scripts/pmid_growth_batch.py --max-seconds 3600 --limit 5000 \
+  --mode hybrid --min-claims 3 --checkpoint-every 50 --write
+```
+
+Requires `NCBI_API_KEY` for full throughput. Hybrid = claimless + depth (extra PMIDs per name).
 
 ## After each batch
 

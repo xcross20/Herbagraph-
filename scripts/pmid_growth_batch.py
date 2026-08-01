@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cloud/local batch: grow real PMID claims for claim-less catalog interventions.
+"""Cloud/local batch: grow real PMID claims for catalog interventions.
 
 Uses NCBI E-utilities only — never invents PMIDs. A claim is written only when a
 PubMed title matches intervention keywords.
@@ -11,11 +11,16 @@ Examples:
   # Write up to 150 validated claims (daily cloud target)
   python3 scripts/pmid_growth_batch.py --limit 150 --write
 
+  # Hour marathon (~thousands with hybrid mode + API key)
+  python3 scripts/pmid_growth_batch.py --max-seconds 3600 --limit 5000 \\
+      --mode hybrid --write --checkpoint-every 50 \\
+      --json-out ops/pmid_growth_last_run.json
+
   # JSON summary for CI
   python3 scripts/pmid_growth_batch.py --limit 100 --write --json-out ops/pmid_growth_last_run.json
 
 Env:
-  NCBI_API_KEY  optional — higher rate limit
+  NCBI_API_KEY  optional — higher rate limit (~10 rps vs ~3)
   NCBI_EMAIL    optional — polite identification (default from settings/env)
 """
 
@@ -98,20 +103,27 @@ def _keywords(name: str) -> list[str]:
     return kws[:8] or [name.lower()]
 
 
-def search_pmids(intervention: str, *, retmax: int = 5) -> list[str]:
+def search_pmids(intervention: str, *, retmax: int = 5, offset: int = 0) -> list[str]:
+    """Search PubMed; offset paginates for depth mode (extra PMIDs)."""
     # Prefer clinical literature
     term = (
         f'("{intervention}"[Title/Abstract]) AND '
         f"(clinical trial[Publication Type] OR meta-analysis[Publication Type] "
         f"OR systematic review[Publication Type] OR randomized[Title/Abstract] OR trial[Title/Abstract])"
     )
-    url = f"{_ESEARCH}?db=pubmed&retmode=json&retmax={retmax}&{_ncbi_params(term=term)}"
+    url = (
+        f"{_ESEARCH}?db=pubmed&retmode=json&retmax={retmax}&retstart={offset}"
+        f"&{_ncbi_params(term=term)}"
+    )
     try:
         data = _http_get_json(url)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         # Broader fallback
         term2 = f'"{intervention}"[Title/Abstract]'
-        url2 = f"{_ESEARCH}?db=pubmed&retmode=json&retmax={retmax}&{_ncbi_params(term=term2)}"
+        url2 = (
+            f"{_ESEARCH}?db=pubmed&retmode=json&retmax={retmax}&retstart={offset}"
+            f"&{_ncbi_params(term=term2)}"
+        )
         try:
             data = _http_get_json(url2)
         except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
@@ -292,36 +304,92 @@ def process_batch(
     limit: int,
     dry_run: bool,
     sleep_s: float,
-    max_attempts_factor: int = 3,
+    max_seconds: float | None = None,
+    mode: str = "claimless",
+    min_claims: int = 3,
+    checkpoint_every: int = 0,
+    max_attempts_factor: int = 4,
 ) -> dict:
+    """Grow claims until limit accepted or max_seconds wall clock (whichever first)."""
     t0 = time.time()
     if build_queue is None:
         raise RuntimeError("pmid_growth_queue.build_queue unavailable")
 
-    # Over-fetch queue: many names fail title match
-    queue = build_queue(limit=limit * max_attempts_factor)
+    # Over-fetch queue: many names fail title match; marathon needs headroom
+    queue_cap = max(limit * max_attempts_factor, limit + 500)
+    if max_seconds and max_seconds >= 1800:
+        # Hour runs: pull the full hybrid catalog so we do not starve mid-run
+        queue_cap = max(queue_cap, 8000)
+    queue = build_queue(limit=queue_cap, mode=mode, min_claims=min_claims)
     existing_keys = _load_existing_claim_keys()
     accepted: list[dict] = []
     skipped: list[dict] = []
     errors: list[dict] = []
     attempts = 0
+    checkpoints = 0
+    written_total = 0
+    keywords_total = 0
+    stop_reason = "queue_exhausted"
+    last_checkpoint_at = 0
+
+    def _maybe_checkpoint(force: bool = False) -> None:
+        nonlocal checkpoints, written_total, keywords_total, last_checkpoint_at
+        if dry_run or not accepted:
+            return
+        if not force and (checkpoint_every <= 0 or len(accepted) - last_checkpoint_at < checkpoint_every):
+            return
+        # Only flush claims not yet written (slice from last checkpoint)
+        chunk = accepted[last_checkpoint_at:]
+        if not chunk:
+            return
+        written_total += _write_generated_claims(chunk)
+        keywords_total += _ensure_keyword_entries([c["intervention_name"] for c in chunk])
+        last_checkpoint_at = len(accepted)
+        checkpoints += 1
+        print(
+            f"  checkpoint #{checkpoints}: accepted={len(accepted)} "
+            f"elapsed={time.time() - t0:.0f}s",
+            flush=True,
+        )
 
     for row in queue:
         if len(accepted) >= limit:
+            stop_reason = "limit_reached"
             break
+        if max_seconds is not None and (time.time() - t0) >= max_seconds:
+            stop_reason = "max_seconds"
+            break
+
         attempts += 1
         name = row["name"]
+        queue_mode = row.get("queue_mode") or mode
+        existing_for_name = int(row.get("existing_claims") or 0)
+        # How many new claims to take from this intervention this pass.
+        # Marathon/hybrid uses min_claims>1 so claimless rows also fill multiple PMIDs.
+        if min_claims > 1 or queue_mode == "depth":
+            per_name_cap = max(1, min_claims - existing_for_name)
+            retmax = min(20, max(8, per_name_cap * 5))
+            offset = 0 if existing_for_name == 0 else min(existing_for_name * 3, 40)
+        else:
+            per_name_cap = 1
+            retmax = 5
+            offset = 0
         try:
-            pmids = search_pmids(name)
+            pmids = search_pmids(name, retmax=retmax, offset=offset)
             time.sleep(sleep_s)
             if not pmids:
-                skipped.append({"name": name, "reason": "no_pmids"})
+                skipped.append({"name": name, "reason": "no_pmids", "mode": queue_mode})
                 continue
-            titles = fetch_titles(pmids[:5])
+            titles = fetch_titles(pmids[:retmax])
             time.sleep(sleep_s)
-            chosen = None
-            chosen_title = ""
+            took = 0
             for pmid in pmids:
+                if len(accepted) >= limit:
+                    break
+                if max_seconds is not None and (time.time() - t0) >= max_seconds:
+                    break
+                if took >= per_name_cap:
+                    break
                 title = titles.get(pmid, "")
                 if not title:
                     continue
@@ -329,33 +397,46 @@ def process_batch(
                     continue
                 if (name, str(pmid)) in existing_keys:
                     continue
-                chosen = pmid
-                chosen_title = title
-                break
-            if not chosen:
-                skipped.append({"name": name, "reason": "no_title_match", "pmids": pmids[:3]})
-                continue
-            claim = build_claim(row, chosen, chosen_title)
-            accepted.append(claim)
-            existing_keys.add((name, str(chosen)))
+                claim = build_claim(row, pmid, title)
+                accepted.append(claim)
+                existing_keys.add((name, str(pmid)))
+                took += 1
+                _maybe_checkpoint(force=False)
+            if took == 0:
+                skipped.append(
+                    {
+                        "name": name,
+                        "reason": "no_title_match",
+                        "pmids": pmids[:3],
+                        "mode": queue_mode,
+                    }
+                )
         except Exception as exc:  # noqa: BLE001
             errors.append({"name": name, "error": str(exc)[:200]})
             time.sleep(sleep_s)
 
-    elapsed = time.time() - t0
-    written = 0
-    keywords_added = 0
+    # Final flush of any un-checkpointed claims
     if not dry_run and accepted:
-        written = _write_generated_claims(accepted)
-        keywords_added = _ensure_keyword_entries([c["intervention_name"] for c in accepted])
+        if checkpoint_every > 0:
+            _maybe_checkpoint(force=True)
+        else:
+            written_total = _write_generated_claims(accepted)
+            keywords_total = _ensure_keyword_entries([c["intervention_name"] for c in accepted])
 
+    elapsed = time.time() - t0
     return {
         "limit": limit,
+        "max_seconds": max_seconds,
+        "mode": mode,
+        "min_claims": min_claims,
         "dry_run": dry_run,
+        "stop_reason": stop_reason,
+        "queue_size": len(queue),
         "queue_scanned": attempts,
         "accepted": len(accepted),
-        "written": written,
-        "keywords_added": keywords_added,
+        "written": written_total,
+        "keywords_added": keywords_total,
+        "checkpoints": checkpoints,
         "skipped": len(skipped),
         "errors": len(errors),
         "elapsed_seconds": round(elapsed, 2),
@@ -364,6 +445,10 @@ def process_batch(
         "est_seconds_for_100_accepted": round((elapsed / max(len(accepted), 1)) * 100, 1)
         if accepted
         else None,
+        "est_accepted_per_hour": round((len(accepted) / max(elapsed, 0.001)) * 3600, 0)
+        if accepted
+        else None,
+        "api_key": bool((os.environ.get("NCBI_API_KEY") or "").strip()),
         "claims": accepted,
         "skip_samples": skipped[:15],
         "error_samples": errors[:10],
@@ -371,8 +456,39 @@ def process_batch(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Grow real PMID claims for claim-less interventions")
-    parser.add_argument("--limit", type=int, default=100, help="Target number of accepted claims (default 100)")
+    parser = argparse.ArgumentParser(
+        description="Grow real PMID claims (daily batch or hour marathon)"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Max accepted claims this run (default 100; marathon often 3000–5000)",
+    )
+    parser.add_argument(
+        "--max-seconds",
+        type=float,
+        default=None,
+        help="Stop after this many wall-clock seconds (e.g. 3600 for one hour)",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("claimless", "depth", "hybrid"),
+        default="claimless",
+        help="Queue mode: claimless | depth | hybrid (default claimless; marathon → hybrid)",
+    )
+    parser.add_argument(
+        "--min-claims",
+        type=int,
+        default=3,
+        help="Depth/hybrid: keep adding PMIDs until intervention has this many (default 3)",
+    )
+    parser.add_argument(
+        "--checkpoint-every",
+        type=int,
+        default=0,
+        help="Write claims to disk every N accepts (recommended 50 for hour runs)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Do not write files")
     parser.add_argument("--write", action="store_true", help="Write generated claims + keyword stubs")
     parser.add_argument("--sleep", type=float, default=None, help="Seconds between NCBI calls")
@@ -385,11 +501,23 @@ def main() -> int:
         sleep_s = 0.12 if (os.environ.get("NCBI_API_KEY") or "").strip() else _DEFAULT_SLEEP
 
     print(
-        f"PMID growth batch: target={args.limit} write={write} sleep={sleep_s}s "
-        f"api_key={'yes' if (os.environ.get('NCBI_API_KEY') or '').strip() else 'no'}"
+        f"PMID growth batch: target={args.limit} max_seconds={args.max_seconds} "
+        f"mode={args.mode} min_claims={args.min_claims} write={write} "
+        f"checkpoint_every={args.checkpoint_every} sleep={sleep_s}s "
+        f"api_key={'yes' if (os.environ.get('NCBI_API_KEY') or '').strip() else 'no'}",
+        flush=True,
     )
-    summary = process_batch(limit=args.limit, dry_run=not write, sleep_s=sleep_s)
+    summary = process_batch(
+        limit=args.limit,
+        dry_run=not write,
+        sleep_s=sleep_s,
+        max_seconds=args.max_seconds,
+        mode=args.mode,
+        min_claims=args.min_claims,
+        checkpoint_every=args.checkpoint_every if write else 0,
+    )
 
+    print(f"Stop reason: {summary['stop_reason']}")
     print(f"Scanned:   {summary['queue_scanned']}")
     print(f"Accepted:  {summary['accepted']}")
     print(f"Written:   {summary['written']}")
@@ -397,6 +525,8 @@ def main() -> int:
     print(f"Errors:    {summary['errors']}")
     print(f"Elapsed:   {summary['elapsed_seconds']}s")
     print(f"Per accepted: {summary['seconds_per_accepted']}s")
+    if summary.get("est_accepted_per_hour") is not None:
+        print(f"Est. rate: ~{int(summary['est_accepted_per_hour'])} accepted/hour")
     if summary.get("est_seconds_for_100_accepted"):
         print(f"Est. for 100 accepted: {summary['est_seconds_for_100_accepted']}s")
     if summary["claims"]:
@@ -406,8 +536,12 @@ def main() -> int:
 
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        # Don't dump full claim summaries twice in huge CI logs — keep claims
         out = dict(summary)
+        # Cap claims in JSON for huge marathon runs (keep samples)
+        if len(out.get("claims") or []) > 200:
+            out["claims_truncated"] = True
+            out["claims_full_count"] = len(out["claims"])
+            out["claims"] = out["claims"][:200]
         args.json_out.write_text(json.dumps(out, indent=2), encoding="utf-8")
         print(f"Wrote {args.json_out}")
 

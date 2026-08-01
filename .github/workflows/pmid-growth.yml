@@ -1,22 +1,40 @@
 # Cloud PMID growth — runs on GitHub, independent of your laptop.
 #
-# Target: ~100–200 real PubMed-backed claims per day for claim-less catalog interventions.
-# Never invents PMIDs: only writes claims when a PubMed title matches intervention keywords.
+# Modes:
+#   daily    — ~100–200 accepted claims (default schedule)
+#   marathon — run up to 1 hour with hybrid queue (claimless + depth) for ~thousands
 #
-# Manual run: Actions → "PMID growth (cloud)" → Run workflow → set limit (100–200).
+# Never invents PMIDs: only writes claims when a PubMed title matches keywords.
+#
+# Manual: Actions → "PMID growth (cloud)" → Run workflow
+#   - mode: daily | marathon
+#   - limit: max accepted claims
+#   - duration_minutes: wall-clock stop (marathon default 60)
 
 name: PMID growth (cloud)
 
 on:
   schedule:
-    # 14:00 UTC daily (~9–10am US Central depending on DST)
+    # Daily batch 14:00 UTC (~9–10am US Central depending on DST)
     - cron: "0 14 * * *"
   workflow_dispatch:
     inputs:
+      mode:
+        description: "daily (~100–200) or marathon (hour-long hybrid, thousands)"
+        required: true
+        default: "daily"
+        type: choice
+        options:
+          - "daily"
+          - "marathon"
       limit:
-        description: "Target accepted claims this run (100–200 recommended)"
+        description: "Max accepted claims this run (daily 100–200; marathon up to 5000)"
         required: true
         default: "150"
+      duration_minutes:
+        description: "Wall-clock minutes before stop (0 = limit only; marathon often 60)"
+        required: true
+        default: "0"
       dry_run:
         description: "Dry run (search only, no file write)"
         required: true
@@ -37,7 +55,8 @@ concurrency:
 jobs:
   grow-pmids:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # Marathon needs headroom beyond 60m for install + gates + PR
+    timeout-minutes: 120
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,33 +72,67 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          # Minimal deps for catalog imports + SSL
           pip install -r requirements.txt
           pip install certifi
 
-      - name: Resolve batch size
+      - name: Resolve batch parameters
         id: batch
         run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ github.event.inputs.mode }}"
             LIMIT="${{ github.event.inputs.limit }}"
+            DURATION_MIN="${{ github.event.inputs.duration_minutes }}"
             DRY="${{ github.event.inputs.dry_run }}"
           else
+            # Scheduled daily default
+            MODE="daily"
             LIMIT="150"
+            DURATION_MIN="0"
             DRY="false"
           fi
-          # Clamp 50–200 for safety
-          if [ "$LIMIT" -lt 50 ]; then LIMIT=50; fi
-          if [ "$LIMIT" -gt 200 ]; then LIMIT=200; fi
+
+          if [ "$MODE" = "marathon" ]; then
+            QUEUE_MODE="hybrid"
+            # 5 PMIDs/name × ~800 catalog → room for ~thousands in one hour
+            MIN_CLAIMS="5"
+            CHECKPOINT="50"
+            # Default marathon wall clock = 60 minutes if user left 0
+            if [ "${DURATION_MIN:-0}" -eq 0 ]; then
+              DURATION_MIN="60"
+            fi
+            # Soft default limit for marathon if still daily-sized
+            if [ "$LIMIT" -le 200 ]; then
+              LIMIT="4000"
+            fi
+            # Hard caps
+            if [ "$LIMIT" -gt 8000 ]; then LIMIT=8000; fi
+            if [ "$DURATION_MIN" -gt 90 ]; then DURATION_MIN=90; fi
+          else
+            QUEUE_MODE="claimless"
+            MIN_CLAIMS="1"
+            CHECKPOINT="0"
+            if [ "$LIMIT" -lt 50 ]; then LIMIT=50; fi
+            if [ "$LIMIT" -gt 500 ]; then LIMIT=500; fi
+            if [ "${DURATION_MIN:-0}" -gt 30 ]; then DURATION_MIN=30; fi
+          fi
+
+          MAX_SECONDS=$(( DURATION_MIN * 60 ))
+
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "queue_mode=$QUEUE_MODE" >> "$GITHUB_OUTPUT"
           echo "limit=$LIMIT" >> "$GITHUB_OUTPUT"
+          echo "duration_min=$DURATION_MIN" >> "$GITHUB_OUTPUT"
+          echo "max_seconds=$MAX_SECONDS" >> "$GITHUB_OUTPUT"
+          echo "min_claims=$MIN_CLAIMS" >> "$GITHUB_OUTPUT"
+          echo "checkpoint=$CHECKPOINT" >> "$GITHUB_OUTPUT"
           echo "dry_run=$DRY" >> "$GITHUB_OUTPUT"
-          echo "Batch limit=$LIMIT dry_run=$DRY"
+          echo "Resolved: mode=$MODE queue=$QUEUE_MODE limit=$LIMIT duration=${DURATION_MIN}m max_seconds=$MAX_SECONDS dry=$DRY"
 
       - name: Run PMID growth batch
         env:
           NCBI_API_KEY: ${{ secrets.NCBI_API_KEY }}
           NCBI_EMAIL: ${{ secrets.NCBI_EMAIL }}
-          # Avoid loading full app settings that need DB
-          # Quote URL: bare :memory: is invalid YAML (colon ambiguity)
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           SECRET_KEY: ci-pmid-growth-secret-key-not-for-prod-0123456789
           ENCRYPTION_KEY: unused-ci-placeholder
@@ -88,13 +141,30 @@ jobs:
         run: |
           set -euo pipefail
           export NCBI_EMAIL="${NCBI_EMAIL:-ci@herbagraph.io}"
-          FLAGS=(--limit "${{ steps.batch.outputs.limit }}" --json-out ops/pmid_growth_last_run.json)
+          if [ -z "${NCBI_API_KEY:-}" ]; then
+            echo "::warning::NCBI_API_KEY secret is empty — rate limited (~3 rps). Marathon will be slower."
+          else
+            echo "NCBI_API_KEY present (masked)."
+          fi
+
+          FLAGS=(
+            --limit "${{ steps.batch.outputs.limit }}"
+            --mode "${{ steps.batch.outputs.queue_mode }}"
+            --min-claims "${{ steps.batch.outputs.min_claims }}"
+            --checkpoint-every "${{ steps.batch.outputs.checkpoint }}"
+            --json-out ops/pmid_growth_last_run.json
+          )
+          if [ "${{ steps.batch.outputs.max_seconds }}" -gt 0 ]; then
+            FLAGS+=(--max-seconds "${{ steps.batch.outputs.max_seconds }}")
+          fi
           if [ "${{ steps.batch.outputs.dry_run }}" = "true" ]; then
             FLAGS+=(--dry-run)
           else
             FLAGS+=(--write)
           fi
+
           python scripts/pmid_growth_batch.py "${FLAGS[@]}"
+
           echo "---- summary ----"
           python - <<'PY'
           import json
@@ -102,7 +172,11 @@ jobs:
           p = Path("ops/pmid_growth_last_run.json")
           if p.is_file():
               d = json.loads(p.read_text())
-              for k in ("accepted","written","skipped","elapsed_seconds","seconds_per_accepted","est_seconds_for_100_accepted"):
+              for k in (
+                  "mode", "stop_reason", "accepted", "written", "skipped", "errors",
+                  "elapsed_seconds", "seconds_per_accepted", "est_accepted_per_hour",
+                  "api_key", "checkpoints", "queue_scanned",
+              ):
                   print(f"{k}: {d.get(k)}")
           PY
 
@@ -127,29 +201,31 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |
-            chore(evidence): cloud PMID growth batch
+            chore(evidence): cloud PMID growth batch (${{ steps.batch.outputs.mode }})
 
-            Automated PubMed-backed claims for claim-less catalog interventions.
-            Generated by scripts/pmid_growth_batch.py (never invents PMIDs).
-          title: "chore(evidence): daily PMID growth batch"
+            Automated PubMed-backed claims via scripts/pmid_growth_batch.py
+            (never invents PMIDs). mode=${{ steps.batch.outputs.mode }}
+            limit=${{ steps.batch.outputs.limit }} duration=${{ steps.batch.outputs.duration_min }}m
+          title: "chore(evidence): PMID growth (${{ steps.batch.outputs.mode }})"
           body: |
-            ## Cloud PMID growth
+            ## Cloud PMID growth — `${{ steps.batch.outputs.mode }}`
 
             Automated batch from workflow **PMID growth (cloud)**.
 
-            - Target limit: `${{ steps.batch.outputs.limit }}`
-            - Summary: see `ops/pmid_growth_last_run.json` in this PR
-            - Gates: `audit_pmid_integrity`, `audit_evidence_gaps`, `validate_seed_counts`
+            | Param | Value |
+            |-------|------:|
+            | Mode | `${{ steps.batch.outputs.mode }}` |
+            | Queue | `${{ steps.batch.outputs.queue_mode }}` |
+            | Limit | `${{ steps.batch.outputs.limit }}` |
+            | Duration | `${{ steps.batch.outputs.duration_min }}` min |
+            | Summary | `ops/pmid_growth_last_run.json` |
 
             **Review tips**
             - Skim new rows in `app/knowledge_graph/generated_pmid_claims.py`
             - Spot-check a few PMIDs on PubMed
-            - Merge when satisfied; reseed not required for code-side routing
+            - Marathon runs can be large — review in chunks via Files changed
 
-            Optional strict audit after merge (local/network):
-            ```bash
-            HERBAGRAPH_PMID_AUDIT_STRICT=1 python3 scripts/audit_pmid_integrity.py
-            ```
+            Gates: `audit_pmid_integrity`, `audit_evidence_gaps`, `validate_seed_counts`
           branch: chore/pmid-growth-auto
           delete-branch: true
           labels: |
