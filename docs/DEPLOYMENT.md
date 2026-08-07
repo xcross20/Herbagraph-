@@ -144,6 +144,15 @@ curl https://www.herbagraph.com/api/v1/system/status
 
 If confirmation opens a Supabase error page, the redirect URL is almost always **missing from the allow list** above — add `/auth/callback.html` and save.
 
+**No confirmation email arriving?**
+
+Supabase’s built-in mailer is heavily rate-limited (often only a few messages per hour). Signup then returns `email rate limit exceeded` and **no mail is sent**.
+
+1. Supabase → **Authentication** → **Users** — see if the user row exists.
+2. Open the user → **Send password recovery** / resend confirmation if available, or set **Email confirmed** manually for testing.
+3. Wait ~1 hour before retrying signup emails on the free mailer.
+4. For production: **Project Settings → Authentication → SMTP Settings** (or Auth → Emails) and connect **custom SMTP** (Resend, SendGrid, Postmark, AWS SES, etc.).
+
 Users sign in via `/login.html` or `/signup.html`; local user rows are created on `POST /api/v1/auth/sync`.
 
 ## Google OAuth (Supabase)

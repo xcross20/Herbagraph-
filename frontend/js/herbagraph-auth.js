@@ -470,11 +470,25 @@ window.HerbaGraphAuth = (function () {
           emailRedirectTo,
         },
       });
-      if (error) throw new Error(error.message);
+      if (error) {
+        const msg = error.message || "Sign up failed";
+        const lower = msg.toLowerCase();
+        if (lower.includes("rate limit") || lower.includes("429") || error.status === 429) {
+          const rateErr = new Error(
+            "Email rate limit reached (Supabase default mailer is very limited). "
+              + "Wait about an hour, check spam, or confirm the user manually in Supabase "
+              + "(Authentication → Users). For production, add custom SMTP in Supabase."
+          );
+          rateErr.code = "EMAIL_RATE_LIMIT";
+          throw rateErr;
+        }
+        throw new Error(msg);
+      }
       if (!data.session) {
         // Email confirmation required — not an error.
         const err = new Error(
-          "Check your email to verify your account. Open the confirmation link to finish signing up."
+          "Check your email to verify your account. Open the confirmation link to finish signing up. "
+            + "If nothing arrives in a few minutes, check spam — Supabase free email is rate-limited."
         );
         err.code = "EMAIL_CONFIRMATION_REQUIRED";
         throw err;

@@ -261,13 +261,16 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     });
   } catch (err) {
     const msg = formatSignupError(err.message);
-    if (err.code === "EMAIL_CONFIRMATION_REQUIRED" || (err.message || "").includes("Check your email")) {
+    if (err.code === "EMAIL_RATE_LIMIT" || (err.message || "").toLowerCase().includes("rate limit")) {
+      UI.setBanner(document.getElementById("auth-banner"), err.message, "error");
+    } else if (err.code === "EMAIL_CONFIRMATION_REQUIRED" || (err.message || "").includes("Check your email")) {
       localStorage.setItem("hg_account_type", UI.getSelectedAccountRole());
       localStorage.setItem("hg_onboarding_pending", "1");
       UI.setBanner(
         document.getElementById("auth-banner"),
-        "Account created. Check your email and open the confirmation link to finish signing up. "
-          + "After confirming you will land in your workspace automatically.",
+        "Account created. Check your email (and spam) for the confirmation link. "
+          + "After confirming you will land in your workspace automatically. "
+          + "If no email arrives, Supabase may be rate-limiting — wait ~1 hour or confirm the user in the Supabase dashboard.",
         "ok"
       );
     } else if (msg.includes("Sign in instead")) {
