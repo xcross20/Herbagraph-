@@ -238,6 +238,48 @@ async def test_delete_lab_report_removes_it(authed_client):
     assert get_resp.status_code == 404
 
 
+async def test_delete_lab_report_with_linked_session_rows(authed_client, db_session):
+    """Labs linked into analysis sessions must still be deletable (cascade dependents)."""
+    from app.models.analysis_session import AnalysisSession, AnalysisSessionLabReport
+    from app.models.enums import AnalysisSessionStatus, AnalysisType
+    from app.models.lab import LabReport
+    from sqlalchemy import select
+
+    upload = await authed_client.post("/api/v1/labs/upload", files=_lab_file())
+    assert upload.status_code == 201
+    lab_report_id = upload.json()["lab_report_id"]
+
+    me = await authed_client.get("/api/v1/auth/me")
+    user_id = me.json()["id"]
+
+    # Attach session link via ORM (simulates integrated analysis)
+    lab = (
+        await db_session.execute(select(LabReport).where(LabReport.id == lab_report_id))
+    ).scalar_one()
+    session = AnalysisSession(
+        user_id=user_id,
+        patient_id=lab.patient_id,
+        title="Test session",
+        analysis_type=AnalysisType.MULTI_REPORT_SNAPSHOT,
+        status=AnalysisSessionStatus.COMPLETE,
+    )
+    db_session.add(session)
+    await db_session.flush()
+    db_session.add(
+        AnalysisSessionLabReport(
+            analysis_session_id=session.id,
+            lab_report_id=lab.id,
+            panel_label="CBC",
+        )
+    )
+    await db_session.commit()
+
+    delete_resp = await authed_client.delete(f"/api/v1/labs/{lab_report_id}")
+    assert delete_resp.status_code == 204, delete_resp.text
+    get_resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}")
+    assert get_resp.status_code == 404
+
+
 async def test_download_lab_file_returns_original_bytes(authed_client):
     content = b"CRP    8.20  mg/L   (0.00-3.00)\n"
     upload = await authed_client.post(

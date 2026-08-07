@@ -1356,21 +1356,25 @@ function wireLabManage(patientId) {
   async function deleteLabs(ids, names) {
     if (!ids.length) return;
     const label = ids.length === 1
-      ? `Delete “${names[0] || "this lab"}”? This cannot be undone.`
-      : `Delete ${ids.length} lab files? This cannot be undone.`;
+      ? `Delete “${names[0] || "this lab"}”? Related reports linked only to this file will also be removed. This cannot be undone.`
+      : `Delete ${ids.length} lab files? Related reports linked only to these files will also be removed. This cannot be undone.`;
     if (!confirm(label)) return;
     if (statusEl) statusEl.textContent = `Deleting ${ids.length} file(s)…`;
-    let failed = 0;
-    for (const id of ids) {
+    const errors = [];
+    for (let i = 0; i < ids.length; i++) {
       try {
-        await api(`/api/v1/labs/${id}`, "DELETE");
+        await api(`/api/v1/labs/${ids[i]}`, "DELETE");
       } catch (err) {
-        failed += 1;
+        errors.push(`${names[i] || ids[i]}: ${err.message || "failed"}`);
         console.error(err);
       }
     }
-    if (failed) {
-      alert(`${failed} of ${ids.length} could not be deleted. Refresh and try again.`);
+    if (errors.length) {
+      alert(
+        `${errors.length} of ${ids.length} could not be deleted:\n\n` +
+          errors.slice(0, 3).join("\n") +
+          (errors.length > 3 ? `\n…and ${errors.length - 3} more` : "")
+      );
     }
     await renderPatient(patientId, "labs");
   }

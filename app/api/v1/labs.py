@@ -223,14 +223,103 @@ async def reprocess_lab_report(
 @router.delete("/{lab_report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lab_report(
     lab_report_id: uuid.UUID,
+    request: Request,
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    """Delete a lab upload and all dependent rows (session links, reports, tracking)."""
+    from sqlalchemy import delete as sa_delete, or_, update as sa_update
+
+    from app.models.analysis_session import (
+        AnalysisSession,
+        AnalysisSessionLabReport,
+        IntegratedBiomarkerResult,
+    )
+    from app.models.feedback import Feedback
+    from app.models.report import Recommendation, RecommendationReport, ReportCitation
+    from app.models.response_tracking import ResponseTracking
+    from app.models.validation import ReportFeedback, ValidationEvent
+
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
+    filename = lab_report.original_filename
+    patient_id = lab_report.patient_id
+
+    # 1) Recommendation reports that anchor this lab
+    report_ids = list(
+        (
+            await db.execute(
+                select(RecommendationReport.id).where(
+                    RecommendationReport.lab_report_id == lab_report_id
+                )
+            )
+        ).scalars().all()
+    )
+    if report_ids:
+        await db.execute(
+            sa_update(AnalysisSession)
+            .where(AnalysisSession.latest_report_id.in_(report_ids))
+            .values(latest_report_id=None)
+        )
+        await db.execute(sa_delete(Feedback).where(Feedback.report_id.in_(report_ids)))
+        await db.execute(sa_delete(ReportFeedback).where(ReportFeedback.report_id.in_(report_ids)))
+        await db.execute(sa_delete(ValidationEvent).where(ValidationEvent.report_id.in_(report_ids)))
+        await db.execute(sa_delete(Recommendation).where(Recommendation.report_id.in_(report_ids)))
+        await db.execute(sa_delete(ReportCitation).where(ReportCitation.report_id.in_(report_ids)))
+        await db.execute(
+            sa_delete(RecommendationReport).where(RecommendationReport.id.in_(report_ids))
+        )
+
+    # 2) Integrated analysis + session links that reference this lab
+    await db.execute(
+        sa_delete(IntegratedBiomarkerResult).where(
+            IntegratedBiomarkerResult.source_lab_report_id == lab_report_id
+        )
+    )
+    await db.execute(
+        sa_delete(AnalysisSessionLabReport).where(
+            AnalysisSessionLabReport.lab_report_id == lab_report_id
+        )
+    )
+
+    # 3) Response tracking baselines / follow-ups
+    await db.execute(
+        sa_delete(ResponseTracking).where(
+            or_(
+                ResponseTracking.baseline_lab_report_id == lab_report_id,
+                ResponseTracking.follow_up_lab_report_id == lab_report_id,
+            )
+        )
+    )
+
+    lab_report.latest_report_id = None
+
     if lab_report.encrypted_file_path:
         try:
             delete_lab_file(lab_report.encrypted_file_path)
         except (FileNotFoundError, OSError):
             pass
+
+    await record_audit_event(
+        db,
+        action=AuditAction.LAB_UPLOADED,
+        summary=f"Deleted lab file {filename}",
+        user=current_user,
+        patient_id=patient_id,
+        resource_type="lab_report",
+        resource_id=str(lab_report_id),
+        detail={"filename": filename, "event": "lab_deleted"},
+        request=request,
+    )
+
     await db.delete(lab_report)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Could not delete lab file because related data still references it. "
+                f"({type(exc).__name__}: {exc})"
+            ),
+        ) from exc
