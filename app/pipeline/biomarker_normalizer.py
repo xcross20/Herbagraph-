@@ -66,7 +66,8 @@ def classify_lab_value(
 
 _NON_NUMERIC_KINDS = frozenset({"qualitative", "culture", "genotype"})
 
-# Catalog absolute counts are often cells/µL (hundreds–thousands); portals report x10E3/µL (K/µL).
+# Differential absolute counts: catalog is cells/µL; portals often report x10E3/µL (K/µL).
+# Do NOT include WBC / Platelet Count — catalog and portals both use K/µL scale.
 _ABS_COUNT_NAMES = frozenset(
     {
         "absolute lymphocytes",
@@ -74,16 +75,19 @@ _ABS_COUNT_NAMES = frozenset(
         "absolute monocytes",
         "absolute basophils",
         "absolute eosinophils",
-        "wbc",
-        "rbc",
-        "platelet count",
+        "absolute immature granulocytes",
     }
 )
 _X10E3_UNIT = re.compile(
-    r"(?:x\s*10\s*e?\s*3|10\^?3|k)\s*/?\s*(?:u|µ|μ)?l|thou\s*/?\s*(?:u|µ|μ)?l|k/u?l",
+    r"(?:x\s*10\s*e?\s*3|10\^?\s*e?\s*3|x10e3|10e3|k)\s*/?\s*(?:u|µ|μ)?l|"
+    r"thou(?:sand)?s?\s*/?\s*(?:u|µ|μ)?l|k/u?l",
     re.IGNORECASE,
 )
 _CELLS_UNIT = re.compile(r"cells?\s*/?\s*(?:u|µ|μ)?l", re.IGNORECASE)
+_K_CATALOG_UNIT = re.compile(
+    r"(?:^k\s*/\s*(?:u|µ|μ)?l$|x\s*10|10e3|10\^3|thou)",
+    re.IGNORECASE,
+)
 
 # Adult sex-specific CBC ranges when lab PDF range is missing (g/dL, %).
 _SEX_RANGES: dict[str, dict[str, tuple[float, float]]] = {
@@ -103,31 +107,60 @@ def _normalize_sex(sex: str | None) -> str | None:
     return None
 
 
-def _scale_value_to_catalog_unit(
+def _is_absolute_count_analyte(canonical_name: str | None) -> bool:
+    if not canonical_name:
+        return False
+    key = canonical_name.strip().lower()
+    return key in _ABS_COUNT_NAMES or key.startswith("absolute ")
+
+
+def _align_absolute_count_scale(
     *,
     canonical_name: str | None,
     value: float,
     unit: str | None,
-    catalog_unit: str | None,
-) -> tuple[float, str | None]:
-    """Align portal units (x10E3/uL) with catalog units (cells/uL) when needed."""
-    if not canonical_name or unit is None or catalog_unit is None:
-        return value, unit
-    name_key = canonical_name.strip().lower()
-    unit_s = unit.strip()
-    cat_u = catalog_unit.strip()
-    if name_key not in _ABS_COUNT_NAMES and "absolute" not in name_key:
-        return value, unit
-    # Portal reports 2.6 x10E3/uL; catalog expects ~2600 cells/uL
-    if _X10E3_UNIT.search(unit_s) and (
-        _CELLS_UNIT.search(cat_u) or (cat_u.lower() in {"/ul", "ul", "µl", "uL"})
-    ):
-        if value < 100:  # already looks like K/µL scale
-            return value * 1000.0, cat_u
-    # Inverse: catalog is x10E3 and value is cells
-    if _CELLS_UNIT.search(unit_s) and _X10E3_UNIT.search(cat_u) and value >= 100:
-        return value / 1000.0, cat_u
-    return value, unit
+    lab_low: float | None,
+    lab_high: float | None,
+    ref: dict | None,
+) -> tuple[float, str | None, float | None, float | None]:
+    """Convert K/µL (x10E3/uL) absolute counts to cells/µL when catalog uses cells scale.
+
+    Returns (value, unit, lab_low, lab_high) on a consistent scale for classification.
+    Lab ranges are scaled with the value so portal bounds stay valid after conversion.
+    """
+    if not _is_absolute_count_analyte(canonical_name):
+        return value, unit, lab_low, lab_high
+
+    cat_high = (ref or {}).get("reference_high")
+    cat_unit = (ref or {}).get("default_unit")
+    unit_s = (unit or "").strip()
+
+    # Never convert when catalog is already on K/µL (or unit says so).
+    if cat_unit and _K_CATALOG_UNIT.search(str(cat_unit).strip()):
+        return value, unit, lab_low, lab_high
+
+    catalog_is_cells = bool(
+        (cat_unit and _CELLS_UNIT.search(str(cat_unit)))
+        or (cat_high is not None and cat_high >= 200)
+    )
+    if not catalog_is_cells:
+        return value, unit, lab_low, lab_high
+
+    looks_k = bool(unit_s and _X10E3_UNIT.search(unit_s)) or (
+        # Magnitude heuristic when unit missing/ambiguous: portal K/µL diffs are << 100
+        value < 100
+        and (lab_high is None or lab_high < 100)
+        and (cat_high is not None and cat_high >= 200)
+    )
+
+    if looks_k and value < 100:
+        scale = 1000.0
+        value = value * scale
+        lab_low = lab_low * scale if lab_low is not None else None
+        lab_high = lab_high * scale if lab_high is not None else None
+        return value, (cat_unit or "cells/uL"), lab_low, lab_high
+
+    return value, unit, lab_low, lab_high
 
 
 def _resolve_reference_bounds(
@@ -148,9 +181,8 @@ def _resolve_reference_bounds(
     critical_high = ref["critical_high"] if ref else None
 
     # Lab PDF ranges are patient/method-specific — prefer when both bounds exist
-    if lab_low is not None and lab_high is not None:
-        # Avoid using lab range when units clearly mismatched (e.g. 0.7-3.1 vs catalog 850-3900)
-        # and we scaled value to catalog unit: lab range also needs scaling.
+    # and are on a coherent scale with each other.
+    if lab_low is not None and lab_high is not None and lab_high > lab_low:
         return lab_low, lab_high, lab_low, lab_high, critical_low, critical_high
 
     # Sex-specific catalog overrides for Hgb/Hct when lab omitted range
@@ -191,28 +223,15 @@ def normalize_lab_result(
 
     value = parsed.value
     unit = parsed.unit
-    if ref and ref.get("default_unit"):
-        value, unit = _scale_value_to_catalog_unit(
-            canonical_name=canonical_name,
-            value=value,
-            unit=unit,
-            catalog_unit=ref.get("default_unit"),
-        )
-        # Scale lab ranges when we converted x10E3 → cells
-        lab_low, lab_high = parsed.reference_range_low, parsed.reference_range_high
-        if (
-            unit
-            and parsed.unit
-            and unit != parsed.unit
-            and lab_low is not None
-            and lab_high is not None
-            and lab_high < 100
-            and (ref.get("reference_high") or 0) > 100
-        ):
-            lab_low = lab_low * 1000.0
-            lab_high = lab_high * 1000.0
-    else:
-        lab_low, lab_high = parsed.reference_range_low, parsed.reference_range_high
+    lab_low, lab_high = parsed.reference_range_low, parsed.reference_range_high
+    value, unit, lab_low, lab_high = _align_absolute_count_scale(
+        canonical_name=canonical_name,
+        value=value,
+        unit=unit,
+        lab_low=lab_low,
+        lab_high=lab_high,
+        ref=ref,
+    )
 
     (
         reference_low,
@@ -339,9 +358,11 @@ def canonical_name_for_persist(
 def normalized_results_from_lab_report(
     lab_report,
     custom_biomarkers: list[dict] | None = None,
+    *,
+    sex: str | None = None,
 ) -> list[NormalizedLabResult]:
     return [
-        normalized_result_from_lab_result(r, custom_biomarkers=custom_biomarkers)
+        normalized_result_from_lab_result(r, custom_biomarkers=custom_biomarkers, sex=sex)
         for r in lab_report.lab_results
     ]
 
@@ -349,17 +370,27 @@ def normalized_results_from_lab_report(
 def refresh_persisted_lab_results(
     lab_results,
     custom_biomarkers: list[dict] | None = None,
+    *,
+    sex: str | None = None,
 ) -> int:
-    """Re-resolve stored lab rows to catalog names (alias rules may have changed since upload)."""
+    """Re-resolve stored lab rows (aliases, unit scale, lab-range preference, sex ranges)."""
     updated = 0
     for row in lab_results:
-        normalized = normalized_result_from_lab_result(row, custom_biomarkers=custom_biomarkers)
+        normalized = normalized_result_from_lab_result(
+            row, custom_biomarkers=custom_biomarkers, sex=sex
+        )
         changed = False
         if normalized.biomarker_name != row.biomarker_name:
             row.biomarker_name = normalized.biomarker_name
             changed = True
         if normalized.status != row.status:
             row.status = normalized.status
+            changed = True
+        if normalized.value != row.value:
+            row.value = normalized.value
+            changed = True
+        if normalized.unit != row.unit:
+            row.unit = normalized.unit
             changed = True
         if normalized.reference_range_low != row.reference_range_low:
             row.reference_range_low = normalized.reference_range_low

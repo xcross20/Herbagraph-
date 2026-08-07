@@ -69,6 +69,7 @@ def merge_lab_reports(
     *,
     panel_labels: dict[str, str] | None = None,
     custom_biomarkers: list[dict] | None = None,
+    sex: str | None = None,
 ) -> IntegratedMergeResult:
     """Apply duplicate/conflict rules and return the current integrated snapshot."""
     panel_labels = panel_labels or {}
@@ -90,7 +91,9 @@ def merge_lab_reports(
             }
         )
         for row in report.lab_results or []:
-            normalized = normalized_result_from_lab_result(row, custom_biomarkers=custom_biomarkers)
+            normalized = normalized_result_from_lab_result(
+                row, custom_biomarkers=custom_biomarkers, sex=sex
+            )
             candidate = MergeCandidate(
                 normalized=normalized,
                 source_lab_report_id=str(report.id),

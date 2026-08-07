@@ -219,10 +219,21 @@ async def _run_integrated_analysis_async(
         ).scalar_one_or_none()
         custom_biomarkers = list(profile.custom_biomarkers or []) if profile else []
 
+        sex = None
+        if analysis_session.patient_id:
+            from app.models.patient import Patient
+
+            patient = session.get(Patient, analysis_session.patient_id)
+            if patient is not None:
+                sex = patient.biological_sex
+        if sex is None and profile is not None:
+            sex = profile.biological_sex
+
         merge_result = merge_lab_reports(
             lab_reports,
             panel_labels=panel_labels,
             custom_biomarkers=custom_biomarkers,
+            sex=sex,
         )
         if not merge_result.snapshot:
             analysis_session.error_message = "No biomarkers could be merged from the uploaded lab reports."

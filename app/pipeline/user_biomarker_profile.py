@@ -225,6 +225,28 @@ _SUPPLEMENTAL_ALIASES: dict[str, str] = {
     "f non hdl cholesterol": "Non-HDL Cholesterol",
     "total cholesterol hdl ratio": "Chol/HDL Ratio",
     "f total cholesterol hdl ratio": "Chol/HDL Ratio",
+    # MyChart Result Trends absolute differential names
+    "neutrophils absolute count": "Absolute Neutrophils",
+    "neutrophils absolute": "Absolute Neutrophils",
+    "neutrophil absolute count": "Absolute Neutrophils",
+    "absolute neutrophil count": "Absolute Neutrophils",
+    "monocytes absolute count": "Absolute Monocytes",
+    "monocytes absolute": "Absolute Monocytes",
+    "monocyte absolute count": "Absolute Monocytes",
+    "eosinophils absolute count": "Absolute Eosinophils",
+    "eosinophils absolute": "Absolute Eosinophils",
+    "eosinophil absolute count": "Absolute Eosinophils",
+    "absolute basophils": "Absolute Basophils",
+    "basophils absolute": "Absolute Basophils",
+    "basophils absolute count": "Absolute Basophils",
+    "absolute lymphocytes": "Absolute Lymphocytes",
+    "lymphocytes absolute": "Absolute Lymphocytes",
+    "lymphocytes absolute count": "Absolute Lymphocytes",
+    "absolute immature granulocytes": "Absolute Immature Granulocytes",
+    "immature granulocytes absolute": "Absolute Immature Granulocytes",
+    "white blood cell count": "WBC",
+    "white blood cells": "WBC",
+    "wbc count": "WBC",
 }
 
 
