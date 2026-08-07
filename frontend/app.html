@@ -206,6 +206,43 @@ async function api(path, method = "GET", body) {
   return resp.json();
 }
 
+/** Download original patient-uploaded lab file (encrypted at rest; decrypted for owner only). */
+async function downloadLabUpload(labReportId, suggestedName) {
+  const headers = {};
+  if (window.hgToken) headers.Authorization = `Bearer ${window.hgToken}`;
+  let resp = await fetch(API + `/api/v1/labs/${labReportId}/download`, { headers });
+  if (resp.status === 401 && window.hgRefreshToken) {
+    await Auth.refreshTokens();
+    headers.Authorization = `Bearer ${window.hgToken}`;
+    resp = await fetch(API + `/api/v1/labs/${labReportId}/download`, { headers });
+  }
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(friendlyApiError("GET", `/api/v1/labs/${labReportId}/download`, resp.status, text));
+  }
+  const blob = await resp.blob();
+  let filename = suggestedName || "lab-upload";
+  const cd = resp.headers.get("Content-Disposition") || "";
+  const m = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/i.exec(cd);
+  if (m) {
+    try {
+      filename = decodeURIComponent(m[1] || m[2] || filename);
+    } catch (_) {
+      filename = m[2] || filename;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+window.downloadLabUpload = downloadLabUpload;
+
 function friendlyApiError(method, path, status, text) {
   let detail = text;
   try {
@@ -730,6 +767,7 @@ async function renderPatient(patientId, section = "overview") {
       <td>
         <a href="#review/${l.id}">Review</a>
         ${l.latest_report_id ? ` · <a href="/report.html?report_id=${l.latest_report_id}">Report</a>` : ""}
+        · <a href="#" data-download-lab="${l.id}" data-download-name="${esc(l.original_filename)}">Download</a>
       </td>
     </tr>`).join("") || `<tr class="no-hover"><td colspan="4" class="muted">No lab uploads</td></tr>`;
 
@@ -832,6 +870,7 @@ async function renderPatient(patientId, section = "overview") {
     </nav>
     ${sectionBody}`;
   wireTableRows();
+  wireLabDownloadLinks();
   if (window._pendingAnalysisReport) {
     mountAnalysisGraph(window._pendingAnalysisReport);
     window._pendingAnalysisReport = null;
@@ -1065,10 +1104,26 @@ async function renderBiomarkerReview(labId) {
       <div class="data-table-wrap" style="margin-top:0.75rem"><table class="data-table"><thead><tr><th>Biomarker</th><th>Value</th><th>Unit</th><th>Reference</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
       <div class="page-header-actions" style="margin-top:1rem">
         ${lab.status === "complete" ? `<button class="app-btn app-btn-primary" id="gen-report-btn">Generate single-report analysis</button>` : ""}
+        <button type="button" class="app-btn" id="download-lab-btn">Download original file</button>
         <a class="app-btn" href="#analysis">Multi-report analysis</a>
       </div>
       <p id="review-status" class="muted"></p>
     </div>`;
+  const dlBtn = document.getElementById("download-lab-btn");
+  if (dlBtn) {
+    dlBtn.onclick = async () => {
+      const st = document.getElementById("review-status");
+      dlBtn.disabled = true;
+      try {
+        await downloadLabUpload(labId, lab.original_filename);
+        if (st) st.textContent = "Download started.";
+      } catch (err) {
+        if (st) st.textContent = err.message || "Download failed";
+      } finally {
+        dlBtn.disabled = false;
+      }
+    };
+  }
   const genBtn = document.getElementById("gen-report-btn");
   if (genBtn) {
     genBtn.onclick = async () => {
@@ -1209,6 +1264,26 @@ function wireTableRows() {
       const href = row.dataset.href;
       if (href.startsWith("/")) location.href = href;
       else location.hash = href;
+    });
+  });
+}
+
+function wireLabDownloadLinks() {
+  document.querySelectorAll("[data-download-lab]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = el.getAttribute("data-download-lab");
+      const name = el.getAttribute("data-download-name") || "lab-upload";
+      const prev = el.textContent;
+      el.textContent = "Downloading…";
+      try {
+        await downloadLabUpload(id, name);
+      } catch (err) {
+        alert(err.message || "Download failed");
+      } finally {
+        el.textContent = prev || "Download";
+      }
     });
   });
 }

@@ -1,18 +1,21 @@
+import mimetypes
 import pathlib
+import re
 import uuid
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_verified_user, get_db
 from app.config import settings
 from app.core.background_jobs import dispatch_celery_task, save_encrypted_lab_file
-from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, save_lab_file
-from app.models.enums import LabProcessingStage, LabReportStatus
+from app.core.file_storage import ALLOWED_EXTENSIONS, delete_lab_file, load_lab_file, save_lab_file
+from app.models.enums import AuditAction, LabProcessingStage, LabReportStatus
 from app.models.lab import LabReport
 from app.models.patient import Patient
-from app.models.enums import AuditAction
 from app.models.user import User
 from app.services.audit import record_audit_event
 from app.schemas.lab import LabReportRead, LabReportSummary, LabUploadResponse
@@ -124,6 +127,73 @@ async def get_lab_report(
     lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
     await db.refresh(lab_report, attribute_names=["lab_results"])
     return lab_report
+
+
+def _safe_download_filename(name: str) -> str:
+    """Strip path separators / control chars for Content-Disposition."""
+    base = pathlib.Path(name or "lab-upload").name
+    cleaned = re.sub(r"[\r\n\"\\\\]", "_", base).strip() or "lab-upload"
+    return cleaned[:200]
+
+
+@router.get("/{lab_report_id}/download")
+async def download_lab_file(
+    lab_report_id: uuid.UUID,
+    request: Request,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Download the original patient-uploaded lab file (PDF/txt/csv/image)."""
+    lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
+    if not lab_report.encrypted_file_path:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Original file not stored")
+
+    try:
+        file_bytes = load_lab_file(lab_report.encrypted_file_path, lab_report.encrypted_file_data)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Original file is missing from storage",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Could not decrypt lab file ({type(exc).__name__})",
+        ) from exc
+
+    filename = _safe_download_filename(lab_report.original_filename)
+    media_type, _ = mimetypes.guess_type(filename)
+    if not media_type:
+        media_type = "application/octet-stream"
+
+    await record_audit_event(
+        db,
+        action=AuditAction.LAB_FILE_DOWNLOADED,
+        summary=f"Downloaded original lab file {filename}",
+        user=current_user,
+        patient_id=lab_report.patient_id,
+        resource_type="lab_report",
+        resource_id=str(lab_report.id),
+        detail={"filename": filename, "bytes": len(file_bytes)},
+        request=request,
+    )
+    await db.commit()
+
+    # RFC 5987 filename* for non-ASCII names; ASCII fallback for older browsers
+    ascii_name = filename.encode("ascii", "ignore").decode("ascii") or "lab-upload"
+    content_disposition = (
+        f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(filename)}'
+    )
+
+    return Response(
+        content=file_bytes,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": content_disposition,
+            "Content-Length": str(len(file_bytes)),
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.delete("/{lab_report_id}", status_code=status.HTTP_204_NO_CONTENT)

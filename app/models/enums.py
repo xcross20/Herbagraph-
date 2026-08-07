@@ -38,6 +38,7 @@ class AuditAction(str, enum.Enum):
     LAB_UPLOADED = "lab_uploaded"
     LAB_PARSED = "lab_parsed"
     LAB_PARSE_FAILED = "lab_parse_failed"
+    LAB_FILE_DOWNLOADED = "lab_file_downloaded"
     BIOMARKER_CORRECTED = "biomarker_corrected"
     ANALYSIS_STARTED = "analysis_started"
     ANALYSIS_COMPLETED = "analysis_completed"

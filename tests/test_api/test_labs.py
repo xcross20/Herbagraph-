@@ -238,6 +238,32 @@ async def test_delete_lab_report_removes_it(authed_client):
     assert get_resp.status_code == 404
 
 
+async def test_download_lab_file_returns_original_bytes(authed_client):
+    content = b"CRP    8.20  mg/L   (0.00-3.00)\n"
+    upload = await authed_client.post(
+        "/api/v1/labs/upload",
+        files={"file": ("demo_lab.txt", content, "text/plain")},
+    )
+    assert upload.status_code == 201
+    lab_report_id = upload.json()["lab_report_id"]
+
+    resp = await authed_client.get(f"/api/v1/labs/{lab_report_id}/download")
+    assert resp.status_code == 200
+    assert resp.content == content
+    assert "attachment" in (resp.headers.get("content-disposition") or "").lower()
+    assert "demo_lab.txt" in (resp.headers.get("content-disposition") or "")
+
+
+async def test_download_lab_file_requires_auth(client):
+    resp = await client.get(f"/api/v1/labs/{uuid.uuid4()}/download")
+    assert resp.status_code == 401
+
+
+async def test_download_lab_file_404_for_nonexistent_id(authed_client):
+    resp = await authed_client.get(f"/api/v1/labs/{uuid.uuid4()}/download")
+    assert resp.status_code == 404
+
+
 async def test_delete_lab_report_404_for_nonexistent_id(authed_client):
     resp = await authed_client.delete(f"/api/v1/labs/{uuid.uuid4()}")
     assert resp.status_code == 404
