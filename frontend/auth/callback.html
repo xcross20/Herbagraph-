@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirming account | HerbaGraph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/auth.css">
+<style>
+  .auth-callback-card {
+    max-width: 28rem;
+    margin: 4rem auto;
+    padding: 2rem 1.75rem;
+    border-radius: 1rem;
+    background: var(--surface, #fff);
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 12px 40px rgba(20,40,30,0.08);
+    text-align: center;
+  }
+  .auth-callback-card h1 {
+    font-size: 1.25rem;
+    margin: 0 0 0.75rem;
+    font-weight: 600;
+  }
+  .auth-callback-card p {
+    margin: 0 0 1rem;
+    color: var(--muted, #5c665f);
+    line-height: 1.5;
+    font-size: 0.95rem;
+  }
+  .auth-callback-card .spinner {
+    width: 2rem;
+    height: 2rem;
+    margin: 0 auto 1rem;
+    border: 2.5px solid rgba(46,125,87,0.2);
+    border-top-color: #2e7d57;
+    border-radius: 50%;
+    animation: hg-spin 0.7s linear infinite;
+  }
+  @keyframes hg-spin { to { transform: rotate(360deg); } }
+  .auth-callback-card[data-state="error"] .spinner { display: none; }
+  .auth-callback-card a.auth-submit {
+    display: inline-block;
+    margin-top: 0.5rem;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body class="auth-page-v2">
+<main style="min-height:100vh;display:flex;align-items:center;padding:1.5rem;">
+  <div class="auth-callback-card" id="callback-card" data-state="loading" role="status" aria-live="polite">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1 id="cb-title">Confirming your email…</h1>
+    <p id="cb-body">Finishing sign-in. You will be redirected to your workspace in a moment.</p>
+    <div id="cb-actions" hidden>
+      <a class="auth-submit" href="/login.html">Go to sign in</a>
+    </div>
+  </div>
+</main>
+<script src="/js/herbagraph-auth.js"></script>
+<script>
+(async function () {
+  const card = document.getElementById("callback-card");
+  const title = document.getElementById("cb-title");
+  const body = document.getElementById("cb-body");
+  const actions = document.getElementById("cb-actions");
+  const Auth = window.HerbaGraphAuth;
+
+  function fail(message) {
+    card.dataset.state = "error";
+    title.textContent = "Could not confirm your account";
+    body.textContent = message || "The confirmation link is invalid or has expired. Request a new email from the sign-in page.";
+    actions.hidden = false;
+  }
+
+  try {
+    // Dedicated callback page must not bounce elsewhere mid-exchange.
+    window.__hgAuthRedirecting = false;
+
+    const result = await Auth.completeAuthCallback({
+      successPath: "/app.html?confirmed=1#dashboard",
+      onboardPath: "/app.html?onboard=1&confirmed=1#dashboard",
+    });
+
+    if (result.ok) {
+      card.dataset.state = "ok";
+      title.textContent = "Email confirmed";
+      body.textContent = "Taking you to your workspace…";
+      location.replace(result.redirectTo);
+      return;
+    }
+
+    if (result.needsLogin) {
+      fail(result.message || "Please sign in with the email and password you used to register.");
+      return;
+    }
+
+    fail(result.message);
+  } catch (err) {
+    console.error("Auth callback failed:", err);
+    fail(err && err.message ? err.message : String(err));
+  }
+})();
+</script>
+</body>
+</html>

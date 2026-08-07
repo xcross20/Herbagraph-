@@ -261,14 +261,21 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     });
   } catch (err) {
     const msg = formatSignupError(err.message);
-    if (msg.includes("Sign in instead")) {
+    if (err.code === "EMAIL_CONFIRMATION_REQUIRED" || (err.message || "").includes("Check your email")) {
+      localStorage.setItem("hg_account_type", UI.getSelectedAccountRole());
+      localStorage.setItem("hg_onboarding_pending", "1");
+      UI.setBanner(
+        document.getElementById("auth-banner"),
+        "Account created. Check your email and open the confirmation link to finish signing up. "
+          + "After confirming you will land in your workspace automatically.",
+        "ok"
+      );
+    } else if (msg.includes("Sign in instead")) {
       UI.showFieldError("auth-email", msg);
     } else if ((err.message || "").toLowerCase().includes("password")) {
       UI.showFieldError("auth-password", err.message);
     } else if ((err.message || "").toLowerCase().includes("access code")) {
       UI.showFieldError("auth-access-code", err.message);
-    } else if (err.message && err.message.includes("Check your email")) {
-      UI.setBanner(document.getElementById("auth-banner"), err.message, "ok");
     } else {
       UI.setBanner(document.getElementById("auth-banner"), err.message, "error");
     }

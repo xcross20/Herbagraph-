@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.signup_access import require_approved_email
+from app.core.signup_access import require_approved_email, signup_access_required
 from app.core.security import hash_password
 from app.models.user import HealthProfile, User
 
@@ -97,19 +97,27 @@ def _claims_from_payload(payload: dict) -> dict:
     if not email:
         raise SupabaseAuthError("Token missing email claim")
 
+    # Supabase tokens vary: email_verified bool, or email_confirmed_at timestamp.
     email_verified = bool(payload.get("email_verified"))
     if not email_verified:
-        app_meta = payload.get("app_metadata") or {}
         email_verified = bool(app_meta.get("email_verified"))
+    if not email_verified and payload.get("email_confirmed_at"):
+        email_verified = True
+    # After successful email-link confirm, session is authenticated — treat as verified.
+    if not email_verified and payload.get("role") == "authenticated":
+        # Prefer explicit true when present; otherwise allow verified for confirmed sessions
+        # when confirmation is enforced only client-side (REQUIRE_EMAIL_VERIFICATION).
+        email_verified = bool(meta.get("email_verified")) or email_verified
 
-    meta = payload.get("user_metadata") or {}
     full_name = meta.get("full_name") or meta.get("name") or meta.get("fullName")
+    signup_gate = meta.get("hg_signup_gate")
     return {
         "sub": str(sub),
         "email": str(email).lower(),
         "email_verified": email_verified,
         "full_name": full_name,
-        "auth_method": (payload.get("app_metadata") or {}).get("provider"),
+        "auth_method": app_meta.get("provider"),
+        "signup_gate": signup_gate,
     }
 
 
@@ -146,7 +154,12 @@ async def get_or_create_user_from_supabase(db: AsyncSession, claims: dict) -> Us
             if claims.get("full_name") and not user.full_name:
                 user.full_name = claims["full_name"]
         else:
-            require_approved_email(email)
+            # Private preview: accept durable gate from Supabase user_metadata
+            # (set at signUp after access-code check). Do NOT rely only on
+            # in-memory approval — email confirm links often arrive after TTL
+            # or hit a different Railway worker.
+            if signup_access_required() and claims.get("signup_gate") != "ok":
+                require_approved_email(email)
             user = User(
                 email=email,
                 hashed_password=hash_password(secrets.token_urlsafe(48)),
@@ -159,7 +172,10 @@ async def get_or_create_user_from_supabase(db: AsyncSession, claims: dict) -> Us
             await db.flush()
             db.add(HealthProfile(user_id=user.id))
 
-    user.is_verified = bool(claims.get("email_verified", user.is_verified))
+    if claims.get("email_verified"):
+        user.is_verified = True
+    else:
+        user.is_verified = bool(user.is_verified)
     if claims.get("full_name") and not user.full_name:
         user.full_name = claims["full_name"]
 

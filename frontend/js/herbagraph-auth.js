@@ -1,8 +1,13 @@
 /**
  * Shared auth layer: local JWT (sandbox) or Supabase Auth (production).
+ *
+ * Email confirmation / OAuth / password-reset land on /auth/callback.html
+ * (or recovery on /reset-password.html). Never put tokens behind a second
+ * hash fragment like app.html#dashboard — Supabase needs a clean redirect URL.
  */
 window.HerbaGraphAuth = (function () {
   const API = window.location.origin;
+  const AUTH_CALLBACK_PATH = "/auth/callback.html";
   let config = null;
   let supabaseClient = null;
 
@@ -11,6 +16,10 @@ window.HerbaGraphAuth = (function () {
     const resp = await fetch(API + "/api/v1/auth/config");
     config = await resp.json();
     return config;
+  }
+
+  function authCallbackUrl() {
+    return `${window.location.origin}${AUTH_CALLBACK_PATH}`;
   }
 
   async function initSupabase() {
@@ -23,11 +32,16 @@ window.HerbaGraphAuth = (function () {
       const s = document.createElement("script");
       s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js";
       s.onload = resolve;
-      s.onerror = reject;
+      s.onerror = () => reject(new Error("Could not load Supabase client library."));
       document.head.appendChild(s);
     });
+    if (!window.supabase || !window.supabase.createClient) {
+      throw new Error("Supabase client library failed to initialize.");
+    }
     supabaseClient = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key, {
       auth: {
+        // PKCE is the default for browser clients; keeps email/OAuth links exchangeable.
+        flowType: "pkce",
         detectSessionInUrl: true,
         persistSession: true,
         autoRefreshToken: true,
@@ -36,38 +50,74 @@ window.HerbaGraphAuth = (function () {
     return supabaseClient;
   }
 
+  function _hashParams() {
+    const raw = (window.location.hash || "").replace(/^#/, "");
+    return new URLSearchParams(raw);
+  }
+
+  function _queryParams() {
+    return new URLSearchParams(window.location.search || "");
+  }
+
   function isAuthCallbackUrl() {
     const hash = window.location.hash || "";
     const search = window.location.search || "";
     return (
       hash.includes("access_token=")
+      || hash.includes("refresh_token=")
       || hash.includes("type=signup")
       || hash.includes("type=recovery")
       || hash.includes("type=invite")
+      || hash.includes("type=magiclink")
+      || hash.includes("type=email")
       || search.includes("code=")
+      || search.includes("error=")
+      || search.includes("error_description=")
+      || hash.includes("error=")
     );
   }
 
-  /** Route Supabase email-confirm / password-reset landings to the right page. */
+  function readAuthErrorFromUrl() {
+    const q = _queryParams();
+    const h = _hashParams();
+    const error = q.get("error") || h.get("error");
+    if (!error) return null;
+    const desc = q.get("error_description") || h.get("error_description") || error;
+    try {
+      return decodeURIComponent(String(desc).replace(/\+/g, " "));
+    } catch (_) {
+      return String(desc).replace(/\+/g, " ");
+    }
+  }
+
+  /**
+   * Route Supabase email-confirm / OAuth landings to the dedicated callback page.
+   * Recovery links stay on / go to reset-password.html.
+   */
   function redirectAuthCallbackToApp() {
     if (!isAuthCallbackUrl()) return false;
     const hash = window.location.hash || "";
-    const path = window.location.pathname;
-    if (hash.includes("type=recovery")) {
-      if (path.endsWith("/reset-password.html")) return false;
-      window.location.replace(`/reset-password.html${window.location.search}${hash}`);
-      return true;
-    }
+    const path = window.location.pathname || "";
+    const search = window.location.search || "";
+
+    // Already on a page that will process the session.
     if (
-      path.endsWith("/app.html")
+      path.endsWith("/auth/callback.html")
       || path.endsWith("/reset-password.html")
-      || path.endsWith("/login.html")
-      || path.endsWith("/signup.html")
+      || path.includes("/auth/callback")
     ) {
       return false;
     }
-    const target = `/app.html${window.location.search}${hash || "#dashboard"}`;
-    window.location.replace(target);
+
+    // Password recovery → dedicated reset page (keep tokens in hash/query).
+    if (hash.includes("type=recovery") || search.includes("type=recovery")) {
+      if (path.endsWith("/reset-password.html")) return false;
+      window.location.replace(`/reset-password.html${search}${hash}`);
+      return true;
+    }
+
+    // Signup confirm / magic link / OAuth → clean callback (no #dashboard clash).
+    window.location.replace(`${AUTH_CALLBACK_PATH}${search}${hash}`);
     return true;
   }
 
@@ -80,34 +130,162 @@ window.HerbaGraphAuth = (function () {
       headers,
     });
     if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(`Account sync failed (${resp.status}): ${text}`);
+      let detail = await resp.text();
+      try {
+        const j = JSON.parse(detail);
+        detail = j.detail || detail;
+      } catch (_) { /* raw */ }
+      throw new Error(typeof detail === "string" ? detail : `Account sync failed (${resp.status})`);
     }
     sessionStorage.removeItem("hg_signup_approval_token");
     return resp.json();
+  }
+
+  /**
+   * Exchange URL tokens/code for a Supabase session and sync the HerbaGraph user.
+   * Used by /auth/callback.html and optionally by other pages.
+   */
+  async function completeAuthCallback(options) {
+    options = options || {};
+    const successPath = options.successPath || "/app.html#dashboard";
+    const onboardPath = options.onboardPath || "/app.html?onboard=1#dashboard";
+
+    const cfg = await loadConfig();
+    if (cfg.auth_provider !== "supabase") {
+      return { ok: false, needsLogin: true, message: "Supabase Auth is not enabled." };
+    }
+
+    const urlError = readAuthErrorFromUrl();
+    if (urlError) {
+      return { ok: false, needsLogin: true, message: urlError };
+    }
+
+    const sb = await initSupabase();
+    if (!sb) {
+      return {
+        ok: false,
+        needsLogin: true,
+        message: "Supabase is not configured (missing URL or anon key).",
+      };
+    }
+
+    // Explicit PKCE code exchange (email confirm / OAuth with ?code=).
+    const code = _queryParams().get("code");
+    if (code) {
+      const { data: exData, error: exErr } = await sb.auth.exchangeCodeForSession(code);
+      if (exErr) {
+        return {
+          ok: false,
+          needsLogin: true,
+          message: exErr.message || "Could not exchange confirmation code. The link may have expired.",
+        };
+      }
+      if (exData?.session) {
+        storeSupabaseSession(exData.session);
+        try {
+          await syncWithBackend(exData.session.access_token);
+        } catch (syncErr) {
+          return {
+            ok: false,
+            needsLogin: true,
+            message: syncErr.message || "Account sync failed after confirmation.",
+          };
+        }
+        const onboard = localStorage.getItem("hg_onboarding_pending") === "1";
+        return { ok: true, redirectTo: onboard ? onboardPath : successPath };
+      }
+    }
+
+    // Implicit / hash tokens — detectSessionInUrl should parse these on client create.
+    // Also try getSession after a brief tick for race with internal parser.
+    let session = null;
+    {
+      const { data, error } = await sb.auth.getSession();
+      if (error) {
+        return { ok: false, needsLogin: true, message: error.message };
+      }
+      session = data?.session || null;
+    }
+
+    if (!session && isAuthCallbackUrl()) {
+      // One more attempt: setSession from hash access_token if present.
+      const h = _hashParams();
+      const accessToken = h.get("access_token");
+      const refreshToken = h.get("refresh_token");
+      if (accessToken && refreshToken) {
+        const { data, error } = await sb.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          return { ok: false, needsLogin: true, message: error.message };
+        }
+        session = data?.session || null;
+      }
+    }
+
+    if (!session) {
+      return {
+        ok: false,
+        needsLogin: true,
+        message:
+          "No active session found from this link. It may have already been used or expired. Sign in with your email and password.",
+      };
+    }
+
+    storeSupabaseSession(session);
+    try {
+      await syncWithBackend(session.access_token);
+    } catch (syncErr) {
+      return {
+        ok: false,
+        needsLogin: true,
+        message: syncErr.message || "Account sync failed after confirmation.",
+      };
+    }
+
+    const isRecovery =
+      (window.location.hash || "").includes("type=recovery")
+      || _queryParams().get("type") === "recovery";
+    if (isRecovery) {
+      return { ok: true, redirectTo: "/reset-password.html" };
+    }
+
+    const onboard = localStorage.getItem("hg_onboarding_pending") === "1";
+    return { ok: true, redirectTo: onboard ? onboardPath : successPath };
   }
 
   async function handleAuthRedirect() {
     const cfg = await loadConfig();
     if (cfg.auth_provider !== "supabase") return false;
 
-    const wasCallback = isAuthCallbackUrl();
-    const sb = await initSupabase();
-    // detectSessionInUrl picks up tokens from email confirmation links
-    const { data, error } = await sb.auth.getSession();
-    if (error) throw new Error(error.message);
+    if (!isAuthCallbackUrl()) return false;
 
-    if (data?.session) {
-      storeSupabaseSession(data.session);
-      await syncWithBackend(data.session.access_token);
-      // Clean sensitive tokens from the address bar after email confirm / recovery
-      if (wasCallback) {
-        const isRecovery = (window.location.hash || "").includes("type=recovery");
-        const cleanPath = isRecovery ? "/reset-password.html" : "/app.html#dashboard";
-        window.history.replaceState({}, document.title, cleanPath);
-      }
+    // Recovery should be handled on reset-password page only.
+    const isRecovery =
+      (window.location.hash || "").includes("type=recovery")
+      || _queryParams().get("type") === "recovery";
+    if (isRecovery && !(window.location.pathname || "").endsWith("/reset-password.html")) {
+      return false;
     }
-    return wasCallback;
+
+    const result = await completeAuthCallback();
+    if (result.ok) {
+      const clean = result.redirectTo || "/app.html#dashboard";
+      window.history.replaceState({}, document.title, clean.split("#")[0] || clean);
+      if (clean.includes("#") || clean.includes("?")) {
+        // Let callers navigate if needed; still return true so they can redirect.
+      }
+      // If still on callback-like page, caller will navigate; if on app.html, clean tokens.
+      if ((window.location.pathname || "").endsWith("/app.html")) {
+        window.history.replaceState({}, document.title, clean);
+      }
+      return true;
+    }
+    if (result.message) {
+      throw new Error(result.message);
+    }
+    return true;
   }
 
   function storeLocalTokens(tokens) {
@@ -131,6 +309,7 @@ window.HerbaGraphAuth = (function () {
 
     if (cfg.auth_provider === "supabase") {
       const sb = await initSupabase();
+      if (!sb) return false;
       const { data } = await sb.auth.getSession();
       if (data?.session) {
         storeSupabaseSession(data.session);
@@ -140,15 +319,12 @@ window.HerbaGraphAuth = (function () {
       return false;
     }
 
-    // Registered sessions: restore JWT pair only. Do not re-auth from stored passwords
-    // (IMP-002 — passwords must not live in localStorage).
     const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
     if (stored?.access_token && stored?.refresh_token) {
       window.hgToken = stored.access_token;
       window.hgRefreshToken = stored.refresh_token;
       return true;
     }
-    // Legacy cleanup: old builds stored hg_creds with passwords
     try {
       localStorage.removeItem("hg_creds");
     } catch (_) { /* ignore */ }
@@ -183,7 +359,6 @@ window.HerbaGraphAuth = (function () {
       await syncWithBackend(data.session.access_token);
       return;
     }
-    // Persist tokens only — never store the password (IMP-002).
     try {
       localStorage.removeItem("hg_creds");
     } catch (_) { /* ignore */ }
@@ -224,7 +399,8 @@ window.HerbaGraphAuth = (function () {
     }
     const sb = await initSupabase();
     if (!sb) throw new Error("Supabase Auth is not configured.");
-    const redirectTo = options.redirectTo || `${window.location.origin}${window.location.pathname}`;
+    // Always land on the dedicated callback so PKCE/code exchange is reliable.
+    const redirectTo = options.redirectTo || authCallbackUrl();
     const { error } = await sb.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -247,7 +423,7 @@ window.HerbaGraphAuth = (function () {
     sessionStorage.setItem("hg_account_type", role === "clinician" ? "clinician" : "individual");
     sessionStorage.setItem("hg_oauth_mode", "signup");
     localStorage.setItem("hg_onboarding_pending", "1");
-    await signInWithGoogle({ redirectTo: `${window.location.origin}/signup.html` });
+    await signInWithGoogle({ redirectTo: authCallbackUrl() });
   }
 
   async function verifySignupAccess(email, accessCode) {
@@ -278,6 +454,8 @@ window.HerbaGraphAuth = (function () {
     }
     if (cfg.auth_provider === "supabase") {
       const sb = await initSupabase();
+      // Clean URL — no #dashboard (breaks Supabase token hash / allowlist).
+      const emailRedirectTo = authCallbackUrl();
       const { data, error } = await sb.auth.signUp({
         email,
         password,
@@ -285,13 +463,21 @@ window.HerbaGraphAuth = (function () {
           data: {
             full_name: fullName || null,
             account_type: role,
+            // Survives email confirmation so /auth/sync can admit private-preview users
+            // without relying on in-memory approval that expires or is worker-local.
+            hg_signup_gate: cfg.signup_access_required ? "ok" : "open",
           },
-          emailRedirectTo: `${window.location.origin}/app.html#dashboard`,
+          emailRedirectTo,
         },
       });
       if (error) throw new Error(error.message);
       if (!data.session) {
-        throw new Error("Check your email to verify your account before signing in.");
+        // Email confirmation required — not an error.
+        const err = new Error(
+          "Check your email to verify your account. Open the confirmation link to finish signing up."
+        );
+        err.code = "EMAIL_CONFIRMATION_REQUIRED";
+        throw err;
       }
       storeSupabaseSession(data.session);
       await syncWithBackend(data.session.access_token);
@@ -318,6 +504,7 @@ window.HerbaGraphAuth = (function () {
       throw new Error("Password reset is managed via Supabase when AUTH_PROVIDER=supabase.");
     }
     const sb = await initSupabase();
+    // Reset page can parse recovery tokens; keep that dedicated path.
     const redirectTo = `${window.location.origin}/reset-password.html`;
     const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) throw new Error(error.message);
@@ -337,7 +524,7 @@ window.HerbaGraphAuth = (function () {
     const cfg = await loadConfig();
     if (cfg.auth_provider === "supabase") {
       const sb = await initSupabase();
-      await sb.auth.signOut();
+      if (sb) await sb.auth.signOut();
     }
     localStorage.removeItem("hg_tokens");
     localStorage.removeItem("hg_creds");
@@ -351,7 +538,6 @@ window.HerbaGraphAuth = (function () {
     if (!cfg.allow_guest_auth) {
       throw new Error("Guest access is disabled. Create an account or sign in to keep your labs and reports.");
     }
-    // Dev/demo only: ephemeral user. Password is not retained after sign-in.
     const email = `guest-${crypto.randomUUID()}@guest.herbagraph-app.io`;
     const password = `Guest${Math.random().toString(36).slice(2)}A1!`;
     localStorage.removeItem("hg_tokens");
@@ -384,7 +570,9 @@ window.HerbaGraphAuth = (function () {
 
   return {
     loadConfig,
+    authCallbackUrl,
     redirectAuthCallbackToApp,
+    completeAuthCallback,
     handleAuthRedirect,
     ensureSession,
     refreshTokens,

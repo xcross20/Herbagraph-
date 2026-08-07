@@ -121,14 +121,28 @@ curl https://www.herbagraph.com/api/v1/system/status
 
 1. Create Supabase project.
 2. Authentication → URL configuration:
-   - Site URL: `https://yourdomain.com`
-   - Redirect URLs (add all):
+   - Site URL: `https://yourdomain.com` (or `https://www.herbagraph.com`)
+   - Redirect URLs — **must include the auth callback** (email confirm / OAuth land here):
+     - `https://yourdomain.com/auth/callback.html`  ← required for email confirmation
      - `https://yourdomain.com/app.html`
      - `https://yourdomain.com/login.html`
      - `https://yourdomain.com/signup.html`
+     - `https://yourdomain.com/reset-password.html`
+     - Local: `http://localhost:8000/auth/callback.html` (plus the same paths for other auth pages)
 3. Copy **Project URL** → `SUPABASE_URL`
-4. Copy **anon/public key** → `SUPABASE_ANON_KEY` or `SUPABASE_PUBLISHABLE_KEY`
-5. Enable email confirmation if `REQUIRE_EMAIL_VERIFICATION=true`.
+4. Copy **anon (JWT) public key** → `SUPABASE_ANON_KEY`  
+   Prefer the classic `eyJ…` **anon** key for the browser Supabase client.  
+   `SUPABASE_PUBLISHABLE_KEY` works as a fallback when configured.
+5. Optional: `SUPABASE_JWT_SECRET` (Settings → API → JWT Secret) so the API can verify tokens without JWKS.
+6. Enable **Confirm email** under Authentication → Providers → Email if you want confirmation links.
+
+**Email confirmation flow**
+
+1. User signs up on `/signup.html` → Supabase sends mail with `emailRedirectTo=/auth/callback.html` (no `#hash`).
+2. User clicks link → Supabase verifies → redirects to `/auth/callback.html?code=…` (or hash tokens).
+3. Callback page exchanges the session, calls `POST /api/v1/auth/sync`, then sends the user to `/app.html`.
+
+If confirmation opens a Supabase error page, the redirect URL is almost always **missing from the allow list** above — add `/auth/callback.html` and save.
 
 Users sign in via `/login.html` or `/signup.html`; local user rows are created on `POST /api/v1/auth/sync`.
 
