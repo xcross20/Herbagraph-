@@ -760,16 +760,24 @@ async function renderPatient(patientId, section = "overview") {
   ];
 
   const labRows = overview.lab_reports.map(l => `
-    <tr data-href="#review/${l.id}">
-      <td>${esc(l.original_filename)}</td>
+    <tr data-href="#review/${l.id}" data-lab-id="${l.id}">
+      <td class="lab-select-cell" onclick="event.stopPropagation()">
+        <input type="checkbox" class="lab-select-cb" value="${l.id}" aria-label="Select ${esc(l.original_filename)}">
+      </td>
+      <td>
+        <div class="lab-file-name">${esc(l.original_filename)}</div>
+        ${l.error_message ? `<div class="muted" style="font-size:0.8rem;margin-top:0.2rem">${esc(l.error_message)}</div>` : ""}
+      </td>
       <td><span class="status-chip ${l.status === "complete" ? "complete" : l.status === "failed" ? "failed" : "processing"}">${esc(l.status)}</span></td>
       <td class="mono">${fmtDate(l.created_at)}</td>
-      <td>
+      <td class="lab-actions" onclick="event.stopPropagation()">
         <a href="#review/${l.id}">Review</a>
         ${l.latest_report_id ? ` · <a href="/report.html?report_id=${l.latest_report_id}">Report</a>` : ""}
         · <a href="#" data-download-lab="${l.id}" data-download-name="${esc(l.original_filename)}">Download</a>
+        · <a href="#" data-reprocess-lab="${l.id}">Re-parse</a>
+        · <a href="#" class="lab-delete-link" data-delete-lab="${l.id}" data-delete-name="${esc(l.original_filename)}">Delete</a>
       </td>
-    </tr>`).join("") || `<tr class="no-hover"><td colspan="4" class="muted">No lab uploads</td></tr>`;
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No lab uploads</td></tr>`;
 
   const sessionRows = overview.analysis_sessions.map(s => `
     <tr>
@@ -842,7 +850,35 @@ async function renderPatient(patientId, section = "overview") {
         <a class="app-btn app-btn-primary" href="#upload?patient=${patientId}">Upload labs</a>
       </div>`;
     } else {
-      sectionBody = `<div class="data-table-wrap"><table class="data-table"><thead><tr><th>File</th><th>Status</th><th>Uploaded</th><th></th></tr></thead><tbody>${labRows}</tbody></table></div>`;
+      sectionBody = `
+        <div class="lab-manage-bar app-card" style="margin-bottom:0.85rem;padding:0.85rem 1rem;display:flex;flex-wrap:wrap;gap:0.65rem;align-items:center;justify-content:space-between">
+          <div class="muted" style="font-size:0.9rem">
+            <strong style="color:inherit">${overview.lab_reports.length}</strong> lab file(s).
+            Select rows to delete in bulk, or use actions on each file.
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
+            <label class="muted" style="font-size:0.85rem;display:flex;align-items:center;gap:0.35rem;cursor:pointer">
+              <input type="checkbox" id="lab-select-all" aria-label="Select all labs"> Select all
+            </label>
+            <button type="button" class="app-btn" id="lab-delete-selected" disabled>Delete selected</button>
+            <a class="app-btn app-btn-primary" href="#upload?patient=${patientId}">Upload labs</a>
+          </div>
+        </div>
+        <p id="lab-manage-status" class="muted" style="margin:0 0 0.65rem;min-height:1.2em"></p>
+        <div class="data-table-wrap">
+          <table class="data-table lab-manage-table">
+            <thead>
+              <tr>
+                <th style="width:2.5rem"></th>
+                <th>File</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>${labRows}</tbody>
+          </table>
+        </div>`;
     }
   } else if (section === "analyses") {
     sectionBody = await buildAnalysisWorkspace(patientId, overview, sessionRows);
@@ -871,6 +907,7 @@ async function renderPatient(patientId, section = "overview") {
     ${sectionBody}`;
   wireTableRows();
   wireLabDownloadLinks();
+  if (section === "labs") wireLabManage(patientId);
   if (window._pendingAnalysisReport) {
     mountAnalysisGraph(window._pendingAnalysisReport);
     window._pendingAnalysisReport = null;
@@ -1286,6 +1323,102 @@ function wireLabDownloadLinks() {
       }
     });
   });
+}
+
+function wireLabManage(patientId) {
+  const statusEl = document.getElementById("lab-manage-status");
+  const selectAll = document.getElementById("lab-select-all");
+  const deleteSelectedBtn = document.getElementById("lab-delete-selected");
+  const boxes = () => [...document.querySelectorAll(".lab-select-cb")];
+
+  function updateBulkState() {
+    const selected = boxes().filter(b => b.checked);
+    if (deleteSelectedBtn) {
+      deleteSelectedBtn.disabled = selected.length === 0;
+      deleteSelectedBtn.textContent =
+        selected.length > 0 ? `Delete selected (${selected.length})` : "Delete selected";
+    }
+    if (selectAll) {
+      const all = boxes();
+      selectAll.checked = all.length > 0 && selected.length === all.length;
+      selectAll.indeterminate = selected.length > 0 && selected.length < all.length;
+    }
+  }
+
+  boxes().forEach(b => b.addEventListener("change", updateBulkState));
+  if (selectAll) {
+    selectAll.addEventListener("change", () => {
+      boxes().forEach(b => { b.checked = selectAll.checked; });
+      updateBulkState();
+    });
+  }
+
+  async function deleteLabs(ids, names) {
+    if (!ids.length) return;
+    const label = ids.length === 1
+      ? `Delete “${names[0] || "this lab"}”? This cannot be undone.`
+      : `Delete ${ids.length} lab files? This cannot be undone.`;
+    if (!confirm(label)) return;
+    if (statusEl) statusEl.textContent = `Deleting ${ids.length} file(s)…`;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await api(`/api/v1/labs/${id}`, "DELETE");
+      } catch (err) {
+        failed += 1;
+        console.error(err);
+      }
+    }
+    if (failed) {
+      alert(`${failed} of ${ids.length} could not be deleted. Refresh and try again.`);
+    }
+    await renderPatient(patientId, "labs");
+  }
+
+  document.querySelectorAll("[data-delete-lab]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = el.getAttribute("data-delete-lab");
+      const name = el.getAttribute("data-delete-name") || "lab file";
+      await deleteLabs([id], [name]);
+    });
+  });
+
+  document.querySelectorAll("[data-reprocess-lab]").forEach(el => {
+    el.addEventListener("click", async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const id = el.getAttribute("data-reprocess-lab");
+      const prev = el.textContent;
+      el.textContent = "Re-parsing…";
+      try {
+        const res = await api(`/api/v1/labs/${id}/reprocess`, "POST");
+        if (statusEl) {
+          statusEl.textContent = `Re-parsed: ${res.biomarker_count ?? "?"} biomarker(s).`;
+        }
+        await renderPatient(patientId, "labs");
+      } catch (err) {
+        alert(err.message || "Re-parse failed");
+        el.textContent = prev || "Re-parse";
+      }
+    });
+  });
+
+  if (deleteSelectedBtn) {
+    deleteSelectedBtn.addEventListener("click", async () => {
+      const selected = boxes().filter(b => b.checked);
+      const ids = selected.map(b => b.value);
+      const names = selected.map(b => {
+        const row = b.closest("tr");
+        const nameEl = row && row.querySelector(".lab-file-name");
+        return nameEl ? nameEl.textContent.trim() : b.value;
+      });
+      await deleteLabs(ids, names);
+    });
+  }
+
+  updateBulkState();
 }
 
 function wireCommandSearch(dash) {

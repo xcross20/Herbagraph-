@@ -432,6 +432,29 @@
 
 .data-table tbody tr:last-child td { border-bottom: none; }
 
+.lab-manage-table .lab-select-cell {
+  width: 2.25rem;
+  vertical-align: middle;
+}
+.lab-manage-table .lab-actions {
+  white-space: nowrap;
+  font-size: 0.88rem;
+}
+.lab-manage-table .lab-file-name {
+  font-weight: 500;
+  max-width: 28rem;
+  word-break: break-word;
+}
+.lab-manage-table a.lab-delete-link {
+  color: var(--app-critical);
+}
+.lab-manage-table a.lab-delete-link:hover {
+  color: #8f3535;
+}
+.lab-manage-bar .app-btn:disabled {
+  opacity: 0.45;
+}
+
 .data-table tbody tr:hover {
   background: rgba(118, 161, 132, 0.04);
   cursor: pointer;
