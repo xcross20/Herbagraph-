@@ -13,6 +13,7 @@ from app.pipeline.intervention_narrative import build_intervention_narrative
 from app.pipeline.test_type_router import RecommendationRoutingContext
 from app.models.enums import EVIDENCE_TIER_LABELS, EvidenceLevel, EvidenceTier, SafetyRiskLevel, StudyType
 from app.pipeline.biological_systems import compute_biological_systems
+from app.pipeline.condition_lanes import build_condition_aligned
 from app.pipeline.report_insights import build_report_insights
 from app.pipeline.report_biological_hierarchy import biology_first_network_score, build_biological_hierarchy
 from app.pipeline.report_clinical_priorities import build_dual_clinical_rankings
@@ -504,6 +505,11 @@ def generate_report(
         biomarker_summary,
     )
     insights["clinical_summary_hero"] = clinical_summary_hero
+    condition_aligned = build_condition_aligned(
+        health_profile,
+        biomarker_summary,
+    )
+    insights["condition_aligned"] = condition_aligned
 
     return {
         "overall_confidence": overall_confidence,
@@ -514,6 +520,7 @@ def generate_report(
         "biological_hierarchy": biological_hierarchy,
         "dual_clinical_rankings": dual_clinical_rankings,
         "clinical_summary_hero": clinical_summary_hero,
+        "condition_aligned": condition_aligned,
         "biomarker_summary": biomarker_summary,
         "biomarker_interpretations": _biomarker_interpretations(normalized_labs),
         "pathway_activations": pathway_payload,

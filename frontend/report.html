@@ -185,6 +185,31 @@
   .priority-body { padding: 0.85rem 1rem; }
   .priority-field { margin: 0.55rem 0; }
   .priority-field strong { display: block; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.15rem; }
+  .condition-lane-card > summary { background: #f4f8f5; }
+  .condition-lane-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #1f5c3a;
+    background: #dcefe3;
+    border-radius: 999px;
+    padding: 0.15rem 0.55rem;
+    margin-left: 0.35rem;
+    vertical-align: middle;
+  }
+  .condition-kind-tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--muted);
+    background: #f0f0f3;
+    border-radius: 6px;
+    padding: 0.1rem 0.4rem;
+    margin-left: 0.35rem;
+    text-transform: lowercase;
+  }
   .show-more-panel { margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.5rem; }
   .show-more-panel > summary { cursor: pointer; color: var(--accent); font-size: 0.9rem; font-weight: 500; list-style: none; }
   .show-more-panel > summary::-webkit-details-marker { display: none; }
@@ -428,14 +453,15 @@
       <ul>
         <li><a href="#executive-summary" data-nav="overview" class="active"><span class="outline-num">01</span> Executive summary</a></li>
         <li><a href="#clinical-priorities" data-nav="clinical-priorities"><span class="outline-num">02</span> Key findings</a></li>
-        <li><a href="#patient-data" data-nav="patient-data"><span class="outline-num">03</span> Biomarker interpretation</a></li>
-        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">04</span> Biological systems</a></li>
-        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">05</span> Pathway context</a></li>
-        <li><a href="#intervention-library" data-nav="interventions"><span class="outline-num">06</span> Interventions</a></li>
-        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">07</span> Evidence profile</a></li>
-        <li><a href="#medication-context" data-nav="medication"><span class="outline-num">08</span> Safety</a></li>
-        <li><a href="#diagnostic-optimization" data-nav="diagnostic-optimization"><span class="outline-num">09</span> Uncertainty</a></li>
-        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">10</span> Sources</a></li>
+        <li><a href="#condition-aligned" data-nav="condition-aligned"><span class="outline-num">03</span> Conditions</a></li>
+        <li><a href="#patient-data" data-nav="patient-data"><span class="outline-num">04</span> Biomarker interpretation</a></li>
+        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">05</span> Biological systems</a></li>
+        <li><a href="#biological-network" data-nav="biological-network"><span class="outline-num">06</span> Pathway context</a></li>
+        <li><a href="#intervention-library" data-nav="interventions"><span class="outline-num">07</span> Interventions</a></li>
+        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">08</span> Evidence profile</a></li>
+        <li><a href="#medication-context" data-nav="medication"><span class="outline-num">09</span> Safety</a></li>
+        <li><a href="#diagnostic-optimization" data-nav="diagnostic-optimization"><span class="outline-num">10</span> Uncertainty</a></li>
+        <li><a href="#research-appendix" data-nav="research"><span class="outline-num">11</span> Sources</a></li>
       </ul>
     </nav>
 
@@ -454,6 +480,11 @@
       <section id="clinical-priorities" class="report-section open-section" data-nav="clinical-priorities">
         <h2>Clinical Priorities</h2>
         <div id="clinical-priorities-body"></div>
+      </section>
+
+      <section id="condition-aligned" class="report-section open-section" data-nav="condition-aligned" style="display:none">
+        <h2>Condition-aligned considerations</h2>
+        <div id="condition-aligned-body"></div>
       </section>
 
       <section id="diagnostic-optimization" class="report-section open-section" data-nav="diagnostic-optimization">
@@ -718,6 +749,7 @@ async function renderReport(report, labReportId) {
   initReportSidebar();
   renderExecutiveSummary(report);
   renderClinicalPriorities(report);
+  renderConditionAligned(report);
   renderDiagnosticOptimization(report);
   renderBiologicalNetwork(report);
   renderInterventionLibrary(report);
@@ -1687,6 +1719,79 @@ function displayField(value, fallback) {
 function relatedRecommendations(report, priority) {
   const names = new Set((priority.potential_interventions || []).map((i) => (i.label || "").toLowerCase()));
   return (report.recommendations || []).filter((r) => names.has((r.intervention_name || "").toLowerCase())).slice(0, 3);
+}
+
+function conditionAlignedPayload(report) {
+  return report.condition_aligned || (report.report_insights || {}).condition_aligned || null;
+}
+
+function renderConditionAligned(report) {
+  const section = document.getElementById("condition-aligned");
+  const body = document.getElementById("condition-aligned-body");
+  if (!section || !body) return;
+  const payload = conditionAlignedPayload(report);
+  const items = (payload && payload.items) || [];
+  if (!payload || payload.empty || !items.length) {
+    section.style.display = "none";
+    body.innerHTML = "";
+    return;
+  }
+  section.style.display = "";
+  const subtitle = payload.section_subtitle
+    || "Based on documented conditions — not ranked by lab abnormality. Separate from Clinical Priorities above.";
+  let html = `<p class="muted">${escapeHtml(subtitle)}</p>`;
+  html += `<p class="muted" style="font-size:0.85rem">These items do not change lab-driven priority scores.</p>`;
+
+  for (const item of items) {
+    html += `<details class="priority-accordion condition-lane-card" open>`;
+    html += `<summary>${escapeHtml(item.label || item.condition_key || "Condition")} <span class="condition-lane-badge">Profile</span></summary>`;
+    html += `<div class="priority-body">`;
+
+    const considerations = item.considerations || [];
+    if (considerations.length) {
+      html += `<div class="priority-field"><strong>Considerations</strong><ul class="hero-list">`;
+      for (const c of considerations) {
+        const kind = c.kind ? ` <span class="condition-kind-tag">${escapeHtml(String(c.kind).replace(/_/g, " "))}</span>` : "";
+        html += `<li><strong>${escapeHtml(c.title || "")}</strong>${kind}`;
+        if (c.rationale) html += `<div class="muted" style="margin-top:0.25rem">${escapeHtml(c.rationale)}</div>`;
+        if ((c.related_medications || []).length) {
+          html += `<div class="muted" style="margin-top:0.2rem">Noted meds: ${escapeHtml((c.related_medications || []).join(", "))}</div>`;
+        }
+        html += `</li>`;
+      }
+      html += `</ul></div>`;
+    }
+
+    const overlap = item.lab_overlap || [];
+    if (overlap.length) {
+      html += `<div class="priority-field"><strong>Related biomarkers on this panel</strong><ul>`;
+      for (const m of overlap) {
+        const flag = m.abnormal ? " · abnormal on panel" : " · on panel";
+        html += `<li>${escapeHtml(m.biomarker_name || "")}<span class="muted">${escapeHtml(flag)}</span></li>`;
+      }
+      html += `</ul>`;
+      if (item.lab_overlap_note) {
+        html += `<p class="muted" style="font-size:0.85rem">${escapeHtml(item.lab_overlap_note)}</p>`;
+      }
+      html += `</div>`;
+    } else if (item.lab_overlap_note) {
+      html += `<div class="priority-field"><p class="muted">${escapeHtml(item.lab_overlap_note)}</p></div>`;
+    }
+
+    if (item.disclaimer) {
+      html += `<p class="muted" style="font-size:0.8rem;margin-top:0.5rem">${escapeHtml(item.disclaimer)}</p>`;
+    }
+    html += `</div></details>`;
+  }
+
+  const unmapped = payload.unmapped_conditions || [];
+  if (unmapped.length) {
+    html += `<p class="muted" style="margin-top:0.75rem">Also listed (no curated playbook yet): ${escapeHtml(unmapped.join(", "))}</p>`;
+  }
+  if (payload.disclaimer) {
+    html += `<p class="muted" style="font-size:0.8rem;margin-top:0.5rem">${escapeHtml(payload.disclaimer)}</p>`;
+  }
+  body.innerHTML = html;
 }
 
 function renderClinicalPriorities(report) {

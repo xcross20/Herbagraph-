@@ -186,6 +186,18 @@ class DualClinicalRankingsRead(BaseModel):
     ranking_questions: dict = {}
 
 
+class ConditionAlignedRead(BaseModel):
+    """Condition-aligned considerations — separate from lab-driven priorities."""
+
+    model: str = "condition_lanes_v1"
+    items: list[dict] = []
+    unmapped_conditions: list[str] = []
+    section_title: str = "Condition-aligned considerations"
+    section_subtitle: str = ""
+    disclaimer: str = ""
+    empty: bool = True
+
+
 class BiologicalHierarchyRead(BaseModel):
     """Biology-first cascade: biomarkers → systems → pathways → interventions."""
 
@@ -255,6 +267,7 @@ class RecommendationReportRead(BaseModel):
     biological_hierarchy: BiologicalHierarchyRead | None = None
     dual_clinical_rankings: DualClinicalRankingsRead | None = None
     clinical_summary_hero: ClinicalSummaryHeroRead | None = None
+    condition_aligned: ConditionAlignedRead | None = None
     created_at: datetime
 
 

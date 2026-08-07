@@ -191,7 +191,11 @@ def _hydrated_recommendation_payload(recommendation, citations_by_id: dict) -> d
     }
 
 
-def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
+def _to_report_read(
+    report: RecommendationReport,
+    *,
+    health_profile: dict | None = None,
+) -> RecommendationReportRead:
     from app.evidence_confidence.citations import (
         build_citations_index,
         hydrate_citation_url,
@@ -316,6 +320,26 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
             citations=citation_rows_for_insights,
         )
 
+    condition_aligned = insights.get("condition_aligned")
+    if not condition_aligned or not isinstance(condition_aligned, dict):
+        from app.pipeline.condition_lanes import build_condition_aligned
+
+        condition_aligned = build_condition_aligned(
+            health_profile,
+            report.biomarker_summary or {},
+        )
+        insights["condition_aligned"] = condition_aligned
+    elif health_profile and condition_aligned.get("empty") and (
+        health_profile.get("known_conditions") or health_profile.get("current_medications")
+    ):
+        # Rebuild when profile has conditions but stored payload is empty (older reports)
+        from app.pipeline.condition_lanes import build_condition_aligned
+
+        rebuilt = build_condition_aligned(health_profile, report.biomarker_summary or {})
+        if not rebuilt.get("empty"):
+            condition_aligned = rebuilt
+            insights["condition_aligned"] = condition_aligned
+
     return RecommendationReportRead(
         id=report.id,
         lab_report_id=report.lab_report_id,
@@ -350,6 +374,7 @@ def _to_report_read(report: RecommendationReport) -> RecommendationReportRead:
         biological_hierarchy=biological_hierarchy,
         dual_clinical_rankings=dual_clinical_rankings,
         clinical_summary_hero=clinical_summary_hero,
+        condition_aligned=condition_aligned,
         created_at=report.created_at,
     )
 
@@ -400,7 +425,50 @@ async def get_report(
         request=request,
     )
     await db.commit()
-    return _to_report_read(report)
+
+    # Load health profile + patient context so condition lanes hydrate on older reports
+    from app.models.enums import PatientContextType
+    from app.models.patient_context import PatientContext
+    from app.models.user import HealthProfile
+
+    profile = (
+        await db.execute(select(HealthProfile).where(HealthProfile.user_id == current_user.id))
+    ).scalar_one_or_none()
+    health_profile: dict = {}
+    if profile is not None:
+        health_profile = {
+            "age_range": profile.age_range,
+            "biological_sex": profile.biological_sex,
+            "health_goals": list(profile.health_goals or []),
+            "current_medications": list(profile.current_medications or []),
+            "current_supplements": list(profile.current_supplements or []),
+            "known_conditions": list(profile.known_conditions or []),
+        }
+    try:
+        lab = await db.get(LabReport, report.lab_report_id)
+        patient_id = getattr(lab, "patient_id", None) if lab is not None else None
+        if patient_id is not None:
+            ctx_rows = (
+                await db.execute(
+                    select(PatientContext).where(
+                        PatientContext.patient_id == patient_id,
+                        PatientContext.active.is_(True),
+                    )
+                )
+            ).scalars().all()
+            for row in ctx_rows:
+                if row.context_type == PatientContextType.CONDITION:
+                    health_profile.setdefault("known_conditions", [])
+                    if row.name not in health_profile["known_conditions"]:
+                        health_profile["known_conditions"].append(row.name)
+                elif row.context_type == PatientContextType.MEDICATION:
+                    health_profile.setdefault("current_medications", [])
+                    if row.name not in health_profile["current_medications"]:
+                        health_profile["current_medications"].append(row.name)
+    except Exception:  # noqa: BLE001 — condition lanes are best-effort on read
+        pass
+
+    return _to_report_read(report, health_profile=health_profile or None)
 
 
 @router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
