@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_user
 from app.models.user import User
+from app.knowledge_graph.common_conditions import list_common_conditions
 from app.safety_engine.condition_catalog import CONDITION_CATALOG
 from app.safety_engine.engine import evaluate_from_input
 from app.safety_engine.graph_seed import SAFETY_GRAPH_EDGES
@@ -33,8 +34,22 @@ async def list_medications(_user: User = Depends(get_current_user)) -> list[Medi
 
 @router.get("/conditions", response_model=list[SafetyConditionRead])
 async def list_conditions(_user: User = Depends(get_current_user)) -> list[SafetyConditionRead]:
+    """Preloaded condition matrix (~100 common conditions) for profile toggles."""
+    library = list_common_conditions()
+    if library:
+        return [
+            SafetyConditionRead(
+                key=row["key"],
+                label=row["label"],
+                category=row.get("category"),
+                aliases=list(row.get("aliases") or []),
+                safety_keys=list(row.get("safety_keys") or []),
+            )
+            for row in library
+        ]
+    # Fallback: safety catalog only
     return [
-        SafetyConditionRead(key=key, label=meta["label"])
+        SafetyConditionRead(key=key, label=meta["label"], category="General")
         for key, meta in sorted(CONDITION_CATALOG.items())
     ]
 

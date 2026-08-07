@@ -56,4 +56,11 @@ def active_conditions(known_conditions: list[str]) -> set[str]:
             if re.search(pattern, blob, re.IGNORECASE):
                 active.add(key)
                 break
+    # Matrix / library labels (Type 2 diabetes, CKD, …) → safety catalog keys
+    try:
+        from app.knowledge_graph.common_conditions import safety_keys_for_known_conditions
+
+        active.update(safety_keys_for_known_conditions(list(known_conditions or [])))
+    except Exception:  # noqa: BLE001 — catalog optional at import edge cases
+        pass
     return active

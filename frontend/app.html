@@ -756,7 +756,7 @@ async function renderPatient(patientId, section = "overview") {
     ["overview", "Overview"],
     ["labs", "Labs"],
     ["analyses", "Analysis"],
-    ["context", "Notes"],
+    ["context", "Context"],
   ];
 
   const labRows = overview.lab_reports.map(l => `
@@ -926,18 +926,25 @@ function renderPatientContextForm(patientId, overview) {
     `<div style="margin-bottom:0.65rem"><strong style="font-size:0.82rem;text-transform:capitalize">${esc(k.replace(/_/g, " "))}</strong><br>${items.map(i => `<span class="system-tag">${esc(i)}</span>`).join("")}</div>`
   ).join("") || `<p class="muted">No context items yet.</p>`;
   return `
-    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Patient context</h3>${existingHtml}</div>
-    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Add context</h3>
+    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Current context</h3>${existingHtml}</div>
+    <div class="app-card" id="patient-condition-card">
+      <h3 style="margin:0 0 0.35rem;font-size:1rem">Conditions</h3>
+      <p class="muted" style="margin:0 0 0.75rem;font-size:0.85rem">Toggle conditions for this patient. Used for safety checks and condition-aligned report lanes (separate from lab priorities).</p>
+      <div id="patient-condition-matrix-mount"><p class="muted">Loading condition library…</p></div>
+      <button class="app-btn app-btn-primary" id="save-patient-conditions-btn" style="margin-top:0.75rem">Save conditions</button>
+      <p id="patient-cond-status" class="muted" style="margin-top:0.5rem"></p>
+    </div>
+    <div class="app-card"><h3 style="margin:0 0 0.75rem;font-size:1rem">Add other context</h3>
       <div class="form-grid-3">
         <div class="form-row"><label>Type</label>
           <select id="ctx-type">
             <option value="medication">Medication</option>
             <option value="supplement">Supplement</option>
-            <option value="condition">Condition</option>
             <option value="allergy">Allergy</option>
             <option value="diet_pattern">Diet pattern</option>
             <option value="goal">Goal</option>
             <option value="note">Note</option>
+            <option value="condition">Condition (custom)</option>
           </select>
         </div>
         <div class="form-row"><label>Name</label><input id="ctx-name" placeholder="Metformin"></div>
@@ -950,19 +957,56 @@ function renderPatientContextForm(patientId, overview) {
 
 async function wirePatientContext(patientId) {
   const btn = document.getElementById("add-ctx-btn");
-  if (!btn) return;
-  btn.onclick = async () => {
-    try {
-      await api(`/api/v1/patients/${patientId}/context`, "POST", {
-        context_type: document.getElementById("ctx-type").value,
-        name: document.getElementById("ctx-name").value.trim(),
-        value: document.getElementById("ctx-value").value.trim() || null,
-      });
-      render();
-    } catch (e) {
-      document.getElementById("ctx-error").textContent = e.message;
-    }
-  };
+  if (btn) {
+    btn.onclick = async () => {
+      try {
+        await api(`/api/v1/patients/${patientId}/context`, "POST", {
+          context_type: document.getElementById("ctx-type").value,
+          name: document.getElementById("ctx-name").value.trim(),
+          value: document.getElementById("ctx-value").value.trim() || null,
+        });
+        render();
+      } catch (e) {
+        document.getElementById("ctx-error").textContent = e.message;
+      }
+    };
+  }
+
+  const mount = document.getElementById("patient-condition-matrix-mount");
+  const saveBtn = document.getElementById("save-patient-conditions-btn");
+  if (!mount || !saveBtn) return;
+
+  try {
+    const [library, ctxItems] = await Promise.all([
+      loadConditionLibrary(),
+      api(`/api/v1/patients/${patientId}/context`),
+    ]);
+    const activeConditions = (ctxItems || [])
+      .filter((i) => i.context_type === "condition" && i.active !== false)
+      .map((i) => i.name);
+    mount.innerHTML = library.length
+      ? renderConditionMatrixHtml(library, activeConditions, { idPrefix: "pt" })
+      : `<p class="muted">Condition library unavailable. Use “Add other context” with type Condition.</p>`;
+    if (library.length) wireConditionMatrix("pt");
+
+    saveBtn.onclick = async () => {
+      const status = document.getElementById("patient-cond-status");
+      try {
+        const conditions = selectedConditionLabelsFromDom(document.getElementById("patient-condition-card") || document);
+        await api(`/api/v1/patients/${patientId}/conditions`, "PUT", { conditions });
+        if (status) status.textContent = `Saved ${conditions.length} condition(s).`;
+        // refresh summary chips without full navigation if possible
+        setTimeout(() => render(), 400);
+      } catch (e) {
+        if (status) {
+          status.textContent = e.message || "Save failed";
+          status.className = "error";
+        }
+      }
+    };
+  } catch (e) {
+    mount.innerHTML = `<p class="error">${esc(e.message || "Could not load conditions")}</p>`;
+  }
 }
 
 async function renderReports() {
@@ -1268,27 +1312,156 @@ async function renderAnalysisBuilder(preselectedPatient) {
   };
 }
 
+
+/* ── Condition matrix (preloaded library + Other) ───────────────── */
+let _conditionLibraryCache = null;
+
+async function loadConditionLibrary() {
+  if (_conditionLibraryCache) return _conditionLibraryCache;
+  const rows = await api("/api/v1/safety/conditions");
+  _conditionLibraryCache = Array.isArray(rows) ? rows : [];
+  return _conditionLibraryCache;
+}
+
+function groupConditionsByCategory(library) {
+  const grouped = {};
+  for (const row of library) {
+    const cat = row.category || "General";
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(row);
+  }
+  return grouped;
+}
+
+function selectedConditionLabelsFromDom(root = document) {
+  const labels = [];
+  root.querySelectorAll(".condition-chip input[type=checkbox]:checked").forEach((el) => {
+    const label = el.getAttribute("data-label") || el.value;
+    if (label) labels.push(label);
+  });
+  const otherEl = root.querySelector("#condition-other");
+  if (otherEl && otherEl.value.trim()) {
+    otherEl.value.split(",").map((s) => s.trim()).filter(Boolean).forEach((s) => labels.push(s));
+  }
+  // de-dupe case-insensitive
+  const seen = new Set();
+  const out = [];
+  for (const l of labels) {
+    const k = l.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(l);
+  }
+  return out;
+}
+
+function renderConditionMatrixHtml(library, selectedLabels, { otherText = "", idPrefix = "cond" } = {}) {
+  const selected = new Set((selectedLabels || []).map((s) => String(s).trim().toLowerCase()));
+  const libraryLabels = new Set(library.map((r) => (r.label || "").toLowerCase()));
+  // free-text others = selected not in library
+  const others = (selectedLabels || []).filter((s) => !libraryLabels.has(String(s).trim().toLowerCase()));
+  const otherVal = otherText || others.join(", ");
+  const grouped = groupConditionsByCategory(library);
+  let html = `<div class="condition-matrix" id="${idPrefix}-matrix">`;
+  html += `<div class="condition-matrix-toolbar">
+    <input type="search" class="condition-matrix-search" id="${idPrefix}-search" placeholder="Search conditions…" autocomplete="off">
+    <span class="condition-matrix-count" id="${idPrefix}-count"></span>
+  </div>`;
+  for (const [cat, rows] of Object.entries(grouped)) {
+    html += `<div class="condition-matrix-category" data-category-block>${esc(cat)}</div>`;
+    html += `<div class="condition-matrix-grid" data-category-grid="${esc(cat)}">`;
+    for (const row of rows) {
+      const label = row.label || row.key;
+      const checked = selected.has(String(label).toLowerCase()) || selected.has(String(row.key || "").toLowerCase())
+        || (row.aliases || []).some((a) => selected.has(String(a).toLowerCase()));
+      html += `<label class="condition-chip" data-search="${esc((label + " " + (row.aliases || []).join(" ")).toLowerCase())}">
+        <input type="checkbox" value="${esc(row.key)}" data-label="${esc(label)}" ${checked ? "checked" : ""}>
+        <span>${esc(label)}</span>
+      </label>`;
+    }
+    html += `</div>`;
+  }
+  html += `<div class="condition-other-row">
+    <label for="condition-other">Other conditions (comma-separated)</label>
+    <input type="text" id="condition-other" placeholder="e.g. Ehlers-Danlos, longstanding tinnitus" value="${esc(otherVal)}">
+    <p class="muted" style="margin:0.35rem 0 0;font-size:0.8rem">Toggles use the clinical library for safety and condition-aligned report lanes. Use Other for anything not listed.</p>
+  </div>`;
+  html += `</div>`;
+  return html;
+}
+
+function wireConditionMatrix(idPrefix = "cond") {
+  const search = document.getElementById(`${idPrefix}-search`);
+  const countEl = document.getElementById(`${idPrefix}-count`);
+  const matrix = document.getElementById(`${idPrefix}-matrix`);
+  if (!matrix) return;
+  const updateCount = () => {
+    if (!countEl) return;
+    const n = matrix.querySelectorAll(".condition-chip input:checked").length;
+    countEl.textContent = n ? `${n} selected` : "None selected";
+  };
+  const filter = () => {
+    const q = (search && search.value || "").trim().toLowerCase();
+    matrix.querySelectorAll(".condition-chip").forEach((chip) => {
+      const hay = chip.getAttribute("data-search") || "";
+      chip.style.display = !q || hay.includes(q) ? "" : "none";
+    });
+    // hide empty category headers
+    matrix.querySelectorAll("[data-category-grid]").forEach((grid) => {
+      const any = Array.from(grid.querySelectorAll(".condition-chip")).some((c) => c.style.display !== "none");
+      const header = grid.previousElementSibling;
+      if (header && header.classList.contains("condition-matrix-category")) {
+        header.style.display = any ? "" : "none";
+      }
+      grid.style.display = any ? "" : "none";
+    });
+  };
+  if (search) search.addEventListener("input", filter);
+  matrix.addEventListener("change", updateCount);
+  updateCount();
+}
+
 async function renderSettings() {
   const profile = await api("/api/v1/auth/profile");
+  let library = [];
+  try {
+    library = await loadConditionLibrary();
+  } catch (e) {
+    library = [];
+  }
+  const matrixHtml = library.length
+    ? renderConditionMatrixHtml(library, profile.known_conditions || [], { idPrefix: "hp" })
+    : `<div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions || []).join(", "))}"></div>`;
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Settings", "Health profile informs safety checks and reasoning context.")}
-    <div class="app-card" style="max-width:520px">
+    ${pageHeader("Settings", "Health profile informs safety checks, condition-aligned lanes, and reasoning context.")}
+    <div class="app-card" style="max-width:920px">
       <div class="form-row"><label>Age range</label><input id="hp-age" value="${esc(profile.age_range || "")}"></div>
       <div class="form-row"><label>Biological sex</label><input id="hp-sex" value="${esc(profile.biological_sex || "")}"></div>
       <div class="form-row"><label>Medications (comma-separated)</label><input id="hp-meds" value="${esc((profile.current_medications || []).join(", "))}"></div>
       <div class="form-row"><label>Supplements (comma-separated)</label><input id="hp-sups" value="${esc((profile.current_supplements || []).join(", "))}"></div>
-      <div class="form-row"><label>Conditions (comma-separated)</label><input id="hp-conds" value="${esc((profile.known_conditions || []).join(", "))}"></div>
+      <div class="form-row" style="margin-top:1rem">
+        <label style="display:block;font-weight:600;margin-bottom:0.35rem">Conditions</label>
+        <p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">Toggle common conditions for safety and report context. Search to filter the matrix.</p>
+        ${matrixHtml}
+      </div>
       <button class="app-btn app-btn-primary" id="save-profile-btn">Save profile</button>
       <p id="settings-status" class="muted" style="margin-top:0.5rem"></p>
     </div>`;
+  if (library.length) wireConditionMatrix("hp");
   document.getElementById("save-profile-btn").onclick = async () => {
     const split = s => s.split(",").map(x => x.trim()).filter(Boolean);
+    let known_conditions;
+    if (library.length) {
+      known_conditions = selectedConditionLabelsFromDom(document.getElementById("app-main"));
+    } else {
+      known_conditions = split(document.getElementById("hp-conds").value);
+    }
     await api("/api/v1/auth/profile", "PUT", {
       age_range: document.getElementById("hp-age").value || null,
       biological_sex: document.getElementById("hp-sex").value || null,
       current_medications: split(document.getElementById("hp-meds").value),
       current_supplements: split(document.getElementById("hp-sups").value),
-      known_conditions: split(document.getElementById("hp-conds").value),
+      known_conditions,
     });
     document.getElementById("settings-status").textContent = "Saved.";
   };

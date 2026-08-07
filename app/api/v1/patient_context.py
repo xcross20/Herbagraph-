@@ -10,7 +10,13 @@ from app.models.enums import AuditAction
 from app.models.patient_context import PatientContext
 from app.services.audit import record_audit_event
 from app.models.user import User
-from app.schemas.patient_context import PatientContextCreate, PatientContextRead, PatientContextUpdate
+from app.models.enums import PatientContextType
+from app.schemas.patient_context import (
+    PatientConditionsReplace,
+    PatientContextCreate,
+    PatientContextRead,
+    PatientContextUpdate,
+)
 
 router = APIRouter(prefix="/patients", tags=["patient-context"])
 
@@ -109,3 +115,84 @@ async def delete_patient_context(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Context item not found")
     await db.delete(item)
     await db.commit()
+
+
+@router.put("/{patient_id}/conditions", response_model=list[PatientContextRead])
+async def replace_patient_conditions(
+    patient_id: uuid.UUID,
+    payload: PatientConditionsReplace,
+    request: Request,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PatientContext]:
+    """Set the full condition matrix for a patient (toggles + Other free-text entries)."""
+    await _get_owned_patient(patient_id, current_user, db)
+    desired: list[str] = []
+    seen: set[str] = set()
+    for raw in payload.conditions or []:
+        name = str(raw).strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        desired.append(name)
+
+    existing = list(
+        (
+            await db.execute(
+                select(PatientContext).where(
+                    PatientContext.patient_id == patient_id,
+                    PatientContext.context_type == PatientContextType.CONDITION,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    existing_by_name = {item.name.strip().lower(): item for item in existing}
+    desired_keys = {n.lower() for n in desired}
+
+    for item in existing:
+        if item.name.strip().lower() not in desired_keys:
+            await db.delete(item)
+
+    for name in desired:
+        if name.lower() in existing_by_name:
+            item = existing_by_name[name.lower()]
+            if not item.active:
+                item.active = True
+            continue
+        db.add(
+            PatientContext(
+                patient_id=patient_id,
+                context_type=PatientContextType.CONDITION,
+                name=name,
+                active=True,
+            )
+        )
+
+    await record_audit_event(
+        db,
+        action=AuditAction.CONTEXT_ADDED,
+        summary=f"Updated condition matrix ({len(desired)} active)",
+        user=current_user,
+        patient_id=patient_id,
+        resource_type="patient_conditions",
+        resource_id=str(patient_id),
+        request=request,
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(PatientContext)
+        .where(
+            PatientContext.patient_id == patient_id,
+            PatientContext.context_type == PatientContextType.CONDITION,
+            PatientContext.active.is_(True),
+        )
+        .order_by(PatientContext.name)
+    )
+    return list(result.scalars().all())
+

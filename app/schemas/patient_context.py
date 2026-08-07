@@ -38,3 +38,10 @@ class PatientContextRead(BaseModel):
     active: bool
     source: PatientContextSource
     created_at: datetime
+
+
+class PatientConditionsReplace(BaseModel):
+    """Replace active condition toggles for a patient (matrix + Other free text)."""
+
+    conditions: list[str] = Field(default_factory=list, max_length=200)
+

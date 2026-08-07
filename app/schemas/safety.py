@@ -24,6 +24,9 @@ class MedicationRead(BaseModel):
 class SafetyConditionRead(BaseModel):
     key: str
     label: str
+    category: str | None = None
+    aliases: list[str] = []
+    safety_keys: list[str] = []
 
 
 class SafetyGraphEdgeRead(BaseModel):
