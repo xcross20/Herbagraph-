@@ -64,8 +64,12 @@ def _set_processing_stage(session, lab_report: LabReport, stage: LabProcessingSt
     session.commit()
 
 
-def process_lab_report(lab_report_id: str) -> dict:
-    """Stage 1 + Stage 2, synchronously: parse the uploaded file and persist normalized LabResults."""
+def process_lab_report(lab_report_id: str, *, force: bool = False) -> dict:
+    """Stage 1 + Stage 2, synchronously: parse the uploaded file and persist normalized LabResults.
+
+    When ``force=True`` (or prior results exist), existing LabResult rows are replaced so
+    parser upgrades (e.g. MyChart Result Trends latest-date) take effect without re-upload.
+    """
     session = database.get_sync_db()
     try:
         lab_report = session.get(LabReport, lab_report_id)
@@ -73,6 +77,7 @@ def process_lab_report(lab_report_id: str) -> dict:
             return {"status": "failed", "error": "lab_report_not_found"}
 
         lab_report.status = LabReportStatus.PROCESSING
+        lab_report.error_message = None
         _set_processing_stage(session, lab_report, LabProcessingStage.QUEUED)
 
         try:
@@ -98,14 +103,33 @@ def process_lab_report(lab_report_id: str) -> dict:
                 profile.custom_biomarkers = custom_biomarkers
                 session.add(profile)
 
+            # Patient sex improves Hgb/Hct classification when lab ranges are missing
+            sex = None
+            if lab_report.patient_id:
+                from app.models.patient import Patient
+
+                patient = session.get(Patient, lab_report.patient_id)
+                if patient is not None:
+                    sex = getattr(patient, "biological_sex", None) or getattr(patient, "sex", None)
+            if sex is None and profile is not None:
+                sex = getattr(profile, "biological_sex", None) or getattr(profile, "sex", None)
+
             parsed = _apply_llm_alias_assist(parsed, custom_biomarkers)
-            normalized = normalize_lab_results(parsed, custom_biomarkers=custom_biomarkers)
+            normalized = normalize_lab_results(
+                parsed, custom_biomarkers=custom_biomarkers, sex=sex
+            )
 
             if profile is not None:
                 updated_profile = register_discovered_biomarkers(normalized, custom_biomarkers)
                 if updated_profile != custom_biomarkers:
                     profile.custom_biomarkers = updated_profile
                     session.add(profile)
+
+            # Replace prior rows so reprocess does not duplicate biomarkers
+            if force or lab_report.lab_results:
+                for old in list(lab_report.lab_results or []):
+                    session.delete(old)
+                session.flush()
 
             for result in normalized:
                 session.add(

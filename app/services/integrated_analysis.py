@@ -177,6 +177,24 @@ async def _run_integrated_analysis_async(
         analysis_session.error_message = None
         _set_session_status(session, analysis_session, AnalysisSessionStatus.PARSING)
 
+        # Always re-parse from stored originals so parser upgrades (MyChart Result Trends
+        # latest-date, unit scaling) apply without requiring the user to re-upload.
+        from app.workers.tasks import process_lab_report
+
+        for lid in lab_report_ids:
+            try:
+                result = process_lab_report(str(lid), force=True)
+                if result.get("status") == "failed":
+                    analysis_session.error_message = (
+                        f"Lab re-parse failed: {result.get('error') or 'unknown error'}"
+                    )
+                    _set_session_status(session, analysis_session, AnalysisSessionStatus.FAILED)
+                    return {"status": "failed", "error": analysis_session.error_message}
+            except Exception as exc:  # noqa: BLE001
+                analysis_session.error_message = f"Lab re-parse failed: {exc}"
+                _set_session_status(session, analysis_session, AnalysisSessionStatus.FAILED)
+                return {"status": "failed", "error": analysis_session.error_message}
+
         try:
             lab_reports = _wait_for_lab_parses(session, lab_report_ids)
         except (TimeoutError, ValueError) as exc:
@@ -185,7 +203,12 @@ async def _run_integrated_analysis_async(
             return {"status": "failed", "error": str(exc)}
 
         if not all(report.lab_results for report in lab_reports):
-            analysis_session.error_message = "One or more lab reports have no parsed biomarkers."
+            empty = [r.original_filename for r in lab_reports if not r.lab_results]
+            analysis_session.error_message = (
+                "One or more lab reports have no parsed biomarkers: "
+                + ", ".join(empty)
+                + ". Re-upload the PDF or confirm the file is a MyChart Result Trends / lab export."
+            )
             _set_session_status(session, analysis_session, AnalysisSessionStatus.FAILED)
             return {"status": "failed", "error": analysis_session.error_message}
 

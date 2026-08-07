@@ -196,6 +196,30 @@ async def download_lab_file(
     )
 
 
+@router.post("/{lab_report_id}/reprocess")
+async def reprocess_lab_report(
+    lab_report_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Re-run Stage 1–2 parse/normalize on the stored original file (no re-upload)."""
+    lab_report = await _get_owned_lab_report(lab_report_id, current_user, db)
+    from app.workers.tasks import process_lab_report
+
+    result = process_lab_report(str(lab_report.id), force=True)
+    if result.get("status") == "failed":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=result.get("error") or "Reprocess failed",
+        )
+    return {
+        "lab_report_id": str(lab_report_id),
+        "status": result.get("status"),
+        "biomarker_count": result.get("biomarker_count", 0),
+        "message": "Lab report re-parsed with the current engine.",
+    }
+
+
 @router.delete("/{lab_report_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_lab_report(
     lab_report_id: uuid.UUID,
