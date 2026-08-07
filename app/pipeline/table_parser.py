@@ -9,9 +9,20 @@ from app.pipeline.lab_parser import parse_lab_line
 from app.schemas.pipeline import ParsedLabResult
 
 _NAME_HEADERS = frozenset({"test", "test name", "component", "analyte", "name", "assay"})
-_VALUE_HEADERS = frozenset({"result", "value", "your value"})
+_VALUE_HEADERS = frozenset({"result", "value", "your value", "your result"})
 _UNIT_HEADERS = frozenset({"unit", "units"})
-_RANGE_HEADERS = frozenset({"reference", "reference range", "ref range", "normal range", "range"})
+# Epic MyChart uses "Standard Range" in patient-facing exports
+_RANGE_HEADERS = frozenset(
+    {
+        "reference",
+        "reference range",
+        "ref range",
+        "normal range",
+        "standard range",
+        "range",
+        "reference interval",
+    }
+)
 _FLAG_HEADERS = frozenset({"flag", "abnormal", "status"})
 
 
@@ -21,13 +32,13 @@ def _header_map(header_row: list[str | None]) -> dict[str, int]:
         if not cell:
             continue
         key = re.sub(r"\s+", " ", str(cell).strip().lower())
-        if key in _NAME_HEADERS or "test" in key or "component" in key:
+        if key in _NAME_HEADERS or "test" in key or "component" in key or "analyte" in key:
             mapping.setdefault("name", idx)
-        elif key in _VALUE_HEADERS or key == "result":
+        elif key in _VALUE_HEADERS or key == "result" or key == "your value":
             mapping.setdefault("value", idx)
         elif key in _UNIT_HEADERS:
             mapping.setdefault("unit", idx)
-        elif key in _RANGE_HEADERS or "reference" in key:
+        elif key in _RANGE_HEADERS or "reference" in key or "standard range" in key:
             mapping.setdefault("range", idx)
         elif key in _FLAG_HEADERS:
             mapping.setdefault("flag", idx)

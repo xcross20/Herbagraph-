@@ -8,6 +8,11 @@ from app.pipeline.document_detection import LabDocumentProvider, detect_lab_docu
 from app.pipeline.parse_confidence import apply_confidence_scores
 from app.pipeline.parsers.base import ParserPassResult, dedupe_parsed_results
 from app.pipeline.parsers.healow import healow_unparsed_lines, parse_healow_text
+from app.pipeline.parsers.mychart import (
+    mychart_unparsed_lines,
+    parse_mychart_result_trends_pdf,
+    parse_mychart_text,
+)
 from app.pipeline.table_parser import parse_pdf_tables
 from app.schemas.pipeline import ParsedLabResult
 
@@ -71,42 +76,74 @@ def run_document_pipeline(
     all_results: list[ParsedLabResult] = []
     consumed_line_indices: set[int] = set()
 
-    # Pass 1: PDF table extraction
-    if file_bytes and filename.lower().endswith(".pdf"):
+    # Pass 1: MyChart Result Trends (multi-date columns → latest value)
+    if (
+        file_bytes
+        and filename.lower().endswith(".pdf")
+        and (
+            provider == LabDocumentProvider.MYCHART
+            or "result trends" in filename.lower()
+            or "result trends" in text.lower()
+        )
+    ):
+        trends = parse_mychart_result_trends_pdf(file_bytes)
+        if trends:
+            passes.append("mychart_result_trends_latest")
+            all_results.extend(trends)
+            # Prefer trends; still allow other passes to fill gaps via dedupe
+            provider = LabDocumentProvider.MYCHART
+
+    trends_succeeded = any(p.startswith("mychart_result_trends") for p in passes)
+
+    # Pass 2: generic PDF table extraction (skip when trends already covered the panel)
+    if file_bytes and filename.lower().endswith(".pdf") and not trends_succeeded:
         table_rows = parse_pdf_tables(file_bytes)
         if table_rows:
             passes.append("table_extraction")
             all_results.extend(table_rows)
 
-    # Pass 2: provider-specific parser
-    healow = ParserPassResult()
+    # Pass 3: provider-specific text parser
+    provider_pass = ParserPassResult()
     if provider == LabDocumentProvider.HEALOW:
-        healow = parse_healow_text(text)
-        if healow.results:
+        provider_pass = parse_healow_text(text)
+        if provider_pass.results:
             passes.append("healow_parser")
-            all_results.extend(healow.results)
-            consumed_line_indices = healow.consumed_line_indices
+            all_results.extend(provider_pass.results)
+            consumed_line_indices = provider_pass.consumed_line_indices
+    elif provider == LabDocumentProvider.MYCHART and not trends_succeeded:
+        provider_pass = parse_mychart_text(text)
+        if provider_pass.results:
+            passes.append("mychart_parser")
+            all_results.extend(provider_pass.results)
+            consumed_line_indices = provider_pass.consumed_line_indices
 
-    # Pass 3: generic regex line parser
-    generic = _generic_line_pass(text)
-    if generic.results:
-        passes.append("generic_regex")
-        all_results.extend(generic.results)
-        consumed_line_indices |= generic.consumed_line_indices
+    # Pass 4: generic regex — skip when Result Trends already produced a full panel
+    if not trends_succeeded:
+        generic = _generic_line_pass(text)
+        if generic.results:
+            passes.append("generic_regex")
+            all_results.extend(generic.results)
+            consumed_line_indices |= generic.consumed_line_indices
 
-    # Pass 4: sliding window for stacked lines not yet consumed
-    if provider == LabDocumentProvider.HEALOW:
-        unparsed = healow_unparsed_lines(text, consumed_line_indices)
-    else:
-        lines = [line.strip() for line in text.splitlines()]
-        unparsed = [lines[i] for i in range(len(lines)) if i not in consumed_line_indices and lines[i].strip()]
+        # Pass 5: sliding window for stacked lines not yet consumed
+        if provider == LabDocumentProvider.HEALOW:
+            unparsed = healow_unparsed_lines(text, consumed_line_indices)
+        elif provider == LabDocumentProvider.MYCHART:
+            unparsed = mychart_unparsed_lines(text, consumed_line_indices)
+        else:
+            lines = [line.strip() for line in text.splitlines()]
+            unparsed = [
+                lines[i]
+                for i in range(len(lines))
+                if i not in consumed_line_indices and lines[i].strip()
+            ]
 
-    if unparsed:
-        window = _generic_sliding_window(text, consumed_line_indices)
-        if window.results:
-            passes.append("generic_sliding_window")
-            all_results.extend(window.results)
-            consumed_line_indices |= window.consumed_line_indices
+        if unparsed:
+            window = _generic_sliding_window(text, consumed_line_indices)
+            if window.results:
+                passes.append("generic_sliding_window")
+                all_results.extend(window.results)
+                consumed_line_indices |= window.consumed_line_indices
 
     deduped = dedupe_parsed_results(all_results)
     scored = apply_confidence_scores(deduped, document_provider=provider.value)
@@ -115,6 +152,8 @@ def run_document_pipeline(
     lines = text.splitlines()
     if provider == LabDocumentProvider.HEALOW:
         remaining = healow_unparsed_lines(text, consumed_line_indices)
+    elif provider == LabDocumentProvider.MYCHART:
+        remaining = mychart_unparsed_lines(text, consumed_line_indices)
     else:
         remaining = [
             lines[i].strip()
