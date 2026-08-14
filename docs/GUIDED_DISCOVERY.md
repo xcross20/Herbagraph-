@@ -116,6 +116,13 @@ Test utility (later slice): information gain × actionability × safety × cover
 
 **Revisit if:** Findings need their own query API or outcomes must attach.
 
+### Workspace modes (consumer vs clinician)
+
+The same FastAPI + `app.html` shell serves two chrome modes from `User.role`:
+
+- **Personal (`individual`)** — one Self profile. Discovery, Evidence, and Reports stay on that record. The Patients nav is “My profile.”
+- **Clinician** — many patients. Discovery and Evidence require an active patient. Cases list and evidence tables filter by `patient_id`. There is no clinic-wide “latest report.”
+
 ## LLM rule
 
 The LLM may explain the decomposition. It may not invent the numbers. Scores are deterministic from labs, profile, cited studies, and catalog tables.

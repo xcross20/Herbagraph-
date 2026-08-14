@@ -52,6 +52,33 @@ async def test_rebuild_with_b12_labs_lists_mma_gap(authed_client):
     assert any(row["id"] == case_id for row in listed.json())
 
 
+async def test_list_cases_can_filter_by_patient(authed_client, db_session, test_user):
+    from app.models.patient import Patient
+
+    patient = Patient(user_id=test_user.id, display_name="Clinic Patient")
+    db_session.add(patient)
+    await db_session.commit()
+    await db_session.refresh(patient)
+
+    first = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet", "patient_id": str(patient.id)},
+    )
+    assert first.status_code == 201, first.text
+    other = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "fatigue without a patient"},
+    )
+    assert other.status_code == 201, other.text
+
+    scoped = await authed_client.get(f"/api/v1/cases?patient_id={patient.id}")
+    assert scoped.status_code == 200
+    rows = scoped.json()
+    assert len(rows) == 1
+    assert rows[0]["patient_id"] == str(patient.id)
+    assert "burning" in rows[0]["presenting_concern"]
+
+
 async def test_case_requires_auth(client):
     resp = await client.post("/api/v1/cases", json={"presenting_concern": "fatigue"})
     assert resp.status_code == 401

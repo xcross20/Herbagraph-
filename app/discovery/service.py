@@ -211,12 +211,19 @@ async def get_owned_case(db: AsyncSession, case_id: uuid.UUID, user_id: uuid.UUI
     return result.scalar_one_or_none()
 
 
-async def list_owned_cases(db: AsyncSession, user_id: uuid.UUID) -> list[DiscoveryCase]:
+async def list_owned_cases(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    patient_id: uuid.UUID | None = None,
+) -> list[DiscoveryCase]:
+    query = select(DiscoveryCase).where(DiscoveryCase.user_id == user_id)
+    if patient_id is not None:
+        query = query.where(DiscoveryCase.patient_id == patient_id)
     result = await db.execute(
-        select(DiscoveryCase)
-        .where(DiscoveryCase.user_id == user_id)
-        .options(selectinload(DiscoveryCase.findings), selectinload(DiscoveryCase.hypotheses))
-        .order_by(DiscoveryCase.updated_at.desc())
+        query.options(selectinload(DiscoveryCase.findings), selectinload(DiscoveryCase.hypotheses)).order_by(
+            DiscoveryCase.updated_at.desc()
+        )
     )
     return list(result.scalars().all())
 

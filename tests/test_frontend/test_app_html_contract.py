@@ -14,6 +14,18 @@ def test_app_html_serves_workspace_shell():
     assert "/report.html" in html
 
 
+def test_app_html_splits_clinician_and_consumer_workspace():
+    html = _INDEX.read_text(encoding="utf-8")
+    assert "function isClinicianWorkspace()" in html
+    assert "function applyWorkspaceChrome()" in html
+    assert "function renderPatientScopeBar(" in html
+    assert 'id="nav-patients-label"' in html
+    assert 'id="patient-scope-select"' in html
+    assert "/api/v1/cases?patient_id=" in html
+    assert "Select a patient to open Discovery" in html
+    assert "Working on <strong>your profile</strong>" in html
+
+
 def test_app_html_has_discovery_route():
     html = _INDEX.read_text(encoding="utf-8")
     assert 'href="#discovery"' in html

@@ -27,7 +27,7 @@
       </a>
       <a class="sidebar-link" href="#patients" data-nav="patients">
         <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Patients
+        <span id="nav-patients-label">Patients</span>
       </a>
       <a class="sidebar-link" href="#discovery" data-nav="discovery">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
@@ -262,7 +262,67 @@ function friendlyApiError(method, path, status, text) {
 async function ensureSession() {
   if (!(await Auth.ensureSession())) return false;
   currentUser = await api("/api/v1/auth/me");
+  applyWorkspaceChrome();
   return true;
+}
+
+function isClinicianWorkspace() {
+  const role = String((currentUser && currentUser.role) || "").toLowerCase();
+  return role === "clinician" || role === "organization_admin" || role === "admin";
+}
+
+function applyWorkspaceChrome() {
+  const clinician = isClinicianWorkspace();
+  document.body.dataset.workspace = clinician ? "clinician" : "consumer";
+  const patientsLabel = document.getElementById("nav-patients-label");
+  if (patientsLabel) patientsLabel.textContent = clinician ? "Patients" : "My profile";
+}
+
+function rememberPatientId(patientId) {
+  if (patientId) sessionStorage.setItem("hg_active_patient_id", patientId);
+  else sessionStorage.removeItem("hg_active_patient_id");
+}
+
+async function resolveActivePatientId(explicitId) {
+  const patients = await ensurePatients();
+  if (!patients.length) return { patientId: null, patients };
+  if (!isClinicianWorkspace()) {
+    const self = patients.find((p) => String(p.display_name || "").toLowerCase() === "self") || patients[0];
+    rememberPatientId(self.id);
+    return { patientId: self.id, patients };
+  }
+  const wanted = explicitId || sessionStorage.getItem("hg_active_patient_id");
+  if (wanted && patients.some((p) => p.id === wanted)) {
+    rememberPatientId(wanted);
+    return { patientId: wanted, patients };
+  }
+  return { patientId: null, patients };
+}
+
+function renderPatientScopeBar(patients, selectedId, hashBase) {
+  if (!isClinicianWorkspace()) {
+    return `<div class="patient-scope-bar consumer">Working on <strong>your profile</strong> — Discovery and Evidence stay on this one record.</div>`;
+  }
+  const opts = [`<option value="">Select a patient…</option>`]
+    .concat(patients.map((p) => `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${esc(p.display_name)}</option>`))
+    .join("");
+  return `<div class="patient-scope-bar">
+    <label for="patient-scope-select">Active patient</label>
+    <select id="patient-scope-select">${opts}</select>
+    <a class="app-btn" href="#patients">All patients</a>
+  </div>`;
+}
+
+function wirePatientScopeSelect(hashBase) {
+  const sel = document.getElementById("patient-scope-select");
+  if (!sel) return;
+  sel.onchange = () => {
+    const id = sel.value;
+    rememberPatientId(id || null);
+    const qs = id ? `?patient=${id}` : "";
+    history.replaceState({}, document.title, `#${hashBase}${qs}`);
+    render();
+  };
 }
 
 async function signOut() {
@@ -491,11 +551,10 @@ function renderOnboardingBanner() {
   const pending = localStorage.getItem("hg_onboarding_pending") === "1"
     || new URLSearchParams(location.search).get("onboard") === "1";
   if (!pending) return "";
-  const accountType = localStorage.getItem("hg_account_type") || "individual";
-  const isClinician = accountType === "clinician";
+  const isClinician = isClinicianWorkspace() || localStorage.getItem("hg_account_type") === "clinician";
   const profileCta = isClinician
     ? `<a class="app-btn app-btn-primary" href="#patients">Add a patient</a>`
-    : `<a class="app-btn app-btn-primary" href="#patients">Create my profile</a>`;
+    : `<a class="app-btn app-btn-primary" href="#patients">Open my profile</a>`;
   return `
     <div class="app-card onboarding-welcome" style="margin-bottom:1.25rem;border-color:rgba(46,125,87,0.25);background:linear-gradient(180deg,#f8fcf9 0%,#fff 100%)">
       <h2 style="margin:0 0 0.35rem;font-size:1.15rem">Welcome to HerbaGraph</h2>
@@ -572,40 +631,71 @@ function renderDiscoveryCase(body) {
   return html;
 }
 
-async function renderDiscovery(caseId) {
+async function renderDiscovery(caseId, requestedPatientId) {
+  const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
+  const clinician = isClinicianWorkspace();
   let current = null;
+  let cases = [];
   if (caseId) {
     try {
       current = await api(`/api/v1/cases/${caseId}`);
+      if (current.patient_id) rememberPatientId(current.patient_id);
     } catch (_) {
       current = null;
     }
   }
+  const scopeId = (current && current.patient_id) || patientId;
+  if (scopeId) {
+    cases = await api(`/api/v1/cases?patient_id=${scopeId}`);
+    if (!current && cases.length) current = cases[0];
+  }
+
+  const subtitle = clinician
+    ? "Each case belongs to one patient. Select the person first — this is not a personal journal."
+    : "This investigation is about you. Relevance means worth looking into, not a diagnosis.";
+
+  let caseList = "";
+  if (clinician && scopeId && cases.length) {
+    caseList = `<div class="wallet-card"><h2>Cases for this patient</h2><ul>${cases.map((c) =>
+      `<li><a href="#discovery?case=${c.id}&patient=${scopeId}">${esc((c.presenting_concern || "Untitled").slice(0, 90))}</a></li>`
+    ).join("")}</ul></div>`;
+  }
+
+  const formDisabled = clinician && !scopeId;
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Guided Discovery", "Start with what is happening. The case — not chat — is the source of truth.")}
+    ${pageHeader("Guided Discovery", subtitle)}
+    ${renderPatientScopeBar(patients, scopeId, "discovery")}
+    ${formDisabled ? `<p class="muted">Select a patient to open Discovery. A clinician workspace cannot run a case without a patient.</p>` : `
     <form class="wallet-card" id="discovery-open-form">
-      <label for="discovery-concern">Presenting concern</label>
+      <label for="discovery-concern">${clinician ? "Presenting concern for this patient" : "What is going on?"}</label>
       <textarea id="discovery-concern" rows="3" required placeholder="For six months, my feet have burned at night. My doctor says my blood work is normal.">${current ? esc(current.presenting_concern) : ""}</textarea>
       <div class="page-header-actions" style="margin-top:0.75rem">
         <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Open or update case</button>
       </div>
-    </form>
+    </form>`}
+    ${caseList}
     <div id="discovery-result">${current ? renderDiscoveryCase(current) : `<p class="muted">No diagnosis will be written. Relevance means “worth investigating.”</p>`}</div>
   `;
-  document.getElementById("discovery-open-form").addEventListener("submit", async (event) => {
+  wirePatientScopeSelect("discovery");
+  const form = document.getElementById("discovery-open-form");
+  if (!form) return;
+  form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const concern = document.getElementById("discovery-concern").value.trim();
     const btn = document.getElementById("discovery-open-btn");
     btn.disabled = true;
     try {
       let body;
+      const payload = { presenting_concern: concern, patient_id: scopeId };
       if (current && current.id) {
-        body = await api(`/api/v1/cases/${current.id}/rebuild`, "POST", { presenting_concern: concern });
+        body = await api(`/api/v1/cases/${current.id}/rebuild`, "POST", payload);
       } else {
-        body = await api("/api/v1/cases", "POST", { presenting_concern: concern });
+        body = await api("/api/v1/cases", "POST", payload);
       }
       current = body;
-      history.replaceState({}, document.title, `#discovery?case=${body.id}`);
+      const qs = new URLSearchParams({ case: body.id });
+      if (scopeId) qs.set("patient", scopeId);
+      history.replaceState({}, document.title, `#discovery?${qs}`);
       document.getElementById("discovery-result").innerHTML = renderDiscoveryCase(body);
     } catch (err) {
       document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
@@ -647,10 +737,10 @@ async function renderDashboard() {
 
   document.getElementById("app-main").innerHTML = `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Here is what changed across your workspace.", `<a class="app-btn app-btn-primary" href="#upload">Upload labs</a>`)}
+    ${pageHeader(`${greeting()}${name}`, isClinicianWorkspace() ? "Clinic workspace — each patient has their own Discovery and Evidence." : "Your personal workspace — labs, discovery, and evidence stay on your profile.", `<a class="app-btn app-btn-primary" href="#upload">Upload labs</a>`)}
     ${commandBar()}
     <div class="metric-grid">
-      <div class="metric-card"><div class="metric-label">Patients</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">In workspace</div></div>
+      <div class="metric-card"><div class="metric-label">${isClinicianWorkspace() ? "Patients" : "Your profile"}</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">${isClinicianWorkspace() ? "In workspace" : "Personal record"}</div></div>
       <div class="metric-card"><div class="metric-label">Active analyses</div><div class="metric-value">${activeAnalyses}</div><div class="metric-delta">${activeAnalyses ? "Processing" : "None running"}</div></div>
       <div class="metric-card"><div class="metric-label">Reports</div><div class="metric-value">${dash.recent_reports.length}</div><div class="metric-delta">Recent analyses</div></div>
       <div class="metric-card"><div class="metric-label">Needs review</div><div class="metric-value">${needsReview}</div><div class="metric-delta">Attention items</div></div>
@@ -703,10 +793,15 @@ async function renderPatients() {
     </tr>`;
   }).join("") || `<tr class="no-hover"><td colspan="7" class="muted">No patients yet</td></tr>`;
 
+  if (!isClinicianWorkspace() && patients.length === 1) {
+    location.hash = `#patient/${patients[0].id}`;
+    return;
+  }
+
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Patients", "Manage biological profiles and lab history.")}
+    ${pageHeader(isClinicianWorkspace() ? "Patients" : "My profile", isClinicianWorkspace() ? "One clinician, many patient records. Discovery and Evidence follow the active patient." : "Your biological profile.")}
     <div class="form-grid-2">
-      <div class="app-card">
+      <div class="app-card" ${isClinicianWorkspace() ? "" : "hidden"}>
         <h2 style="margin:0 0 0.75rem;font-size:1rem">Create patient</h2>
         <div class="form-row"><label>Display name</label><input id="new-patient-name" value="Patient A"></div>
         <div class="form-grid-2">
@@ -1103,39 +1198,61 @@ async function wirePatientContext(patientId) {
   }
 }
 
-async function renderReports() {
+async function renderReports(requestedPatientId) {
   const dash = await api("/api/v1/workspace/dashboard");
-  const rows = dash.recent_reports.map(r => `
+  const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
+  const clinician = isClinicianWorkspace();
+  const reports = (dash.recent_reports || []).filter((r) => !clinician || !patientId || r.patient_id === patientId);
+  const rows = reports.map(r => `
     <tr data-href="/report.html?report_id=${r.id}">
-      <td>${esc(r.patient_display_name || "—")}</td>
+      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
       <td>${esc(primaryFinding(r.title))}</td>
       <td><span class="muted">—</span></td>
       <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
       <td class="mono">${fmtDate(r.created_at)}</td>
       <td><a href="/report.html?report_id=${r.id}">View report</a></td>
-    </tr>`).join("") || `<tr class="no-hover"><td colspan="6" class="muted">No reports yet. Run an analysis to generate one.</td></tr>`;
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="${clinician ? 6 : 5}" class="muted">No reports yet for ${clinician ? "this patient" : "you"}.</td></tr>`;
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Reports", "Structured clinical analyses across your workspace.")}
+    ${pageHeader("Reports", clinician ? "Analyses for the selected patient." : "Your structured analyses.")}
+    ${renderPatientScopeBar(patients, patientId, "reports")}
     <div class="data-table-wrap"><table class="data-table"><thead><tr>
-      <th>Patient</th><th>Primary finding</th><th>Systems</th><th>Confidence</th><th>Created</th><th></th>
+      ${clinician ? "<th>Patient</th>" : ""}<th>Primary finding</th><th>Systems</th><th>Confidence</th><th>Created</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
+  wirePatientScopeSelect("reports");
   wireTableRows();
 }
 
-async function renderEvidence() {
+async function renderEvidence(requestedPatientId) {
   const dash = await api("/api/v1/workspace/dashboard");
-  const latest = dash.recent_reports[0];
+  const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
+  const clinician = isClinicianWorkspace();
+  const reports = (dash.recent_reports || []).filter((r) => !patientId || r.patient_id === patientId);
+  const latest = reports[0];
+  const subtitle = clinician
+    ? "Evidence is attached to a specific patient's report — never the last report in the clinic."
+    : "Open your report to see why a recommendation is 78%: evidence, match, and missing data.";
+  const list = reports.map((r) => `
+    <tr data-href="/report.html?report_id=${r.id}#research-appendix">
+      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
+      <td>${esc(primaryFinding(r.title))}</td>
+      <td class="mono">${fmtDate(r.created_at)}</td>
+      <td><a href="/report.html?report_id=${r.id}#research-appendix">Open evidence</a></td>
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="${clinician ? 4 : 3}" class="muted">${clinician && !patientId ? "Select a patient to see their evidence." : "No reports yet."}</td></tr>`;
+
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Evidence", "Inspectable confidence and source coverage for recommendations.")}
+    ${pageHeader("Evidence", subtitle)}
+    ${renderPatientScopeBar(patients, patientId, "evidence")}
     <div class="app-card">
-      <p class="muted" style="margin:0 0 1rem">Evidence profiles are attached to each clinical report. Open a report to inspect human, mechanistic, and safety confidence for every intervention.</p>
-      ${latest ? `<a class="app-btn app-btn-primary" href="/report.html?report_id=${latest.id}#research-appendix">Open latest evidence profile</a>` : `<a class="app-btn" href="/report.html?demo=1">View sample report</a>`}
+      <p class="muted" style="margin:0 0 1rem">${clinician
+        ? "Each row is one patient's report. Confidence decomposition lives on that report, not on a shared clinic score."
+        : "Your evidence profile is personal. It is not mixed with anyone else's labs."}</p>
+      ${latest ? `<a class="app-btn app-btn-primary" href="/report.html?report_id=${latest.id}#research-appendix">Open ${clinician ? "this patient's" : "your"} latest evidence</a>` : `<a class="app-btn" href="/report.html?demo=1">View sample report</a>`}
     </div>
-    <div class="evidence-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1rem;margin-top:1rem">
-      <div class="app-card"><h3 style="margin:0 0 0.35rem">Human evidence</h3><p class="muted" style="margin:0">RCT and observational study coverage per intervention.</p></div>
-      <div class="app-card"><h3 style="margin:0 0 0.35rem">Mechanistic evidence</h3><p class="muted" style="margin:0">Pathway relevance and biological plausibility signals.</p></div>
-      <div class="app-card"><h3 style="margin:0 0 0.35rem">Safety context</h3><p class="muted" style="margin:0">Contraindications and medication interactions integrated before recommendations.</p></div>
-    </div>`;
+    <div class="data-table-wrap" style="margin-top:1rem"><table class="data-table"><thead><tr>
+      ${clinician ? "<th>Patient</th>" : ""}<th>Report</th><th>Date</th><th></th>
+    </tr></thead><tbody>${list}</tbody></table></div>`;
+  wirePatientScopeSelect("evidence");
+  wireTableRows();
 }
 
 async function ensurePatients() {
@@ -1761,7 +1878,9 @@ async function render() {
     if (!(await ensureSession())) { redirectToLogin(); return; }
 
     document.getElementById("app-shell").classList.remove("hidden");
-    document.getElementById("nav-user").textContent = currentUser?.email || "";
+    document.getElementById("nav-user").textContent = currentUser?.email
+      ? `${currentUser.email} · ${isClinicianWorkspace() ? "Clinician" : "Personal"}`
+      : "";
     document.getElementById("logout-btn").onclick = signOut;
     wireMobileNav();
     closeSidebar();
@@ -1770,10 +1889,10 @@ async function render() {
     const path = hash.split("?")[0];
 
     if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
-    else if (path === "discovery") { setActiveNav("discovery"); await renderDiscovery(params.get("case")); }
+    else if (path === "discovery") { setActiveNav("discovery"); await renderDiscovery(params.get("case"), params.get("patient")); }
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
-    else if (path === "reports") { setActiveNav("reports"); await renderReports(); }
-    else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(); }
+    else if (path === "reports") { setActiveNav("reports"); await renderReports(params.get("patient")); }
+    else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(params.get("patient")); }
     else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
     else if (path === "analysis") { setActiveNav("analysis"); await renderAnalysisBuilder(params.get("patient")); }
     else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }

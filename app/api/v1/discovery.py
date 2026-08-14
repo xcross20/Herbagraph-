@@ -30,10 +30,11 @@ router = APIRouter(prefix="/cases", tags=["discovery"])
 
 @router.get("", response_model=list[DiscoveryCaseRead])
 async def list_cases(
+    patient_id: uuid.UUID | None = None,
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DiscoveryCaseRead]:
-    cases = await list_owned_cases(db, current_user.id)
+    cases = await list_owned_cases(db, current_user.id, patient_id=patient_id)
     return [snapshot_to_read(case, snapshot_from_case(case)) for case in cases]
 
 
