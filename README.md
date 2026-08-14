@@ -383,6 +383,28 @@ python scripts/bootstrap_graph_edges.py
 
 **Evidence gates:** `scripts/audit_evidence_gaps.py` requires **≥5** routable claims on each of 28 priority pathways.
 
+### Importing new interventions from external APIs
+
+Existing integrations used to mostly **enrich known names**. To **grow the intervention library itself** via API:
+
+```bash
+# Discover only (safe)
+python3 scripts/import_interventions_from_apis.py --dry-run --limit 100
+
+# Write candidates → app/knowledge_graph/api_imported_catalog.py
+# Sources: usda (needs USDA_KEY), pubchem, clinicaltrials
+export USDA_KEY=...   # recommended for FoodData Central
+python3 scripts/import_interventions_from_apis.py --write --sources all --limit 200
+
+# Optional: enqueue deep enrichment (PubChem CID / USDA FDC) when DB is up
+python3 scripts/import_interventions_from_apis.py --write --enqueue-enrichment --limit 100
+
+# Then attach real PMIDs to the new names
+python3 scripts/pmid_growth_batch.py --limit 150 --write --mode hybrid
+```
+
+Imported rows merge into seed catalogs (`seed_data` / `food_seed_data`). They are **candidates** until PMID growth + review — no invented literature.
+
 ### Growing real PMID claims continuously (cloud)
 
 **Always-on (recommended):** GitHub Action `.github/workflows/pmid-growth.yml`

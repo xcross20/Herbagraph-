@@ -1,0 +1,16 @@
+{
+  "sources": [
+    "clinicaltrials"
+  ],
+  "dry_run": true,
+  "discovered_raw": 0,
+  "skipped_existing": 0,
+  "new_accepted": 0,
+  "by_source": {},
+  "catalog_total_after": 0,
+  "written": false,
+  "enqueued_enrichment": 0,
+  "enqueue_error": null,
+  "sample_new": [],
+  "usda_key_hint": "Set USDA_KEY for better FoodData Central results"
+}

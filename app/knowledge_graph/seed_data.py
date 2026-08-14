@@ -4,6 +4,7 @@ This module is the single source of truth for `scripts/seed_db.py`. It is pure
 data (no I/O) so it can be imported and asserted against directly in tests.
 """
 
+from app.knowledge_graph.api_imported_catalog import API_IMPORTED_INTERVENTIONS
 from app.knowledge_graph.biomarker_catalog import get_seed_records
 from app.knowledge_graph.catalog_merge import merge_interventions
 from app.knowledge_graph.herb_catalog import HERB_INTERVENTIONS
@@ -89,13 +90,20 @@ PATHWAYS: list[dict] = [
 
 # ---------------------------------------------------------------------------
 # Interventions: 200 herbs + 200 supplements + 77 lifestyle methods (Tier A merged)
+# + API-imported candidates (USDA / PubChem / ClinicalTrials) for non-food/phyto
 # ---------------------------------------------------------------------------
 _TIER_A_SUPPLEMENT_ONLY = [s for s in TIER_A_SUPPLEMENTS if s["category"] == "supplement"]
 _CURATED_OVERRIDE = TIER_A_HERBS + _TIER_A_SUPPLEMENT_ONLY + LIFESTYLE_INTERVENTIONS
+_API_IMPORTED_CORE = [
+    i
+    for i in API_IMPORTED_INTERVENTIONS
+    if i.get("category") not in ("food", "phytochemical")
+]
 
 INTERVENTIONS: list[dict] = merge_interventions(
     SUPPLEMENT_INTERVENTIONS,
     HERB_INTERVENTIONS,
+    _API_IMPORTED_CORE,
     curated=_CURATED_OVERRIDE,
 )
 

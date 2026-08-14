@@ -27,6 +27,7 @@ if not (ROOT / "app").is_dir():
     ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
+from app.knowledge_graph.api_imported_catalog import API_IMPORTED_INTERVENTIONS  # noqa: E402
 from app.knowledge_graph.food_catalog import FOOD_INTERVENTIONS  # noqa: E402
 from app.knowledge_graph.herb_catalog import HERB_INTERVENTIONS  # noqa: E402
 from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS  # noqa: E402
@@ -92,6 +93,7 @@ def _catalog_entries() -> list[dict]:
         ("phyto", PHYTOCHEMICAL_COMPOUNDS),
         ("lifestyle", LIFESTYLE_INTERVENTIONS),
         ("peptide", PEPTIDE_INTERVENTIONS),
+        ("api_import", API_IMPORTED_INTERVENTIONS),
     ):
         for row in rows:
             name = row.get("name")
