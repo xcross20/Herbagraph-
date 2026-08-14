@@ -121,13 +121,25 @@ def _claims_from_payload(payload: dict) -> dict:
     }
 
 
+def jwt_verify_mode() -> str:
+    """How this process verifies Supabase access tokens."""
+    return "hs256" if settings.supabase_jwt_secret else "jwks"
+
+
 def verify_supabase_access_token(token: str) -> dict:
-    """Verify a Supabase-issued JWT and return its claims."""
+    """Verify a Supabase-issued JWT and return its claims.
+
+    New Supabase projects sign access tokens with ES256 (JWKS). Legacy
+    projects use HS256 + JWT secret. Route by the token's alg so a pasted
+    JWT secret cannot break ECC tokens.
+    """
     if not settings.supabase_url:
         raise SupabaseAuthError("SUPABASE_URL is not configured.")
 
     try:
-        if settings.supabase_jwt_secret:
+        header = jwt.get_unverified_header(token)
+        alg = str(header.get("alg") or "")
+        if settings.supabase_jwt_secret and alg.upper().startswith("HS"):
             payload = _decode_with_hs256_secret(token)
         else:
             payload = _decode_with_jwks(token)

@@ -259,7 +259,8 @@ window.HerbaGraphAuth = (function () {
     const cfg = await loadConfig();
     if (cfg.auth_provider !== "supabase") return false;
 
-    if (!isAuthCallbackUrl()) return false;
+    const wasCallback = isAuthCallbackUrl();
+    if (!wasCallback) return false;
 
     // Recovery should be handled on reset-password page only.
     const isRecovery =
@@ -273,19 +274,13 @@ window.HerbaGraphAuth = (function () {
     if (result.ok) {
       const clean = result.redirectTo || "/app.html#dashboard";
       window.history.replaceState({}, document.title, clean.split("#")[0] || clean);
-      if (clean.includes("#") || clean.includes("?")) {
-        // Let callers navigate if needed; still return true so they can redirect.
-      }
-      // If still on callback-like page, caller will navigate; if on app.html, clean tokens.
       if ((window.location.pathname || "").endsWith("/app.html")) {
         window.history.replaceState({}, document.title, clean);
       }
-      return true;
-    }
-    if (result.message) {
+    } else if (result.message) {
       throw new Error(result.message);
     }
-    return true;
+    return wasCallback;
   }
 
   function storeLocalTokens(tokens) {
@@ -347,6 +342,26 @@ window.HerbaGraphAuth = (function () {
     });
     if (!resp.ok) throw new Error("Session expired");
     storeLocalTokens(await resp.json());
+  }
+
+  async function requestMagicLink(email) {
+    const cfg = await loadConfig();
+    if (cfg.auth_provider !== "supabase") {
+      throw new Error("Magic links require Supabase Auth.");
+    }
+    const sb = await initSupabase();
+    if (!sb) throw new Error("Supabase Auth is not configured.");
+    const trimmed = (email || "").trim();
+    if (!trimmed) throw new Error("Enter your email address.");
+    const { error } = await sb.auth.signInWithOtp({
+      email: trimmed,
+      options: {
+        emailRedirectTo: authCallbackUrl(),
+        // Existing accounts only — new users must go through gated signup.
+        shouldCreateUser: false,
+      },
+    });
+    if (error) throw new Error(error.message);
   }
 
   async function signInWithPassword(email, password) {
@@ -591,6 +606,7 @@ window.HerbaGraphAuth = (function () {
     ensureSession,
     refreshTokens,
     signInWithPassword,
+    requestMagicLink,
     signInWithGoogle,
     startGoogleSignup,
     verifyAccessCodeForOAuth,

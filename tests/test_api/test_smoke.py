@@ -9,6 +9,17 @@ async def test_health_check(client):
     assert response.json()["status"] == "ok"
 
 
+async def test_system_status_reports_auth_readiness(client):
+    response = await client.get("/api/v1/system/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert "supabase_configured" in body
+    assert body["jwt_verify_mode"] in {"hs256", "jwks"}
+    assert "allow_guest_auth" in body
+    assert "encryption_configured" in body
+    assert "signup_access_required" in body
+
+
 async def test_register_login_me_flow(client):
     register_resp = await client.post(
         "/api/v1/auth/register", json={"email": "jane@example.com", "password": "SecurePass1"}

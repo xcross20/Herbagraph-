@@ -1,3 +1,4 @@
+import hashlib
 import re
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -65,6 +66,14 @@ def _deidentify_value(value):
 
 class EncryptionError(Exception):
     pass
+
+
+def encryption_key_fingerprint() -> str | None:
+    """Short hash so web vs worker keys can be compared without leaking the key."""
+    key = (settings.encryption_key or "").strip()
+    if not key:
+        return None
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:12]
 
 
 def _get_fernet() -> Fernet:

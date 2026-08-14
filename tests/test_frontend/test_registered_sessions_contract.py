@@ -32,3 +32,12 @@ def test_report_never_auto_creates_guest():
 def test_login_emphasizes_registered_account():
     assert "Create a registered account" in LOGIN or "signup.html" in LOGIN
     assert "Registered sessions" in LOGIN or "persist" in LOGIN.lower()
+
+
+def test_login_offers_supabase_magic_link():
+    assert "Email me a sign-in link" in LOGIN
+    assert 'id="magic-link-btn"' in LOGIN
+    assert "requestMagicLink" in AUTH_JS
+    assert "signInWithOtp" in AUTH_JS
+    assert "shouldCreateUser: false" in AUTH_JS
+    assert "emailRedirectTo: authCallbackUrl()" in AUTH_JS

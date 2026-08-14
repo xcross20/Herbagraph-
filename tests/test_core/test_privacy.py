@@ -9,6 +9,7 @@ from app.core.privacy import (
     deidentify_text,
     encrypt_bytes,
     encrypt_str,
+    encryption_key_fingerprint,
 )
 
 pytestmark = pytest.mark.unit
@@ -195,3 +196,18 @@ class TestMissingEncryptionKey:
         # Sanity check that monkeypatch reverted encryption_key from the prior tests.
         token = encrypt_bytes(b"works again")
         assert decrypt_bytes(token) == b"works again"
+
+
+class TestEncryptionKeyFingerprint:
+    def test_empty_key_has_no_fingerprint(self, monkeypatch):
+        monkeypatch.setattr(settings, "encryption_key", "   ")
+        assert encryption_key_fingerprint() is None
+
+    def test_fingerprint_is_stable_twelve_hex_chars(self, monkeypatch):
+        monkeypatch.setattr(settings, "encryption_key", "same-key-value")
+        first = encryption_key_fingerprint()
+        second = encryption_key_fingerprint()
+        assert first == second
+        assert first is not None
+        assert len(first) == 12
+        assert first != "same-key-value"

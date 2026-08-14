@@ -77,7 +77,10 @@ docker compose exec api python scripts/reseed_db.py
    ```bash
    python scripts/generate_encryption_key.py
    ```
-   Set the same key on **web and worker**.
+   Set the **same** key on **web and worker**. After deploy, `/api/v1/system/status`
+   exposes `encryption_fingerprint` (a short hash, not the key). If web and worker
+   fingerprints differ, uploads appear to succeed and then fail when the worker
+   decrypts the file.
 
 **Deploy steps:**
 
@@ -154,6 +157,10 @@ Supabase’s built-in mailer is heavily rate-limited (often only a few messages 
 4. For production: **Project Settings → Authentication → SMTP Settings** (or Auth → Emails) and connect **custom SMTP** (Resend, SendGrid, Postmark, AWS SES, etc.).
 
 Users sign in via `/login.html` or `/signup.html`; local user rows are created on `POST /api/v1/auth/sync`.
+
+**Magic link (passwordless sign-in)**
+
+`/login.html` can send a Supabase OTP email (`signInWithOtp`, `shouldCreateUser: false`). The link must be in the redirect allow list (`/auth/callback.html`). New accounts still go through gated `/signup.html` — a magic link will not create a user. Open the link on the same device (PKCE).
 
 ## Google OAuth (Supabase)
 

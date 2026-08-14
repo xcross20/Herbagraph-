@@ -9,6 +9,10 @@ from urllib.parse import urlparse
 from app import __version__
 from app.config import settings
 from app.core.background_jobs import redis_reachable
+from app.core.oauth import google_oauth_enabled
+from app.core.privacy import encryption_key_fingerprint
+from app.core.signup_access import signup_access_required
+from app.core.supabase_auth import jwt_verify_mode, supabase_configured
 from app.database import AsyncSessionLocal
 from app.integrations.usda_fooddata import usda_configured
 from app.workers.celery_app import celery_app
@@ -45,6 +49,13 @@ async def system_status():
                 payload["schema_ready"] = False
         payload["database"] = "connected"
         payload["encryption_configured"] = bool(settings.encryption_key.strip())
+        payload["encryption_fingerprint"] = encryption_key_fingerprint()
+        payload["supabase_configured"] = supabase_configured()
+        payload["jwt_verify_mode"] = jwt_verify_mode()
+        payload["allow_guest_auth"] = bool(settings.allow_guest_auth and settings.auth_provider == "local")
+        payload["signup_access_required"] = signup_access_required()
+        payload["google_oauth_enabled"] = google_oauth_enabled()
+        payload["app_public_url"] = settings.app_public_url or None
         payload["usda_configured"] = usda_configured()
         redis_host = urlparse(settings.redis_url).hostname or ""
         payload["redis_host"] = redis_host or None
@@ -55,7 +66,12 @@ async def system_status():
             and payload["encryption_configured"]
             and payload["redis_reachable"]
         )
-        if settings.auth_provider == "supabase" and not payload.get("schema_ready"):
+        if settings.auth_provider == "supabase" and not payload.get("supabase_configured"):
+            payload["status"] = "degraded"
+            payload["hint"] = (
+                "AUTH_PROVIDER=supabase but SUPABASE_URL or anon/publishable key is missing."
+            )
+        elif settings.auth_provider == "supabase" and not payload.get("schema_ready"):
             payload["status"] = "degraded"
             payload["hint"] = "Run alembic upgrade head on the linked Postgres database."
         elif not payload["encryption_configured"]:

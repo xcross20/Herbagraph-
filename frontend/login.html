@@ -104,6 +104,7 @@
         </div>
 
         <button class="auth-submit" id="login-btn" type="submit">Sign in</button>
+        <button class="auth-guest-btn" id="magic-link-btn" type="button">Email me a sign-in link</button>
         <button class="auth-guest-btn hidden" id="guest-btn" type="button">Continue as guest (demo only)</button>
       </form>
 
@@ -147,6 +148,8 @@ async function init() {
   const cfg = await Auth.loadConfig();
   const guestBtn = document.getElementById("guest-btn");
   guestBtn.classList.toggle("hidden", !cfg.allow_guest_auth);
+  const magicBtn = document.getElementById("magic-link-btn");
+  if (magicBtn) magicBtn.hidden = cfg.auth_provider !== "supabase";
   if (cfg.allow_guest_auth) {
     guestBtn.title = "Demo only — data is not kept when you clear the browser.";
   }
@@ -163,6 +166,30 @@ document.getElementById("google-login-btn").onclick = async () => {
     await Auth.signInWithGoogle({ redirectTo: `${window.location.origin}/login.html` });
   } catch (e) {
     UI.setBanner(document.getElementById("auth-banner"), e.message, "error");
+    UI.setButtonLoading(btn, false);
+  }
+};
+
+document.getElementById("magic-link-btn").onclick = async () => {
+  UI.clearFieldErrors();
+  UI.setBanner(document.getElementById("auth-banner"), "", "error");
+  const email = document.getElementById("auth-email").value.trim();
+  const btn = document.getElementById("magic-link-btn");
+  if (!email) {
+    UI.showFieldError("auth-email", "Enter your email address to receive a sign-in link.");
+    return;
+  }
+  UI.setButtonLoading(btn, true, "Sending link…");
+  try {
+    await Auth.requestMagicLink(email);
+    UI.setBanner(
+      document.getElementById("auth-banner"),
+      "If an account exists for that email, we sent a sign-in link. Open it on this device to finish signing in.",
+      "ok"
+    );
+  } catch (err) {
+    UI.setBanner(document.getElementById("auth-banner"), err.message || "Could not send a sign-in link.", "error");
+  } finally {
     UI.setButtonLoading(btn, false);
   }
 };
