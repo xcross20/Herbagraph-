@@ -15,9 +15,13 @@ from app.models.enums import (
     DiscoveryCaseStatus,
     DiscoveryFindingKind,
     DiscoveryHypothesisStatus,
+    PatientContextType,
+    UserRole,
 )
 from app.models.lab import LabReport, LabResult
-from app.models.user import HealthProfile
+from app.models.patient import Patient
+from app.models.patient_context import PatientContext
+from app.models.user import HealthProfile, User
 from app.schemas.discovery import (
     BranchCoverageRead,
     DiscoveryCaseRead,
@@ -25,6 +29,7 @@ from app.schemas.discovery import (
     DiscoveryHypothesisRead,
     DiscoveryInvestigationRead,
     LabIngest,
+    MonitorItemRead,
 )
 from app.schemas.pipeline import NormalizedLabResult
 
@@ -117,6 +122,15 @@ def snapshot_to_read(case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryCa
             )
             for row in snapshot.branch_coverage
         ],
+        monitor_plan=[
+            MonitorItemRead(
+                label=item.label,
+                group=item.group,
+                hypothesis_code=item.hypothesis_code,
+                reason=item.reason,
+            )
+            for item in snapshot.monitor_plan
+        ],
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -174,6 +188,74 @@ async def _profile_for_user(db: AsyncSession, user_id: uuid.UUID) -> dict:
         "current_supplements": profile.current_supplements or [],
         "health_goals": profile.health_goals or [],
     }
+
+
+def _context_name(item: PatientContext) -> str:
+    if item.value:
+        return f"{item.name} ({item.value})"
+    return item.name
+
+
+async def _profile_from_patient(db: AsyncSession, patient_id: uuid.UUID) -> dict:
+    result = await db.execute(select(Patient).where(Patient.id == patient_id))
+    patient = result.scalar_one_or_none()
+    if patient is None:
+        return {}
+    profile: dict = {}
+    if patient.age is not None:
+        profile["age_range"] = str(patient.age)
+    if patient.biological_sex:
+        profile["biological_sex"] = patient.biological_sex
+    ctx = await db.execute(
+        select(PatientContext).where(
+            PatientContext.patient_id == patient_id,
+            PatientContext.active.is_(True),
+        )
+    )
+    meds: list[str] = []
+    conditions: list[str] = []
+    supplements: list[str] = []
+    goals: list[str] = []
+    symptoms: list[str] = []
+    for item in ctx.scalars():
+        if item.context_type == PatientContextType.MEDICATION:
+            meds.append(_context_name(item))
+        elif item.context_type == PatientContextType.CONDITION:
+            conditions.append(_context_name(item))
+        elif item.context_type == PatientContextType.SUPPLEMENT:
+            supplements.append(_context_name(item))
+        elif item.context_type == PatientContextType.GOAL:
+            goals.append(_context_name(item))
+        elif item.context_type == PatientContextType.SYMPTOM:
+            symptoms.append(_context_name(item))
+    if meds:
+        profile["current_medications"] = meds
+    if conditions:
+        profile["known_conditions"] = conditions
+    if supplements:
+        profile["current_supplements"] = supplements
+    if goals:
+        profile["health_goals"] = goals
+    if symptoms:
+        profile["presenting_symptoms"] = symptoms
+    return profile
+
+
+_CLINICIAN_ROLES = {UserRole.CLINICIAN, UserRole.ORGANIZATION_ADMIN, UserRole.ADMIN}
+
+
+async def _profile_for_case(db: AsyncSession, case: DiscoveryCase) -> dict:
+    """Clinician cases use the patient record only. Personal cases may fill gaps from Self profile."""
+    owner = await db.get(User, case.user_id)
+    patient_profile = await _profile_from_patient(db, case.patient_id) if case.patient_id else {}
+    if owner is not None and owner.role in _CLINICIAN_ROLES:
+        return patient_profile
+    user_profile = await _profile_for_user(db, case.user_id)
+    merged = dict(user_profile)
+    for key, value in patient_profile.items():
+        if value:
+            merged[key] = value
+    return merged
 
 
 async def latest_lab_report(db: AsyncSession, user_id: uuid.UUID, patient_id: uuid.UUID | None) -> LabReport | None:
@@ -240,7 +322,7 @@ async def rebuild_case(
         case.presenting_concern = presenting_concern.strip()
     if lab_report_id is not None:
         case.lab_report_id = lab_report_id
-    profile = await _profile_for_user(db, case.user_id)
+    profile = await _profile_for_case(db, case)
     snapshot = rebuild_case_state(case.presenting_concern, labs or [], profile)
     await apply_snapshot(db, case, snapshot)
     await db.flush()

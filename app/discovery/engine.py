@@ -77,12 +77,23 @@ class BranchCoverage:
 
 
 @dataclass
+class MonitorItem:
+    """Next useful check — not a hunt to 90% confidence."""
+
+    label: str
+    group: str
+    hypothesis_code: str
+    reason: str
+
+
+@dataclass
 class CaseSnapshot:
     presenting_concern: str
     findings: list[FindingDraft]
     hypotheses: list[HypothesisDraft]
     branch_coverage: list[BranchCoverage]
     investigation_coverage: float
+    monitor_plan: list[MonitorItem] = field(default_factory=list)
     disclaimer: str = field(
         default="Investigation relevance is not a diagnosis. "
         "HerbaGraph does not claim the person has any listed condition."
@@ -100,12 +111,14 @@ class CaseSnapshot:
             payload = {**item, "investigations": investigations}
             hypotheses.append(HypothesisDraft(**payload))
         branches = [BranchCoverage(**item) for item in raw.get("branch_coverage") or []]
+        monitor = [MonitorItem(**item) for item in raw.get("monitor_plan") or []]
         return cls(
             presenting_concern=raw.get("presenting_concern") or "",
             findings=findings,
             hypotheses=hypotheses,
             branch_coverage=branches,
             investigation_coverage=float(raw.get("investigation_coverage") or 0.0),
+            monitor_plan=monitor,
             disclaimer=raw.get("disclaimer")
             or "Investigation relevance is not a diagnosis. "
             "HerbaGraph does not claim the person has any listed condition.",
@@ -152,6 +165,8 @@ def findings_from_inputs(
         ("biological_sex", "Biological sex"),
         ("current_medications", "Medications"),
         ("known_conditions", "Prior diagnoses"),
+        ("current_supplements", "Supplements"),
+        ("presenting_symptoms", "Recorded symptoms"),
     ):
         value = profile.get(key)
         if not value:
@@ -299,6 +314,39 @@ def _branch_coverage(hypotheses: list[HypothesisDraft], labs: list[NormalizedLab
     return rows
 
 
+def _monitor_plan(hypotheses: list[HypothesisDraft]) -> list[MonitorItem]:
+    plan: list[MonitorItem] = []
+    seen: set[str] = set()
+
+    def _add(label: str, group: str, hypo: HypothesisDraft) -> bool:
+        key = label.lower()
+        if key in seen:
+            return False
+        seen.add(key)
+        plan.append(
+            MonitorItem(
+                label=label,
+                group=group,
+                hypothesis_code=hypo.code,
+                reason=f"Would change what we do next on {hypo.label}.",
+            )
+        )
+        return len(plan) >= 6
+
+    for hypo in hypotheses[:4]:
+        for marker in hypo.missing_markers:
+            if _add(marker, "directed", hypo):
+                return plan
+    for group in ("core", "directed"):
+        for hypo in hypotheses[:4]:
+            for item in hypo.investigations:
+                if item.group != group or item.already_assessed:
+                    continue
+                if _add(item.label, group, hypo):
+                    return plan
+    return plan
+
+
 def rebuild_case_state(
     presenting_concern: str,
     labs: list[NormalizedLabResult] | None = None,
@@ -319,4 +367,5 @@ def rebuild_case_state(
         hypotheses=scored,
         branch_coverage=branches,
         investigation_coverage=round(overall, 4),
+        monitor_plan=_monitor_plan(scored),
     )

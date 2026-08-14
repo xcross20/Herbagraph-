@@ -36,6 +36,8 @@ def test_burning_feet_with_b12_is_relevant_not_diagnosed():
     assert any(item.group == "directed" for item in b12.investigations)
     assert any(item.group == "conditional" for item in b12.investigations)
     assert snapshot.investigation_coverage < 1.0
+    assert snapshot.monitor_plan
+    assert any("MMA" in item.label for item in snapshot.monitor_plan)
     nutritional = next(row for row in snapshot.branch_coverage if row.branch == "nutritional")
     assert 0 < nutritional.coverage < 1
     assert "diagnosis" in snapshot.disclaimer.lower() or "not a diagnosis" in snapshot.disclaimer.lower()
@@ -67,3 +69,4 @@ def test_snapshot_roundtrip():
     assert restored.presenting_concern == snapshot.presenting_concern
     assert len(restored.hypotheses) == len(snapshot.hypotheses)
     assert restored.hypotheses[0].code == snapshot.hypotheses[0].code
+    assert len(restored.monitor_plan) == len(snapshot.monitor_plan)

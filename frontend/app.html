@@ -600,6 +600,14 @@ function renderDiscoveryCase(body) {
   html += `<div class="metric-card"><div class="metric-label">Investigation coverage</div><div class="metric-value">${body.investigation_coverage_percent || 0}%</div><div class="metric-delta">Not disease probability</div></div>`;
   html += `<div class="metric-card"><div class="metric-label">Open hypotheses</div><div class="metric-value">${hypos.length}</div><div class="metric-delta">None are diagnoses</div></div>`;
   html += `</div>`;
+  const plan = body.monitor_plan || [];
+  if (plan.length) {
+    html += `<div class="wallet-card"><h2>Next useful checks</h2><p class="muted">Only if a result would change management. Not a hunt for 90% confidence.</p><ul>`;
+    for (const item of plan) {
+      html += `<li><strong>${esc(item.label)}</strong> <span class="muted">(${esc(item.group)})</span> — ${esc(item.reason)}</li>`;
+    }
+    html += `</ul></div>`;
+  }
   if (branches.length) {
     html += `<div class="wallet-card"><h2>Branch coverage</h2>`;
     for (const row of branches) {
@@ -655,9 +663,9 @@ async function renderDiscovery(caseId, requestedPatientId) {
     : "This investigation is about you. Relevance means worth looking into, not a diagnosis.";
 
   let caseList = "";
-  if (clinician && scopeId && cases.length) {
-    caseList = `<div class="wallet-card"><h2>Cases for this patient</h2><ul>${cases.map((c) =>
-      `<li><a href="#discovery?case=${c.id}&patient=${scopeId}">${esc((c.presenting_concern || "Untitled").slice(0, 90))}</a></li>`
+  if (scopeId && cases.length) {
+    caseList = `<div class="wallet-card"><h2>${clinician ? "Cases for this patient" : "Your cases"}</h2><ul>${cases.map((c) =>
+      `<li><a href="#discovery?case=${c.id}${scopeId ? `&patient=${scopeId}` : ""}">${esc((c.presenting_concern || "Untitled").slice(0, 90))}</a></li>`
     ).join("")}</ul></div>`;
   }
 
@@ -1277,12 +1285,14 @@ function renderUploadStages(activeIdx) {
 }
 
 async function renderUpload(preselectedPatient) {
-  const patients = await ensurePatients();
-  const opts = patients.map(p => `<option value="${p.id}" ${p.id === preselectedPatient ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
+  const { patientId, patients } = await resolveActivePatientId(preselectedPatient);
+  const clinician = isClinicianWorkspace();
+  const opts = patients.map(p => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Upload laboratory reports", "Parse biomarkers and build a biological profile.")}
+    ${pageHeader("Upload laboratory reports", clinician ? "Files attach to the selected patient." : "These labs stay on your profile.")}
+    ${renderPatientScopeBar(patients, patientId, "upload")}
     <div class="app-card">
-      <div class="form-row"><label>Patient</label><select id="upload-patient">${opts}</select></div>
+      <div class="form-row" ${clinician ? "" : "hidden"}><label>Patient</label><select id="upload-patient">${opts}</select></div>
       <div class="upload-zone" id="upload-zone">
         <h3>Drag and drop PDF files</h3>
         <p>or <label style="color:var(--app-green);cursor:pointer;text-decoration:underline"><input id="upload-files" type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg" style="display:none">browse files</label></p>
@@ -1291,6 +1301,7 @@ async function renderUpload(preselectedPatient) {
       <div class="process-stages" id="upload-stages" style="display:none"></div>
       <p id="upload-status" class="muted" style="margin-top:1rem"></p>
     </div>`;
+  wirePatientScopeSelect("upload");
 
   const fileInput = document.getElementById("upload-files");
   const zone = document.getElementById("upload-zone");
@@ -1324,9 +1335,14 @@ async function renderUpload(preselectedPatient) {
 
   async function startUpload() {
     const files = fileInput.files;
-    const patientId = document.getElementById("upload-patient").value;
-    if (!files.length) return;
     const status = document.getElementById("upload-status");
+    const selectedPatient = (document.getElementById("upload-patient") && document.getElementById("upload-patient").value) || patientId;
+    if (!files.length) return;
+    if (!selectedPatient) {
+      status.textContent = "Select a patient first.";
+      return;
+    }
+    rememberPatientId(selectedPatient);
     const stagesEl = document.getElementById("upload-stages");
     stagesEl.style.display = "flex";
     status.textContent = "";
@@ -1334,14 +1350,14 @@ async function renderUpload(preselectedPatient) {
     try {
       for (const file of files) {
         stagesEl.innerHTML = renderUploadStages(0);
-        const body = await uploadLabFile(file, patientId);
+        const body = await uploadLabFile(file, selectedPatient);
         for (let s = 1; s <= 3; s++) { stagesEl.innerHTML = renderUploadStages(s); await new Promise(r => setTimeout(r, 400)); }
         status.textContent = `Uploaded ${file.name}. Parsing…`;
         await pollLab(body.lab_report_id, status, stagesEl);
       }
       stagesEl.innerHTML = renderUploadStages(UPLOAD_STAGES.length);
       status.textContent = "Upload complete. Review biomarkers or run analysis.";
-      location.hash = `#patient/${patientId}/labs`;
+      location.hash = `#patient/${selectedPatient}/labs`;
       render();
     } catch (e) {
       status.textContent = e.message;
@@ -1448,19 +1464,20 @@ async function renderBiomarkerReview(labId) {
 }
 
 async function renderAnalysisBuilder(preselectedPatient) {
-  const patients = await ensurePatients();
-  const patientId = preselectedPatient || patients[0]?.id;
+  const { patientId, patients } = await resolveActivePatientId(preselectedPatient);
+  const clinician = isClinicianWorkspace();
   const labs = patientId ? await api(`/api/v1/labs?patient_id=${patientId}`) : [];
   const checkboxes = labs.filter(l => l.status === "complete").map(l => `
     <label style="display:block;margin:0.35rem 0;font-size:0.88rem">
       <input type="checkbox" class="analysis-lab" value="${l.id}" checked> ${esc(l.original_filename)}
-    </label>`).join("") || `<p class="muted">Upload at least one parsed lab report for this patient.</p>`;
+    </label>`).join("") || `<p class="muted">Upload at least one parsed lab report ${clinician ? "for this patient" : "to your profile"}.</p>`;
   const opts = patients.map(p => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Analysis builder", "Merge lab reports into one integrated biological reasoning run.")}
+    ${pageHeader("Analysis builder", clinician ? "Merge this patient's labs into one reasoning run." : "Merge your labs into one reasoning run.")}
+    ${renderPatientScopeBar(patients, patientId, "analysis")}
     <div class="app-card">
       <div class="form-grid-2">
-        <div class="form-row"><label>Patient</label><select id="analysis-patient">${opts}</select></div>
+        <div class="form-row" ${clinician ? "" : "hidden"}><label>Patient</label><select id="analysis-patient">${opts}</select></div>
         <div class="form-row"><label>Analysis type</label>
           <select id="analysis-type">
             <option value="multi_report_snapshot">Current snapshot</option>
@@ -1474,10 +1491,15 @@ async function renderAnalysisBuilder(preselectedPatient) {
       <div class="analysis-pipeline" id="analysis-pipeline" style="display:none"></div>
       <p id="analysis-status" class="muted" style="margin-top:0.75rem"></p>
     </div>`;
-  document.getElementById("analysis-patient").onchange = () => {
-    location.hash = `#analysis?patient=${document.getElementById("analysis-patient").value}`;
-    render();
-  };
+  wirePatientScopeSelect("analysis");
+  const analysisPatient = document.getElementById("analysis-patient");
+  if (analysisPatient) {
+    analysisPatient.onchange = () => {
+      rememberPatientId(analysisPatient.value);
+      location.hash = `#analysis?patient=${analysisPatient.value}`;
+      render();
+    };
+  }
   document.getElementById("run-analysis-btn").onclick = async () => {
     const st = document.getElementById("analysis-status");
     const pipeline = document.getElementById("analysis-pipeline");
@@ -1494,7 +1516,7 @@ async function renderAnalysisBuilder(preselectedPatient) {
     try {
       const session = await api("/api/v1/analysis-sessions", "POST", {
         title: "Integrated Lab Analysis",
-        patient_id: document.getElementById("analysis-patient").value,
+        patient_id: (document.getElementById("analysis-patient") && document.getElementById("analysis-patient").value) || patientId,
         analysis_type: document.getElementById("analysis-type").value,
       });
       await api(`/api/v1/analysis-sessions/${session.id}/link-labs`, "POST", { lab_report_ids: selected });

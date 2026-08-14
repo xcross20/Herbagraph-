@@ -2828,6 +2828,27 @@
         "app/api/v1/discovery.py",
         "alembic/versions/n4o5p6q7r8s9_discovery_case_finding_hypothesis.py"
       ]
+    },
+    {
+      "id": "SLICE-120",
+      "title": "Patient-scoped discovery context + monitor plan + upload/analysis chrome",
+      "status": "done",
+      "priority": 1,
+      "problem": "Clinician Discovery used the account owner's health profile, so a patient's case could inherit the clinician's medications; Upload/Analysis still looked clinic-wide.",
+      "acceptance": [
+        "Clinician cases use PatientContext not owner HealthProfile",
+        "Case snapshot includes a monitor_plan of next useful checks",
+        "Upload and Analysis use the same active-patient scope bar"
+      ],
+      "non_goals": [
+        "Full outcome object / longitudinal retest tracking"
+      ],
+      "reversibility": "two-way",
+      "artifacts": [
+        "app/discovery/service.py",
+        "app/discovery/engine.py",
+        "frontend/app.html"
+      ]
     }
   ],
   "improvement_queue": [
@@ -3348,9 +3369,10 @@
     {
       "id": "IMP-058",
       "title": "Attach outcomes and retest plans to Discovery Case",
-      "status": "proposed",
+      "status": "done",
       "priority": "medium",
-      "rationale": "Case now persists hypotheses; the loop is incomplete without outcome/monitor objects."
+      "rationale": "Case now persists hypotheses; the loop is incomplete without outcome/monitor objects.",
+      "completed_in": "SLICE-120"
     }
   ]
 }

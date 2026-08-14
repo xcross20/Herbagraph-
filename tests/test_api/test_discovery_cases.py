@@ -79,6 +79,46 @@ async def test_list_cases_can_filter_by_patient(authed_client, db_session, test_
     assert "burning" in rows[0]["presenting_concern"]
 
 
+async def test_clinician_case_uses_patient_context_not_owner_profile(
+    authed_client, db_session, test_user
+):
+    from app.models.enums import PatientContextType, UserRole
+    from app.models.patient import Patient
+    from app.models.patient_context import PatientContext
+    from app.models.user import HealthProfile
+    from sqlalchemy import select
+
+    test_user.role = UserRole.CLINICIAN
+    profile = (
+        await db_session.execute(select(HealthProfile).where(HealthProfile.user_id == test_user.id))
+    ).scalar_one()
+    profile.known_conditions = ["Owner-only diagnosis"]
+    profile.current_medications = ["Owner-only drug"]
+    patient = Patient(user_id=test_user.id, display_name="Clinic Patient", biological_sex="female")
+    db_session.add(patient)
+    await db_session.flush()
+    db_session.add(
+        PatientContext(
+            patient_id=patient.id,
+            context_type=PatientContextType.MEDICATION,
+            name="Metformin",
+            value="500mg",
+            active=True,
+        )
+    )
+    await db_session.commit()
+
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet", "patient_id": str(patient.id)},
+    )
+    assert created.status_code == 201, created.text
+    findings = " ".join(f.get("value") or "" for f in created.json()["findings"])
+    assert "Metformin" in findings
+    assert "Owner-only" not in findings
+    assert created.json()["monitor_plan"] is not None
+
+
 async def test_case_requires_auth(client):
     resp = await client.post("/api/v1/cases", json={"presenting_concern": "fatigue"})
     assert resp.status_code == 401

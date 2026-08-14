@@ -66,6 +66,13 @@ class BranchCoverageRead(BaseModel):
     expected: int
 
 
+class MonitorItemRead(BaseModel):
+    label: str
+    group: str
+    hypothesis_code: str
+    reason: str
+
+
 class DiscoveryCaseRead(BaseModel):
     id: uuid.UUID
     presenting_concern: str
@@ -77,6 +84,7 @@ class DiscoveryCaseRead(BaseModel):
     findings: list[DiscoveryFindingRead]
     hypotheses: list[DiscoveryHypothesisRead]
     branch_coverage: list[BranchCoverageRead]
+    monitor_plan: list[MonitorItemRead] = []
     disclaimer: str
     created_at: datetime
     updated_at: datetime
