@@ -2,7 +2,7 @@
   "version": 1,
   "project": "herbagraph",
   "description": "Vertical slices for production-grade biomarker intelligence. Consumed by the herbagraph-ops Grok skill.",
-  "updated_at": "2026-07-31",
+  "updated_at": "2026-08-14",
   "definition_of_done": [
     "pytest exits 0 (full suite)",
     "scripts/validate_pathway_coverage.py exits 0 (266/266 biomarkers mapped)",
@@ -2768,6 +2768,35 @@
         "frontend/login.html",
         "frontend/report.html"
       ]
+    },
+    {
+      "id": "SLICE-118",
+      "title": "Confidence decomposition: four scores + gap analysis + audit",
+      "status": "in_progress",
+      "priority": 1,
+      "problem": "Clinicians cannot tell whether a ~78% recommendation is limited by evidence, patient match, or missing data, so they cannot decide whether to act, test, or stop.",
+      "acceptance": [
+        "explainability includes four independent scores that can diverge",
+        "missing confirmatory markers appear in data_sufficiency and gap_analysis",
+        "decision_band is action|investigate|stop and never hunts 90%",
+        "scripts/audit_confidence_bottlenecks.py classifies bottlenecks",
+        "report UI renders the four scores"
+      ],
+      "non_goals": [
+        "Case/Hypothesis persistence",
+        "Next.js rewrite",
+        "Gold Label commerce"
+      ],
+      "reversibility": "mostly two-way (JSON additive); score keys are one-way",
+      "risk_hotspots": [
+        "config/environment: old reports lack the block",
+        "silent failure: one percentage still shown as truth"
+      ],
+      "artifacts": [
+        "docs/GUIDED_DISCOVERY.md",
+        "app/evidence_confidence/decomposition.py",
+        "scripts/audit_confidence_bottlenecks.py"
+      ]
     }
   ],
   "improvement_queue": [
@@ -3276,6 +3305,13 @@
       "status": "proposed",
       "priority": "low",
       "rationale": "Deep enrichment flags entities for review but there is no console surface yet."
+    },
+    {
+      "id": "IMP-057",
+      "title": "Persistent Case/Finding/Hypothesis objects for Guided Discovery loop",
+      "status": "proposed",
+      "priority": "high",
+      "rationale": "Slice 118 decomposes intervention confidence but the Case is still implicit in labs+profile. Next slice needs first-class Case so discovery can start from symptoms."
     }
   ]
 }

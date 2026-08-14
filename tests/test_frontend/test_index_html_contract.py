@@ -150,6 +150,15 @@ def test_report_workspace_shell(report_html):
     assert 'id="analyze-btn"' not in report_html
 
 
+def test_report_renders_confidence_decomposition(report_html):
+    assert "renderConfidenceDecomposition" in report_html
+    assert "confidence_decomposition" in report_html
+    assert "Why this is not a single percentage" in report_html
+    assert "decomp-panel" in (Path(__file__).resolve().parents[2] / "frontend" / "css" / "report.css").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_intervention_library_and_sidebar(report_html):
     assert "Intervention Library" in report_html
     assert "intervention-library-body" in report_html

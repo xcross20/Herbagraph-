@@ -150,6 +150,43 @@ class ReportVersioning(BaseModel):
     date_generated: str
 
 
+class ScoreDimension(BaseModel):
+    """One independent confidence axis (0–1). Never copy another axis's value."""
+
+    key: str
+    label: str
+    score: float = Field(ge=0.0, le=1.0)
+    percent: int = Field(ge=0, le=100)
+    limiting_factors: list[str] = []
+
+
+class ConfidenceGapItem(BaseModel):
+    """Named information that could change the decision — not a 90% hunt."""
+
+    action: str
+    dimension: str
+    expected_gain: float = Field(ge=0.0, le=1.0)
+    expected_gain_percent: int = Field(ge=0, le=100)
+    already_present: bool = False
+
+
+class ConfidenceDecomposition(BaseModel):
+    """Four first-class scores. Decision confidence is not data sufficiency."""
+
+    evidence_confidence: ScoreDimension
+    patient_match: ScoreDimension
+    data_sufficiency: ScoreDimension
+    decision_confidence: ScoreDimension
+    contradiction_penalty: float = 0.0
+    primary_bottleneck: str
+    decision_band: str
+    decision_band_explanation: str = ""
+    missing_biomarkers: list[str] = []
+    missing_context: list[str] = []
+    gap_analysis: list[ConfidenceGapItem] = []
+    formula_version: str = "decomposition_v1"
+
+
 class RecommendationExplainability(BaseModel):
     """Full explainability bundle for one recommendation."""
 
@@ -157,6 +194,7 @@ class RecommendationExplainability(BaseModel):
     evidence_confidence_level: EvidenceConfidenceLevel
     evidence_confidence_numeric: float = Field(ge=0.0, le=1.0)
     evidence_quality_grade: EvidenceQualityGrade
+    confidence_decomposition: ConfidenceDecomposition | None = None
     confidence_factors: list[ConfidenceFactor] = []
     biological_rationale: str
     explanation_chain: list[ExplanationChainLink] = []

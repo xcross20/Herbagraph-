@@ -31,6 +31,7 @@ LLM Narrative Generation (intervention_narrative only)
 
 ## Per-recommendation outputs
 
+- `confidence_decomposition` — four independent scores (evidence, patient match, data sufficiency, decision) plus a decision band (`action` / `investigate` / `stop`). See [GUIDED_DISCOVERY.md](GUIDED_DISCOVERY.md).
 - `evidence_confidence_level` — High / Moderate / Low (structured)
 - `evidence_confidence_numeric` — 0–1 score (feeds ranking after safety adjustment)
 - `evidence_quality_grade` — Very High → Very Low (evidence hierarchy)

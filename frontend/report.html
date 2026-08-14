@@ -1868,6 +1868,49 @@ function renderClinicalPriorities(report) {
 }
 
 
+function renderConfidenceDecomposition(decomp) {
+  if (!decomp || !decomp.decision_confidence) return "";
+  const dims = [
+    decomp.evidence_confidence,
+    decomp.patient_match,
+    decomp.data_sufficiency,
+    decomp.decision_confidence,
+  ].filter(Boolean);
+  const band = decomp.decision_band || "";
+  let html = `<div class="decomp-panel">`;
+  html += `<p class="decomp-kicker">Why this is not a single percentage</p>`;
+  html += `<div class="decomp-grid">`;
+  for (const dim of dims) {
+    const pct = dim.percent != null ? dim.percent : Math.round((dim.score || 0) * 100);
+    html += `<div class="decomp-row">`;
+    html += `<span class="decomp-label">${escapeHtml(dim.label || dim.key)}</span>`;
+    html += `<span class="decomp-bar"><i style="width:${pct}%"></i></span>`;
+    html += `<span class="decomp-pct">${pct}%</span>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  html += `<p class="decomp-band">Decision band: <strong>${escapeHtml(band)}</strong>`;
+  if (decomp.primary_bottleneck) {
+    html += ` · Limited by ${escapeHtml(String(decomp.primary_bottleneck).replace(/_/g, " "))}`;
+  }
+  html += `</p>`;
+  if (decomp.decision_band_explanation) {
+    html += `<p class="muted">${escapeHtml(decomp.decision_band_explanation)}</p>`;
+  }
+  const gaps = decomp.gap_analysis || [];
+  if (gaps.length) {
+    html += `<p class="decomp-kicker">Information most likely to change the decision</p><ul class="hero-list">`;
+    for (const g of gaps.slice(0, 5)) {
+      html += `<li>${escapeHtml(g.action)} <span class="rank-stars">+${g.expected_gain_percent}%</span></li>`;
+    }
+    html += `</ul>`;
+  } else if (band === "stop") {
+    html += `<p class="muted">Further testing is unlikely to change management enough to justify burden.</p>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 function evidenceBadge(passport, r) {
   if (passport && passport.evidence_display_label) return passport.evidence_display_label;
   const tier = (r.evidence_tier || "").toLowerCase();
@@ -1905,6 +1948,7 @@ function renderEvidencePassport(r, options) {
   }
   let html = `<div class="passport-box">`;
   html += `<p class="passport-title">Evidence Passport</p>`;
+  html += renderConfidenceDecomposition(ex.confidence_decomposition);
   html += `<dl class="passport-grid">`;
   html += `<dt>Why surfaced</dt><dd>`;
   if (whySurfaced.length) {

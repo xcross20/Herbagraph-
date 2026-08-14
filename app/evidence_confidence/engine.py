@@ -25,6 +25,7 @@ from app.evidence_confidence.display import (
     intervention_classes,
 )
 from app.evidence_confidence.quality import grade_evidence_quality
+from app.evidence_confidence.decomposition import decompose_confidence
 from app.evidence_confidence.scoring import (
     biomarker_contribution_strength,
     classify_study_outcome,
@@ -597,7 +598,7 @@ def explain_recommendation(
         catalog_entry and ((catalog_entry.get("safety_flags")) or (catalog_entry.get("drug_interactions")))
     )
 
-    numeric, confidence_level, factors, _ = compute_confidence_score(
+    numeric, confidence_level, factors, contradiction_penalty = compute_confidence_score(
         cited,
         pathway_count=len(supporting_pathways),
         biomarker_count=len(supporting_biomarkers),
@@ -654,6 +655,28 @@ def explain_recommendation(
     tier_val = getattr(recommendation, "evidence_tier", None)
     if tier_val is not None and hasattr(tier_val, "value"):
         tier_val = tier_val.value
+    human_types = {"rct", "meta_analysis", "systematic_review", "cohort", "case_control"}
+    cited_human = sum(
+        1 for e in cited if (e.study_type.value if e.study_type else "") in human_types
+    )
+    present_lab_names = [lab.biomarker_name for lab in normalized_labs]
+    decomposition = decompose_confidence(
+        evidence_numeric=numeric,
+        contradiction_penalty=contradiction_penalty,
+        supporting_biomarker_names=[b.biomarker_name for b in supporting_biomarkers],
+        present_lab_names=present_lab_names,
+        pathway_codes=pathway_codes,
+        intervention_name=name,
+        health_profile=health_profile,
+        has_safety_data=has_safety_data,
+        has_mechanism=bool(mechanism),
+        cited_human_studies=cited_human,
+    )
+    why_not = why_not or [
+        f"{item.action} (~+{item.expected_gain_percent}%)"
+        for item in decomposition.gap_analysis[:4]
+    ]
+
     passport = _build_evidence_passport(
         cited,
         quality_grade,
@@ -683,6 +706,7 @@ def explain_recommendation(
         why_recommended=why_rec,
         why_not_higher=why_not,
         confidence_explanation=confidence_explanation,
+        confidence_decomposition=decomposition,
         supporting_biomarkers=supporting_biomarkers,
         supporting_pathways=supporting_pathways,
         molecular_targets=molecular_targets,
