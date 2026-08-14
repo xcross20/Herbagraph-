@@ -8,6 +8,7 @@ from app.models.canonical_entity import (
     EntitySynonym,
     GraphEdge,
 )
+from app.models.discovery import DiscoveryCase, DiscoveryFinding, DiscoveryHypothesis
 from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
 from app.models.feedback import Feedback
@@ -35,6 +36,9 @@ __all__ = [
     "EntityExternalId",
     "EntitySynonym",
     "GraphEdge",
+    "DiscoveryCase",
+    "DiscoveryFinding",
+    "DiscoveryHypothesis",
     "Compound",
     "InterventionCompound",
     "Citation",

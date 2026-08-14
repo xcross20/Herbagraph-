@@ -1,6 +1,6 @@
 # Guided Discovery — architecture reset without a rewrite
 
-**Status:** accepted for slice 1 (confidence decomposition). Later slices add Case / Hypothesis / Investigation objects.  
+**Status:** slice 1 accepted. Slice 2 (Case / Finding / Hypothesis + investigation coverage) in progress.  
 **Date:** 2026-08-14
 
 ## SPEC: Why a 78% score is not useful
@@ -91,6 +91,30 @@
 Test utility (later slice): information gain × actionability × safety × coverage ÷ (cost + burden + risk + redundancy). This slice only *names* gaps; it does not order 20 tests.
 
 ---
+
+## Slice 2 — Case as source of truth
+
+**Problem:** A person starts with a concern (“feet burn at night”) but HerbaGraph only persists lab reports, so hypotheses and investigation coverage vanish between requests.
+
+**Acceptance:**
+
+1. `POST /api/v1/cases` with a presenting concern returns a persisted Case.
+2. Rebuild with B12 low + MCV high produces a B12/one-carbon hypothesis whose relevance > certainty, with MMA listed as missing.
+3. Investigations are grouped core / directed / conditional.
+4. Branch coverage is reported as “how thoroughly this branch was assessed,” not disease probability.
+5. The engine never writes a diagnosis; empty input yields no hypotheses.
+
+### ADR-2: Persist Case / Finding / Hypothesis — 2026-08-14 — accepted
+
+**Context:** Slice 1 decomposes intervention scores. Discovery still had no object that survives a request.
+
+**Decision:** Three tables (`discovery_cases`, `discovery_findings`, `discovery_hypotheses`). Rebuild is a pure function (`app/discovery/engine.py`). The LLM does not write findings or close hypotheses.
+
+**Alternatives:** JSON-only column on analysis_session — lost; buries the Case inside a lab session. Separate microservice — lost; no scale need.
+
+**Consequences:** Schema is a one-way door. Existing lab engine unchanged. GET returns the last snapshot, not a live LLM story.
+
+**Revisit if:** Findings need their own query API or outcomes must attach.
 
 ## LLM rule
 

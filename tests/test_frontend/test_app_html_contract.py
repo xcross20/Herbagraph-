@@ -12,6 +12,13 @@ def test_app_html_serves_workspace_shell():
     assert "#reports" in html
     assert "/login.html" in html
     assert "/report.html" in html
+
+
+def test_app_html_has_discovery_route():
+    html = _INDEX.read_text(encoding="utf-8")
+    assert 'href="#discovery"' in html
+    assert "renderDiscovery" in html
+    assert "/api/v1/cases" in html
     assert "brand-logo.js" in html
     assert "app-nav-logo" in html
     assert "/css/app.css" in html

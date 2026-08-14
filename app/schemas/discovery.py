@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+from app.models.enums import DiscoveryCaseStatus, LabResultStatus
+
+
+class LabIngest(BaseModel):
+    biomarker_name: str
+    value: float
+    status: LabResultStatus
+    unit: str | None = None
+
+
+class DiscoveryCaseCreate(BaseModel):
+    presenting_concern: str = Field(min_length=1, max_length=4000)
+    patient_id: uuid.UUID | None = None
+
+
+class DiscoveryCaseRebuild(BaseModel):
+    presenting_concern: str | None = Field(default=None, max_length=4000)
+    lab_report_id: uuid.UUID | None = None
+    labs: list[LabIngest] = []
+
+
+class DiscoveryFindingRead(BaseModel):
+    kind: str
+    name: str
+    value: str | None = None
+    status: str | None = None
+    source: str
+
+
+class DiscoveryInvestigationRead(BaseModel):
+    label: str
+    group: str
+    already_assessed: bool
+
+
+class DiscoveryHypothesisRead(BaseModel):
+    code: str
+    label: str
+    branch: str
+    status: str
+    investigation_relevance: float
+    diagnostic_certainty: float
+    investigation_coverage: float
+    investigation_relevance_percent: int
+    diagnostic_certainty_percent: int
+    investigation_coverage_percent: int
+    why_limited: list[str] = []
+    missing_markers: list[str] = []
+    investigations: list[DiscoveryInvestigationRead] = []
+    not_a_diagnosis: str = ""
+
+
+class BranchCoverageRead(BaseModel):
+    branch: str
+    label: str
+    coverage: float
+    coverage_percent: int
+    assessed: int
+    expected: int
+
+
+class DiscoveryCaseRead(BaseModel):
+    id: uuid.UUID
+    presenting_concern: str
+    status: DiscoveryCaseStatus
+    patient_id: uuid.UUID | None
+    lab_report_id: uuid.UUID | None
+    investigation_coverage: float
+    investigation_coverage_percent: int
+    findings: list[DiscoveryFindingRead]
+    hypotheses: list[DiscoveryHypothesisRead]
+    branch_coverage: list[BranchCoverageRead]
+    disclaimer: str
+    created_at: datetime
+    updated_at: datetime

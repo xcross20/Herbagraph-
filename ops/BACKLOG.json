@@ -2772,7 +2772,7 @@
     {
       "id": "SLICE-118",
       "title": "Confidence decomposition: four scores + gap analysis + audit",
-      "status": "in_progress",
+      "status": "done",
       "priority": 1,
       "problem": "Clinicians cannot tell whether a ~78% recommendation is limited by evidence, patient match, or missing data, so they cannot decide whether to act, test, or stop.",
       "acceptance": [
@@ -2796,6 +2796,37 @@
         "docs/GUIDED_DISCOVERY.md",
         "app/evidence_confidence/decomposition.py",
         "scripts/audit_confidence_bottlenecks.py"
+      ]
+    },
+    {
+      "id": "SLICE-119",
+      "title": "Guided Discovery Case/Finding/Hypothesis + investigation coverage",
+      "status": "in_progress",
+      "priority": 1,
+      "problem": "Users start from a concern but HerbaGraph only persists lab reports, so hypotheses and coverage vanish between requests.",
+      "acceptance": [
+        "POST /api/v1/cases persists a Case from a presenting concern",
+        "Rebuild with B12+MCV lists MMA as a gap and relevance > certainty",
+        "Investigations grouped core/directed/conditional",
+        "Branch coverage is assessment completeness, not disease probability",
+        "Engine never writes a diagnosis"
+      ],
+      "non_goals": [
+        "Chat-as-intelligence",
+        "Next.js",
+        "Gold Label",
+        "Auto-ruled-out hypotheses"
+      ],
+      "reversibility": "one-way schema; two-way catalog/weights",
+      "risk_hotspots": [
+        "lazy-load in async session",
+        "keyword over-match",
+        "UI implying diagnosis"
+      ],
+      "artifacts": [
+        "app/discovery/",
+        "app/api/v1/discovery.py",
+        "alembic/versions/n4o5p6q7r8s9_discovery_case_finding_hypothesis.py"
       ]
     }
   ],
@@ -3309,9 +3340,17 @@
     {
       "id": "IMP-057",
       "title": "Persistent Case/Finding/Hypothesis objects for Guided Discovery loop",
-      "status": "proposed",
+      "status": "done",
       "priority": "high",
-      "rationale": "Slice 118 decomposes intervention confidence but the Case is still implicit in labs+profile. Next slice needs first-class Case so discovery can start from symptoms."
+      "rationale": "Slice 118 decomposes intervention confidence but the Case is still implicit in labs+profile. Next slice needs first-class Case so discovery can start from symptoms.",
+      "completed_in": "SLICE-119"
+    },
+    {
+      "id": "IMP-058",
+      "title": "Attach outcomes and retest plans to Discovery Case",
+      "status": "proposed",
+      "priority": "medium",
+      "rationale": "Case now persists hypotheses; the loop is incomplete without outcome/monitor objects."
     }
   ]
 }

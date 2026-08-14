@@ -6,6 +6,7 @@ from app.api.v1 import (
     analysis_sessions,
     audit,
     auth,
+    discovery,
     evidence,
     explainability,
     knowledge,
@@ -33,6 +34,7 @@ api_router.include_router(evidence.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(explainability.router)
 api_router.include_router(safety.router)
+api_router.include_router(discovery.router)
 api_router.include_router(patients.router)
 api_router.include_router(patient_context.router)
 api_router.include_router(workspace.router)

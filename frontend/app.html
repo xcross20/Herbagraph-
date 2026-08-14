@@ -29,6 +29,10 @@
         <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Patients
       </a>
+      <a class="sidebar-link" href="#discovery" data-nav="discovery">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
+        Discovery
+      </a>
       <a class="sidebar-link" href="#analysis" data-nav="analysis">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
         Analyses
@@ -519,6 +523,96 @@ function wireOnboardingBanner() {
     history.replaceState({}, "", url.pathname + url.search + url.hash);
     btn.closest(".onboarding-welcome")?.remove();
   };
+}
+
+function investigationGroupLabel(group) {
+  if (group === "core") return "Core evaluation";
+  if (group === "directed") return "Directed evaluation";
+  if (group === "conditional") return "Conditional evaluation";
+  return group;
+}
+
+function renderDiscoveryCase(body) {
+  if (!body) return "";
+  const hypos = body.hypotheses || [];
+  const branches = body.branch_coverage || [];
+  let html = `<p class="page-subtitle">${esc(body.disclaimer || "")}</p>`;
+  html += `<div class="metric-grid">`;
+  html += `<div class="metric-card"><div class="metric-label">Investigation coverage</div><div class="metric-value">${body.investigation_coverage_percent || 0}%</div><div class="metric-delta">Not disease probability</div></div>`;
+  html += `<div class="metric-card"><div class="metric-label">Open hypotheses</div><div class="metric-value">${hypos.length}</div><div class="metric-delta">None are diagnoses</div></div>`;
+  html += `</div>`;
+  if (branches.length) {
+    html += `<div class="wallet-card"><h2>Branch coverage</h2>`;
+    for (const row of branches) {
+      html += `<div class="signal-row"><span>${esc(row.label)}</span><span class="mono">${row.coverage_percent}%</span></div>`;
+      html += `<div class="signal-bar-track"><div class="signal-bar-fill" style="width:${row.coverage_percent}%"></div></div>`;
+    }
+    html += `</div>`;
+  }
+  for (const h of hypos) {
+    html += `<article class="wallet-card">`;
+    html += `<h2>${esc(h.label)}</h2>`;
+    html += `<p class="muted">Relevance ${h.investigation_relevance_percent}% · Diagnostic certainty ${h.diagnostic_certainty_percent}% · Coverage ${h.investigation_coverage_percent}%</p>`;
+    html += `<p class="muted">${esc(h.not_a_diagnosis || "")}</p>`;
+    if ((h.why_limited || []).length) {
+      html += `<ul>${h.why_limited.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>`;
+    }
+    const groups = ["core", "directed", "conditional"];
+    for (const group of groups) {
+      const items = (h.investigations || []).filter((i) => i.group === group);
+      if (!items.length) continue;
+      html += `<h3>${investigationGroupLabel(group)}</h3><ul>`;
+      for (const item of items) {
+        html += `<li>${esc(item.label)}${item.already_assessed ? " <span class=\"status-chip ready\">assessed</span>" : ""}</li>`;
+      }
+      html += `</ul>`;
+    }
+    html += `</article>`;
+  }
+  return html;
+}
+
+async function renderDiscovery(caseId) {
+  let current = null;
+  if (caseId) {
+    try {
+      current = await api(`/api/v1/cases/${caseId}`);
+    } catch (_) {
+      current = null;
+    }
+  }
+  document.getElementById("app-main").innerHTML = `
+    ${pageHeader("Guided Discovery", "Start with what is happening. The case — not chat — is the source of truth.")}
+    <form class="wallet-card" id="discovery-open-form">
+      <label for="discovery-concern">Presenting concern</label>
+      <textarea id="discovery-concern" rows="3" required placeholder="For six months, my feet have burned at night. My doctor says my blood work is normal.">${current ? esc(current.presenting_concern) : ""}</textarea>
+      <div class="page-header-actions" style="margin-top:0.75rem">
+        <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Open or update case</button>
+      </div>
+    </form>
+    <div id="discovery-result">${current ? renderDiscoveryCase(current) : `<p class="muted">No diagnosis will be written. Relevance means “worth investigating.”</p>`}</div>
+  `;
+  document.getElementById("discovery-open-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const concern = document.getElementById("discovery-concern").value.trim();
+    const btn = document.getElementById("discovery-open-btn");
+    btn.disabled = true;
+    try {
+      let body;
+      if (current && current.id) {
+        body = await api(`/api/v1/cases/${current.id}/rebuild`, "POST", { presenting_concern: concern });
+      } else {
+        body = await api("/api/v1/cases", "POST", { presenting_concern: concern });
+      }
+      current = body;
+      history.replaceState({}, document.title, `#discovery?case=${body.id}`);
+      document.getElementById("discovery-result").innerHTML = renderDiscoveryCase(body);
+    } catch (err) {
+      document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
 }
 
 async function renderDashboard() {
@@ -1676,6 +1770,7 @@ async function render() {
     const path = hash.split("?")[0];
 
     if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
+    else if (path === "discovery") { setActiveNav("discovery"); await renderDiscovery(params.get("case")); }
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
     else if (path === "reports") { setActiveNav("reports"); await renderReports(); }
     else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(); }

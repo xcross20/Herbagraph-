@@ -49,6 +49,26 @@ class AuditAction(str, enum.Enum):
     CONTEXT_ADDED = "context_added"
 
 
+class DiscoveryCaseStatus(str, enum.Enum):
+    OPEN = "open"
+    PAUSED = "paused"
+    CLOSED = "closed"
+
+
+class DiscoveryFindingKind(str, enum.Enum):
+    CONCERN = "concern"
+    LAB = "lab"
+    CONTEXT = "context"
+
+
+class DiscoveryHypothesisStatus(str, enum.Enum):
+    """Hypotheses stay open until a clinician marks them. The engine never auto-diagnoses."""
+
+    OPEN = "open"
+    WATCH = "watch"
+    DEFERRED = "deferred"
+
+
 class PatientContextSource(str, enum.Enum):
     USER = "user"
     IMPORT = "import"
