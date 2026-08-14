@@ -26,10 +26,14 @@ You are the **hundred-person team** for HerbaGraph (`/Users/immanuellewis/herbag
 | Artifact | Path |
 |---|---|
 | Backlog + improvements | `ops/BACKLOG.json` |
-| Engineering manual mapping | `.grok/skills/herbagraph-ops/references/HAT_PIPELINE.md` |
+| Hat pipeline (this repo) | `/pm-hat` … `/techlead-hat`, `/engineering-operating-manual` |
+| Hat source documents | `.grok/skills/engineering-operating-manual/references/` |
+| HerbaGraph hotspot notes | `.grok/skills/herbagraph-ops/references/HAT_PIPELINE.md` |
 | Definition of done | `ops/BACKLOG.json` → `definition_of_done` |
 | Lab scenarios | `samples/lab_scenarios/manifest.json` |
 | CI gates | `scripts/ci_gates.sh` |
+
+Wear the persisted hat skills in order. Do not collapse hats. HerbaGraph-specific gates (reseed, pathway coverage, PMID audit) still apply at QA/SRE.
 
 ## Invocation modes
 
