@@ -144,7 +144,7 @@ def test_report_workspace_shell(report_html):
     assert "/css/site.css" in report_html
     assert "report-outline" in report_html
     assert 'id="report-empty"' in report_html
-    assert 'href="/app.html#dashboard"' in report_html
+    assert 'href="/me.html#dashboard"' in report_html or "homeForCurrentSession" in report_html
     assert 'id="integrated-banner"' in report_html
     assert 'id="upload-section"' not in report_html
     assert 'id="analyze-btn"' not in report_html

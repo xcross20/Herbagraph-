@@ -123,11 +123,12 @@
 
 <script src="/js/auth-ui.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/workspace-home.js"></script>
 <script>
 const Auth = window.HerbaGraphAuth;
 const UI = window.HerbaGraphAuthUI;
 const params = new URLSearchParams(location.search);
-const nextUrl = params.get("next") || "/app.html#dashboard";
+const nextUrl = params.get("next") || "";
 
 function formatLoginError(message) {
   const lower = (message || "").toLowerCase();
@@ -141,10 +142,17 @@ async function init() {
   if (window.__hgAuthRedirecting) return;
   if (await Auth.handleAuthRedirect()) {
     const onboard = localStorage.getItem("hg_onboarding_pending") === "1";
-    location.href = onboard ? "/app.html?onboard=1#dashboard" : nextUrl;
+    location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ onboard, hash: "#dashboard" });
     return;
   }
-  if (await Auth.ensureSession()) { location.href = nextUrl; return; }
+  if (await Auth.ensureSession()) {
+    if (nextUrl && !nextUrl.includes("/app.html") && nextUrl.startsWith("/")) {
+      location.href = nextUrl;
+    } else {
+      location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" });
+    }
+    return;
+  }
   const cfg = await Auth.loadConfig();
   const guestBtn = document.getElementById("guest-btn");
   guestBtn.classList.toggle("hidden", !cfg.allow_guest_auth);
@@ -217,7 +225,11 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
   UI.setButtonLoading(btn, true, "Signing in…");
   try {
     await Auth.signInWithPassword(email, password);
-    location.href = nextUrl;
+    if (nextUrl && !nextUrl.includes("/app.html") && nextUrl.startsWith("/")) {
+      location.href = nextUrl;
+    } else {
+      location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" });
+    }
   } catch (err) {
     const msg = formatLoginError(err.message);
     if (msg.includes("reset your password")) {

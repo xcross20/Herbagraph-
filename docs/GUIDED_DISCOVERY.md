@@ -118,10 +118,13 @@ Test utility (later slice): information gain × actionability × safety × cover
 
 ### Workspace modes (consumer vs clinician)
 
-The same FastAPI + `app.html` shell serves two chrome modes from `User.role`:
+Two portals, one API:
 
-- **Personal (`individual`)** — one Self profile. Discovery, Evidence, and Reports stay on that record. The Patients nav is “My profile.”
-- **Clinician** — many patients. Discovery and Evidence require an active patient. Cases list and evidence tables filter by `patient_id`. There is no clinic-wide “latest report.”
+- `/me.html` — personal portal (`individual`)
+- `/clinic.html` — clinician portal (`clinician` / admin)
+- `/app.html` — router that sends the signed-in user to the correct portal
+
+Discovery also emits `next_questions` (question engine) and `what_changed` (rebuild reconciliation).
 
 ## LLM rule
 

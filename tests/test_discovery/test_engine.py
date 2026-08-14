@@ -38,6 +38,8 @@ def test_burning_feet_with_b12_is_relevant_not_diagnosed():
     assert snapshot.investigation_coverage < 1.0
     assert snapshot.monitor_plan
     assert any("MMA" in item.label for item in snapshot.monitor_plan)
+    assert snapshot.next_questions
+    assert any("MMA" in q.prompt or "methylmalonic" in q.prompt.lower() for q in snapshot.next_questions)
     nutritional = next(row for row in snapshot.branch_coverage if row.branch == "nutritional")
     assert 0 < nutritional.coverage < 1
     assert "diagnosis" in snapshot.disclaimer.lower() or "not a diagnosis" in snapshot.disclaimer.lower()

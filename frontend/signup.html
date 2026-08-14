@@ -162,6 +162,7 @@
 
 <script src="/js/auth-ui.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/workspace-home.js"></script>
 <script>
 const Auth = window.HerbaGraphAuth;
 const UI = window.HerbaGraphAuthUI;
@@ -183,11 +184,11 @@ function formatSignupError(message) {
 async function init() {
   if (window.__hgAuthRedirecting) return;
   if (await Auth.handleAuthRedirect()) {
-    location.href = "/app.html?onboard=1#dashboard";
+    location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ onboard: true, hash: "#dashboard" });
     return;
   }
   if (await Auth.ensureSession()) {
-    location.href = "/app.html#dashboard";
+    location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" });
     return;
   }
   const cfg = await Auth.loadConfig();
@@ -256,8 +257,9 @@ document.getElementById("signup-form").addEventListener("submit", async (e) => {
     await Auth.signUp(email, password, name, accessCode || null, { role });
     localStorage.setItem("hg_account_type", role);
     localStorage.setItem("hg_onboarding_pending", "1");
-    await UI.playWorkspaceReady(() => {
-      location.href = "/app.html?onboard=1#dashboard";
+    await UI.playWorkspaceReady(async () => {
+      const role = UI.getSelectedAccountRole();
+      location.href = window.HerbaGraphWorkspace.workspaceHome(role, { onboard: true, hash: "#dashboard" });
     });
   } catch (err) {
     const msg = formatSignupError(err.message);

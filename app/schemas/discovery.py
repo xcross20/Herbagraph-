@@ -73,6 +73,15 @@ class MonitorItemRead(BaseModel):
     reason: str
 
 
+class DiscoveryQuestionRead(BaseModel):
+    code: str
+    prompt: str
+    kind: str
+    closes: str
+    hypothesis_code: str
+    utility: float
+
+
 class DiscoveryCaseRead(BaseModel):
     id: uuid.UUID
     presenting_concern: str
@@ -85,6 +94,8 @@ class DiscoveryCaseRead(BaseModel):
     hypotheses: list[DiscoveryHypothesisRead]
     branch_coverage: list[BranchCoverageRead]
     monitor_plan: list[MonitorItemRead] = []
+    next_questions: list[DiscoveryQuestionRead] = []
+    what_changed: list[str] = []
     disclaimer: str
     created_at: datetime
     updated_at: datetime

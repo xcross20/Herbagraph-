@@ -9,7 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.discovery.engine import CaseSnapshot, rebuild_case_state
+from app.discovery.engine import CaseSnapshot, describe_rebuild_changes, rebuild_case_state
 from app.models.discovery import DiscoveryCase, DiscoveryFinding, DiscoveryHypothesis
 from app.models.enums import (
     DiscoveryCaseStatus,
@@ -28,6 +28,7 @@ from app.schemas.discovery import (
     DiscoveryFindingRead,
     DiscoveryHypothesisRead,
     DiscoveryInvestigationRead,
+    DiscoveryQuestionRead,
     LabIngest,
     MonitorItemRead,
 )
@@ -131,6 +132,18 @@ def snapshot_to_read(case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryCa
             )
             for item in snapshot.monitor_plan
         ],
+        next_questions=[
+            DiscoveryQuestionRead(
+                code=item.code,
+                prompt=item.prompt,
+                kind=item.kind,
+                closes=item.closes,
+                hypothesis_code=item.hypothesis_code,
+                utility=item.utility,
+            )
+            for item in snapshot.next_questions
+        ],
+        what_changed=list(snapshot.what_changed),
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -323,7 +336,9 @@ async def rebuild_case(
     if lab_report_id is not None:
         case.lab_report_id = lab_report_id
     profile = await _profile_for_case(db, case)
+    previous = snapshot_from_case(case) if case.snapshot else None
     snapshot = rebuild_case_state(case.presenting_concern, labs or [], profile)
+    snapshot.what_changed = describe_rebuild_changes(previous, snapshot)
     await apply_snapshot(db, case, snapshot)
     await db.flush()
     return snapshot

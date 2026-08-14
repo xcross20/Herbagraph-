@@ -18,7 +18,7 @@ def test_render_continues_after_auth_callback():
     Early-return after handleAuthRedirect() left mobile users on a gray blank page when
     hash was already #dashboard (hashchange never fired).
     """
-    src = _APP_HTML.read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parents[2] / "frontend" / "js" / "workspace-app.js").read_text(encoding="utf-8")
     assert "await Auth.handleAuthRedirect()" in src
     assert "if (await Auth.handleAuthRedirect())" not in src
     # After auth redirect, ensureSession + shell reveal still run

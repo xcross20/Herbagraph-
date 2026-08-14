@@ -30,9 +30,11 @@ def test_how_it_works_content_contract():
 
 def test_landing_and_app_link_how_it_works():
     landing = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
-    app = (ROOT / "frontend" / "app.html").read_text(encoding="utf-8")
+    clinic = (ROOT / "frontend" / "clinic.html").read_text(encoding="utf-8")
+    me = (ROOT / "frontend" / "me.html").read_text(encoding="utf-8")
     assert "/how-it-works.html" in landing
-    assert "/how-it-works.html" in app
+    assert "/how-it-works.html" in clinic
+    assert "/how-it-works.html" in me
 
 
 def test_how_it_works_js_has_stages():

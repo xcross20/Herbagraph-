@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>HerbaGraph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="app-body">
+<div class="app-shell hidden" id="app-shell">
+  <div class="sidebar-backdrop" id="sidebar-backdrop" hidden aria-hidden="true"></div>
+  <aside class="app-sidebar" id="app-sidebar" aria-label="Primary navigation">
+    <div class="sidebar-brand-row">
+      <div class="sidebar-brand" id="app-nav-logo"></div>
+      <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <nav class="sidebar-nav" aria-label="Personal">
+      <p class="sidebar-section-label">Personal portal</p>
+      <a class="sidebar-link" href="#dashboard" data-nav="dashboard">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Home
+      </a>
+      <a class="sidebar-link" href="#patients" data-nav="patients">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span id="nav-patients-label">My profile</span>
+      </a>
+      <a class="sidebar-link" href="#discovery" data-nav="discovery">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/><path d="M11 8v6M8 11h6"/></svg>
+        My discovery
+      </a>
+      <a class="sidebar-link" href="#upload" data-nav="upload">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        My labs
+      </a>
+      <a class="sidebar-link" href="#analysis" data-nav="analysis">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Analyze
+      </a>
+      <a class="sidebar-link" href="#reports" data-nav="reports">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+        My reports
+      </a>
+      <a class="sidebar-link" href="#evidence" data-nav="evidence">
+        <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        My evidence
+      </a>
+      <p class="sidebar-section-label">Account</p>
+      <a class="sidebar-link" href="#settings" data-nav="settings">
+        <svg viewBox="0 0 24 24"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        Settings
+      </a>
+      <a class="sidebar-link" href="/how-it-works.html" data-nav="how">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        How it works
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <p class="sidebar-user" id="nav-user"></p>
+      <button type="button" class="sidebar-signout" id="logout-btn">Sign out</button>
+    </div>
+  </aside>
+  <div class="workspace-main">
+    <header class="mobile-topbar" id="mobile-topbar">
+      <button type="button" class="mobile-nav-toggle" id="mobile-nav-toggle" aria-label="Open menu" aria-controls="app-sidebar" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+      </button>
+      <div class="mobile-topbar-brand" id="mobile-topbar-brand"></div>
+      <a class="mobile-topbar-action app-btn app-btn-primary" href="#upload" aria-label="Upload labs">Upload</a>
+    </header>
+    <div class="workspace-content" id="app-main"></div>
+  </div>
+</div>
+<script src="/js/brand-logo.js"></script>
+<script src="/js/herbagraph-auth.js"></script>
+<script src="/js/reasoning-graph.js"></script>
+<script src="/js/knowledge-path-picker.js"></script>
+<script>window.HG_PORTAL = "personal";</script>
+<script src="/js/workspace-home.js"></script>
+<script src="/js/workspace-app.js"></script>
+</body>
+</html>

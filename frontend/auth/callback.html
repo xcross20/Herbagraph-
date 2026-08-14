@@ -61,6 +61,7 @@
   </div>
 </main>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/workspace-home.js"></script>
 <script>
 (async function () {
   const card = document.getElementById("callback-card");
@@ -89,7 +90,12 @@
       card.dataset.state = "ok";
       title.textContent = "Email confirmed";
       body.textContent = "Taking you to your workspace…";
-      location.replace(result.redirectTo);
+      const onboard = localStorage.getItem("hg_onboarding_pending") === "1";
+      const home = await window.HerbaGraphWorkspace.homeForCurrentSession({
+        onboard,
+        hash: "#dashboard",
+      });
+      location.replace(home);
       return;
     }
 

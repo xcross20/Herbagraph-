@@ -14,6 +14,7 @@ from app.discovery.catalog import (
     HypothesisFamily,
     families_for_concern,
 )
+from app.discovery.questions import DiscoveryQuestion, next_questions
 from app.evidence_confidence.resolution_markers import (
     marker_is_present,
     present_marker_keys,
@@ -94,6 +95,8 @@ class CaseSnapshot:
     branch_coverage: list[BranchCoverage]
     investigation_coverage: float
     monitor_plan: list[MonitorItem] = field(default_factory=list)
+    next_questions: list[DiscoveryQuestion] = field(default_factory=list)
+    what_changed: list[str] = field(default_factory=list)
     disclaimer: str = field(
         default="Investigation relevance is not a diagnosis. "
         "HerbaGraph does not claim the person has any listed condition."
@@ -112,6 +115,7 @@ class CaseSnapshot:
             hypotheses.append(HypothesisDraft(**payload))
         branches = [BranchCoverage(**item) for item in raw.get("branch_coverage") or []]
         monitor = [MonitorItem(**item) for item in raw.get("monitor_plan") or []]
+        questions = [DiscoveryQuestion(**item) for item in raw.get("next_questions") or []]
         return cls(
             presenting_concern=raw.get("presenting_concern") or "",
             findings=findings,
@@ -119,6 +123,8 @@ class CaseSnapshot:
             branch_coverage=branches,
             investigation_coverage=float(raw.get("investigation_coverage") or 0.0),
             monitor_plan=monitor,
+            next_questions=questions,
+            what_changed=list(raw.get("what_changed") or []),
             disclaimer=raw.get("disclaimer")
             or "Investigation relevance is not a diagnosis. "
             "HerbaGraph does not claim the person has any listed condition.",
@@ -361,7 +367,7 @@ def rebuild_case_state(
         overall = sum(row.coverage for row in branches) / len(branches)
     else:
         overall = 0.0
-    return CaseSnapshot(
+    snapshot = CaseSnapshot(
         presenting_concern=(presenting_concern or "").strip(),
         findings=findings,
         hypotheses=scored,
@@ -369,3 +375,33 @@ def rebuild_case_state(
         investigation_coverage=round(overall, 4),
         monitor_plan=_monitor_plan(scored),
     )
+    snapshot.next_questions = next_questions(snapshot.hypotheses)
+    return snapshot
+
+
+def describe_rebuild_changes(previous: CaseSnapshot | None, current: CaseSnapshot) -> list[str]:
+    """Evidence reconciliation: what the new snapshot added or resolved."""
+    if previous is None:
+        if current.hypotheses:
+            return [f"Opened {len(current.hypotheses)} investigation families from the current concern and data."]
+        return ["Case opened. No investigation families activated yet."]
+    changes: list[str] = []
+    prev_codes = {item.code for item in previous.hypotheses}
+    new_codes = {item.code for item in current.hypotheses}
+    for code in sorted(new_codes - prev_codes):
+        label = next(item.label for item in current.hypotheses if item.code == code)
+        changes.append(f"New investigation family: {label}.")
+    prev_findings = {(item.kind, item.name, item.value) for item in previous.findings}
+    for item in current.findings:
+        key = (item.kind, item.name, item.value)
+        if key not in prev_findings and item.kind == "lab":
+            changes.append(
+                f"New lab finding: {item.name} {item.value or ''} ({item.status or 'recorded'}).".strip()
+            )
+    if current.investigation_coverage != previous.investigation_coverage:
+        delta = current.investigation_coverage - previous.investigation_coverage
+        direction = "rose" if delta > 0 else "fell"
+        changes.append(
+            f"Investigation coverage {direction} to {int(round(current.investigation_coverage * 100))}%."
+        )
+    return changes[:8]

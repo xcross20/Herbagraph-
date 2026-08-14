@@ -617,6 +617,12 @@ window.HerbaGraphAuth = (function () {
     continueAsGuest,
     api,
     isSupabase: async () => (await loadConfig()).auth_provider === "supabase",
+    workspaceHomeForRole(role, options) {
+      if (window.HerbaGraphWorkspace) {
+        return window.HerbaGraphWorkspace.workspaceHome(role, options);
+      }
+      return "/me.html#dashboard";
+    },
   };
 })();
 

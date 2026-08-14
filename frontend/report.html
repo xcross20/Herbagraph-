@@ -408,7 +408,7 @@
 <nav class="report-top-nav app-top-nav" aria-label="Report navigation">
   <div id="nav-logo"></div>
   <div class="nav-links">
-    <a class="nav-back" id="nav-back-link" href="/app.html#dashboard">← Workspace</a>
+    <a class="nav-back" id="nav-back-link" href="/me.html#dashboard">← Workspace</a>
   </div>
   <div class="nav-actions">
     <button id="regenerate-btn" type="button" style="display:none">Regenerate report</button>
@@ -435,7 +435,7 @@
     <p class="muted">Upload labs or run analysis from your workspace, then open a report from the dashboard or patient chart.</p>
     <p style="margin-top:1.25rem;display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:center">
       <a class="btn primary" href="/report.html?demo=1" style="display:inline-block;padding:0.55rem 1.1rem;border-radius:980px;background:var(--accent);color:#fff;text-decoration:none;font-weight:500">View sample report</a>
-      <a class="btn" href="/app.html#dashboard" style="display:inline-block;padding:0.55rem 1.1rem;border-radius:980px;border:1px solid var(--border);text-decoration:none;font-weight:500">Go to workspace</a>
+      <a class="btn" href="/me.html#dashboard" style="display:inline-block;padding:0.55rem 1.1rem;border-radius:980px;border:1px solid var(--border);text-decoration:none;font-weight:500">Go to workspace</a>
     </p>
   </div>
 
@@ -543,6 +543,7 @@
 
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
+<script src="/js/workspace-home.js"></script>
 <script src="/js/reasoning-graph.js"></script>
 <script src="/js/knowledge-path-picker.js"></script>
 <script>
@@ -2133,11 +2134,17 @@ function configureDemoShell(isDemo) {
     if (logoHost) logoHost.innerHTML = herbagraphLogoLink("/");
   } else {
     if (back) {
-      back.href = "/app.html#dashboard";
+      back.href = "/me.html#dashboard";
       back.textContent = "← Workspace";
     }
     if (banner) banner.style.display = "none";
-    if (logoHost) logoHost.innerHTML = herbagraphLogoLink("/app.html#dashboard");
+    if (logoHost) logoHost.innerHTML = herbagraphLogoLink("/me.html#dashboard");
+    if (window.HerbaGraphWorkspace) {
+      window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" }).then((home) => {
+        if (back) back.href = home;
+        if (logoHost) logoHost.innerHTML = herbagraphLogoLink(home);
+      }).catch(() => {});
+    }
   }
 }
 
