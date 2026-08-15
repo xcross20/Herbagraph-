@@ -129,13 +129,13 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     if not blob.strip():
         return rows
 
-    historical = bool(re.search(r"\b(\d+\s+years? ago|years ago|in the past)\b", blob))
-    temporality = "historical" if historical and not re.search(r"\btoday\b|\bnow\b|\bcurrently\b", blob) else "current"
-    if re.search(r"\btoday\b|\bthis morning\b|\bnow\b|\bcurrently\b", blob):
+    historical = bool(re.search(r"\b(\d+\s+years? ago|years ago)\b", blob))
+    temporality = "historical" if historical and not re.search(r"\btoday\b|\bnow\b|\bcurrently\b|\bthis morning\b|\bhours?\b", blob) else "current"
+    if re.search(r"\btoday\b|\bthis morning\b|\bnow\b|\bcurrently\b|\btwo hours\b|\b8 hours\b|\beight hours\b", blob):
         temporality = "current"
 
     chronology = "unknown"
-    if re.search(r"\b(this morning|today|two hours|2 hours|eight hours|8 hours|suddenly)\b", blob):
+    if re.search(r"\b(this morning|today|two hours|2 hours|eight hours|8 hours|suddenly)\b", blob) or re.fullmatch(r"hours\.?", blob.strip()):
         chronology = "acute"
     if re.search(r"\b(weeks?)\b", blob) and chronology == "unknown":
         chronology = "subacute"
@@ -178,19 +178,30 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     def absent(concept: str) -> None:
         _add(rows, SafetyFinding(concept=concept, presence="absent", temporality="current", kind="finding"))
 
-    if re.search(r"no fever|without fever|don't have fever|do not have fever", blob):
+    listed_negatives = bool(re.search(r"none of those|no fever, vomiting, or yellow|no fever or vomiting", blob))
+    if listed_negatives:
+        absent("fever")
+        absent("vomiting")
+        if "yellow" in blob or "none of those" in blob:
+            absent("jaundice")
+    if re.search(r"\bno fever\b|without fever|don't have fever|do not have fever", blob):
         absent("fever")
     elif re.search(r"\bfever\b|running a fever|febrile", blob):
         present("fever")
 
-    if re.search(r"no vomiting|without vomiting|don't have vomiting|do not have vomiting|no .*vomiting", blob):
+    if re.search(r"\bno vomiting\b|without vomiting|don't have vomiting|do not have vomiting", blob) or (
+        listed_negatives and "just vomiting" not in blob
+    ):
         absent("vomiting")
-    elif re.search(r"can't stop vomiting|cannot stop vomiting|repeated vomiting|vomiting x|keep vomiting", blob):
+    elif re.search(
+        r"can't stop vomiting|cannot stop vomiting|repeated vomiting|vomiting x|keep vomiting|just vomiting|vomiting i can't stop",
+        blob,
+    ):
         present("vomiting", qualifier="repeated")
-    elif re.search(r"\bvomit", blob):
+    elif re.search(r"\bvomit", blob) and not listed_negatives:
         present("vomiting", qualifier="single")
 
-    if re.search(r"no yellowing|without yellowing|no jaundice|don't have .*yellow|\bno\b.{0,50}yellow", blob):
+    if re.search(r"\bno yellowing\b|without yellowing|\bno jaundice\b", blob):
         absent("jaundice")
     elif re.search(r"\bjaundice\b|yellowing of (?:the )?(?:eyes|skin)|yellow (?:eyes|skin)", blob):
         jaund_temp = "historical" if re.search(r"years? ago.{0,40}jaundice|jaundice.{0,40}years? ago", blob) else temporality
@@ -227,6 +238,8 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     if re.search(r"pass out|passing out|syncope|\bfaint", blob):
         present("syncope")
 
+    if re.search(r"severe and constant|mild / intermittent|mild and intermittent", blob) and not severity:
+        severity = "severe" if "severe" in blob else "mild_to_moderate"
     if re.search(r"can'?t lift|cannot lift|foot drop|won't move|will not move|arm suddenly", blob):
         present("weakness", qualifier="focal")
     elif re.search(r"generally weak|felt weak|feeling weak|weak for a (?:year|while)", blob):
@@ -234,7 +247,7 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     elif re.search(r"\bnew weakness\b", blob):
         present("weakness", qualifier="focal")
 
-    if re.search(r"\bbladder\b|\bbowel control\b", blob):
+    if re.search(r"(?<!gall )\bbladder\b|\bbowel control\b", blob):
         present("sphincter_change")
 
     if re.search(r"can't keep (?:fluids|anything) down|unable to keep fluids", blob):
@@ -263,23 +276,17 @@ def findings_from_fact_map(facts: dict[str, str]) -> list[SafetyFinding]:
         "dyspnea": "dyspnea",
         "syncope": "syncope",
         "sweating": "sweating",
-        "patient_interpretation": None,
     }
     for key, concept in mapping.items():
         value = (facts.get(key) or "").lower()
         if not value:
             continue
-        if key == "patient_interpretation":
-            rows.append(SafetyFinding(concept=value, presence="present", kind="interpretation"))
-            continue
-        if concept is None:
-            continue
         presence = "absent" if value in {"absent", "no", "none"} else "present"
         qualifier = None
         if concept == "vomiting" and value in {"repeated", "persistent"}:
             qualifier = "repeated"
-        if concept == "weakness" and value in {"focal", "generalized", "reported"}:
-            qualifier = "focal" if value in {"focal", "reported"} else "generalized"
+        if concept == "weakness" and value in {"focal", "generalized"}:
+            qualifier = value
         if concept == "abdominal_pain" and value in {"ruq", "location_unclear"}:
             qualifier = value
         rows.append(
@@ -296,6 +303,9 @@ def findings_from_fact_map(facts: dict[str, str]) -> list[SafetyFinding]:
         rows.append(SafetyFinding(concept="onset", presence="present", trajectory="sudden", chronology="acute"))
     if facts.get("location") in {"ruq", "abdomen"}:
         rows.append(SafetyFinding(concept="abdominal_pain", presence="present", qualifier=facts.get("location")))
+    for key, value in facts.items():
+        if key.startswith("patient_interpretation") and value:
+            rows.append(SafetyFinding(concept=value, presence="present", kind="interpretation"))
     return rows
 
 
@@ -582,16 +592,53 @@ def _preface(domain: str, state: str) -> str:
     return ""
 
 
+_RESOLUTION = re.compile(
+    r"\b(that (resolved|went away|stopped)|i(?:'m| am) (fine|better|ok)|false alarm|it stopped|symptoms are gone)\b"
+)
+
+
+def _hold_prior_disposition(assessment: SafetyAssessment, prior_state: str | None, new_text: str) -> SafetyAssessment:
+    prior = normalize_state(prior_state)
+    if prior != "S4" or assessment.state == "S4":
+        return assessment
+    if _RESOLUTION.search((new_text or "").lower()):
+        return assessment
+    findings = assessment.findings
+    still_hot = _definite_emergency(findings) or (
+        _is_present(findings, "abdominal_pain")
+        and _is_present(findings, "fever")
+        and _is_present(findings, "vomiting")
+    ) or (
+        _is_present(findings, "chest_pain")
+        and (_is_present(findings, "dyspnea") or _is_present(findings, "sweating") or _is_present(findings, "syncope"))
+    ) or (
+        _current(findings, "weakness") is not None
+        and _current(findings, "weakness").presence == "present"
+        and _current(findings, "weakness").qualifier == "focal"
+    )
+    if not still_hot:
+        return assessment
+    assessment.state = "S4"
+    assessment.override = True
+    assessment.discovery_can_continue = False
+    assessment.urgency = "emergency"
+    assessment.recommended_action = "emergency"
+    assessment.message = _message("S4", assessment.domain)
+    assessment.critic = "held: prior emergency findings are still on the Case"
+    return assessment
+
+
 def _message(state: str, domain: str) -> str:
     if state == "S4":
         return (
-            "Based on what you've shared so far, this needs urgent in-person evaluation rather than more Discovery questions. "
+            "I'm glad you told me this. From what you've described, the safer next step is urgent in-person evaluation "
+            "rather than more questions here. I'm pausing Discovery so we don't keep investigating remotely. "
             "This is not a diagnosis."
         )
     if state == "S3":
         return (
-            "Based on what you've shared so far, prompt in-person assessment would be the safer next step. "
-            "I can keep a limited record of the pattern, but I will not continue a full investigation here. "
+            "Thank you for laying that out. From what you've shared, prompt in-person assessment would be the safer next step. "
+            "I can keep a limited record of the pattern, but I will not run a full investigation here. "
             "This is not a diagnosis."
         )
     if state == "S1":
@@ -603,6 +650,8 @@ def assess_safety(
     findings: list[SafetyFinding],
     *,
     asked: set[str] | None = None,
+    prior_state: str | None = None,
+    new_text: str = "",
 ) -> SafetyAssessment:
     asked = asked or set()
     interpretations = [item for item in findings if item.kind == "interpretation"]
@@ -662,6 +711,7 @@ def assess_safety(
         preface=_preface(domain, state),
     )
     assessment = critique(assessment)
+    assessment = _hold_prior_disposition(assessment, prior_state, new_text)
     if assessment.state == "S1" and not assessment.clarifiers:
         assessment.clarifiers = [item for item in _clarifiers(assessment.domain, assessment.missing) if item.code not in asked]
     assessment.message = _sanitize(_message(assessment.state, assessment.domain) or assessment.message)

@@ -37,6 +37,7 @@ class DiscoveryCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     stage: Mapped[str] = mapped_column(String(40), nullable=False, default="opening")
     problem_representation: Mapped[str | None] = mapped_column(Text, nullable=True)
     literature_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    safety_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     findings: Mapped[list["DiscoveryFinding"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"
@@ -122,7 +123,7 @@ class DiscoveryTurn(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Enum(DiscoveryTurnRole, native_enum=False, length=12), nullable=False
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="note")
+    kind: Mapped[str] = mapped_column(String(40), nullable=False, default="note")
     question_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
     intent: Mapped[str | None] = mapped_column(String(80), nullable=True)
     action_type: Mapped[str | None] = mapped_column(String(40), nullable=True)

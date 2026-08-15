@@ -8,6 +8,34 @@ import pytest
 pytestmark = pytest.mark.asyncio
 
 
+async def test_emergency_facts_survive_rebuild_and_followup(authed_client):
+    opened = await authed_client.post(
+        "/api/v1/cases",
+        json={
+            "presenting_concern": (
+                "Severe right upper pain for eight hours, can't stop vomiting and I'm running a fever."
+            )
+        },
+    )
+    assert opened.status_code == 201, opened.text
+    first = opened.json()
+    names = {item["name"] for item in first["findings"]}
+    assert "abdominal_pain" in names or "fever" in names
+    assert first["turn_state"]["safety_status"] == "S4"
+    assert first["turn_state"]["discovery_can_continue"] is False
+    follow = await authed_client.post(
+        f"/api/v1/cases/{first['id']}/turns",
+        json={"text": "What should I do?"},
+    )
+    assert follow.status_code == 200, follow.text
+    body = follow.json()
+    assert body["turn_state"]["safety_status"] == "S4"
+    assert body["turn_state"]["discovery_can_continue"] is False
+    later = {item["name"] for item in body["findings"]}
+    assert "fever" in later
+    assert any(name.startswith("patient_interpretation") or name == "abdominal_pain" for name in later)
+
+
 async def test_case_stream_accepts_then_finishes(authed_client):
     resp = await authed_client.post(
         "/api/v1/cases/stream",

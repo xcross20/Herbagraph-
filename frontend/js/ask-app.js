@@ -159,6 +159,8 @@
   function renderThread(opts) {
     const options = opts || {};
     const body = currentCase || emptyCase();
+    const safetyState = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state) || "";
+    const paused = safetyState === "S4";
     const pendingUser = options.pendingUser || "";
     const isThinking = !!options.thinking;
     const error = options.error || "";
@@ -192,8 +194,8 @@
           <div class="ask-thread-main" id="ask-thread-main">${turns}</div>
           <div class="ask-dock">
             <form class="ask-composer" id="ask-form">
-              <textarea id="ask-input" rows="2" required placeholder="Ask a follow-up, or add a note…" ${sending ? "disabled" : ""}></textarea>
-              <button type="submit" ${sending ? "disabled" : ""}>${sending ? "Sending…" : "Ask"}</button>
+              <textarea id="ask-input" rows="2" required placeholder="${paused ? "Discovery is paused for in-person evaluation." : "Ask a follow-up, or add a note…"}" ${sending || paused ? "disabled" : ""}></textarea>
+              <button type="submit" ${sending || paused ? "disabled" : ""}>${paused ? "Paused" : sending ? "Sending…" : "Ask"}</button>
             </form>
             <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged.</p>
           </div>
@@ -281,6 +283,8 @@
 
   async function startOrContinue(text) {
     if (!text || sending) return;
+    const liveState = (currentCase && currentCase.turn_state && currentCase.turn_state.safety_status) || (currentCase && currentCase.safety && currentCase.safety.state);
+    if (liveState === "S4") return;
     if (text.toLowerCase().includes("upload records")) {
       goWorkspace("#upload");
       return;
@@ -332,6 +336,11 @@
     document.getElementById("ask-reports-link").href = home.replace("#dashboard", "#reports");
     patients = await api("/api/v1/patients");
     if (!WS.isClinicianRole(currentUser.role) && patients[0]) patientId = patients[0].id;
+    if (WS.isClinicianRole(currentUser.role)) {
+      const stored = sessionStorage.getItem("hg_active_patient_id");
+      if (stored && patients.some((p) => p.id === stored)) patientId = stored;
+      else if (patients[0]) patientId = patients[0].id;
+    }
     if (params().get("patient")) patientId = params().get("patient");
     if (params().get("case")) {
       try {

@@ -88,4 +88,6 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "Discovery Guide is thinking" in js
     assert "/api/v1/cases/stream" in js
     assert "/turns/stream" in js
+    assert "hg_active_patient_id" in js
+    assert "Discovery is paused" in js
     assert 'e.key === "Enter"' in js

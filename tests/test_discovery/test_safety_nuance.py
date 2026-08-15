@@ -96,9 +96,40 @@ def test_gallbladder_is_not_a_sphincter_finding():
     from app.discovery.intake import extract_facts
     from app.discovery.safety import extract_safety_findings
 
-    text = "I think it's my gallbladder because fatty food makes it worse."
-    assert not any(item.name == "sphincter change" for item in extract_facts(text))
-    assert not any(item.concept == "sphincter_change" for item in extract_safety_findings(text))
+    for text in (
+        "I think it's my gallbladder because fatty food makes it worse.",
+        "Pain in my gall bladder after fatty food.",
+    ):
+        assert not any(item.name == "sphincter change" for item in extract_facts(text)), text
+        assert not any(item.concept == "sphincter_change" for item in extract_safety_findings(text)), text
+
+
+def test_recent_hours_are_not_historical():
+    result = orchestrate(
+        "In the past two hours I have crushing chest pain, I'm sweating, and struggling to breathe.",
+        prior_facts={},
+        asked=[],
+        answered=set(),
+    )
+    assert result.safety_status == "S4"
+
+
+def test_no_fever_does_not_wipe_vomiting():
+    findings = extract_safety_findings("I have no fever, just vomiting I can't stop.")
+    by_name = {item.concept: item for item in findings}
+    assert by_name["fever"].presence == "absent"
+    assert by_name["vomiting"].presence == "present"
+    assert by_name["vomiting"].qualifier == "repeated"
+
+
+def test_followup_does_not_undo_emergency():
+    first = orchestrate(CASE_B, prior_facts={}, asked=[], answered=set())
+    assert first.safety_status == "S4"
+    prior = {item.name: item.value or "reported" for item in first.new_findings}
+    second = orchestrate("What should I do?", prior_facts=prior, asked=[], answered=set())
+    assert second.safety_status == "S4"
+    assert second.discovery_can_continue is False
+    assert second.action.type == "show_safety_message"
 
 
 def test_explicit_negatives_are_stored():

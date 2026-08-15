@@ -286,6 +286,8 @@ def generate_actions(
     for item in guide_actions or []:
         if item.question_id and item.question_id in asked:
             continue
+        if item.type == "show_safety_message" and state not in {"S3", "S4"}:
+            continue
         if item.prompt and any(existing.prompt == item.prompt for existing in actions):
             continue
         actions.append(item)

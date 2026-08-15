@@ -638,7 +638,7 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
                 assessed.append(item.name)
         elif item.kind == DiscoveryFindingKind.SYMPTOM:
             extras.append(_draft_from_finding(item))
-        elif item.kind == DiscoveryFindingKind.CONTEXT and item.name == "Additional note":
+        elif item.kind == DiscoveryFindingKind.CONTEXT:
             key = (item.name, item.value)
             if key in seen_notes:
                 continue
@@ -842,6 +842,13 @@ async def apply_user_turn(
                 prior = {**prior_facts_from_snapshot(json.loads(snap.payload)), **prior}
             except json.JSONDecodeError:
                 pass
+    if getattr(case, "safety_json", None):
+        try:
+            held = json.loads(case.safety_json)
+            if isinstance(held, dict) and held.get("state"):
+                prior["safety_state"] = str(held["state"])
+        except json.JSONDecodeError:
+            pass
     recent = [turn.text for turn in sorted(turns, key=lambda item: item.created_at)][-12:]
     result = await DiscoveryGuide().process_turn(
         text,
@@ -905,6 +912,9 @@ async def apply_user_turn(
     )
     case.stage = result.stage
     case.problem_representation = result.problem_representation
+    case.safety_json = json.dumps(result.safety or {})
+    if result.safety_status == "S4":
+        case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
@@ -976,6 +986,9 @@ async def apply_opening_turn(
     )
     case.stage = result.stage
     case.problem_representation = result.problem_representation
+    case.safety_json = json.dumps(result.safety or {})
+    if result.safety_status == "S4":
+        case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot

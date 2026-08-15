@@ -135,8 +135,8 @@ def _compose(
                 f"{action.prompt}"
             )
         return (
-            "I can help organize this into an investigation. First I want to understand the pattern itself, "
-            "because burning in the feet can arise from several different processes. "
+            "Thank you for telling me that — I can help organize it into an investigation, not a diagnosis. "
+            "First I want to understand the pattern itself. "
             f"{action.prompt}"
         )
     if action.prompt:
@@ -170,13 +170,19 @@ def orchestrate(
     intents = classify_intent(text, current_question_closes=current_closes)
     prior_safety = findings_from_fact_map(prior_facts)
     safety_findings = extract_safety_findings(text, prior_safety)
-    safety = assess_safety(safety_findings, asked=set(asked))
+    safety = assess_safety(
+        safety_findings,
+        asked=set(asked),
+        prior_state=prior_facts.get("safety_state"),
+        new_text=text,
+    )
     incoming = extract_facts(text, current_question_closes=current_closes)
     have = {item.name for item in incoming}
     for item in safety_findings_to_facts(safety_findings):
         if item.name not in have:
             incoming.append(item)
             have.add(item.name)
+    incoming.append(ExtractedFact(name="safety_state", value=safety.state, kind="assessment"))
     if llm_fact_rows:
         incoming = merge_llm_facts(incoming, llm_fact_rows, allow_open=True)
     if "uncertainty" in intents and current_closes:

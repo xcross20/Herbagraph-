@@ -32,7 +32,7 @@ _RULES: tuple[tuple[str, str, str], ...] = (
     (r"six months|6 months", "duration", "about 6 months"),
     (r"this morning|today|suddenly|sudden onset", "onset", "sudden"),
     (r"can'?t lift|cannot lift|foot drop|new weakness", "weakness", "reported"),
-    (r"\bbladder\b|\bbowel control\b", "sphincter change", "reported"),
+    (r"(?<!gall )\bbladder\b|\bbowel control\b", "sphincter change", "reported"),
     (r"blood work is normal|labs? (?:were |are )?normal", "claimed normal labs", "unverified"),
     (r"\bemg\b|nerve conduction|\bncs\b", "emg testing", "mentioned"),
 )
