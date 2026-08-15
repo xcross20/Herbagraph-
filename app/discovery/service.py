@@ -668,7 +668,7 @@ async def add_turn(
         case_id=case.id,
         role=role,
         text=text,
-        kind=kind,
+        kind=(kind or "note")[:20],
         question_code=question_code,
         intent=intent,
         action_type=action_type,
