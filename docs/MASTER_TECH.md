@@ -16,3 +16,9 @@ Implementation phases from the spec:
 | 5–12 Voice, Gold Label, lab ordering, FHIR | Not started / deferred |
 
 Gold Label commerce, imaging diagnosis, and hunting 90% confidence remain non-goals until explicitly requested.
+
+## Additive rule
+
+Discovery is a new module **above** the existing app. Authentication, patients, lab upload, parsers, pathways, interventions, evidence, reports, and admin stay in place.
+
+Recommended tests from Ask are copied into `discovery_test_plan_items` and shown on the existing dashboard / patient page. Results still run through the current lab engine. Gold Label, if ever added, stays downstream of that engine.

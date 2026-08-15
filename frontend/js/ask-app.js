@@ -103,6 +103,8 @@
           <h2>What we know</h2><ul>${memory}</ul>
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
+          <button type="button" class="ask-chip" id="ask-add-labs">Add recommended labs</button>
+          <p class="ask-note" id="ask-add-status">They appear in the existing workspace testing plan — then use Upload / Analyze as usual.</p>
           <p class="ask-note">Coverage is completeness, not disease probability. Map v${body.map_version || 1}.</p>
         </aside>
       </div>`;
@@ -113,6 +115,21 @@
     document.querySelectorAll("[data-select-value], [data-answer]").forEach((btn) => {
       btn.onclick = () => startOrContinue(btn.getAttribute("data-select-value") || btn.textContent.trim());
     });
+    const addLabs = document.getElementById("ask-add-labs");
+    if (addLabs && currentCase && currentCase.id) {
+      addLabs.onclick = async () => {
+        addLabs.disabled = true;
+        try {
+          await api(`/api/v1/cases/${currentCase.id}/testing-plan`, "POST", { labels: [] });
+          const status = document.getElementById("ask-add-status");
+          if (status) status.textContent = "Added to the workspace testing plan. Use Labs / Analyze there.";
+        } catch (err) {
+          addLabs.disabled = false;
+          const status = document.getElementById("ask-add-status");
+          if (status) status.textContent = err.message || "Could not add labs";
+        }
+      };
+    }
     const main = document.getElementById("ask-thread-main");
     if (main) main.scrollTop = main.scrollHeight;
   }

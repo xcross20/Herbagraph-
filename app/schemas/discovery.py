@@ -41,6 +41,21 @@ class DiscoveryDisclaimerAck(BaseModel):
     version: str = Field(default="discovery_disclaimer_v1", max_length=80)
 
 
+class DiscoveryTestPlanItemRead(BaseModel):
+    id: uuid.UUID
+    case_id: uuid.UUID
+    patient_id: uuid.UUID | None
+    label: str
+    reason: str | None
+    status: str
+    source: str
+    created_at: datetime
+
+
+class DiscoveryTestPlanCreate(BaseModel):
+    labels: list[str] = []
+
+
 class DiscoveryFindingRead(BaseModel):
     kind: str
     name: str

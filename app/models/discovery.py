@@ -142,3 +142,17 @@ class DiscoveryMapVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payload: Mapped[str] = mapped_column(Text, nullable=False)
 
     case: Mapped[DiscoveryCase] = relationship(back_populates="map_versions")
+
+
+class DiscoveryTestPlanItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Labs recommended by Discovery, fulfilled in the existing workspace."""
+
+    __tablename__ = "discovery_test_plan_items"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
+    case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID | None] = mapped_column(GUID(), ForeignKey("patients.id"), nullable=True, index=True)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="added")
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="discovery")

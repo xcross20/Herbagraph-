@@ -231,6 +231,31 @@ async def test_investigation_map_is_versioned_and_not_a_diagnosis(authed_client)
     assert turns.json()
 
 
+async def test_discovery_adds_tests_to_existing_workspace_plan(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet at night"},
+    )
+    case_id = created.json()["id"]
+    await authed_client.post(
+        f"/api/v1/cases/{case_id}/rebuild",
+        json={
+            "labs": [
+                {"biomarker_name": "Vitamin B12", "value": 210, "status": LabResultStatus.LOW.value, "unit": "pg/mL"},
+                {"biomarker_name": "MCV", "value": 104, "status": LabResultStatus.HIGH.value, "unit": "fL"},
+            ]
+        },
+    )
+    added = await authed_client.post(f"/api/v1/cases/{case_id}/testing-plan", json={"labels": []})
+    assert added.status_code == 200, added.text
+    labels = {row["label"] for row in added.json()}
+    assert labels
+    assert any("MMA" in label or "B12" in label or "Vitamin" in label for label in labels)
+    listed = await authed_client.get("/api/v1/cases/plan")
+    assert listed.status_code == 200
+    assert listed.json()
+
+
 async def test_case_requires_auth(client):
     resp = await client.post("/api/v1/cases", json={"presenting_concern": "fatigue"})
     assert resp.status_code == 401

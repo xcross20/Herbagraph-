@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.service import (
+    add_case_tests_to_plan,
     apply_opening_turn,
     apply_user_turn,
     answer_question,
@@ -22,7 +23,10 @@ from app.discovery.service import (
     labs_from_results,
     latest_lab_report,
     list_owned_cases,
+    list_test_plan,
     rebuild_case,
+    suggested_test_labels,
+    snapshot_from_case,
 )
 from app.models.enums import UserRole
 from app.models.lab import LabReport
@@ -33,6 +37,8 @@ from app.schemas.discovery import (
     DiscoveryCaseCreate,
     DiscoveryCaseRead,
     DiscoveryCaseRebuild,
+    DiscoveryTestPlanCreate,
+    DiscoveryTestPlanItemRead,
     DiscoveryTurnCreate,
     DiscoveryTurnRead,
 )
@@ -48,6 +54,28 @@ async def list_cases(
 ) -> list[DiscoveryCaseRead]:
     cases = await list_owned_cases(db, current_user.id, patient_id=patient_id)
     return [await case_to_read(db, case) for case in cases]
+
+
+@router.get("/plan", response_model=list[DiscoveryTestPlanItemRead])
+async def get_testing_plan(
+    patient_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DiscoveryTestPlanItemRead]:
+    rows = await list_test_plan(db, current_user.id, patient_id=patient_id)
+    return [
+        DiscoveryTestPlanItemRead(
+            id=row.id,
+            case_id=row.case_id,
+            patient_id=row.patient_id,
+            label=row.label,
+            reason=row.reason,
+            status=row.status,
+            source=row.source,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
 
 
 @router.post("", response_model=DiscoveryCaseRead, status_code=status.HTTP_201_CREATED)
@@ -225,3 +253,36 @@ async def add_case_turn(
     await apply_user_turn(db, case, payload.text, audience=audience)
     await db.commit()
     return await case_to_read(db, case)
+
+
+@router.post("/{case_id}/testing-plan", response_model=list[DiscoveryTestPlanItemRead])
+async def add_recommended_tests(
+    case_id: uuid.UUID,
+    payload: DiscoveryTestPlanCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DiscoveryTestPlanItemRead]:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    created = await add_case_tests_to_plan(db, case, current_user.id, payload.labels or None)
+    if not created and not payload.labels:
+        snapshot = snapshot_from_case(case)
+        if not suggested_test_labels(snapshot):
+            await db.commit()
+            return []
+    await db.commit()
+    rows = await list_test_plan(db, current_user.id, patient_id=case.patient_id)
+    return [
+        DiscoveryTestPlanItemRead(
+            id=row.id,
+            case_id=row.case_id,
+            patient_id=row.patient_id,
+            label=row.label,
+            reason=row.reason,
+            status=row.status,
+            source=row.source,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]

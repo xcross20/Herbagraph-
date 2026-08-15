@@ -864,13 +864,31 @@ function reportRowsHtml(dash, clinician) {
     </tr>`).join("") || `<tr class="no-hover"><td colspan="${clinician ? 5 : 4}" class="muted">No reports yet</td></tr>`;
 }
 
+function renderLaunchCards() {
+  return `<div class="launch-grid">
+    <a class="launch-card" href="/ask.html">
+      <h2>Start Discovery</h2>
+      <p>Talk through a health concern. This opens Ask — it does not replace this workspace.</p>
+    </a>
+    <a class="launch-card" href="#upload">
+      <h2>Analyze my labs</h2>
+      <p>Existing workflow. Upload, parse, pathways, and reports stay here.</p>
+    </a>
+    <a class="launch-card" href="/ask.html">
+      <h2>My investigations</h2>
+      <p>Continue a Discovery case. Results still return to this portal.</p>
+    </a>
+  </div>`;
+}
+
 function renderClinicDashboard(dash, name) {
   const activeAnalyses = dash.recent_sessions.filter(s => s.status === "analyzing" || s.status === "pending").length;
   const needsReview = buildAttentionItems(dash).length;
   return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Clinic portal — each patient has their own Discovery, Evidence, and reports.", `<a class="app-btn app-btn-primary" href="#patients">Add patient</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Clinic portal — lab analysis, patients, and reports stay here. Discovery is an added layer.", `<a class="app-btn app-btn-primary" href="#patients">Add patient</a>`)}
     ${commandBar()}
+    ${renderLaunchCards()}
     <div class="metric-grid">
       <div class="metric-card"><div class="metric-label">Patients</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">In this clinic</div></div>
       <div class="metric-card"><div class="metric-label">Active analyses</div><div class="metric-value">${activeAnalyses}</div><div class="metric-delta">${activeAnalyses ? "Processing" : "None running"}</div></div>
@@ -911,8 +929,9 @@ function renderPersonalDashboard(dash, name) {
   const needsReview = buildAttentionItems(dash).length;
   return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Personal portal — your labs, discovery, and evidence stay on one Self profile.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Personal portal — labs, reports, and analysis stay here. Ask is an added layer.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
     ${commandBar()}
+    ${renderLaunchCards()}
     <div class="metric-grid">
       <div class="metric-card"><div class="metric-label">Your profile</div><div class="metric-value">Self</div><div class="metric-delta">Personal record</div></div>
       <div class="metric-card"><div class="metric-label">Labs</div><div class="metric-value">${labs.length}</div><div class="metric-delta">Uploaded files</div></div>
@@ -920,10 +939,10 @@ function renderPersonalDashboard(dash, name) {
       <div class="metric-card"><div class="metric-label">Needs review</div><div class="metric-value">${needsReview}</div><div class="metric-delta">Attention items</div></div>
     </div>
     <div class="form-grid-2">
-      <div class="app-card">
-        <h2>Continue your discovery</h2>
-        <p class="muted">Chat is only an interface. The Case is the source of truth — no diagnosis is written here.</p>
-        <a class="app-btn app-btn-primary" href="/ask.html">Open Ask</a>
+      <div class="app-card" id="workspace-test-plan">
+        <h2>Testing plan from Discovery</h2>
+        <p class="muted">Recommended by Ask. Upload or analyze them in this workspace — not a new product.</p>
+        <div id="test-plan-mount"><p class="muted">Loading…</p></div>
       </div>
       <div class="app-card">
         <h2>Latest report</h2>
@@ -964,6 +983,26 @@ async function renderDashboard() {
   wireTableRows();
   wireCommandSearch(dash);
   wireOnboardingBanner();
+  fillTestPlanMount(null);
+}
+
+async function fillTestPlanMount(patientId) {
+  const mount = document.getElementById("test-plan-mount");
+  if (!mount) return;
+  try {
+    const qs = patientId ? `?patient_id=${patientId}` : "";
+    const rows = await api(`/api/v1/cases/plan${qs}`);
+    if (!rows.length) {
+      mount.innerHTML = `<p class="muted">Nothing added from Discovery yet.</p>`;
+      return;
+    }
+    mount.innerHTML = `<ul class="test-plan-list">${rows.map((row) =>
+      `<li><label><input type="checkbox" checked disabled> ${esc(row.label)}</label> <span class="muted">${esc(row.reason || "Recommended by Discovery")}</span></li>`
+    ).join("")}</ul>
+    <a class="app-btn" href="#upload${patientId ? `?patient=${patientId}` : ""}">Upload these results</a>`;
+  } catch (_) {
+    mount.innerHTML = `<p class="muted">Testing plan unavailable.</p>`;
+  }
 }
 
 async function renderPatients() {
@@ -1211,6 +1250,11 @@ async function renderPatient(patientId, section = "overview") {
           <p style="margin:0.5rem 0 0"><strong>Why?</strong> <span class="muted">${overview.recent_abnormal_biomarkers.length ? "Abnormal markers and pathway context from latest labs." : "Upload labs to begin reasoning."}</span></p>
           ${overview.latest_report_id ? `<p style="margin-top:0.75rem"><a class="app-btn app-btn-primary" href="/report.html?report_id=${overview.latest_report_id}">Open full report</a></p>` : ""}
         </div>
+        <div class="app-card" id="workspace-test-plan">
+          <h3 style="margin:0 0 0.5rem;font-size:0.95rem">Recommended by Discovery</h3>
+          <p class="muted">These stay in this portal. Analyze them with the existing lab engine.</p>
+          <div id="test-plan-mount"><p class="muted">Loading…</p></div>
+        </div>
         <div class="reasoning-graph-panel" id="overview-graph-shell" style="${overview.latest_report_id ? "" : "display:none"}">
           <h3>Reasoning preview</h3>
           <div class="reasoning-graph-layout">
@@ -1286,6 +1330,7 @@ async function renderPatient(patientId, section = "overview") {
     ${sectionBody}`;
   wireTableRows();
   wireLabDownloadLinks();
+  if (section === "overview") fillTestPlanMount(patientId);
   if (section === "labs") wireLabManage(patientId);
   if (window._pendingAnalysisReport) {
     mountAnalysisGraph(window._pendingAnalysisReport);

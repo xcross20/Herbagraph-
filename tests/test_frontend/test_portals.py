@@ -57,6 +57,11 @@ def test_workspace_app_enforces_portal_path():
     assert "problem_representation" in js
     assert 'location.replace(next.pathname + next.search)' in js
     assert "/ask.html" in js
+    assert "Start Discovery" in js
+    assert "Analyze my labs" in js
+    assert "My investigations" in js
+    assert "Recommended by Discovery" in js
+    assert "/api/v1/cases/plan" in js
 
 
 def test_ask_portal_is_secondary_not_a_workspace_replacement():

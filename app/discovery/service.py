@@ -20,6 +20,7 @@ from app.models.discovery import (
     DiscoveryHypothesis,
     DiscoveryMapVersion,
     DiscoveryOutcome,
+    DiscoveryTestPlanItem,
     DiscoveryTurn,
 )
 from app.models.enums import (
@@ -927,3 +928,72 @@ async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRe
     if latest_map is not None:
         case._map_version = latest_map.version
     return snapshot_to_read(case, snapshot_from_case(case), outcomes=list(outcomes), turns=list(turns))
+
+
+def suggested_test_labels(snapshot: CaseSnapshot) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for item in snapshot.monitor_plan:
+        key = item.label.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append((item.label, item.reason))
+    for hypo in snapshot.hypotheses:
+        for marker in hypo.missing_markers[:3]:
+            key = marker.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append((marker, f"Named gap on {hypo.label}."))
+    return rows[:12]
+
+
+async def add_case_tests_to_plan(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    user_id: uuid.UUID,
+    labels: list[str] | None = None,
+) -> list[DiscoveryTestPlanItem]:
+    snapshot = snapshot_from_case(case)
+    suggested = suggested_test_labels(snapshot)
+    wanted = {item.lower() for item in labels} if labels else None
+    existing = {
+        row.label.lower()
+        for row in (
+            await db.execute(select(DiscoveryTestPlanItem).where(DiscoveryTestPlanItem.case_id == case.id))
+        ).scalars()
+    }
+    created: list[DiscoveryTestPlanItem] = []
+    for label, reason in suggested:
+        if wanted is not None and label.lower() not in wanted:
+            continue
+        if label.lower() in existing:
+            continue
+        item = DiscoveryTestPlanItem(
+            user_id=user_id,
+            case_id=case.id,
+            patient_id=case.patient_id,
+            label=label,
+            reason=reason,
+            status="added",
+            source="discovery",
+        )
+        db.add(item)
+        created.append(item)
+        existing.add(label.lower())
+    await db.flush()
+    return created
+
+
+async def list_test_plan(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    patient_id: uuid.UUID | None = None,
+) -> list[DiscoveryTestPlanItem]:
+    query = select(DiscoveryTestPlanItem).where(DiscoveryTestPlanItem.user_id == user_id)
+    if patient_id is not None:
+        query = query.where(DiscoveryTestPlanItem.patient_id == patient_id)
+    result = await db.execute(query.order_by(DiscoveryTestPlanItem.created_at.desc()))
+    return list(result.scalars().all())
