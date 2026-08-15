@@ -511,34 +511,50 @@ function investigationGroupLabel(group) {
   return group;
 }
 
-function renderDiscoveryAnswerButtons(question) {
-  if (!question) return "";
-  return `<div class="discovery-question" data-question-code="${esc(question.code)}">
-    <div class="discovery-answer-row">
-      <button type="button" class="app-btn app-btn-primary" data-answer="yes">Yes</button>
-      <button type="button" class="app-btn" data-answer="no">No</button>
-      <button type="button" class="app-btn app-btn-ghost" data-answer="unknown">Not sure</button>
-    </div>
-  </div>`;
+function renderDiscoveryInteraction(body) {
+  const interaction = body && body.interaction;
+  const current = body && body.current_question;
+  const action = body && body.turn_state && body.turn_state.selected_action;
+  if (interaction && interaction.type === "file_upload") {
+    return `<div class="discovery-question">
+      <a class="app-btn app-btn-primary" href="#upload">Upload records</a>
+      <a class="app-btn" href="#upload">Add a test manually</a>
+    </div>`;
+  }
+  if (interaction && interaction.type === "single_select" && (interaction.options || []).length) {
+    return `<div class="discovery-question" data-question-code="${esc((current && current.code) || "")}">
+      <div class="discovery-answer-row">${interaction.options.map((opt) =>
+        `<button type="button" class="app-btn" data-select-value="${esc(opt)}">${esc(opt)}</button>`
+      ).join("")}</div>
+    </div>`;
+  }
+  if (current && (!action || action.type === "ask_question")) {
+    return `<div class="discovery-question" data-question-code="${esc(current.code)}">
+      <div class="discovery-answer-row">
+        <button type="button" class="app-btn app-btn-primary" data-answer="yes">Yes</button>
+        <button type="button" class="app-btn" data-answer="no">No</button>
+        <button type="button" class="app-btn app-btn-ghost" data-answer="unknown">Not sure</button>
+      </div>
+    </div>`;
+  }
+  return "";
 }
 
 function renderDiscoveryChat(body, clinician) {
   const turns = (body && body.turns) || [];
-  const current = body && body.current_question;
+  const action = body && body.turn_state && body.turn_state.selected_action;
   let html = `<div class="discovery-chat" id="discovery-chat">`;
   if (!turns.length) {
     html += `<div class="discovery-bubble system">I will not diagnose. ${clinician ? "What is going on for this patient?" : "What is going on?"}</div>`;
   }
+  if (action && action.type === "show_safety_message") {
+    html += `<div class="discovery-bubble system discovery-safety">Safety pause — Discovery will not continue until this is evaluated in person.</div>`;
+  }
   const lastSystem = [...turns].reverse().find((t) => t.role === "system");
   for (const turn of turns) {
     html += `<div class="discovery-bubble ${turn.role === "user" ? "user" : "system"}">${esc(turn.text)}`;
-    if (current && turn === lastSystem && turn.question_code === current.code) {
-      html += renderDiscoveryAnswerButtons(current);
-    }
+    if (turn === lastSystem) html += renderDiscoveryInteraction(body);
     html += `</div>`;
-  }
-  if (current && (!lastSystem || lastSystem.question_code !== current.code)) {
-    html += `<div class="discovery-bubble system">${esc(current.prompt)}${renderDiscoveryAnswerButtons(current)}</div>`;
   }
   html += `</div>`;
   return html;
@@ -646,7 +662,8 @@ async function renderDiscovery(caseId, requestedPatientId) {
     ${renderPatientScopeBar(patients, scopeId, "discovery")}
     ${formDisabled ? `<p class="muted">Select a patient to open Discovery. A clinician workspace cannot run a case without a patient.</p>` : `
     <div class="wallet-card discovery-shell">
-      <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. One question per turn. Not a diagnosis.</p>
+      <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. Every turn updates the Case first. Not a diagnosis.</p>
+      ${current && current.problem_representation ? `<p class="discovery-problem">${esc(current.problem_representation)}</p>` : ""}
       ${renderDiscoveryChat(current, clinician)}
       <form class="discovery-composer" id="discovery-open-form">
         <label class="sr-only" for="discovery-concern">${current ? "Your reply" : "What is going on?"}</label>
@@ -655,8 +672,8 @@ async function renderDiscovery(caseId, requestedPatientId) {
       </form>
     </div>`}
     ${caseList}
-    <details class="wallet-card discovery-case-board" id="discovery-result" ${current ? "" : "hidden"}>
-      <summary>Case board — coverage and hypotheses, not a diagnosis</summary>
+    <details class="wallet-card discovery-case-board" id="discovery-result" ${current && current.turn_state && current.turn_state.selected_action && current.turn_state.selected_action.type === "show_investigation_map" ? "open" : ""} ${current ? "" : "hidden"}>
+      <summary>Investigation map — branches and gaps, not a diagnosis</summary>
       ${current ? renderDiscoveryCase(current) : ""}
     </details>
   `;
@@ -702,24 +719,25 @@ async function renderDiscovery(caseId, requestedPatientId) {
 }
 
 function wireDiscoveryAnswers() {
-  document.querySelectorAll("[data-question-code]").forEach((row) => {
-    row.querySelectorAll("[data-answer]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const code = row.getAttribute("data-question-code");
-        const answer = btn.getAttribute("data-answer");
-        const caseMatch = /case=([^&]+)/.exec(location.hash);
-        if (!caseMatch) return;
-        btn.disabled = true;
-        try {
-          const body = await api(`/api/v1/cases/${caseMatch[1]}/answers`, "POST", { code, answer });
-          const patientMatch = /patient=([^&]+)/.exec(location.hash);
-          await renderDiscovery(body.id, patientMatch ? patientMatch[1] : null);
-        } catch (err) {
-          document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not record answer")}</p>`;
-          btn.disabled = false;
-        }
-      });
-    });
+  const caseMatch = /case=([^&]+)/.exec(location.hash);
+  const sendTurn = async (text, btn) => {
+    if (!caseMatch) return;
+    if (btn) btn.disabled = true;
+    try {
+      const body = await api(`/api/v1/cases/${caseMatch[1]}/turns`, "POST", { text });
+      const patientMatch = /patient=([^&]+)/.exec(location.hash);
+      await renderDiscovery(body.id, patientMatch ? patientMatch[1] : null);
+    } catch (err) {
+      const board = document.getElementById("discovery-result");
+      if (board) board.innerHTML = `<p class="muted">${esc(err.message || "Could not record answer")}</p>`;
+      if (btn) btn.disabled = false;
+    }
+  };
+  document.querySelectorAll("[data-select-value]").forEach((btn) => {
+    btn.addEventListener("click", () => sendTurn(btn.getAttribute("data-select-value"), btn));
+  });
+  document.querySelectorAll("[data-answer]").forEach((btn) => {
+    btn.addEventListener("click", () => sendTurn(btn.textContent.trim(), btn));
   });
 }
 

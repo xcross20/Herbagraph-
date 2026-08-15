@@ -91,6 +91,32 @@ class DiscoveryQuestionRead(BaseModel):
     closes: str
     hypothesis_code: str
     utility: float
+    options: list[str] = []
+
+
+class DiscoveryInteractionRead(BaseModel):
+    type: str
+    options: list[str] = []
+    accepted_types: list[str] = []
+
+
+class DiscoveryActionRead(BaseModel):
+    type: str
+    objective: str
+    question_id: str | None = None
+    prompt: str | None = None
+
+
+class DiscoveryTurnStateRead(BaseModel):
+    stage: str
+    safety_status: str
+    intents: list[str] = []
+    selected_action: DiscoveryActionRead
+    problem_representation: str = ""
+    unknowns: list[str] = []
+    contradictions: list[str] = []
+    what_changed: list[str] = []
+    critic: str = ""
 
 
 class DiscoveryOutcomeRead(BaseModel):
@@ -128,6 +154,10 @@ class DiscoveryCaseRead(BaseModel):
     what_changed: list[str] = []
     outcomes: list[DiscoveryOutcomeRead] = []
     turns: list[DiscoveryTurnRead] = []
+    stage: str = "opening"
+    problem_representation: str | None = None
+    interaction: DiscoveryInteractionRead | None = None
+    turn_state: DiscoveryTurnStateRead | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime

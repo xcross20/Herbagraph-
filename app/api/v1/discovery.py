@@ -11,8 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.service import (
-    add_system_reply,
-    add_turn,
+    apply_opening_turn,
     apply_user_turn,
     answer_question,
     case_to_read,
@@ -24,7 +23,7 @@ from app.discovery.service import (
     list_owned_cases,
     rebuild_case,
 )
-from app.models.enums import DiscoveryTurnRole
+from app.models.enums import UserRole
 from app.models.lab import LabReport
 from app.models.user import User
 from app.schemas.discovery import (
@@ -73,15 +72,9 @@ async def open_case(
         if report is not None:
             labs = labs_from_results(report.lab_results)
             lab_report_id = report.id
-    snapshot = await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
-    await add_turn(
-        db,
-        case,
-        role=DiscoveryTurnRole.USER,
-        text=payload.presenting_concern.strip(),
-        kind="concern",
-    )
-    await add_system_reply(db, case, snapshot)
+    await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
+    audience = "clinician" if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN} else "consumer"
+    await apply_opening_turn(db, case, payload.presenting_concern, audience=audience)
     await db.commit()
     return await case_to_read(db, case)
 
@@ -174,6 +167,7 @@ async def add_case_turn(
     case = await get_owned_case(db, case_id, current_user.id)
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
-    await apply_user_turn(db, case, payload.text)
+    audience = "clinician" if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN} else "consumer"
+    await apply_user_turn(db, case, payload.text, audience=audience)
     await db.commit()
     return await case_to_read(db, case)

@@ -9,8 +9,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.discovery.conversation import answer_preface, compose_system_reply, parse_turn_answer
+from app.discovery.actions import QUESTIONS
+from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
+from app.discovery.orchestrator import facts_from_findings, orchestrate
 from app.models.discovery import (
     DiscoveryCase,
     DiscoveryFinding,
@@ -39,8 +41,11 @@ from app.schemas.discovery import (
     DiscoveryHypothesisRead,
     DiscoveryInvestigationRead,
     DiscoveryOutcomeRead,
+    DiscoveryActionRead,
+    DiscoveryInteractionRead,
     DiscoveryQuestionRead,
     DiscoveryTurnRead,
+    DiscoveryTurnStateRead,
     LabIngest,
     MonitorItemRead,
 )
@@ -86,11 +91,39 @@ def _question_reads(questions) -> list[DiscoveryQuestionRead]:
             prompt=item.prompt,
             kind=item.kind,
             closes=item.closes,
-            hypothesis_code=item.hypothesis_code,
-            utility=item.utility,
+            hypothesis_code=getattr(item, "hypothesis_code", "") or "",
+            utility=getattr(item, "utility", 0.0) or 0.0,
+            options=list(getattr(item, "options", ()) or []),
         )
         for item in questions
     ]
+
+
+def _closes_for_question(code: str | None) -> str | None:
+    if not code:
+        return None
+    for question in QUESTIONS:
+        if question.code == code:
+            return question.closes
+    return None
+
+
+def _payload_dict(turn: DiscoveryTurn) -> dict:
+    if not turn.payload:
+        return {}
+    try:
+        raw = json.loads(turn.payload)
+    except json.JSONDecodeError:
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _last_system_payload(turns: list[DiscoveryTurn]) -> dict:
+    last = None
+    for turn in sorted(turns, key=lambda item: item.created_at):
+        if turn.role == DiscoveryTurnRole.SYSTEM and turn.payload:
+            last = turn
+    return _payload_dict(last) if last is not None else {}
 
 
 def snapshot_to_read(
@@ -102,6 +135,45 @@ def snapshot_to_read(
 ) -> DiscoveryCaseRead:
     outcome_rows = outcomes if outcomes is not None else list(case.__dict__.get("outcomes") or [])
     turn_rows = turns if turns is not None else list(case.__dict__.get("turns") or [])
+    payload = _last_system_payload(turn_rows)
+    action_raw = payload.get("action") or {}
+    interaction_raw = payload.get("interaction") or action_raw.get("interaction")
+    current_from_action = None
+    if action_raw.get("type") == "ask_question" and action_raw.get("question_id"):
+        current_from_action = DiscoveryQuestionRead(
+            code=action_raw["question_id"],
+            prompt=action_raw.get("prompt") or "",
+            kind="discriminating",
+            closes=_closes_for_question(action_raw.get("question_id")) or "",
+            hypothesis_code="",
+            utility=float(action_raw.get("score") or 0.0),
+            options=list((interaction_raw or {}).get("options") or []),
+        )
+    turn_state = None
+    if payload.get("stage") and action_raw.get("type"):
+        turn_state = DiscoveryTurnStateRead(
+            stage=str(payload.get("stage") or case.stage or "opening"),
+            safety_status=str(payload.get("safety_status") or "routine"),
+            intents=list(payload.get("intents") or []),
+            selected_action=DiscoveryActionRead(
+                type=str(action_raw.get("type")),
+                objective=str(action_raw.get("objective") or ""),
+                question_id=action_raw.get("question_id"),
+                prompt=action_raw.get("prompt"),
+            ),
+            problem_representation=str(payload.get("problem_representation") or case.problem_representation or ""),
+            unknowns=list(payload.get("unknowns") or []),
+            contradictions=list(payload.get("contradictions") or []),
+            what_changed=list(payload.get("what_changed") or []),
+            critic=str(payload.get("critic") or ""),
+        )
+    interaction = None
+    if isinstance(interaction_raw, dict) and interaction_raw.get("type"):
+        interaction = DiscoveryInteractionRead(
+            type=str(interaction_raw.get("type")),
+            options=list(interaction_raw.get("options") or []),
+            accepted_types=list(interaction_raw.get("accepted_types") or []),
+        )
     return DiscoveryCaseRead(
         id=case.id,
         presenting_concern=case.presenting_concern,
@@ -167,7 +239,8 @@ def snapshot_to_read(
             for item in snapshot.monitor_plan
         ],
         next_questions=_question_reads(snapshot.next_questions),
-        current_question=_question_reads(snapshot.next_questions[:1])[0] if snapshot.next_questions else None,
+        current_question=current_from_action
+        or (_question_reads(snapshot.next_questions[:1])[0] if snapshot.next_questions else None),
         what_changed=list(snapshot.what_changed),
         outcomes=[
             DiscoveryOutcomeRead(
@@ -191,6 +264,10 @@ def snapshot_to_read(
             )
             for row in sorted(turn_rows, key=lambda item: item.created_at)
         ],
+        stage=getattr(case, "stage", None) or "opening",
+        problem_representation=getattr(case, "problem_representation", None),
+        interaction=interaction,
+        turn_state=turn_state,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -441,6 +518,8 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
             answered.append(item.name)
             if item.value == "already_assessed":
                 assessed.append(item.name)
+        elif item.kind == DiscoveryFindingKind.SYMPTOM:
+            extras.append(_draft_from_finding(item))
         elif item.kind == DiscoveryFindingKind.CONTEXT and item.name == "Additional note":
             key = (item.name, item.value)
             if key in seen_notes:
@@ -462,6 +541,10 @@ async def add_turn(
     text: str,
     kind: str,
     question_code: str | None = None,
+    intent: str | None = None,
+    action_type: str | None = None,
+    stage: str | None = None,
+    payload: str | None = None,
 ) -> DiscoveryTurn:
     turn = DiscoveryTurn(
         case_id=case.id,
@@ -469,6 +552,10 @@ async def add_turn(
         text=text,
         kind=kind,
         question_code=question_code,
+        intent=intent,
+        action_type=action_type,
+        stage=stage,
+        payload=payload,
     )
     db.add(turn)
     await db.flush()
@@ -603,14 +690,125 @@ async def record_user_note(db: AsyncSession, case: DiscoveryCase, text: str) -> 
     return snapshot
 
 
-async def apply_user_turn(db: AsyncSession, case: DiscoveryCase, text: str) -> CaseSnapshot:
-    """Typed chat: a bare yes/no answers the current question; anything else is a note."""
-    parsed = parse_turn_answer(text)
-    snapshot = snapshot_from_case(case)
-    current = snapshot.next_questions[0] if snapshot.next_questions else None
-    if parsed and current is not None:
-        return await answer_question(db, case, code=current.code, answer=parsed, spoken=text.strip())
-    return await record_user_note(db, case, text)
+async def apply_user_turn(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    text: str,
+    *,
+    audience: str = "consumer",
+) -> CaseSnapshot:
+    """One orchestrated turn: mutate the Case, then speak the chosen action."""
+    turns = (
+        await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
+    ).scalars().all()
+    findings = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    asked = [turn.question_code for turn in turns if turn.role == DiscoveryTurnRole.SYSTEM and turn.question_code]
+    answered = {item.name for item in findings if item.kind == DiscoveryFindingKind.ASSESSMENT}
+    prior = facts_from_findings(findings)
+    payload = _last_system_payload(list(turns))
+    current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
+    result = orchestrate(
+        text,
+        prior_facts=prior,
+        asked=asked,
+        answered=answered,
+        current_closes=current_closes,
+        concern=case.presenting_concern,
+        audience=audience,
+        turn_count=len(turns),
+    )
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.USER,
+        text=text.strip(),
+        kind="turn",
+        intent=",".join(result.intents),
+        stage=result.stage,
+    )
+    for item in result.new_findings:
+        kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
+        db.add(
+            DiscoveryFinding(
+                case_id=case.id,
+                kind=DiscoveryFindingKind(kind),
+                name=item.name,
+                value=item.value,
+                status=item.status,
+                branch=item.branch,
+                source=item.source,
+            )
+        )
+    await db.flush()
+    snapshot = await rebuild_case(db, case)
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.SYSTEM,
+        text=result.message,
+        kind=result.action.type,
+        question_code=result.action.question_id,
+        intent=",".join(result.intents),
+        action_type=result.action.type,
+        stage=result.stage,
+        payload=json.dumps(result.as_dict()),
+    )
+    case.stage = result.stage
+    case.problem_representation = result.problem_representation
+    await db.flush()
+    return snapshot
+
+
+async def apply_opening_turn(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    text: str,
+    *,
+    audience: str = "consumer",
+) -> CaseSnapshot:
+    snapshot = await rebuild_case(db, case)
+    await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
+    result = orchestrate(
+        text,
+        prior_facts={},
+        asked=[],
+        answered=set(),
+        concern=text,
+        audience=audience,
+        turn_count=0,
+    )
+    for item in result.new_findings:
+        kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
+        db.add(
+            DiscoveryFinding(
+                case_id=case.id,
+                kind=DiscoveryFindingKind(kind),
+                name=item.name,
+                value=item.value,
+                status=item.status,
+                branch=item.branch,
+                source=item.source,
+            )
+        )
+    await db.flush()
+    snapshot = await rebuild_case(db, case)
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.SYSTEM,
+        text=result.message,
+        kind=result.action.type,
+        question_code=result.action.question_id,
+        action_type=result.action.type,
+        stage=result.stage,
+        payload=json.dumps(result.as_dict()),
+    )
+    case.stage = result.stage
+    case.problem_representation = result.problem_representation
+    await db.flush()
+    return snapshot
 
 
 def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:

@@ -60,6 +60,7 @@ class DiscoveryFindingKind(str, enum.Enum):
     LAB = "lab"
     CONTEXT = "context"
     ASSESSMENT = "assessment"
+    SYMPTOM = "symptom"
 
 
 class DiscoveryOutcomeStatus(str, enum.Enum):

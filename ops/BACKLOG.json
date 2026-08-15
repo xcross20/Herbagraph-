@@ -2877,6 +2877,34 @@
         "frontend/me.html",
         "frontend/js/workspace-app.js"
       ]
+    },
+    {
+      "id": "SLICE-122",
+      "title": "Turn orchestrator: Case first, then action, then speech",
+      "status": "done",
+      "priority": 1,
+      "problem": "Discovery still chose direction in the chat surface, so the burning-feet fixture could dump a differential instead of updating the Case and asking laterality.",
+      "acceptance": [
+        "Fixture extracts burning/feet/night/duration/claimed-normal labs and never says you have small-fiber neuropathy",
+        "First action is laterality with single-select",
+        "Sudden weakness selects show_safety_message",
+        "Every turn returns TurnState with stage, safety, action",
+        "I don't know stores unknown and does not re-ask",
+        "Laterality contradiction selects clarify",
+        "Reported-normal EMG selects request_record with file upload"
+      ],
+      "non_goals": [
+        "Gold Label",
+        "Imaging parsers",
+        "LLM-authored clinical logic"
+      ],
+      "reversibility": "one-way for turn payload columns; two-way for question copy",
+      "artifacts": [
+        "app/discovery/orchestrator.py",
+        "app/discovery/intake.py",
+        "app/discovery/actions.py",
+        "alembic/versions/p6q7r8s9t0u1_discovery_turn_orchestrator.py"
+      ]
     }
   ],
   "improvement_queue": [

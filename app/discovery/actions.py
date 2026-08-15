@@ -1,0 +1,235 @@
+"""Next-best-action engine. The conversation layer does not pick these."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class CatalogQuestion:
+    code: str
+    prompt: str
+    closes: str
+    kind: str
+    purpose: str
+    options: tuple[str, ...] = ()
+    interaction: str = "yes_no"
+    gain: float = 0.5
+
+
+QUESTIONS: tuple[CatalogQuestion, ...] = (
+    CatalogQuestion(
+        "q_weakness_safety",
+        "Have you noticed new weakness, such as a foot that will not lift?",
+        "weakness",
+        "safety",
+        "Screen for urgent focal weakness.",
+        ("Yes", "No", "Not sure"),
+        "single_select",
+        0.95,
+    ),
+    CatalogQuestion(
+        "q_laterality",
+        "Is the burning happening in both feet, or mainly one?",
+        "laterality",
+        "discriminating",
+        "Determine whether the pattern is length-dependent or focal.",
+        ("Left", "Right", "Both", "Changes sides", "Not sure"),
+        "single_select",
+        0.88,
+    ),
+    CatalogQuestion(
+        "q_distribution",
+        "Does it stay mostly in the toes and soles, or has it moved above the ankles?",
+        "distribution",
+        "discriminating",
+        "Separate distal sensory pattern from proximal extension.",
+        ("Toes and soles", "Above the ankles", "Not sure"),
+        "single_select",
+        0.80,
+    ),
+    CatalogQuestion(
+        "q_temperature",
+        "Do you also notice numbness, pins-and-needles, or trouble telling hot from cold?",
+        "temperature sensation",
+        "discriminating",
+        "Ask whether small-fiber sensory qualities are present — not to diagnose them.",
+        ("Yes", "No", "Not sure"),
+        "single_select",
+        0.78,
+    ),
+    CatalogQuestion(
+        "q_emg",
+        "Have you ever had an EMG or nerve-conduction study for this?",
+        "emg_status",
+        "completion",
+        "Learn whether large-fiber testing was already done.",
+        ("Yes", "No", "Not sure"),
+        "single_select",
+        0.62,
+    ),
+    CatalogQuestion(
+        "q_medications",
+        "Are you taking metformin, a PPI, or another long-term medication?",
+        "medications",
+        "completion",
+        "Case-completion: B12-relevant medications.",
+        (),
+        "yes_no",
+        0.45,
+    ),
+)
+
+
+@dataclass
+class NextAction:
+    type: str
+    objective: str
+    question_id: str | None = None
+    prompt: str | None = None
+    interaction: dict | None = None
+    score: float = 0.0
+    extras: dict = field(default_factory=dict)
+
+
+def _asked_or_answered(question: CatalogQuestion, asked: set[str], facts: dict[str, str], answered: set[str]) -> bool:
+    if question.code in asked:
+        return True
+    if question.closes in facts or question.closes in answered:
+        return True
+    return False
+
+
+def generate_actions(
+    *,
+    facts: dict[str, str],
+    asked: set[str],
+    answered: set[str],
+    contradictions: list[str],
+    safety_status: str,
+    hypotheses: list,
+    turn_count: int,
+) -> list[NextAction]:
+    actions: list[NextAction] = []
+    if safety_status == "urgent":
+        return [
+            NextAction(
+                type="show_safety_message",
+                objective="Pause discovery for urgent in-person evaluation.",
+                score=1.0,
+            )
+        ]
+    if contradictions:
+        topic = contradictions[0]
+        actions.append(
+            NextAction(
+                type="clarify",
+                objective=f"Resolve a contradiction on {topic}.",
+                prompt=(
+                    f"Earlier I had {topic} as {facts.get(topic, 'something else')}. "
+                    "That does not match what you just said. Which is the usual pattern?"
+                ),
+                score=0.97,
+                extras={"topic": topic},
+            )
+        )
+
+    neuro = "burning sensation" in facts or facts.get("location") == "feet"
+    for question in QUESTIONS:
+        if _asked_or_answered(question, asked, facts, answered):
+            continue
+        if question.kind == "safety" and safety_status == "routine":
+            continue
+        if question.kind == "safety" and not neuro:
+            continue
+        if question.code == "q_laterality" and facts.get("location") != "feet" and "burning sensation" not in facts:
+            continue
+        if question.code == "q_distribution" and "laterality" not in facts:
+            continue
+        if question.code == "q_temperature" and "laterality" not in facts:
+            continue
+        if question.code == "q_emg" and "laterality" not in facts:
+            continue
+        interaction = None
+        if question.interaction == "single_select" and question.options:
+            interaction = {"type": "single_select", "options": list(question.options)}
+        elif question.interaction == "yes_no":
+            interaction = {"type": "yes_no", "options": ["Yes", "No", "Not sure"]}
+        actions.append(
+            NextAction(
+                type="ask_question",
+                objective=question.purpose,
+                question_id=question.code,
+                prompt=question.prompt,
+                interaction=interaction,
+                score=question.gain,
+            )
+        )
+
+    emg = facts.get("emg testing")
+    if emg in {"mentioned", "reported_normal", "reported_abnormal"} and "emg_report" not in facts:
+        actions.append(
+            NextAction(
+                type="request_record",
+                objective="Verify what an EMG actually tested, not only what was recalled.",
+                prompt=(
+                    "A recalled EMG result is useful, but it is unverified. "
+                    "If you have the report, uploading it would let HerbaGraph confirm what was actually evaluated. "
+                    "This is not a diagnosis."
+                ),
+                interaction={"type": "file_upload", "accepted_types": ["pdf"]},
+                score=0.84,
+            )
+        )
+
+    if facts.get("claimed normal labs") == "unverified" and turn_count >= 3:
+        actions.append(
+            NextAction(
+                type="transition_to_labs",
+                objective="Bring claimed-normal labs into the lab engine as evidence.",
+                prompt=(
+                    "You mentioned blood work described as normal. Uploading those labs would let the existing "
+                    "lab engine interpret them as evidence on this Case. Recollection is not the same as a result."
+                ),
+                interaction={"type": "file_upload", "accepted_types": ["pdf", "csv", "txt"]},
+                score=0.70,
+            )
+        )
+
+    pattern_facts = sum(1 for key in ("laterality", "distribution", "timing", "duration") if key in facts)
+    if pattern_facts >= 3 and hypotheses and turn_count >= 3:
+        actions.append(
+            NextAction(
+                type="show_investigation_map",
+                objective="Show investigation branches and gaps. Not a diagnosis.",
+                score=0.66,
+            )
+        )
+
+    if turn_count >= 8 and all(_asked_or_answered(q, asked, facts, answered) for q in QUESTIONS if q.kind != "completion"):
+        actions.append(
+            NextAction(
+                type="recommend_investigation",
+                objective="Further history is unlikely to reduce meaningful uncertainty.",
+                prompt=(
+                    "Another history question is unlikely to clarify this much further. "
+                    "The largest remaining gap is objective assessment of the open investigation branches. "
+                    "That is not a diagnosis."
+                ),
+                score=0.72,
+            )
+        )
+
+    actions.sort(key=lambda item: item.score, reverse=True)
+    return actions
+
+
+def select_action(candidates: list[NextAction]) -> NextAction:
+    if not candidates:
+        return NextAction(
+            type="summarize",
+            objective="No higher-value action remains on this turn.",
+            prompt="I have no further directed question on this Case. You can add a note or upload records. Still not a diagnosis.",
+            score=0.1,
+        )
+    return candidates[0]

@@ -1,6 +1,10 @@
 # Guided Discovery — architecture reset without a rewrite
 
-**Status:** slices 1–3 accepted. Case answers, outcomes, and dual portals ship with chat as interface only.  
+HerbaGraph is an event-driven, case-centered clinical investigation platform. The persistent Case—not the chat transcript—is the source of truth. AI generates typed candidate reasoning; deterministic services validate and reconcile that reasoning against structured findings, provenance, safety rules and the knowledge graph. Laboratory analysis is one evidence modality within the broader investigation system. Interventions are separate from products, and commerce can only occur downstream of clinical relevance and safety determination.
+
+The seven core objects are Case, Finding, Hypothesis, Investigation, Evidence, Intervention, and Outcome. Turn is the eighth: a traceable state transition, not a chatbot utterance.
+
+**Status:** slices 1–3 accepted. Slice 4 — turn orchestrator — in progress.  
 **Date:** 2026-08-14
 
 ## SPEC: Why a 78% score is not useful
@@ -144,6 +148,35 @@ Conversation is turn-based: the system asks **one** current question, waits, the
 
 **Door class:** one-way for `discovery_outcomes` / `discovery_turns` schema. Two-way for question copy and portal chrome.
 
+## Slice 4 — Turn orchestrator
+
+**Problem:** Discovery still behaves like a question list. A real investigation turn must update the Case first, then choose a next action, then speak — otherwise the chat decides clinical direction.
+
+**Acceptance claims:**
+
+1. The fixture “For six months, my feet have burned at night…” creates a Case, extracts burning / feet / night / ~6 months / claimed-normal labs, and does **not** say “you have small-fiber neuropathy.”
+2. The first conversational action is a laterality question with a single-select, not a dumped differential.
+3. Sudden onset plus new weakness selects `show_safety_message` and pauses discovery.
+4. Every turn returns a TurnState: stage, safety, intents, new findings, selected action, why we are speaking.
+5. “I don't know” stores unknown and does not re-ask that gap.
+6. Contradictory laterality selects `clarify`.
+7. A reported-normal EMG selects `request_record` with a file-upload interaction.
+8. Silent failure: the conversation layer cannot invent an action the reasoner did not select.
+
+**Non-goals:** Gold Label commerce, imaging parsers, LLM-authored clinical logic, Next.js.
+
+**Door class:** one-way for Turn payload / action JSON. Two-way for question copy.
+
+### ADR-3: Turn orchestrator is the conversation engine — 2026-08-14 — accepted
+
+**Context:** One-question-per-turn UI still let the chat surface choose direction. The product mandate is a hidden state machine.
+
+**Decision:** `app/discovery/orchestrator.py` is the only path for user text. Order is fixed: persist → intent → safety → extract → mutate Case → rebuild hypotheses → critic → next-best action → compose response. The composer verbalizes the action; it does not pick it.
+
+**Alternatives:** LLM chat with case context — lost; the model would own clinical direction. Keep yes/no-only questions — lost; cannot run the burning-feet fixture.
+
+**Consequences:** DiscoveryTurn stores action, stage, and payload. Opening no longer lists hypothesis families in prose.
+
 ## LLM rule
 
-The LLM may explain the decomposition. It may not invent the numbers. Scores are deterministic from labs, profile, cited studies, and catalog tables.
+The LLM may explain the decomposition. It may not invent the numbers. Scores are deterministic from labs, profile, cited studies, and catalog tables. The conversation layer never decides clinical logic.

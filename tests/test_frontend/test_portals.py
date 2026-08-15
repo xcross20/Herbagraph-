@@ -43,11 +43,13 @@ def test_workspace_app_enforces_portal_path():
     assert "renderClinicDashboard" in js
     assert "renderPersonalDashboard" in js
     assert "data-answer" in js
-    assert "/api/v1/cases/" in js and "/answers" in js
+    assert "/api/v1/cases/" in js and "/turns" in js
     assert "Clinic portal" in js
     assert "Personal portal" in js
     assert "discovery-chat" in js
     assert "discovery-composer" in js
     assert "current_question" in js
     assert "Chat is only an interface" in js
-    assert "One question per turn" in js
+    assert "data-select-value" in js
+    assert "file_upload" in js
+    assert "problem_representation" in js

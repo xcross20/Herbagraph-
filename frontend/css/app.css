@@ -1385,6 +1385,18 @@
   background: var(--app-green-soft);
   color: var(--app-ink);
 }
+.discovery-bubble.discovery-safety {
+  background: #f8e8e8;
+  border: 1px solid #e0b4b4;
+}
+.discovery-problem {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md);
+  background: #f4f6f2;
+}
 .discovery-bubble.user {
   margin-left: auto;
   background: #171918;
