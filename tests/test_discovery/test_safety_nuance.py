@@ -180,3 +180,89 @@ def test_safety_net_is_contextual_not_generic_chest():
     watch = " ".join(net.get("watch_for") or []).lower()
     assert "vomiting" in watch or "yellowing" in watch
     assert "call 911" not in watch
+
+
+NATASHA_PRIOR = {
+    "abdominal_pain": "location_unclear",
+    "patient_interpretation": "biliary_source",
+    "chronology": "chronic",
+}
+NATASHA_TURN = (
+    "no none of that just intermittent, i can eat fat but i sometimes feel like throwing up"
+)
+
+
+def test_none_of_that_closes_the_systemic_screen():
+    findings = extract_safety_findings(
+        NATASHA_TURN,
+        extract_safety_findings("My gallbladder hurts."),
+        current_closes="fever",
+    )
+    by_name = {item.concept: item for item in findings}
+    assert by_name["fever"].presence == "absent"
+    assert by_name["vomiting"].presence == "absent"
+    assert by_name["jaundice"].presence == "absent"
+    assert by_name["nausea"].presence == "present"
+    assert by_name["fatty_food_trigger"].presence == "absent"
+    assert by_name["nausea"].trajectory == "intermittent_stable"
+
+
+def test_nope_none_of_that_also_closes_the_screen():
+    findings = extract_safety_findings("nope none of that", current_closes="systemic_red_flags")
+    by_name = {item.concept: item.presence for item in findings}
+    assert by_name["fever"] == "absent"
+    assert by_name["vomiting"] == "absent"
+    assert by_name["jaundice"] == "absent"
+
+
+def test_feel_like_throwing_up_is_nausea_not_vomiting():
+    findings = extract_safety_findings("i sometimes feel like throwing up")
+    by_name = {item.concept: item for item in findings}
+    assert by_name["nausea"].presence == "present"
+    assert "vomiting" not in by_name or by_name["vomiting"].presence != "present"
+
+
+def test_answered_safety_screen_moves_to_gi_discriminator():
+    first = orchestrate("My gallbladder hurts.", prior_facts={}, asked=[], answered=set())
+    prior = {**NATASHA_PRIOR, **{item.name: item.value or "reported" for item in first.new_findings}}
+    asked = [first.action.question_id] if first.action.question_id else ["q_safety_systemic"]
+    second = orchestrate(
+        NATASHA_TURN,
+        prior_facts=prior,
+        asked=asked,
+        answered=set(),
+        current_closes="fever",
+    )
+    assert second.safety_status in {"S1", "S2"}
+    assert second.action.type != "show_safety_message"
+    prompt = (second.action.prompt or second.message or "").lower()
+    assert "yellowing" not in prompt
+    assert "repeated vomiting" not in prompt
+    names = {item.name: item.value for item in second.new_findings}
+    assert names.get("fever") == "absent"
+    assert names.get("nausea") == "reported" or names.get("nausea") == "present"
+    assert names.get("fatty_food") == "tolerated" or names.get("fatty_food_trigger") == "absent"
+
+
+def test_abdominal_case_does_not_ask_foot_laterality():
+    result = orchestrate(
+        "The queasiness is still just intermittent and I can eat fat.",
+        prior_facts={
+            **NATASHA_PRIOR,
+            "fever": "absent",
+            "vomiting": "absent",
+            "jaundice": "absent",
+            "nausea": "reported",
+            "trajectory": "intermittent_stable",
+            "severity": "mild_to_moderate",
+            "chronology": "chronic",
+        },
+        asked=["q_safety_systemic", "q_safety_fever"],
+        answered={"fever", "vomiting", "jaundice"},
+    )
+    assert result.action.question_id != "q_laterality"
+    assert result.action.question_id != "q_weakness_safety"
+    assert (result.action.question_id or "").startswith("q_gi_")
+    prompt = (result.action.prompt or "").lower()
+    assert "both feet" not in prompt
+    assert "weakness" not in prompt

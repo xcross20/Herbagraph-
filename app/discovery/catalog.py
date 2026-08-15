@@ -128,6 +128,39 @@ HYPOTHESIS_FAMILIES: tuple[HypothesisFamily, ...] = (
         directed=("Autonomic testing if orthostasis persists"),
         conditional=("Specialist autonomic lab"),
     ),
+    HypothesisFamily(
+        code="biliary_colic_pattern",
+        label="Biliary-type episodic pain pattern",
+        branch="biliary",
+        keywords=("gallbladder", "biliary", "right upper", "under my right rib", "fatty food", "ruq"),
+        resolution_markers=("ALT", "AST", "Alkaline Phosphatase", "Total Bilirubin", "Ultrasound"),
+        supporting_markers=("ALT", "Alkaline Phosphatase", "Total Bilirubin"),
+        core=("Episode length and fat trigger", "Liver panel", "Right-upper ultrasound status"),
+        directed=("Repeat liver panel during a flare if prior labs were remote",),
+        conditional=("Specialist review if imaging and labs disagree"),
+    ),
+    HypothesisFamily(
+        code="gastric_dyspeptic_pattern",
+        label="Gastric / dyspeptic irritation pattern",
+        branch="gastric",
+        keywords=("nause", "throwing up", "can eat fat", "stomach", "epigastric", "queasy", "bloated"),
+        resolution_markers=("Hemoglobin", "Ferritin"),
+        supporting_markers=("Hemoglobin",),
+        core=("Nausea vs vomiting", "Meal relation", "NSAID / aspirin / alcohol history"),
+        directed=("H. pylori test if dyspepsia persists", "CBC if bleeding risk"),
+        conditional=("Endoscopy only if red-flag or persistent unexplained pattern"),
+    ),
+    HypothesisFamily(
+        code="reflux_pattern",
+        label="Reflux-related pattern",
+        branch="foregut",
+        keywords=("reflux", "heartburn", "acid", "lying down", "regurgit"),
+        resolution_markers=(),
+        supporting_markers=(),
+        core=("Postural trigger", "Relation to meals", "What they already tried"),
+        directed=("Trial history of antacid or acid suppression if already used",),
+        conditional=("Specialist review if alarm features appear"),
+    ),
 )
 
 BRANCH_LABELS: dict[str, str] = {
@@ -140,6 +173,9 @@ BRANCH_LABELS: dict[str, str] = {
     "toxic_exposure": "Toxic / exposure",
     "autonomic": "Autonomic",
     "structural": "Structural",
+    "biliary": "Biliary",
+    "gastric": "Gastric",
+    "foregut": "Foregut",
 }
 
 

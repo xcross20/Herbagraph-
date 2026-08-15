@@ -35,6 +35,12 @@ _RULES: tuple[tuple[str, str, str], ...] = (
     (r"(?<!gall )\bbladder\b|\bbowel control\b", "sphincter change", "reported"),
     (r"blood work is normal|labs? (?:were |are )?normal", "claimed normal labs", "unverified"),
     (r"\bemg\b|nerve conduction|\bncs\b", "emg testing", "mentioned"),
+    (r"feel like throwing up|nauseous|nauseat|queasy|\bnausea\b", "nausea", "reported"),
+    (r"can eat fat|eat fat but|fatty food (?:is )?(?:fine|ok|okay)", "fatty_food", "tolerated"),
+    (r"fatty food makes|worse after (?:fatty|greasy)|can't (?:eat|tolerate) fat", "fatty_food", "triggers"),
+    (r"\bintermittent\b|comes and goes", "trajectory", "intermittent"),
+    (r"under (?:my )?(?:right )?ribs|right upper|\bruq\b", "location", "ruq"),
+    (r"\bstomach\b|pit of (?:the )?stomach|epigastric", "location", "epigastric"),
 )
 
 
@@ -97,6 +103,17 @@ def facts_to_findings(facts: list[ExtractedFact]) -> list[FindingDraft]:
     ]
 
 
+def is_abdominal_case(facts: dict[str, str]) -> bool:
+    if facts.get("abdominal_pain") or facts.get("nausea"):
+        return True
+    if facts.get("location") in {"ruq", "abdomen", "epigastric"}:
+        return True
+    if facts.get("fatty_food"):
+        return True
+    blob = " ".join(f"{key} {value}" for key, value in facts.items()).lower()
+    return "gallbladder" in blob or "biliary" in blob
+
+
 def fact_map(findings: list[FindingDraft]) -> dict[str, str]:
     mapped: dict[str, str] = {}
     for item in findings:
@@ -106,6 +123,8 @@ def fact_map(findings: list[FindingDraft]) -> dict[str, str]:
 
 
 def problem_representation(facts: dict[str, str]) -> str:
+    if is_abdominal_case(facts):
+        return _abdominal_representation(facts)
     parts: list[str] = []
     if facts.get("duration"):
         parts.append(f"Duration {facts['duration']}")
@@ -134,6 +153,35 @@ def problem_representation(facts: dict[str, str]) -> str:
         parts.append("prior labs described as normal (unverified)")
     if not parts:
         return "Problem representation is not yet complete."
+    text = "; ".join(parts) + "."
+    return text[0].upper() + text[1:]
+
+
+def _abdominal_representation(facts: dict[str, str]) -> str:
+    parts: list[str] = []
+    if facts.get("abdominal_pain"):
+        parts.append(f"abdominal sensation ({facts['abdominal_pain'].replace('_', ' ')})")
+    if facts.get("location") in {"ruq", "epigastric", "abdomen"}:
+        parts.append(f"felt at {facts['location']}")
+    if facts.get("nausea"):
+        parts.append("nausea reported")
+    if facts.get("vomiting") == "absent":
+        parts.append("vomiting absent")
+    elif facts.get("vomiting"):
+        parts.append(f"vomiting {facts['vomiting']}")
+    if facts.get("fatty_food") == "tolerated":
+        parts.append("can eat fat")
+    elif facts.get("fatty_food") == "triggers":
+        parts.append("worse after fatty food")
+    if facts.get("trajectory"):
+        parts.append(f"trajectory {facts['trajectory'].replace('_', ' ')}")
+    if facts.get("fever") == "absent":
+        parts.append("no fever")
+    interps = [value for key, value in facts.items() if key.startswith("patient_interpretation") and value]
+    if interps:
+        parts.append(f"patient theory: {interps[0]} (not a finding)")
+    if not parts:
+        return "Abdominal or nausea pattern is not yet fully characterized."
     text = "; ".join(parts) + "."
     return text[0].upper() + text[1:]
 

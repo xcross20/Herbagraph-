@@ -32,6 +32,12 @@ _PATTERN_UNKNOWNS = (
     "temperature sensation",
     "emg testing",
 )
+_GI_UNKNOWNS = (
+    "pain_location",
+    "episode_duration",
+    "meal_relation",
+    "nausea",
+)
 
 
 @dataclass
@@ -93,8 +99,11 @@ def _stage(safety_status: str, facts: dict[str, str], action: NextAction, turn_c
 
 
 def _unknowns(facts: dict[str, str]) -> list[str]:
+    from app.discovery.intake import is_abdominal_case
+
+    keys = _GI_UNKNOWNS if is_abdominal_case(facts) else _PATTERN_UNKNOWNS
     missing: list[str] = []
-    for key in _PATTERN_UNKNOWNS:
+    for key in keys:
         value = facts.get(key)
         if value is None or value == "unknown":
             missing.append(key)
@@ -169,7 +178,7 @@ def orchestrate(
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
     prior_safety = findings_from_fact_map(prior_facts)
-    safety_findings = extract_safety_findings(text, prior_safety)
+    safety_findings = extract_safety_findings(text, prior_safety, current_closes=current_closes)
     safety = assess_safety(
         safety_findings,
         asked=set(asked),
@@ -197,7 +206,19 @@ def orchestrate(
     for fact in incoming:
         merged[fact.name] = fact.value
 
-    snapshot = rebuild_case_state(concern or text, [], {})
+    family_blob = " ".join(
+        part
+        for part in (
+            concern or text,
+            merged.get("nausea"),
+            merged.get("fatty_food"),
+            merged.get("abdominal_pain"),
+            merged.get("patient_interpretation"),
+            merged.get("location"),
+        )
+        if part
+    )
+    snapshot = rebuild_case_state(family_blob, [], {})
     hypo_labels = [item.label for item in snapshot.hypotheses]
     candidates = generate_actions(
         facts=merged,

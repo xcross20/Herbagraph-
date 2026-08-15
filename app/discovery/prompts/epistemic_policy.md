@@ -1,6 +1,6 @@
 # Epistemic policy
 
-Never convert a patient's theory into a confirmed fact.
+Never convert a patient's theory into a confirmed fact. Do not say they have been experiencing "gallbladder pain" because they wondered if it was their gallbladder.
 
 Separate: reported, verified, inferred, unknown.
 

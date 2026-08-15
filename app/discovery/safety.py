@@ -123,7 +123,12 @@ def _add(rows: list[SafetyFinding], item: SafetyFinding) -> None:
     rows.append(item)
 
 
-def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = None) -> list[SafetyFinding]:
+def extract_safety_findings(
+    text: str,
+    prior: Iterable[SafetyFinding] | None = None,
+    *,
+    current_closes: str | None = None,
+) -> list[SafetyFinding]:
     rows: list[SafetyFinding] = list(prior or [])
     blob = (text or "").lower()
     if not blob.strip():
@@ -159,6 +164,8 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
         severity = "severe"
     elif re.search(r"\b([1-4])/10\b|\bmild\b|\bmoderate\b", blob):
         severity = "mild_to_moderate"
+    elif trajectory == "intermittent_stable":
+        severity = "mild_to_moderate"
 
     def present(concept: str, **kwargs: str) -> None:
         _add(
@@ -178,12 +185,21 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     def absent(concept: str) -> None:
         _add(rows, SafetyFinding(concept=concept, presence="absent", temporality="current", kind="finding"))
 
-    listed_negatives = bool(re.search(r"none of those|no fever, vomiting, or yellow|no fever or vomiting", blob))
+    listed_negatives = bool(
+        re.search(
+            r"none of thos[e]?|none of that|none of it|nope none|no none of|"
+            r"no fever, vomiting, or yellow|no fever or vomiting",
+            blob,
+        )
+    )
+    if current_closes in {"fever", "vomiting", "jaundice", "systemic_red_flags"} and re.search(
+        r"\b(no|nope|none|neither)\b", blob
+    ):
+        listed_negatives = True
     if listed_negatives:
         absent("fever")
         absent("vomiting")
-        if "yellow" in blob or "none of those" in blob:
-            absent("jaundice")
+        absent("jaundice")
     if re.search(r"\bno fever\b|without fever|don't have fever|do not have fever", blob):
         absent("fever")
     elif re.search(r"\bfever\b|running a fever|febrile", blob):
@@ -223,10 +239,17 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
         present("abdominal_pain")
     if re.search(r"\bburn(?:ed|ing)?\b", blob) and re.search(r"\bfeet\b|\bfoot\b", blob):
         present("sensory_symptom")
-    if re.search(r"none of those", blob):
+    if re.search(r"none of thos[e]?|none of that|none of it", blob):
         absent("fever")
         absent("vomiting")
         absent("jaundice")
+
+    if re.search(r"feel like throwing up|nauseous|nauseat|queasy|\bnausea\b", blob):
+        present("nausea")
+    if re.search(r"can eat fat|eat fat but|fatty food (?:is )?(?:fine|ok|okay|not a problem)", blob):
+        _add(rows, SafetyFinding(concept="fatty_food_trigger", presence="absent", temporality="current", kind="finding"))
+    elif re.search(r"fatty food makes|worse after (?:fatty|greasy)|can't (?:eat|tolerate) fat", blob):
+        present("fatty_food_trigger")
 
     if re.search(r"crushing chest|chest pain", blob):
         qual = "crushing" if "crushing" in blob else None
@@ -269,6 +292,9 @@ def findings_from_fact_map(facts: dict[str, str]) -> list[SafetyFinding]:
         "fever": "fever",
         "vomiting": "vomiting",
         "jaundice": "jaundice",
+        "nausea": "nausea",
+        "fatty_food": "fatty_food_trigger",
+        "fatty_food_trigger": "fatty_food_trigger",
         "abdominal_pain": "abdominal_pain",
         "chest_pain": "chest_pain",
         "weakness": "weakness",
@@ -289,6 +315,8 @@ def findings_from_fact_map(facts: dict[str, str]) -> list[SafetyFinding]:
             qualifier = value
         if concept == "abdominal_pain" and value in {"ruq", "location_unclear"}:
             qualifier = value
+        if concept == "fatty_food_trigger" and value in {"tolerated", "absent", "no"}:
+            presence = "absent"
         rows.append(
             SafetyFinding(
                 concept=concept,
@@ -318,6 +346,24 @@ def safety_findings_to_facts(findings: list[SafetyFinding]) -> list[ExtractedFac
         if item.kind != "finding":
             continue
         name = {"sphincter_change": "sphincter change"}.get(item.concept, item.concept)
+        if item.concept == "fatty_food_trigger":
+            extra.append(
+                ExtractedFact(
+                    name="fatty_food",
+                    value="tolerated" if item.presence == "absent" else (item.qualifier or "triggers"),
+                    kind="context",
+                )
+            )
+            continue
+        if item.concept == "nausea":
+            extra.append(
+                ExtractedFact(
+                    name="nausea",
+                    value="absent" if item.presence == "absent" else "reported",
+                    kind="symptom",
+                )
+            )
+            continue
         if item.presence == "absent":
             extra.append(ExtractedFact(name=name, value="absent", kind="assessment"))
         elif item.qualifier:
@@ -354,7 +400,7 @@ def _domain(findings: list[SafetyFinding]) -> str:
     concepts = {item.concept for item in findings}
     if "chest_pain" in concepts or "dyspnea" in concepts and "syncope" in concepts:
         return "chest"
-    if "abdominal_pain" in concepts or "biliary_source" in concepts:
+    if "abdominal_pain" in concepts or "biliary_source" in concepts or "nausea" in concepts:
         return "upper_abdominal_pain"
     if concepts & {"sepsis", "appendicitis"} and any(i.kind == "interpretation" for i in findings):
         if not (_is_present(findings, "abdominal_pain") or _is_present(findings, "fever")):
@@ -404,21 +450,21 @@ def _clarifiers(domain: str, unknown: list[str]) -> list[SafetyClarifier]:
             ("Comes and goes", "About the same", "Slowly worse", "Rapidly worse", "Not sure"),
         ),
         "fever": SafetyClarifier(
-            "q_safety_fever",
+            "q_safety_systemic",
             "Are you having fever, repeated vomiting, or yellowing of the eyes or skin?",
-            "fever",
+            "systemic_red_flags",
             ("None of those", "Fever", "Repeated vomiting", "Yellowing", "Not sure"),
         ),
         "vomiting": SafetyClarifier(
             "q_safety_systemic",
             "Are you having fever, repeated vomiting, or yellowing of the eyes or skin?",
-            "vomiting",
+            "systemic_red_flags",
             ("None of those", "Fever", "Repeated vomiting", "Yellowing", "Not sure"),
         ),
         "jaundice": SafetyClarifier(
             "q_safety_systemic",
             "Are you having fever, repeated vomiting, or yellowing of the eyes or skin?",
-            "jaundice",
+            "systemic_red_flags",
             ("None of those", "Fever", "Repeated vomiting", "Yellowing", "Not sure"),
         ),
         "dyspnea": SafetyClarifier(
@@ -657,7 +703,14 @@ def assess_safety(
     interpretations = [item for item in findings if item.kind == "interpretation"]
     domain = _domain(findings)
     known, unknown = _known_unknown(findings, domain)
-    clarifiers = [item for item in _clarifiers(domain, unknown) if item.code not in asked]
+    asked_systemic = bool(asked & {"q_safety_fever", "q_safety_systemic"})
+    clarifiers = []
+    for item in _clarifiers(domain, unknown):
+        if item.code in asked:
+            continue
+        if item.code == "q_safety_systemic" and asked_systemic:
+            continue
+        clarifiers.append(item)
 
     if _definite_emergency(findings):
         state = "S4"
@@ -713,7 +766,11 @@ def assess_safety(
     assessment = critique(assessment)
     assessment = _hold_prior_disposition(assessment, prior_state, new_text)
     if assessment.state == "S1" and not assessment.clarifiers:
-        assessment.clarifiers = [item for item in _clarifiers(assessment.domain, assessment.missing) if item.code not in asked]
+        assessment.clarifiers = [
+            item
+            for item in _clarifiers(assessment.domain, assessment.missing)
+            if item.code not in asked and not (item.code == "q_safety_systemic" and asked_systemic)
+        ]
     assessment.message = _sanitize(_message(assessment.state, assessment.domain) or assessment.message)
     assessment.preface = _sanitize(assessment.preface)
     return assessment

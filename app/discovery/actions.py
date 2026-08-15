@@ -89,6 +89,36 @@ QUESTIONS: tuple[CatalogQuestion, ...] = (
         "yes_no",
         0.45,
     ),
+    CatalogQuestion(
+        "q_gi_location",
+        "When that feeling shows up, where do you notice it most — under the right ribs, the pit of the stomach, or more like a wave of queasiness without a clear spot?",
+        "pain_location",
+        "discriminating",
+        "Separate right-upper, epigastric, and nausea-predominant patterns without diagnosing.",
+        ("Under the right ribs", "Pit of the stomach", "Mostly nausea, no clear spot", "It moves around", "Not sure"),
+        "single_select",
+        0.87,
+    ),
+    CatalogQuestion(
+        "q_gi_episode",
+        "When it comes, does it last minutes, an hour or two, or linger most of the day?",
+        "episode_duration",
+        "discriminating",
+        "Episode length helps separate colicky from lingering dyspeptic patterns.",
+        ("Minutes", "An hour or two", "Most of the day", "Not sure"),
+        "single_select",
+        0.84,
+    ),
+    CatalogQuestion(
+        "q_gi_meal",
+        "Is it tied to eating — right after meals, a while after, or not obviously related?",
+        "meal_relation",
+        "discriminating",
+        "Meal timing is a discriminator between biliary-type, gastric, and reflux-type branches.",
+        ("Right after eating", "An hour or more after", "Not related to food", "Not sure"),
+        "single_select",
+        0.83,
+    ),
 )
 
 
@@ -157,6 +187,10 @@ def generate_actions(
         return limited
     if state == "S1" and safety is not None:
         for index, item in enumerate(getattr(safety, "clarifiers", []) or []):
+            if item.code in asked or item.closes in facts or item.closes in answered:
+                continue
+            if item.code == "q_safety_systemic" and asked & {"q_safety_fever", "q_safety_systemic"}:
+                continue
             options = list(item.options)
             actions.append(
                 NextAction(
@@ -195,9 +229,25 @@ def generate_actions(
             )
         )
 
+    from app.discovery.intake import is_abdominal_case
+
     neuro = "burning sensation" in facts or facts.get("location") == "feet"
+    abdominal = is_abdominal_case(facts)
     for question in QUESTIONS:
         if _asked_or_answered(question, asked, facts, answered):
+            continue
+        if question.code.startswith("q_gi_") and not abdominal:
+            continue
+        if question.code.startswith("q_gi_") and state == "S1":
+            continue
+        if abdominal and question.code in {
+            "q_laterality",
+            "q_distribution",
+            "q_temperature",
+            "q_weakness_safety",
+            "q_emg",
+            "q_medications",
+        }:
             continue
         if question.kind == "safety" and state in {"S0", "S2", "routine"}:
             continue
@@ -283,12 +333,18 @@ def generate_actions(
             )
         )
 
+    systemic_prompt = "fever, repeated vomiting, or yellowing"
     for item in guide_actions or []:
         if item.question_id and item.question_id in asked:
             continue
         if item.type == "show_safety_message" and state not in {"S3", "S4"}:
             continue
         if item.prompt and any(existing.prompt == item.prompt for existing in actions):
+            continue
+        prompt_l = (item.prompt or "").lower()
+        if systemic_prompt in prompt_l and (
+            facts.get("fever") in {"absent", "no"} or asked & {"q_safety_fever", "q_safety_systemic"}
+        ):
             continue
         actions.append(item)
 

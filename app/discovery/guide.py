@@ -381,7 +381,10 @@ class DiscoveryGuide:
                 "Parse the entire user_turn. Keep odd, incomplete, and unusual threads as separate "
                 "facts, timeline items, or interpretations. Do not collapse a complex story. "
                 "patient_interpretations and timeline_updates are arrays of strings, not objects. "
-                "Integrate person_context. Do not diagnose. Do not invent labs or citations."
+                "If they just answered a question, do not recommend that question again. "
+                "When safety is not urgent, recommend one discriminator among competing investigation "
+                "branches (for example location, meal timing, episode length) — not a diagnosis. "
+                "Integrate person_context. Do not invent labs or citations."
             ),
             max_tokens=2500,
         )
@@ -399,6 +402,7 @@ class DiscoveryGuide:
         plan: DiscoveryTurnPlan | None,
         person: dict | None = None,
         citations: list[dict] | None = None,
+        last_user_turn: str = "",
     ) -> str | None:
         if not discovery_llm_ready():
             return None
@@ -410,6 +414,7 @@ class DiscoveryGuide:
                 f"safety_state={safety_state}\n"
                 f"action={action.type}\n"
                 f"required_question={action.prompt or ''}\n"
+                f"last_user_turn={last_user_turn}\n"
                 f"problem={problem}\n"
                 f"unknowns={list((plan.missing_dimensions if plan else [])[:10])}\n"
                 f"reported_facts={[item.concept for item in (plan.reported_facts if plan else [])][:20]}\n"
@@ -417,9 +422,12 @@ class DiscoveryGuide:
                 f"timeline={(plan.timeline_updates if plan else [])[:12]}\n"
                 f"person_context={person or {}}\n"
                 f"retrieved_citations={cite_lines}\n"
-                "Write the user-facing message for this person. Reflect the full story they told, "
-                "integrate what we already know about them, then include the required question if provided. "
-                "Mention a citation only if retrieved_citations is non-empty."
+                "Start from last_user_turn. Do not reuse an earlier opener. "
+                "A patient theory (gallbladder, etc.) is not a confirmed problem — say they wondered about it, "
+                "do not say they have been experiencing that disease. "
+                "Do not ask a question they already answered. "
+                "If safety_state is S0 or S2, ask one discriminator that splits open investigation branches. "
+                "Never diagnose. Mention a citation only if retrieved_citations is non-empty."
             ),
         )
         if not data:
@@ -497,6 +505,7 @@ class DiscoveryGuide:
             plan=used_plan,
             person=person,
             citations=citations,
+            last_user_turn=text,
         )
         if result.safety_status != "S4":
             result.message = pick_verbalization(result.message, spoken)

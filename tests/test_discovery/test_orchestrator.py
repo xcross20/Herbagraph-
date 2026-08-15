@@ -122,6 +122,28 @@ def test_problem_representation_is_editable_prose():
     assert "neuropathy" not in text.lower()
 
 
+def test_abdominal_problem_representation_keeps_felt_sensations():
+    text = problem_representation(
+        {
+            "abdominal_pain": "location_unclear",
+            "nausea": "reported",
+            "fatty_food": "tolerated",
+            "trajectory": "intermittent_stable",
+            "fever": "absent",
+            "vomiting": "absent",
+            "patient_interpretation": "biliary_source",
+        }
+    )
+    lowered = text.lower()
+    assert "nausea" in lowered
+    assert "fat" in lowered or "fatty" in lowered
+    assert "intermittent" in lowered
+    assert "laterality" not in lowered
+    assert "weakness" not in lowered
+    assert "theory" in lowered or "interpretation" in lowered
+    assert "cholecystitis" not in lowered
+
+
 def test_intake_findings_survive_as_drafts():
     result = orchestrate(FIXTURE, prior_facts={}, asked=[], answered=set())
     assert all(isinstance(item, FindingDraft) for item in result.new_findings)
