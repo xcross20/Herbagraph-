@@ -119,6 +119,58 @@ async def test_clinician_case_uses_patient_context_not_owner_profile(
     assert created.json()["monitor_plan"] is not None
 
 
+async def test_answer_yes_records_outcome_and_closes_gap(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet at night"},
+    )
+    case_id = created.json()["id"]
+    rebuilt = await authed_client.post(
+        f"/api/v1/cases/{case_id}/rebuild",
+        json={
+            "labs": [
+                {"biomarker_name": "Vitamin B12", "value": 210, "status": LabResultStatus.LOW.value, "unit": "pg/mL"},
+                {"biomarker_name": "MCV", "value": 104, "status": LabResultStatus.HIGH.value, "unit": "fL"},
+            ]
+        },
+    )
+    assert rebuilt.status_code == 200, rebuilt.text
+    question = next(q for q in rebuilt.json()["next_questions"] if "MMA" in q["closes"] or "mma" in q["closes"].lower())
+    before = next(h for h in rebuilt.json()["hypotheses"] if h["code"] == "b12_functional_gap")
+    assert "MMA" in before["missing_markers"]
+
+    answered = await authed_client.post(
+        f"/api/v1/cases/{case_id}/answers",
+        json={"code": question["code"], "answer": "yes"},
+    )
+    assert answered.status_code == 200, answered.text
+    body = answered.json()
+    after = next(h for h in body["hypotheses"] if h["code"] == "b12_functional_gap")
+    assert "MMA" not in after["missing_markers"]
+    assert after["investigation_coverage"] > before["investigation_coverage"]
+    assert any(o["label"] == "MMA" and o["status"] == "completed" for o in body["outcomes"])
+    assert any(f["kind"] == "assessment" and f["name"] == "MMA" for f in body["findings"])
+    assert any("diagnosis" not in (t["text"] or "").lower() or "not a diagnosis" in (t["text"] or "").lower() for t in body["turns"])
+    assert all("you have" not in t["text"].lower() for t in body["turns"])
+
+
+async def test_chat_turn_opens_case_without_writing_diagnosis(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet at night"},
+    )
+    case_id = created.json()["id"]
+    resp = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "Also tingling in the toes."},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert any(t["role"] == "user" and "tingling" in t["text"].lower() for t in body["turns"])
+    assert all(h["status"] == "open" for h in body["hypotheses"])
+    assert "diagnosis" in body["disclaimer"].lower()
+
+
 async def test_case_requires_auth(client):
     resp = await client.post("/api/v1/cases", json={"presenting_concern": "fatigue"})
     assert resp.status_code == 401

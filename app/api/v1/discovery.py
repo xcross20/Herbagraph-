@@ -11,6 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.service import (
+    add_turn,
+    answer_question,
+    case_to_read,
     create_case,
     get_owned_case,
     labs_from_ingest,
@@ -18,12 +21,18 @@ from app.discovery.service import (
     latest_lab_report,
     list_owned_cases,
     rebuild_case,
-    snapshot_from_case,
-    snapshot_to_read,
+    record_user_note,
 )
+from app.models.enums import DiscoveryTurnRole
 from app.models.lab import LabReport
 from app.models.user import User
-from app.schemas.discovery import DiscoveryCaseCreate, DiscoveryCaseRead, DiscoveryCaseRebuild
+from app.schemas.discovery import (
+    DiscoveryAnswerCreate,
+    DiscoveryCaseCreate,
+    DiscoveryCaseRead,
+    DiscoveryCaseRebuild,
+    DiscoveryTurnCreate,
+)
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
 
@@ -35,7 +44,7 @@ async def list_cases(
     db: AsyncSession = Depends(get_db),
 ) -> list[DiscoveryCaseRead]:
     cases = await list_owned_cases(db, current_user.id, patient_id=patient_id)
-    return [snapshot_to_read(case, snapshot_from_case(case)) for case in cases]
+    return [await case_to_read(db, case) for case in cases]
 
 
 @router.post("", response_model=DiscoveryCaseRead, status_code=status.HTTP_201_CREATED)
@@ -63,10 +72,26 @@ async def open_case(
         if report is not None:
             labs = labs_from_results(report.lab_results)
             lab_report_id = report.id
-    snapshot = await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
+    await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.USER,
+        text=payload.presenting_concern.strip(),
+        kind="concern",
+    )
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.SYSTEM,
+        text=(
+            "Case opened. Relevance is not a diagnosis. "
+            "Answer the next questions or add a note — the Case stays the source of truth."
+        ),
+        kind="system",
+    )
     await db.commit()
-    await db.refresh(case)
-    return snapshot_to_read(case, snapshot)
+    return await case_to_read(db, case)
 
 
 @router.get("/{case_id}", response_model=DiscoveryCaseRead)
@@ -78,7 +103,7 @@ async def get_case(
     case = await get_owned_case(db, case_id, current_user.id)
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
-    return snapshot_to_read(case, snapshot_from_case(case))
+    return await case_to_read(db, case)
 
 
 @router.post("/{case_id}/rebuild", response_model=DiscoveryCaseRead)
@@ -118,7 +143,7 @@ async def rebuild_owned_case(
             labs = labs_from_results(report.lab_results)
             lab_report_id = report.id
 
-    snapshot = await rebuild_case(
+    await rebuild_case(
         db,
         case,
         presenting_concern=payload.presenting_concern,
@@ -126,5 +151,37 @@ async def rebuild_owned_case(
         lab_report_id=lab_report_id,
     )
     await db.commit()
-    await db.refresh(case)
-    return snapshot_to_read(case, snapshot)
+    return await case_to_read(db, case)
+
+
+@router.post("/{case_id}/answers", response_model=DiscoveryCaseRead)
+async def answer_case_question(
+    case_id: uuid.UUID,
+    payload: DiscoveryAnswerCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryCaseRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    try:
+        await answer_question(db, case, code=payload.code, answer=payload.answer, note=payload.note)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    await db.commit()
+    return await case_to_read(db, case)
+
+
+@router.post("/{case_id}/turns", response_model=DiscoveryCaseRead)
+async def add_case_turn(
+    case_id: uuid.UUID,
+    payload: DiscoveryTurnCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryCaseRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    await record_user_note(db, case, payload.text)
+    await db.commit()
+    return await case_to_read(db, case)

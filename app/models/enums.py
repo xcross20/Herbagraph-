@@ -59,6 +59,19 @@ class DiscoveryFindingKind(str, enum.Enum):
     CONCERN = "concern"
     LAB = "lab"
     CONTEXT = "context"
+    ASSESSMENT = "assessment"
+
+
+class DiscoveryOutcomeStatus(str, enum.Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    NOT_DONE = "not_done"
+    DEFERRED = "deferred"
+
+
+class DiscoveryTurnRole(str, enum.Enum):
+    USER = "user"
+    SYSTEM = "system"
 
 
 class DiscoveryHypothesisStatus(str, enum.Enum):

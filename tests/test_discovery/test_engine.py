@@ -61,6 +61,23 @@ def test_concern_without_labs_has_low_certainty():
         assert item.investigation_relevance >= item.diagnostic_certainty
 
 
+def test_answered_mma_is_no_longer_missing():
+    snapshot = rebuild_case_state(
+        "burning feet at night",
+        [
+            _lab("Vitamin B12", 210, LabResultStatus.LOW, "pg/mL"),
+            _lab("MCV", 104, LabResultStatus.HIGH, "fL"),
+        ],
+        {},
+        extra_assessed=["MMA"],
+        answered_labels=["MMA"],
+    )
+    b12 = next(item for item in snapshot.hypotheses if item.code == "b12_functional_gap")
+    assert "MMA" not in b12.missing_markers
+    assert not any(q.closes == "MMA" for q in snapshot.next_questions)
+    assert snapshot.investigation_coverage > 0
+
+
 def test_snapshot_roundtrip():
     snapshot = rebuild_case_state(
         "fatigue and hair loss",

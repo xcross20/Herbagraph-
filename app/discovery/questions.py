@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from app.discovery.utility import utility_for_marker
+
 
 @dataclass(frozen=True)
 class DiscoveryQuestion:
@@ -30,13 +32,19 @@ _MARKER_PROMPTS: dict[str, str] = {
 }
 
 
-def next_questions(hypotheses: list[Any], *, limit: int = 5) -> list[DiscoveryQuestion]:
+def next_questions(
+    hypotheses: list[Any],
+    *,
+    limit: int = 5,
+    answered: set[str] | None = None,
+) -> list[DiscoveryQuestion]:
+    answered_keys = {item.lower() for item in (answered or set())}
     questions: list[DiscoveryQuestion] = []
     seen: set[str] = set()
     for hypo in hypotheses[:4]:
         for marker in hypo.missing_markers:
             key = marker.lower()
-            if key in seen:
+            if key in seen or key in answered_keys:
                 continue
             seen.add(key)
             questions.append(
@@ -46,14 +54,14 @@ def next_questions(hypotheses: list[Any], *, limit: int = 5) -> list[DiscoveryQu
                     kind="already_tested",
                     closes=marker,
                     hypothesis_code=hypo.code,
-                    utility=0.8 if marker in {"MMA", "Homocysteine", "HbA1c"} else 0.6,
+                    utility=utility_for_marker(marker),
                 )
             )
         for item in hypo.investigations:
             if item.already_assessed or item.group == "conditional":
                 continue
             key = item.label.lower()
-            if key in seen:
+            if key in seen or key in answered_keys:
                 continue
             seen.add(key)
             questions.append(
@@ -63,7 +71,7 @@ def next_questions(hypotheses: list[Any], *, limit: int = 5) -> list[DiscoveryQu
                     kind="already_tested",
                     closes=item.label,
                     hypothesis_code=hypo.code,
-                    utility=0.7 if item.group == "core" else 0.5,
+                    utility=utility_for_marker(item.label),
                 )
             )
         if len(questions) >= limit:

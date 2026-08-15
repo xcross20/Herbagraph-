@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import DiscoveryCaseStatus, LabResultStatus
+from app.models.enums import DiscoveryCaseStatus, DiscoveryOutcomeStatus, DiscoveryTurnRole, LabResultStatus
 
 
 class LabIngest(BaseModel):
@@ -24,6 +25,16 @@ class DiscoveryCaseRebuild(BaseModel):
     presenting_concern: str | None = Field(default=None, max_length=4000)
     lab_report_id: uuid.UUID | None = None
     labs: list[LabIngest] = []
+
+
+class DiscoveryAnswerCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=160)
+    answer: Literal["yes", "no", "unknown"]
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class DiscoveryTurnCreate(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
 
 
 class DiscoveryFindingRead(BaseModel):
@@ -82,6 +93,24 @@ class DiscoveryQuestionRead(BaseModel):
     utility: float
 
 
+class DiscoveryOutcomeRead(BaseModel):
+    id: uuid.UUID
+    hypothesis_code: str
+    label: str
+    status: DiscoveryOutcomeStatus
+    result: str | None = None
+    question_code: str | None = None
+
+
+class DiscoveryTurnRead(BaseModel):
+    id: uuid.UUID
+    role: DiscoveryTurnRole
+    text: str
+    kind: str
+    question_code: str | None = None
+    created_at: datetime
+
+
 class DiscoveryCaseRead(BaseModel):
     id: uuid.UUID
     presenting_concern: str
@@ -96,6 +125,8 @@ class DiscoveryCaseRead(BaseModel):
     monitor_plan: list[MonitorItemRead] = []
     next_questions: list[DiscoveryQuestionRead] = []
     what_changed: list[str] = []
+    outcomes: list[DiscoveryOutcomeRead] = []
+    turns: list[DiscoveryTurnRead] = []
     disclaimer: str
     created_at: datetime
     updated_at: datetime

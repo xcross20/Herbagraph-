@@ -218,13 +218,18 @@ def _coverage_for_markers(markers: tuple[str, ...], present_keys: set[str]) -> t
     return assessed / len(markers), missing, assessed, len(markers)
 
 
+def _assessed_keys(labs: list[NormalizedLabResult], extra_assessed: list[str] | None = None) -> set[str]:
+    return present_marker_keys(_lab_names(labs) + list(extra_assessed or []))
+
+
 def _score_family(
     family: HypothesisFamily,
     *,
     concern_hit: bool,
     labs: list[NormalizedLabResult],
+    extra_assessed: list[str] | None = None,
 ) -> HypothesisDraft:
-    present_keys = present_marker_keys(_lab_names(labs))
+    present_keys = _assessed_keys(labs, extra_assessed)
     abnormal_keys = present_marker_keys(list(_abnormal_names(labs)))
     support_hits = sum(1 for marker in family.supporting_markers if marker_is_present(marker, abnormal_keys))
     coverage, missing, _assessed, _expected = _coverage_for_markers(family.resolution_markers, present_keys)
@@ -294,8 +299,12 @@ def _families_to_score(concern: str, labs: list[NormalizedLabResult]) -> list[tu
     return list(selected.values())
 
 
-def _branch_coverage(hypotheses: list[HypothesisDraft], labs: list[NormalizedLabResult]) -> list[BranchCoverage]:
-    present_keys = present_marker_keys(_lab_names(labs))
+def _branch_coverage(
+    hypotheses: list[HypothesisDraft],
+    labs: list[NormalizedLabResult],
+    extra_assessed: list[str] | None = None,
+) -> list[BranchCoverage]:
+    present_keys = _assessed_keys(labs, extra_assessed)
     by_branch: dict[str, list[HypothesisDraft]] = {}
     for hypo in hypotheses:
         by_branch.setdefault(hypo.branch, []).append(hypo)
@@ -357,12 +366,20 @@ def rebuild_case_state(
     presenting_concern: str,
     labs: list[NormalizedLabResult] | None = None,
     health_profile: dict | None = None,
+    extra_assessed: list[str] | None = None,
+    answered_labels: list[str] | None = None,
+    extra_findings: list[FindingDraft] | None = None,
 ) -> CaseSnapshot:
     labs = labs or []
     findings = findings_from_inputs(presenting_concern, labs, health_profile)
-    scored = [_score_family(family, concern_hit=hit, labs=labs) for family, hit in _families_to_score(presenting_concern, labs)]
+    if extra_findings:
+        findings.extend(extra_findings)
+    scored = [
+        _score_family(family, concern_hit=hit, labs=labs, extra_assessed=extra_assessed)
+        for family, hit in _families_to_score(presenting_concern, labs)
+    ]
     scored.sort(key=lambda item: (item.investigation_relevance, item.investigation_coverage), reverse=True)
-    branches = _branch_coverage(scored, labs)
+    branches = _branch_coverage(scored, labs, extra_assessed)
     if branches:
         overall = sum(row.coverage for row in branches) / len(branches)
     else:
@@ -375,7 +392,10 @@ def rebuild_case_state(
         investigation_coverage=round(overall, 4),
         monitor_plan=_monitor_plan(scored),
     )
-    snapshot.next_questions = next_questions(snapshot.hypotheses)
+    snapshot.next_questions = next_questions(
+        snapshot.hypotheses,
+        answered={label.lower() for label in (answered_labels or [])},
+    )
     return snapshot
 
 

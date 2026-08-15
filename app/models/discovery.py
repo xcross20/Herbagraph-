@@ -8,7 +8,13 @@ from sqlalchemy import Enum, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.models.enums import DiscoveryCaseStatus, DiscoveryFindingKind, DiscoveryHypothesisStatus
+from app.models.enums import (
+    DiscoveryCaseStatus,
+    DiscoveryFindingKind,
+    DiscoveryHypothesisStatus,
+    DiscoveryOutcomeStatus,
+    DiscoveryTurnRole,
+)
 from app.models.mixins import GUID, TimestampMixin, UUIDPrimaryKeyMixin
 
 
@@ -33,6 +39,12 @@ class DiscoveryCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="case", cascade="all, delete-orphan"
     )
     hypotheses: Mapped[list["DiscoveryHypothesis"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan"
+    )
+    outcomes: Mapped[list["DiscoveryOutcome"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan"
+    )
+    turns: Mapped[list["DiscoveryTurn"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"
     )
 
@@ -73,3 +85,38 @@ class DiscoveryHypothesis(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     investigations: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     case: Mapped[DiscoveryCase] = relationship(back_populates="hypotheses")
+
+
+class DiscoveryOutcome(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A recorded check — done, not done, or still pending. Not a diagnosis."""
+
+    __tablename__ = "discovery_outcomes"
+
+    case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
+    hypothesis_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[DiscoveryOutcomeStatus] = mapped_column(
+        Enum(DiscoveryOutcomeStatus, native_enum=False, length=20),
+        default=DiscoveryOutcomeStatus.PENDING,
+        nullable=False,
+    )
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    question_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    case: Mapped[DiscoveryCase] = relationship(back_populates="outcomes")
+
+
+class DiscoveryTurn(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Chat is only an interface. The Case remains the source of truth."""
+
+    __tablename__ = "discovery_turns"
+
+    case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
+    role: Mapped[DiscoveryTurnRole] = mapped_column(
+        Enum(DiscoveryTurnRole, native_enum=False, length=12), nullable=False
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False, default="note")
+    question_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    case: Mapped[DiscoveryCase] = relationship(back_populates="turns")

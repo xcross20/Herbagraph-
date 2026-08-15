@@ -1,6 +1,6 @@
 # Guided Discovery — architecture reset without a rewrite
 
-**Status:** slice 1 accepted. Slice 2 (Case / Finding / Hypothesis + investigation coverage) in progress.  
+**Status:** slices 1–3 accepted. Case answers, outcomes, and dual portals ship with chat as interface only.  
 **Date:** 2026-08-14
 
 ## SPEC: Why a 78% score is not useful
@@ -125,6 +125,22 @@ Two portals, one API:
 - `/app.html` — router that sends the signed-in user to the correct portal
 
 Discovery also emits `next_questions` (question engine) and `what_changed` (rebuild reconciliation).
+
+## Slice 3 — Answerable Discovery + outcomes + chat as interface
+
+**Problem:** Clinicians and individuals land in the same workspace shape, and Discovery questions cannot be recorded, so coverage never updates from conversation and the Case is not actually the source of truth.
+
+**Acceptance claims:**
+
+1. Clinicians land on `/clinic.html` (panel, many patients). Individuals land on `/me.html` (one Self profile). Visiting the wrong portal redirects.
+2. `POST /api/v1/cases/{id}/answers` with yes/no/unknown persists an Outcome. Yes records an assessment finding so the named marker is no longer missing and coverage can rise.
+3. Test utility is the documented formula (information gain × actionability × safety × coverage gain) ÷ (cost + burden + risk + redundancy). MMA ranks above skin biopsy.
+4. Chat is only an interface: a turn opens or updates the Case. The engine never writes a diagnosis into a turn.
+5. Silent failure: rebuild after an answer must keep previously ingested labs (not drop B12/MCV just because they were not a LabReport row).
+
+**Non-goals:** Gold Label, imaging parsers, Next.js, LLM-authored scores, 90% confidence hunt, admin case console.
+
+**Door class:** one-way for `discovery_outcomes` / `discovery_turns` schema. Two-way for question copy and portal chrome.
 
 ## LLM rule
 
