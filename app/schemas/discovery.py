@@ -206,6 +206,7 @@ class DiscoveryCaseRead(BaseModel):
     memory_items: list[dict] = []
     literature: list[dict] = []
     safety: dict | None = None
+    last_visit: dict | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime

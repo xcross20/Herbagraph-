@@ -261,6 +261,7 @@ class DiscoveryGuide:
         problem: str | None = None,
         plan: DiscoveryTurnPlan | None = None,
         on_phase: Callable[..., Any] | None = None,
+        last_visit: dict | None = None,
     ) -> TurnResult:
         used_plan = plan
         if used_plan is None:
@@ -272,6 +273,7 @@ class DiscoveryGuide:
                     "prior_facts": prior_facts,
                     "recent_turns": (recent_turns or [])[-12:],
                     "problem": problem,
+                    "last_visit": last_visit or {},
                 },
             )
         fact_rows = plan_to_fact_rows(used_plan) if used_plan else []
@@ -307,6 +309,12 @@ class DiscoveryGuide:
         if used_plan and used_plan.uncertainty_updates:
             extra = [item for item in used_plan.uncertainty_updates if item not in result.unknowns]
             result.unknowns = [*result.unknowns, *extra][:12]
+        if turn_count == 0 and last_visit and last_visit.get("has_history"):
+            from app.discovery.context import last_visit_opener
+
+            opener = last_visit_opener(last_visit)
+            if opener and opener.lower() not in result.message.lower():
+                result.message = (opener + result.message).strip()
         return result
 
 

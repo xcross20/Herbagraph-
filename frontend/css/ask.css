@@ -197,6 +197,37 @@
 
 .ask-note { font-size: 0.78rem; color: #6a726c; margin: 0.75rem 0 0; }
 
+.ask-continue, .ask-last-visit {
+  text-align: left;
+  margin: 1rem auto 0;
+  max-width: 32rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #e4e7e1;
+  border-radius: 12px;
+  background: #fff;
+}
+.ask-last-visit { max-width: 40rem; margin: 0 0 1rem; font-size: 0.88rem; }
+.ask-mini {
+  border: 0;
+  background: none;
+  color: #117744;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+}
+.ask-why { margin-top: 0.35rem; color: #5c645e; font-size: 0.8rem; }
+.ask-voice {
+  border: 1px solid #d8ddd6;
+  background: #fff;
+  color: #2c332f;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-weight: 560;
+  cursor: pointer;
+}
+
 .safety-banner {
   border: 1px solid #d8ddd6;
   background: #fff;

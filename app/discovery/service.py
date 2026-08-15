@@ -386,6 +386,7 @@ def snapshot_to_read(
         memory_items=_memory_items_from_findings(snapshot.findings),
         literature=_literature_from_case(case),
         safety=payload.get("safety") if isinstance(payload.get("safety"), dict) else None,
+        last_visit=None,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -810,6 +811,29 @@ async def record_user_note(db: AsyncSession, case: DiscoveryCase, text: str) -> 
     return snapshot
 
 
+async def _attach_literature(case: DiscoveryCase, text: str, result) -> None:
+    from app.discovery.ai import pick_verbalization
+    from app.discovery.literature import retrieve_citations
+
+    plan = result.guide_plan or {}
+    queries = [str(item) for item in (plan.get("literature_queries") or []) if item]
+    if result.action.type == "retrieve_evidence" or plan.get("wants_evidence"):
+        queries.append((case.presenting_concern or text)[:180])
+    query = next((item for item in queries if len(item) >= 4), "")
+    if not query:
+        return
+    cites = await retrieve_citations(query)
+    if not cites:
+        return
+    case.literature_json = json.dumps(cites)
+    result.citations = cites
+    titles = "; ".join(item["title"][:90] for item in cites[:2])
+    result.message = pick_verbalization(
+        result.message,
+        f"{result.message} I pulled related papers from PubMed: {titles}. Those are citations, not a diagnosis.",
+    )
+
+
 async def apply_user_turn(
     db: AsyncSession,
     case: DiscoveryCase,
@@ -830,9 +854,7 @@ async def apply_user_turn(
     prior = facts_from_findings(findings)
     payload = _last_system_payload(list(turns))
     current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
-    from app.discovery.ai import pick_verbalization
     from app.discovery.guide import DiscoveryGuide
-    from app.discovery.literature import retrieve_citations
     from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
 
     if case.patient_id:
@@ -863,17 +885,7 @@ async def apply_user_turn(
         problem=case.problem_representation,
         on_phase=on_phase,
     )
-    if result.action.type == "retrieve_evidence":
-        query = (case.presenting_concern or text)[:180]
-        cites = await retrieve_citations(query)
-        case.literature_json = json.dumps(cites)
-        result.citations = cites
-        if cites:
-            titles = "; ".join(item["title"][:90] for item in cites[:2])
-            result.message = pick_verbalization(
-                result.message,
-                f"{result.message} Retrieved from PubMed: {titles}. These are citations, not a diagnosis.",
-            )
+    await _attach_literature(case, text, result)
     await add_turn(
         db,
         case,
@@ -947,6 +959,17 @@ async def apply_opening_turn(
                 prior = prior_facts_from_snapshot(json.loads(snap.payload))
             except json.JSONDecodeError:
                 prior = {}
+    last_visit = None
+    if case.patient_id:
+        from app.discovery.context import last_visit_from_snapshot
+        from app.discovery.snapshot import current_snapshot as _current
+
+        held = await _current(db, case.patient_id)
+        if held is not None:
+            try:
+                last_visit = last_visit_from_snapshot(json.loads(held.payload))
+            except json.JSONDecodeError:
+                last_visit = None
     result = await DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
@@ -957,7 +980,9 @@ async def apply_opening_turn(
         turn_count=0,
         problem=case.problem_representation,
         on_phase=on_phase,
+        last_visit=last_visit,
     )
+    await _attach_literature(case, text, result)
     for item in result.new_findings:
         kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
         db.add(
@@ -1022,7 +1047,18 @@ async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRe
     ).scalars().first()
     if latest_map is not None:
         case._map_version = latest_map.version
-    return snapshot_to_read(case, snapshot_from_case(case), outcomes=list(outcomes), turns=list(turns))
+    read = snapshot_to_read(case, snapshot_from_case(case), outcomes=list(outcomes), turns=list(turns))
+    from app.discovery.context import last_visit_from_case
+
+    visit = last_visit_from_case(
+        problem=case.problem_representation,
+        workup=read.prior_workup,
+        concern=case.presenting_concern,
+    )
+    if len(read.turns) < 2:
+        visit["has_history"] = False
+    read.last_visit = visit
+    return read
 
 
 def suggested_test_labels(snapshot: CaseSnapshot) -> list[tuple[str, str]]:
@@ -1125,6 +1161,40 @@ async def ingest_case_document(
         except ValueError:
             pass
     return {"kind": kind, "accepted": True, "detail": "Attached to the Case as a report finding, not a diagnosis."}
+
+
+async def remove_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
+    rows = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    target = name.strip().lower()
+    removed = False
+    for item in rows:
+        if item.name.lower() == target or item.name.lower().startswith(target + "_"):
+            await db.delete(item)
+            removed = True
+    if not removed:
+        raise ValueError("Finding not found")
+    await db.flush()
+    await rebuild_case(db, case)
+
+
+async def verify_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
+    rows = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    target = name.strip().lower()
+    found = False
+    for item in rows:
+        if item.name.lower() == target:
+            item.status = "verified"
+            if item.value and "patient_reported" in item.value:
+                item.value = item.value.replace("patient_reported", "verified")
+            found = True
+    if not found:
+        raise ValueError("Finding not found")
+    await db.flush()
+    await rebuild_case(db, case)
 
 
 async def list_test_plan(

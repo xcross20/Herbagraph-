@@ -23,6 +23,8 @@ from app.discovery.service import (
     create_case,
     get_owned_case,
     ingest_case_document,
+    remove_named_finding,
+    verify_named_finding,
     labs_from_ingest,
     labs_from_results,
     latest_lab_report,
@@ -407,3 +409,39 @@ async def attach_case_document(
         detail=result["detail"],
         case=await case_to_read(db, case),
     )
+
+
+@router.delete("/{case_id}/findings/{name}", response_model=DiscoveryCaseRead)
+async def delete_case_finding(
+    case_id: uuid.UUID,
+    name: str,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryCaseRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    try:
+        await remove_named_finding(db, case, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await db.commit()
+    return await case_to_read(db, case)
+
+
+@router.post("/{case_id}/findings/{name}/verify", response_model=DiscoveryCaseRead)
+async def verify_case_finding(
+    case_id: uuid.UUID,
+    name: str,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryCaseRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    try:
+        await verify_named_finding(db, case, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await db.commit()
+    return await case_to_read(db, case)

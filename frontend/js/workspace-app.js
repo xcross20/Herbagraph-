@@ -885,8 +885,10 @@ function reportRowsHtml(dash, clinician) {
 }
 
 function renderLaunchCards() {
+  const pid = sessionStorage.getItem("hg_active_patient_id");
+  const ask = pid ? `/ask.html?patient=${pid}` : "/ask.html";
   return `<div class="launch-grid">
-    <a class="launch-card" href="/ask.html">
+    <a class="launch-card" href="${ask}">
       <h2>Talk to Discovery Guide</h2>
       <p>Tell the investigation guide what's been going on. This opens Ask — it does not replace this workspace.</p>
     </a>
@@ -894,7 +896,7 @@ function renderLaunchCards() {
       <h2>Analyze my labs</h2>
       <p>Existing workflow. Upload, parse, pathways, and reports stay here.</p>
     </a>
-    <a class="launch-card" href="/ask.html">
+    <a class="launch-card" href="${ask}">
       <h2>My investigations</h2>
       <p>Continue a Discovery case. Results still return to this portal.</p>
     </a>

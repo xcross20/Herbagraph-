@@ -36,6 +36,20 @@ async def test_emergency_facts_survive_rebuild_and_followup(authed_client):
     assert any(name.startswith("patient_interpretation") or name == "abdominal_pain" for name in later)
 
 
+async def test_user_can_remove_a_memory_item(authed_client):
+    opened = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months, my feet have burned at night."},
+    )
+    case_id = opened.json()["id"]
+    names = {item["name"] for item in opened.json()["findings"]}
+    target = "burning sensation" if "burning sensation" in names else next(iter(names))
+    removed = await authed_client.delete(f"/api/v1/cases/{case_id}/findings/{target}")
+    assert removed.status_code == 200, removed.text
+    later = {item["name"] for item in removed.json()["findings"]}
+    assert target not in later
+
+
 async def test_case_stream_accepts_then_finishes(authed_client):
     resp = await authed_client.post(
         "/api/v1/cases/stream",

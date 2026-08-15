@@ -42,6 +42,11 @@ def prior_facts_from_snapshot(payload: dict) -> dict[str, str]:
         name = str(lab.get("name") or "")
         if name:
             facts[f"prior lab {name}"] = str(lab.get("value") or "recorded")
+    concerns = payload.get("current_concerns") or []
+    if concerns:
+        facts["prior_concern"] = str(concerns[0])[:200]
+    for line in (payload.get("other_diagnostics") or [])[:4]:
+        facts[f"prior_workup:{str(line)[:40]}"] = str(line)[:200]
     return facts
 
 

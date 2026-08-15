@@ -94,9 +94,11 @@
         <div class="ask-chips">
           ${EXAMPLES.map((ex, i) => `<button type="button" class="ask-chip" data-ex="${i}">${esc(i === 1 ? "I already have labs" : ex.slice(0, 42) + (ex.length > 42 ? "…" : ""))}</button>`).join("")}
         </div>
+        <div id="ask-continue"></div>
         <p class="ask-note">Not a diagnosis. The Case is the source of truth — this page is only a conversation surface.</p>
       </section>`;
     bindComposer();
+    fillContinueCard();
     document.querySelectorAll("[data-ex]").forEach((btn) => {
       btn.onclick = async () => {
         const ex = EXAMPLES[Number(btn.getAttribute("data-ex"))];
@@ -107,6 +109,34 @@
     });
     const sel = document.getElementById("ask-patient");
     if (sel) sel.onchange = () => { patientId = sel.value || null; };
+  }
+
+  async function fillContinueCard() {
+    const mount = document.getElementById("ask-continue");
+    if (!mount) return;
+    try {
+      const qs = patientId ? `?patient_id=${patientId}` : "";
+      const cases = await api("/api/v1/cases" + qs);
+      const latest = cases && cases[0];
+      if (!latest) return;
+      const summary = latest.problem_representation || latest.presenting_concern || "your last investigation";
+      mount.innerHTML = `<div class="ask-continue">
+        <p><strong>Continue from last time</strong></p>
+        <p class="ask-note">${esc(String(summary).slice(0, 180))}</p>
+        <button type="button" class="ask-chip" id="ask-resume">Pick up where we left off</button>
+      </div>`;
+      const btn = document.getElementById("ask-resume");
+      if (btn) {
+        btn.onclick = () => {
+          currentCase = latest;
+          const next = new URL(location.href);
+          next.searchParams.set("case", latest.id);
+          if (latest.patient_id) next.searchParams.set("patient", latest.patient_id);
+          history.replaceState({}, "", next);
+          renderThread();
+        };
+      }
+    } catch (_) { /* no prior case */ }
   }
 
   function renderAskSafety(body) {
@@ -123,6 +153,32 @@
     }[state];
     if (!label) return "";
     return `<h2>Safety</h2><p class="ask-note" data-safety-state="${esc(state)}">${esc(state)} — ${esc(label)}</p>${watch && canContinue ? `<p class="ask-note">Watch for: ${watch}.</p>` : ""}`;
+  }
+
+  function bindVoice() {
+    const btn = document.getElementById("ask-voice");
+    const input = document.getElementById("ask-input");
+    const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!btn) return;
+    if (!Speech) {
+      btn.hidden = true;
+      return;
+    }
+    btn.onclick = () => {
+      const rec = new Speech();
+      rec.lang = "en-US";
+      rec.interimResults = false;
+      btn.textContent = "Listening…";
+      rec.onresult = (event) => {
+        const said = event.results[0] && event.results[0][0] && event.results[0][0].transcript;
+        btn.textContent = "Talk";
+        if (said && input) input.value = said;
+        if (said) startOrContinue(said);
+      };
+      rec.onerror = () => { btn.textContent = "Talk"; };
+      rec.onend = () => { btn.textContent = "Talk"; };
+      rec.start();
+    };
   }
 
   function bindComposer() {
@@ -181,9 +237,21 @@
       turnsHtml += `<div class="ask-msg system error">${esc(error)}</div>`;
     }
     const turns = turnsHtml;
-    const memory = (body.memory_items || []).slice(0, 8).map((i) => `<li>${esc(i.name)}: ${esc(i.value || "")}</li>`).join("") || "<li>No facts yet</li>";
-    const gaps = (body.confidence_increasers || []).slice(0, 5).map((i) => `<li>${esc(i.label)}</li>`).join("") || "<li>No ranked gaps yet</li>";
-    const hypos = (body.hypotheses || []).slice(0, 5).map((h) => `<li>${esc(h.label)}</li>`).join("") || "<li>No open families</li>";
+    const lastVisit = body.last_visit && body.last_visit.has_history
+      ? `<div class="ask-last-visit"><strong>Last time</strong> ${esc(body.last_visit.summary || "")}</div>`
+      : "";
+    const memory = (body.memory_items || []).slice(0, 10).map((i) =>
+      `<li>${esc(i.name)}: ${esc(i.value || "")} ${i.provenance === "reported" ? '<span class="ask-pmid">reported</span>' : ""} <button type="button" class="ask-mini" data-forget="${esc(i.name)}">Remove</button></li>`
+    ).join("") || "<li>No facts yet</li>";
+    const workup = (body.prior_workup || []).map((i) =>
+      `<li>${esc(i.name)}: ${esc(i.value || "")} <span class="ask-pmid">${esc(i.verification || "patient_reported")}</span>${String(i.value || "").includes("patient_reported") || i.verification === "patient_reported" ? ' <button type="button" class="ask-mini" data-verify="${esc(i.name)}">Mark verified</button>' : ""}</li>`
+    ).join("") || "<li>No prior reports yet</li>";
+    const gaps = (body.confidence_increasers || []).slice(0, 6).map((i) =>
+      `<li><strong>${esc(i.label)}</strong> <span class="muted">${esc(i.reason || "This would change the picture.")}</span></li>`
+    ).join("") || "<li>No ranked gaps yet</li>";
+    const hypos = (body.hypotheses || []).slice(0, 6).map((h) =>
+      `<li><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span><br><button type="button" class="ask-mini" data-why="${esc(h.code)}">Why is this here?</button><div class="ask-why" id="why-${esc(h.code)}" hidden>${esc((h.why_limited && h.why_limited[0]) || h.not_a_diagnosis || "Open because related findings are present. Coverage is completeness, not probability.")}${h.missing_markers && h.missing_markers.length ? `<br>Still unknown: ${esc(h.missing_markers.slice(0, 4).join(", "))}` : ""}</div></li>`
+    ).join("") || "<li>No open families</li>";
     const cites = (body.literature || []).map((c) =>
       `<li><a href="${esc(c.url || ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/"))}" target="_blank" rel="noopener">${esc(c.title || ("PMID " + c.pmid))}</a> <span class="ask-pmid">PMID ${esc(c.pmid)}</span></li>`
     ).join("") || "<li>No PubMed citations on this Case yet</li>";
@@ -191,10 +259,11 @@
     document.getElementById("ask-main").innerHTML = `
       <div class="ask-thread">
         <div>
-          <div class="ask-thread-main" id="ask-thread-main">${turns}</div>
+          <div class="ask-thread-main" id="ask-thread-main">${lastVisit}${turns}</div>
           <div class="ask-dock">
             <form class="ask-composer" id="ask-form">
               <textarea id="ask-input" rows="2" required placeholder="${paused ? "Discovery is paused for in-person evaluation." : "Ask a follow-up, or add a note…"}" ${sending || paused ? "disabled" : ""}></textarea>
+              <button type="button" class="ask-voice" id="ask-voice" ${paused || sending ? "disabled" : ""}>Talk</button>
               <button type="submit" ${sending || paused ? "disabled" : ""}>${paused ? "Paused" : sending ? "Sending…" : "Ask"}</button>
             </form>
             <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged.</p>
@@ -208,6 +277,8 @@
             <li><a href="${home.replace("#dashboard", "#evidence")}">Evidence</a></li>
           </ul>
           <h2>What we know</h2><ul>${memory}</ul>
+          <h2>Prior reports</h2><ul>${workup}</ul>
+          <p class="ask-note">Reported is not the same as verified. Upload the report to confirm.</p>
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
           ${renderAskSafety(body)}
@@ -228,6 +299,35 @@
         </aside>
       </div>`;
     bindComposer();
+    bindVoice();
+    document.querySelectorAll("[data-why]").forEach((btn) => {
+      btn.onclick = () => {
+        const el = document.getElementById("why-" + btn.getAttribute("data-why"));
+        if (el) el.hidden = !el.hidden;
+      };
+    });
+    document.querySelectorAll("[data-forget]").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!currentCase || !currentCase.id) return;
+        try {
+          currentCase = await api(`/api/v1/cases/${currentCase.id}/findings/${encodeURIComponent(btn.getAttribute("data-forget"))}`, "DELETE");
+          renderThread();
+        } catch (err) {
+          btn.textContent = err.message || "Could not remove";
+        }
+      };
+    });
+    document.querySelectorAll("[data-verify]").forEach((btn) => {
+      btn.onclick = async () => {
+        if (!currentCase || !currentCase.id) return;
+        try {
+          currentCase = await api(`/api/v1/cases/${currentCase.id}/findings/${encodeURIComponent(btn.getAttribute("data-verify"))}/verify`, "POST", {});
+          renderThread();
+        } catch (err) {
+          btn.textContent = err.message || "Could not verify";
+        }
+      };
+    });
     document.querySelectorAll("[data-select-value], [data-answer]").forEach((btn) => {
       btn.onclick = () => startOrContinue(btn.getAttribute("data-select-value") || btn.textContent.trim());
     });

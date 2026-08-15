@@ -90,4 +90,9 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "/turns/stream" in js
     assert "hg_active_patient_id" in js
     assert "Discovery is paused" in js
+    assert "Last time" in js
+    assert "Why is this here" in js
+    assert "/findings/" in js
+    assert "SpeechRecognition" in js
+    assert "ask.html?patient=" in (ROOT / "js" / "workspace-app.js").read_text(encoding="utf-8")
     assert 'e.key === "Enter"' in js

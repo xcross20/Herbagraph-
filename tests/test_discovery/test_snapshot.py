@@ -20,6 +20,22 @@ def test_snapshot_payload_is_structured_not_a_diagnosis():
     assert "neuropathy" not in blob
 
 
+def test_last_visit_opener_from_snapshot():
+    from app.discovery.context import last_visit_from_snapshot, last_visit_opener
+
+    visit = last_visit_from_snapshot(
+        {
+            "current_concerns": ["recurrent right-upper abdominal pain"],
+            "other_diagnostics": ["emg testing: reported_normal"],
+            "lab_trends": [{"name": "Vitamin B12", "value": "210"}],
+        }
+    )
+    assert visit["has_history"] is True
+    text = last_visit_opener(visit)
+    assert "Last time we were looking at" in text
+    assert "has anything changed" in text.lower()
+
+
 def test_prior_facts_include_meds_and_labs():
     facts = prior_facts_from_snapshot(
         {

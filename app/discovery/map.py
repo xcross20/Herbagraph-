@@ -73,6 +73,11 @@ def build_map_payload(
 ) -> dict:
     branches = []
     for hypo in snapshot.hypotheses:
+        support = [
+            f"{item.name}: {item.value}"
+            for item in snapshot.findings
+            if item.kind in {"symptom", "assessment"} and item.name not in {"safety_state"}
+        ][:4]
         branches.append(
             {
                 "code": hypo.code,
@@ -82,6 +87,10 @@ def build_map_payload(
                 "certainty": hypo.diagnostic_certainty,
                 "missing_markers": list(hypo.missing_markers or []),
                 "not_a_diagnosis": hypo.not_a_diagnosis,
+                "support": support,
+                "against": [],
+                "unknown": list(hypo.missing_markers or [])[:4],
+                "why_here": (hypo.why_limited[0] if getattr(hypo, "why_limited", None) else hypo.not_a_diagnosis),
             }
         )
     increasers = confidence_increasers(
