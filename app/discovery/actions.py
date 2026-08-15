@@ -119,6 +119,7 @@ def generate_actions(
     safety_status: str,
     hypotheses: list,
     turn_count: int,
+    wants_evidence: bool = False,
 ) -> list[NextAction]:
     actions: list[NextAction] = []
     if safety_status == "urgent":
@@ -129,6 +130,18 @@ def generate_actions(
                 score=1.0,
             )
         ]
+    if wants_evidence and safety_status != "urgent":
+        actions.append(
+            NextAction(
+                type="retrieve_evidence",
+                objective="Attach retrieved PubMed citations to the Case. Do not invent PMIDs.",
+                prompt=(
+                    "I can attach retrieved literature to this Case. Citations only come from PubMed. "
+                    "This is not a diagnosis."
+                ),
+                score=0.91,
+            )
+        )
     if contradictions:
         topic = contradictions[0]
         actions.append(

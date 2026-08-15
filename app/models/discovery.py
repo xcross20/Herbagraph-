@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,6 +36,7 @@ class DiscoveryCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     snapshot: Mapped[str | None] = mapped_column(Text, nullable=True)
     stage: Mapped[str] = mapped_column(String(40), nullable=False, default="opening")
     problem_representation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    literature_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     findings: Mapped[list["DiscoveryFinding"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"
@@ -156,3 +157,15 @@ class DiscoveryTestPlanItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="added")
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="discovery")
+
+
+class DiscoveryLongitudinalSnapshot(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Patient-level memory generated from existing labs and cases."""
+
+    __tablename__ = "discovery_longitudinal_snapshots"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("users.id"), nullable=False, index=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("patients.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    payload: Mapped[str] = mapped_column(Text, nullable=False)

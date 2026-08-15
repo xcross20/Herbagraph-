@@ -216,6 +216,110 @@ Conversation is turn-based: the system asks **one** current question, waits, the
 
 **Consequences:** DiscoveryTurn stores action, stage, and payload. Opening no longer lists hypothesis families in prose.
 
+## SPEC: Phases 1–6 + LLM (additive)
+
+**Problem:** A returning user cannot carry prior labs and case facts into Discovery, cannot ask why with real citations, and cannot attach an EMG/radiology *report* without pretending the lab parser is a new product — costing a disconnected investigation.
+
+**Acceptance claims:**
+
+1. Deterministic orchestrator still chooses the action when an LLM is present or absent.
+2. LLM verbalization is discarded if it contains “you have” + a diagnosis, or if no API key is configured (fallback copy is used).
+3. LLM-proposed findings are kept only when the name is on the intake allow-list.
+4. `GET /patients/{id}/longitudinal-snapshot` returns a versioned snapshot built from existing labs + cases (not authored prose).
+5. Asking “why” / “show evidence” attaches PubMed citations whose PMIDs came from NCBI, never invented strings.
+6. `POST /cases/{id}/documents` classifies lab vs EMG vs radiology vs note; labs are not re-parsed here — they stay on the existing upload path.
+
+**Non-goals:** Voice, Gold Label, Quest checkout, Next.js, pixel imaging diagnosis.
+
+**Door class:** one-way for snapshot + literature JSON. Two-way for LLM prompt text.
+
 ## LLM rule
 
 The LLM may explain the decomposition. It may not invent the numbers. Scores are deterministic from labs, profile, cited studies, and catalog tables. The conversation layer never decides clinical logic.
+
+## DESIGN: Phases 1–6 + LLM (additive)
+
+**Data model:** `discovery_cases.literature_json`; `discovery_longitudinal_snapshots(patient_id, version, is_current, payload)`. Snapshot payload is structured lists (concerns, symptoms, lab trends, medications, other diagnostics) — never authored prose.
+
+**Seams:**
+
+| Seam | Grade |
+|---|---|
+| Orchestrator / LLM | pass — LLM proposes facts and wording; allow-list + critic discard the rest |
+| Documents / lab parser | fail-on-purpose for labs — 409, existing upload path only |
+| Literature / PubMed | pass — NCBI E-utilities only; non-digit PMIDs dropped |
+| Snapshot / new Case | pass — prior facts hydrate opening and later turns |
+| Ask UI / workspace | pass — secondary portal; labs/reports stay primary |
+
+**Decisions:**
+
+| Decision | Door | Choice | Why |
+|---|---|---|---|
+| LLM writes findings | one-way | allow-listed names only | silent diagnoses must be unwritable |
+| PMIDs | one-way | digits from NCBI | never invent literature |
+| Lab documents in Discovery | one-way | refuse | do not fork the lab parser |
+| Snapshot source | one-way | labs + cases | memory is derived, not authored |
+| Next.js / voice / Gold Label | two-way | out | not required to ship 1–6 |
+
+### ADR-4: LLM extracts and verbalizes; it does not steer — 2026-08-15 — accepted
+
+**Context:** Master-tech wants language models in Discovery. CDS constraint: the model must not own clinical direction, scores, or diagnoses.
+
+**Decision:** `app/discovery/ai.py` may propose allow-listed fact names and rewrite the predetermined action. `orchestrator.py` still selects the action. A critic discards “you have” + diagnosis copy. Missing or test API keys use the deterministic path.
+
+**Alternatives:** LLM chat with tools — lost; the model would pick the next action. No LLM — lost; wording stays rigid and intake misses paraphrases.
+
+**Consequences:** Turns stay correct with the LLM down. Production keys enable extract + verbalize. Test keys starting with `test-` stay deterministic.
+
+**Revisit if:** allow-list growth needs a catalog, or verbalization must be streamed.
+
+## RISK MAP: Phases 1–6 + LLM
+
+1. Invented PMIDs in the Ask rail — P:M Cost:H Invisibility:H → retrieve only via `search_pubmed`; keep digit-only ids. Test: mock returns a non-digit id and it is dropped.
+2. LLM writes a diagnosis into speech or findings — P:M Cost:H Invisibility:H → allow-list + critic + existing “you have” contract tests.
+3. Document intake re-parses labs and forks the lab engine — P:M Cost:H Invisibility:M → classify + HTTP 409. Test: LabCorp text is refused.
+4. Snapshot is authored prose the next case treats as truth — P:M Cost:H Invisibility:H → payload is lists from labs/cases only. Test: GET snapshot has structured keys, no diagnosis sentence.
+5. Test `OPENAI_API_KEY=test-…` makes every turn call a live model — P:H Cost:M Invisibility:L → discovery LLM skipped for `test-` keys.
+6. PubMed latency on every turn — P:M Cost:M Invisibility:L → retrieve only when the action is `retrieve_evidence`.
+
+**Clean zones:** lab engine, four-score decomposition, existing upload path.
+
+**Spike required:** none — PubMed client and `llm_client` already exist.
+
+## TEST REPORT: Phases 1–6 + LLM
+
+**Claims → tests:**
+1. Deterministic action with/without LLM → `test_orchestrator_ignores_off_list_llm_facts`, `test_orchestrator_discards_diagnosis_verbalization`, existing orchestrator fixture tests
+2. Verbalization discarded on diagnosis / missing key → `test_critic_blocks_diagnosis_copy`, `test_verbalization_falls_back_when_critic_fails`, `test_missing_key_does_not_enable_discovery_llm`
+3. Allow-listed facts only → `test_llm_facts_keep_allow_list_only`, `test_allow_list_does_not_include_diseases`
+4. Versioned snapshot from labs + cases → `test_snapshot_payload_is_structured_not_a_diagnosis`, `test_longitudinal_snapshot_is_versioned_from_case`
+5. Why/evidence attaches digit-only PMIDs → `test_retrieve_citations_keeps_digit_pmids_only`, `test_why_turn_attaches_digit_only_pubmed`
+6. Documents classify; labs 409 → `test_classifies_lab_files_away_from_discovery`, `test_lab_document_is_rejected_with_409`, `test_emg_document_attaches_report_finding`
+
+**Risk map coverage:** invented PMIDs; LLM diagnosis; lab reparse; snapshot prose; test-key LLM; urgent vs evidence.
+
+**Red-first log:** three tests failed first (test-key settings cache, “can't I lift” not matching safety, unauth client shared headers). Re-seen green after fixture/test fixes. Remaining tests written against the spec and passed on this run.
+
+**NOT covered (declared):** live NCBI or live MiniMax; binary PDF OCR; voice; Gold Label; user-edit of memory.
+
+## REVIEW: Phases 1–6 + LLM
+
+**Blocking:** none found against the six acceptance claims.
+
+**Should-fix:** snapshot writes a new version on every turn (table growth). GET snapshot mutates when missing. Ask attach is paste-text only.
+
+**Noted:** allow-list is narrow; `ct ` classifier is space-sensitive; two sync LLM calls can block the event loop in production.
+
+**Hostile trace log:** LabCorp + reference-range text → 409. Fake `PMID:not-real` dropped. “You have small-fiber neuropathy” discarded. Urgent “can't lift” + this morning still beats “why”.
+
+**Verdict:** pass to SRE.
+
+## OPS PLAN: Phases 1–6 + LLM
+
+**Signals:** `/health`; 409 rate on `POST /cases/{id}/documents`; empty `literature` after retrieve_evidence; snapshot version incrementing on `GET /patients/{id}/longitudinal-snapshot`; Discovery turn 5xx.
+
+**Rollback:** revert the git deploy; migration `s9t0u1v2w3x4` is expand-only (`literature_json` nullable + new snapshot table). Rollback strands snapshot rows and literature JSON until downgrade. Lab upload path is untouched.
+
+**Launch:** push `main`; Railway web `Herbagraph-` + Worker Service; confirm `alembic upgrade head` in start script; no reseed required.
+
+**Tripwires:** document 409s with EMG filenames (classifier too eager on labs) → inspect `classify_document`; literature rows with non-digit pmid → fail the retrieve filter; “you have” in system turns → critic regression, revert verbalization.

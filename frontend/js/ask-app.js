@@ -22,7 +22,15 @@
       headers.Authorization = `Bearer ${window.hgToken}`;
       resp = await fetch(API + path, { method: method || "GET", headers, body: body ? JSON.stringify(body) : undefined });
     }
-    if (!resp.ok) throw new Error((await resp.text()) || resp.statusText);
+    if (!resp.ok) {
+      const raw = await resp.text();
+      let detail = raw || resp.statusText;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.detail) detail = typeof parsed.detail === "string" ? parsed.detail : raw;
+      } catch (_) { /* keep raw body */ }
+      throw new Error(detail);
+    }
     return resp.status === 204 ? null : resp.json();
   }
 
@@ -80,6 +88,9 @@
     const memory = (body.memory_items || []).slice(0, 8).map((i) => `<li>${esc(i.name)}: ${esc(i.value || "")}</li>`).join("") || "<li>No facts yet</li>";
     const gaps = (body.confidence_increasers || []).slice(0, 5).map((i) => `<li>${esc(i.label)}</li>`).join("") || "<li>No ranked gaps yet</li>";
     const hypos = (body.hypotheses || []).slice(0, 5).map((h) => `<li>${esc(h.label)}</li>`).join("") || "<li>No open families</li>";
+    const cites = (body.literature || []).map((c) =>
+      `<li><a href="${esc(c.url || ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/"))}" target="_blank" rel="noopener">${esc(c.title || ("PMID " + c.pmid))}</a> <span class="ask-pmid">PMID ${esc(c.pmid)}</span></li>`
+    ).join("") || "<li>No PubMed citations on this Case yet</li>";
     const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: "#dashboard" })) || "/me.html#dashboard";
     document.getElementById("ask-main").innerHTML = `
       <div class="ask-thread">
@@ -103,6 +114,17 @@
           <h2>What we know</h2><ul>${memory}</ul>
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
+          <h2>Literature</h2>
+          <ul>${cites}</ul>
+          <p class="ask-note">Citations come from PubMed. They are not a diagnosis.</p>
+          <button type="button" class="ask-chip" data-select-value="why? show evidence">Why / show evidence</button>
+          <h2>Attach a report</h2>
+          <form class="ask-attach" id="ask-attach">
+            <input id="ask-attach-name" type="text" placeholder="emg-report.txt" maxlength="240">
+            <textarea id="ask-attach-text" rows="3" required placeholder="Paste EMG, radiology, or clinical note text. Lab files still go through workspace Upload."></textarea>
+            <button type="submit">Attach report</button>
+          </form>
+          <p class="ask-note" id="ask-attach-status">Labs are refused here on purpose — use Upload / Analyze.</p>
           <button type="button" class="ask-chip" id="ask-add-labs">Add recommended labs</button>
           <p class="ask-note" id="ask-add-status">They appear in the existing workspace testing plan — then use Upload / Analyze as usual.</p>
           <p class="ask-note">Coverage is completeness, not disease probability. Map v${body.map_version || 1}.</p>
@@ -115,6 +137,24 @@
     document.querySelectorAll("[data-select-value], [data-answer]").forEach((btn) => {
       btn.onclick = () => startOrContinue(btn.getAttribute("data-select-value") || btn.textContent.trim());
     });
+    const attach = document.getElementById("ask-attach");
+    if (attach && currentCase && currentCase.id) {
+      attach.onsubmit = async (e) => {
+        e.preventDefault();
+        const filename = (document.getElementById("ask-attach-name").value || "").trim() || "report.txt";
+        const text = (document.getElementById("ask-attach-text").value || "").trim();
+        const status = document.getElementById("ask-attach-status");
+        if (!text) return;
+        try {
+          const result = await api(`/api/v1/cases/${currentCase.id}/documents`, "POST", { filename, text });
+          if (result && result.case) currentCase = result.case;
+          else currentCase = await api(`/api/v1/cases/${currentCase.id}`);
+          renderThread();
+        } catch (err) {
+          if (status) status.textContent = err.message || "Could not attach report";
+        }
+      };
+    }
     const addLabs = document.getElementById("ask-add-labs");
     if (addLabs && currentCase && currentCase.id) {
       addLabs.onclick = async () => {

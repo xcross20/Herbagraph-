@@ -14,7 +14,9 @@ from app.discovery.intake import (
     facts_to_findings,
     problem_representation,
 )
+from app.discovery.ai import merge_llm_facts, pick_verbalization
 from app.discovery.intent import classify_intent
+from app.discovery.literature import wants_evidence
 from app.discovery.safety import screen_safety
 
 
@@ -41,6 +43,8 @@ class TurnResult:
     message: str
     interaction: dict | None
     what_changed: list[str] = field(default_factory=list)
+    citations: list[dict] = field(default_factory=list)
+    llm_used: bool = False
     critic: str = "Investigation relevance is not a diagnosis."
 
     def as_dict(self) -> dict:
@@ -60,6 +64,8 @@ def _stage(safety_status: str, facts: dict[str, str], action: NextAction, turn_c
     if action.type == "clarify":
         return "adaptive_questioning"
     if action.type == "request_record":
+        return "evidence_collection"
+    if action.type == "retrieve_evidence":
         return "evidence_collection"
     if action.type == "show_investigation_map":
         return "investigation_map"
@@ -140,10 +146,14 @@ def orchestrate(
     concern: str | None = None,
     audience: str = "consumer",
     turn_count: int = 0,
+    llm_fact_rows: list | None = None,
+    llm_message: str | None = None,
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
     safety = screen_safety(text)
     incoming = extract_facts(text, current_question_closes=current_closes)
+    if llm_fact_rows:
+        incoming = merge_llm_facts(incoming, llm_fact_rows)
     if "uncertainty" in intents and current_closes:
         incoming = [
             *incoming,
@@ -166,6 +176,7 @@ def orchestrate(
         safety_status=safety.status,
         hypotheses=snapshot.hypotheses,
         turn_count=turn_count,
+        wants_evidence=wants_evidence(text),
     )
     action = select_action(candidates)
     message = safety.message if safety.status == "urgent" else _compose(
@@ -175,6 +186,8 @@ def orchestrate(
         prior_facts=prior_facts,
         contradictions=contradictions,
     )
+    if safety.status != "urgent":
+        message = pick_verbalization(message, llm_message)
     if _critic(message) == "blocked":
         message = "I updated the Case. I will not write a diagnosis. " + (action.prompt or "")
 
@@ -195,6 +208,7 @@ def orchestrate(
         message=message.strip(),
         interaction=action.interaction,
         what_changed=changed,
+        llm_used=bool(llm_fact_rows or llm_message),
     )
 
 

@@ -87,6 +87,17 @@ def _percent(score: float) -> int:
     return int(round(max(0.0, min(1.0, score)) * 100))
 
 
+def _literature_from_case(case: DiscoveryCase) -> list[dict]:
+    raw = getattr(case, "literature_json", None)
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    return data if isinstance(data, list) else []
+
+
 def _provenance(item: FindingDraft) -> str:
     value = (item.value or "").lower()
     if "unverified" in value or value in {"mentioned", "reported_normal", "reported_abnormal"}:
@@ -127,7 +138,7 @@ def _timeline_from_findings(findings: list[FindingDraft]) -> list[dict]:
 def _prior_workup_from_findings(findings: list[FindingDraft]) -> list[dict]:
     rows = []
     for item in findings:
-        if item.name in {"claimed normal labs", "emg testing", "prior_workup"}:
+        if item.name in {"claimed normal labs", "emg testing", "prior_workup", "radiology report", "clinical note"}:
             rows.append(
                 {
                     "name": item.name,
@@ -360,6 +371,7 @@ def snapshot_to_read(
         timeline=_timeline_from_findings(snapshot.findings),
         prior_workup=_prior_workup_from_findings(snapshot.findings),
         memory_items=_memory_items_from_findings(snapshot.findings),
+        literature=_literature_from_case(case),
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -803,6 +815,17 @@ async def apply_user_turn(
     prior = facts_from_findings(findings)
     payload = _last_system_payload(list(turns))
     current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
+    from app.discovery.ai import llm_extract_facts, llm_verbalize, pick_verbalization
+    from app.discovery.literature import retrieve_citations
+    from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
+
+    if case.patient_id:
+        snap = await current_snapshot(db, case.patient_id)
+        if snap is not None:
+            try:
+                prior = {**prior_facts_from_snapshot(json.loads(snap.payload)), **prior}
+            except json.JSONDecodeError:
+                pass
     result = orchestrate(
         text,
         prior_facts=prior,
@@ -812,7 +835,26 @@ async def apply_user_turn(
         concern=case.presenting_concern,
         audience=audience,
         turn_count=len(turns),
+        llm_fact_rows=llm_extract_facts(text) or None,
     )
+    spoken = llm_verbalize(
+        action_type=result.action.type,
+        prompt=result.action.prompt,
+        problem=result.problem_representation,
+        audience=audience,
+    )
+    result.message = pick_verbalization(result.message, spoken)
+    if result.action.type == "retrieve_evidence":
+        query = (case.presenting_concern or text)[:180]
+        cites = await retrieve_citations(query)
+        case.literature_json = json.dumps(cites)
+        result.citations = cites
+        if cites:
+            titles = "; ".join(item["title"][:90] for item in cites[:2])
+            result.message = pick_verbalization(
+                result.message,
+                f"{result.message} Retrieved from PubMed: {titles}. These are citations, not a diagnosis.",
+            )
     await add_turn(
         db,
         case,
@@ -852,6 +894,13 @@ async def apply_user_turn(
     case.stage = result.stage
     case.problem_representation = result.problem_representation
     await db.flush()
+    if case.patient_id:
+        from app.discovery.snapshot import generate_patient_snapshot
+
+        try:
+            await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
+        except ValueError:
+            pass
     return snapshot
 
 
@@ -862,11 +911,21 @@ async def apply_opening_turn(
     *,
     audience: str = "consumer",
 ) -> CaseSnapshot:
+    from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
+
     snapshot = await rebuild_case(db, case)
     await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
+    prior: dict[str, str] = {}
+    if case.patient_id:
+        snap = await current_snapshot(db, case.patient_id)
+        if snap is not None:
+            try:
+                prior = prior_facts_from_snapshot(json.loads(snap.payload))
+            except json.JSONDecodeError:
+                prior = {}
     result = orchestrate(
         text,
-        prior_facts={},
+        prior_facts=prior,
         asked=[],
         answered=set(),
         concern=text,
@@ -902,6 +961,13 @@ async def apply_opening_turn(
     case.stage = result.stage
     case.problem_representation = result.problem_representation
     await db.flush()
+    if case.patient_id:
+        from app.discovery.snapshot import generate_patient_snapshot
+
+        try:
+            await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
+        except ValueError:
+            pass
     return snapshot
 
 
@@ -984,6 +1050,52 @@ async def add_case_tests_to_plan(
         existing.add(label.lower())
     await db.flush()
     return created
+
+
+async def ingest_case_document(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    *,
+    filename: str,
+    text: str,
+) -> dict:
+    from app.discovery.records import classify_document, extract_record_findings
+
+    kind = classify_document(filename, text)
+    if kind == "lab":
+        return {
+            "kind": "lab",
+            "accepted": False,
+            "detail": "Use the existing lab upload in the workspace. Discovery does not replace the lab parser.",
+        }
+    for item in extract_record_findings(kind, text):
+        finding_kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "context"
+        db.add(
+            DiscoveryFinding(
+                case_id=case.id,
+                kind=DiscoveryFindingKind(finding_kind),
+                name=item.name,
+                value=item.value,
+                source="document",
+            )
+        )
+    await db.flush()
+    await rebuild_case(db, case)
+    await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.SYSTEM,
+        text=f"Attached {filename} as a {kind} report finding. This is not a diagnosis.",
+        kind="document",
+    )
+    if case.patient_id:
+        from app.discovery.snapshot import generate_patient_snapshot
+
+        try:
+            await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
+        except ValueError:
+            pass
+    return {"kind": kind, "accepted": True, "detail": "Attached to the Case as a report finding, not a diagnosis."}
 
 
 async def list_test_plan(

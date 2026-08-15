@@ -19,6 +19,7 @@ from app.discovery.service import (
     case_to_read,
     create_case,
     get_owned_case,
+    ingest_case_document,
     labs_from_ingest,
     labs_from_results,
     latest_lab_report,
@@ -37,6 +38,8 @@ from app.schemas.discovery import (
     DiscoveryCaseCreate,
     DiscoveryCaseRead,
     DiscoveryCaseRebuild,
+    DiscoveryDocumentCreate,
+    DiscoveryDocumentRead,
     DiscoveryTestPlanCreate,
     DiscoveryTestPlanItemRead,
     DiscoveryTurnCreate,
@@ -286,3 +289,25 @@ async def add_recommended_tests(
         )
         for row in rows
     ]
+
+
+@router.post("/{case_id}/documents", response_model=DiscoveryDocumentRead)
+async def attach_case_document(
+    case_id: uuid.UUID,
+    payload: DiscoveryDocumentCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryDocumentRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    result = await ingest_case_document(db, case, filename=payload.filename, text=payload.text)
+    if not result["accepted"]:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result["detail"])
+    await db.commit()
+    return DiscoveryDocumentRead(
+        kind=result["kind"],
+        accepted=True,
+        detail=result["detail"],
+        case=await case_to_read(db, case),
+    )

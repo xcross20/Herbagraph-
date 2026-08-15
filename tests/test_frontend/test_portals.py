@@ -62,6 +62,9 @@ def test_workspace_app_enforces_portal_path():
     assert "My investigations" in js
     assert "Recommended by Discovery" in js
     assert "/api/v1/cases/plan" in js
+    assert "Longitudinal memory" in js
+    assert "/api/v1/patients/" in js
+    assert "longitudinal-snapshot" in js
 
 
 def test_ask_portal_is_secondary_not_a_workspace_replacement():
@@ -74,3 +77,7 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "/api/v1/cases" in js
     assert "ask-rail" in js
     assert "Back to workspace" in js
+    assert "Literature" in js
+    assert "/documents" in js
+    assert "why? show evidence" in js
+    assert "pubmed.ncbi.nlm.nih.gov" in js

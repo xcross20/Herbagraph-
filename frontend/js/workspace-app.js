@@ -986,6 +986,46 @@ async function renderDashboard() {
   fillTestPlanMount(null);
 }
 
+async function fillSnapshotMount(patientId) {
+  const mount = document.getElementById("snapshot-mount");
+  if (!mount || !patientId) return;
+  try {
+    const snap = await api(`/api/v1/patients/${patientId}/longitudinal-snapshot`);
+    const payload = snap.payload || {};
+    const list = (items, empty) =>
+      (items || []).length
+        ? `<ul class="test-plan-list">${items.slice(0, 8).map((item) =>
+            `<li>${esc(typeof item === "string" ? item : (item.name ? `${item.name}: ${item.value || item.status || ""}` : JSON.stringify(item)))}</li>`
+          ).join("")}</ul>`
+        : `<p class="muted">${empty}</p>`;
+    mount.innerHTML = `
+      <p class="muted">Snapshot v${esc(snap.version)} · derived from labs and cases</p>
+      <p><strong>Concerns</strong></p>
+      ${list(payload.current_concerns, "No recorded concerns yet.")}
+      <p><strong>Lab trends</strong></p>
+      ${list(payload.lab_trends, "No labs in memory yet.")}
+      <p><strong>Medications</strong></p>
+      ${list(payload.medications, "No medications recorded.")}
+      <p><strong>Other diagnostics</strong></p>
+      ${list(payload.other_diagnostics, "No EMG or imaging reports attached.")}
+      <button type="button" class="app-btn" id="refresh-snapshot">Refresh memory</button>`;
+    const btn = document.getElementById("refresh-snapshot");
+    if (btn) {
+      btn.onclick = async () => {
+        btn.disabled = true;
+        try {
+          await api(`/api/v1/patients/${patientId}/longitudinal-snapshot`, "POST", {});
+          await fillSnapshotMount(patientId);
+        } catch (_) {
+          btn.disabled = false;
+        }
+      };
+    }
+  } catch (_) {
+    mount.innerHTML = `<p class="muted">Longitudinal memory unavailable.</p>`;
+  }
+}
+
 async function fillTestPlanMount(patientId) {
   const mount = document.getElementById("test-plan-mount");
   if (!mount) return;
@@ -1255,6 +1295,11 @@ async function renderPatient(patientId, section = "overview") {
           <p class="muted">These stay in this portal. Analyze them with the existing lab engine.</p>
           <div id="test-plan-mount"><p class="muted">Loading…</p></div>
         </div>
+        <div class="app-card" id="workspace-longitudinal-snapshot">
+          <h3 style="margin:0 0 0.5rem;font-size:0.95rem">Longitudinal memory</h3>
+          <p class="muted">Built from existing labs and cases — not authored prose, and not a diagnosis.</p>
+          <div id="snapshot-mount"><p class="muted">Loading…</p></div>
+        </div>
         <div class="reasoning-graph-panel" id="overview-graph-shell" style="${overview.latest_report_id ? "" : "display:none"}">
           <h3>Reasoning preview</h3>
           <div class="reasoning-graph-layout">
@@ -1330,7 +1375,10 @@ async function renderPatient(patientId, section = "overview") {
     ${sectionBody}`;
   wireTableRows();
   wireLabDownloadLinks();
-  if (section === "overview") fillTestPlanMount(patientId);
+  if (section === "overview") {
+    fillTestPlanMount(patientId);
+    fillSnapshotMount(patientId);
+  }
   if (section === "labs") wireLabManage(patientId);
   if (window._pendingAnalysisReport) {
     mountAnalysisGraph(window._pendingAnalysisReport);

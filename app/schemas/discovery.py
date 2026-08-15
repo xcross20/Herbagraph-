@@ -56,6 +56,21 @@ class DiscoveryTestPlanCreate(BaseModel):
     labels: list[str] = []
 
 
+class DiscoveryDocumentCreate(BaseModel):
+    filename: str = Field(min_length=1, max_length=240)
+    text: str = Field(min_length=1, max_length=20000)
+
+
+class LongitudinalSnapshotRead(BaseModel):
+    id: uuid.UUID
+    patient_id: uuid.UUID
+    version: int
+    is_current: bool
+    payload: dict
+    created_at: datetime
+    updated_at: datetime
+
+
 class DiscoveryFindingRead(BaseModel):
     kind: str
     name: str
@@ -183,6 +198,14 @@ class DiscoveryCaseRead(BaseModel):
     timeline: list[dict] = []
     prior_workup: list[dict] = []
     memory_items: list[dict] = []
+    literature: list[dict] = []
     disclaimer: str
     created_at: datetime
     updated_at: datetime
+
+
+class DiscoveryDocumentRead(BaseModel):
+    kind: str
+    accepted: bool
+    detail: str
+    case: DiscoveryCaseRead | None = None
