@@ -201,3 +201,79 @@ def test_orchestrate_still_ignores_denied_open_facts():
         llm_fact_rows=[{"name": "trigeminal neuralgia", "value": "diagnosed"}],
     )
     assert all("trigeminal" not in item.name for item in result.new_findings)
+
+
+def test_citation_lines_are_digit_only_pmids():
+    from app.discovery.guide import citation_lines
+
+    lines = citation_lines(
+        [
+            {"title": "B12 and metformin", "pmid": "12345678"},
+            {"title": "Invented", "pmid": "pending"},
+            {"title": "Also invented", "pmid": "PMID 99"},
+            {"title": "", "pmid": "11122233"},
+        ]
+    )
+    assert lines == ["B12 and metformin (PMID 12345678)"]
+
+
+@pytest.mark.asyncio
+async def test_compose_turn_passes_person_and_real_citations_only(monkeypatch):
+    captured: dict = {}
+
+    async def fake_json(_system, user):
+        captured["user"] = user
+        return {"message": "Maya, the night burning still sits next to the low B12 on file. Has it changed?"}
+
+    monkeypatch.setattr("app.discovery.guide.discovery_llm_ready", lambda: True)
+    monkeypatch.setattr("app.discovery.guide.try_llm_json", fake_json)
+    from app.discovery.actions import NextAction
+
+    spoken = await DiscoveryGuide().compose_turn(
+        action=NextAction(
+            type="ask_question",
+            prompt="Has the burning changed?",
+            objective="Clarify change",
+            score=0.8,
+        ),
+        safety_state="S0",
+        problem="night burning with low B12",
+        audience="consumer",
+        plan=None,
+        person={"first_name": "Maya", "labs": [{"name": "Vitamin B12", "status": "low"}]},
+        citations=[
+            {"title": "B12 and metformin", "pmid": "12345678"},
+            {"title": "fake", "pmid": "not-a-pmid"},
+        ],
+    )
+    assert spoken and "Maya" in spoken
+    assert "first_name" in captured["user"]
+    assert "12345678" in captured["user"]
+    assert "not-a-pmid" not in captured["user"]
+
+
+@pytest.mark.asyncio
+async def test_plan_turn_includes_person_context(monkeypatch):
+    captured: dict = {}
+
+    async def fake_json(_system, user):
+        captured["user"] = user
+        return {
+            "reported_facts": [{"concept": "burning feet", "type": "symptom"}],
+            "action_candidates": [{"type": "ASK_QUESTION", "prompt": "Is it both feet?"}],
+        }
+
+    monkeypatch.setattr("app.discovery.guide.discovery_llm_ready", lambda: True)
+    monkeypatch.setattr("app.discovery.guide.try_llm_json", fake_json)
+    await DiscoveryGuide().plan_turn(
+        "My feet still burn at night.",
+        context={
+            "concern": "burning feet",
+            "prior_facts": {"medications": "metformin"},
+            "person": {"first_name": "Maya", "meds": ["metformin"]},
+            "last_visit": {"summary": "burning feet"},
+        },
+    )
+    assert "person_context" in captured["user"]
+    assert "Maya" in captured["user"]
+    assert "metformin" in captured["user"]

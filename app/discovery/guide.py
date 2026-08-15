@@ -115,6 +115,19 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
     return plan
 
 
+def citation_lines(citations: list[dict] | None) -> list[str]:
+    """Titles only for retrieved, digit-only PMIDs. Invented ids never appear."""
+    lines: list[str] = []
+    for item in citations or []:
+        pmid = str(item.get("pmid") or "")
+        title = str(item.get("title") or "").strip()
+        if pmid.isdigit() and title:
+            lines.append(f"{title} (PMID {pmid})")
+        if len(lines) == 3:
+            break
+    return lines
+
+
 def _next_repeatable(stem: str, used: set[str]) -> str:
     if stem not in used:
         used.add(stem)
@@ -211,7 +224,10 @@ class DiscoveryGuide:
                 f"known_facts: {context.get('prior_facts') or {}}\n"
                 f"recent_turns: {context.get('recent_turns') or []}\n"
                 f"problem_representation: {context.get('problem') or ''}\n"
-                "Produce the DiscoveryTurnPlan JSON."
+                f"last_visit: {context.get('last_visit') or {}}\n"
+                f"person_context: {context.get('person') or {}}\n"
+                "Produce the DiscoveryTurnPlan JSON. Integrate person_context. "
+                "Do not diagnose. Do not invent labs or citations."
             ),
         )
         if not data:
@@ -226,9 +242,12 @@ class DiscoveryGuide:
         problem: str,
         audience: str,
         plan: DiscoveryTurnPlan | None,
+        person: dict | None = None,
+        citations: list[dict] | None = None,
     ) -> str | None:
         if not discovery_llm_ready():
             return None
+        cite_lines = citation_lines(citations)
         data = await try_llm_json(
             pass_b_system_prompt(),
             (
@@ -238,7 +257,10 @@ class DiscoveryGuide:
                 f"required_question={action.prompt or ''}\n"
                 f"problem={problem}\n"
                 f"unknowns={list((plan.missing_dimensions if plan else [])[:6])}\n"
-                "Write the user-facing message. Include the required question if provided."
+                f"person_context={person or {}}\n"
+                f"retrieved_citations={cite_lines}\n"
+                "Write the user-facing message for this person. Reflect, integrate what we already know about them, "
+                "then include the required question if provided. Mention a citation only if retrieved_citations is non-empty."
             ),
         )
         if not data:
@@ -262,6 +284,7 @@ class DiscoveryGuide:
         plan: DiscoveryTurnPlan | None = None,
         on_phase: Callable[..., Any] | None = None,
         last_visit: dict | None = None,
+        person: dict | None = None,
     ) -> TurnResult:
         used_plan = plan
         if used_plan is None:
@@ -274,6 +297,7 @@ class DiscoveryGuide:
                     "recent_turns": (recent_turns or [])[-12:],
                     "problem": problem,
                     "last_visit": last_visit or {},
+                    "person": person or {},
                 },
             )
         fact_rows = plan_to_fact_rows(used_plan) if used_plan else []
@@ -292,6 +316,19 @@ class DiscoveryGuide:
             guide_actions=guide_actions or None,
             wants_evidence=wants_literature,
         )
+        citations: list[dict] = []
+        if wants_literature or result.action.type == "retrieve_evidence":
+            from app.discovery.literature import retrieve_citations
+
+            query = ""
+            if used_plan and used_plan.literature_queries:
+                query = str(used_plan.literature_queries[0])
+            if len(query) < 4:
+                query = (concern or text)[:180]
+            if len(query) >= 4:
+                await _emit(on_phase, "evidence", "Looking up related research…")
+                citations = await retrieve_citations(query)
+        result.citations = citations
         await _emit(on_phase, "speaking", "Writing a reply…")
         spoken = await self.compose_turn(
             action=result.action,
@@ -299,6 +336,8 @@ class DiscoveryGuide:
             problem=result.problem_representation,
             audience=audience,
             plan=used_plan,
+            person=person,
+            citations=citations,
         )
         if result.safety_status != "S4":
             result.message = pick_verbalization(result.message, spoken)

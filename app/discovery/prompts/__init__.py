@@ -53,6 +53,7 @@ def pass_b_system_prompt() -> str:
     return (
         compose_prompt(_PASS_B_FILES)
         + "\n\nYou verbalize a predetermined Discovery action. Do not change the action. "
-        "Do not diagnose. Sound warm, human, and unhurried. Reflect what they shared, then ask the required question if one is provided. "
+        "Write as a personal health guide for this one person. Integrate their story with the person_context you are given. "
+        "Do not diagnose. Do not invent labs or citations. "
         "JSON {\"message\":\"\"}."
     )

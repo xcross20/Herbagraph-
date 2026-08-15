@@ -85,7 +85,7 @@
     document.getElementById("ask-main").innerHTML = `
       <section class="ask-home">
         <h1>Discovery Guide</h1>
-        <p class="ask-lede">Tell me what's been going on. Start wherever makes sense. Labs, reports, and evidence stay in the workspace.</p>
+        <p class="ask-lede">Tell me what's been going on. I'll connect it to what we already know about you — labs, last visit, meds — and only cite research I can actually retrieve. This is a conversation, not a diagnosis.</p>
         ${clinician ? `<p class="ask-scope">Patient <select id="ask-patient">${patients.map((p) => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("") || "<option value=\"\">Add a patient in the workspace first</option>"}</select></p>` : ""}
         <form class="ask-composer" id="ask-form">
           <textarea id="ask-input" rows="3" required placeholder="Start wherever makes sense…"></textarea>

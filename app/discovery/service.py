@@ -811,27 +811,74 @@ async def record_user_note(db: AsyncSession, case: DiscoveryCase, text: str) -> 
     return snapshot
 
 
+async def _snapshot_payload(db: AsyncSession, patient_id) -> dict | None:
+    from app.discovery.snapshot import current_snapshot
+
+    snap = await current_snapshot(db, patient_id)
+    if snap is None:
+        return None
+    try:
+        data = json.loads(snap.payload)
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+async def _person_context(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    *,
+    prior_facts: dict[str, str],
+    last_visit: dict | None,
+    snapshot_payload: dict | None = None,
+) -> dict:
+    from app.discovery.context import person_package
+
+    display = None
+    age = None
+    sex = None
+    payload = snapshot_payload
+    if case.patient_id:
+        patient = await db.get(Patient, case.patient_id)
+        if patient is not None:
+            display = patient.display_name
+            age = patient.age
+            sex = patient.biological_sex
+        if payload is None:
+            payload = await _snapshot_payload(db, case.patient_id)
+    return person_package(
+        display_name=display,
+        snapshot_payload=payload,
+        prior_facts=prior_facts,
+        last_visit=last_visit,
+        age=age,
+        biological_sex=sex,
+    )
+
+
 async def _attach_literature(case: DiscoveryCase, text: str, result) -> None:
     from app.discovery.ai import pick_verbalization
     from app.discovery.literature import retrieve_citations
 
-    plan = result.guide_plan or {}
-    queries = [str(item) for item in (plan.get("literature_queries") or []) if item]
-    if result.action.type == "retrieve_evidence" or plan.get("wants_evidence"):
-        queries.append((case.presenting_concern or text)[:180])
-    query = next((item for item in queries if len(item) >= 4), "")
-    if not query:
-        return
-    cites = await retrieve_citations(query)
+    cites = list(result.citations or [])
+    if not cites:
+        plan = result.guide_plan or {}
+        queries = [str(item) for item in (plan.get("literature_queries") or []) if item]
+        if result.action.type == "retrieve_evidence" or plan.get("wants_evidence"):
+            queries.append((case.presenting_concern or text)[:180])
+        query = next((item for item in queries if len(item) >= 4), "")
+        if query:
+            cites = await retrieve_citations(query)
+            result.citations = cites
     if not cites:
         return
     case.literature_json = json.dumps(cites)
-    result.citations = cites
-    titles = "; ".join(item["title"][:90] for item in cites[:2])
-    result.message = pick_verbalization(
-        result.message,
-        f"{result.message} I pulled related papers from PubMed: {titles}. Those are citations, not a diagnosis.",
-    )
+    titles = "; ".join(item["title"][:90] for item in cites[:2] if item.get("title"))
+    if titles and "pubmed" not in result.message.lower() and "pmid" not in result.message.lower():
+        result.message = pick_verbalization(
+            result.message,
+            f"{result.message} Related published work I can actually cite: {titles}. That is not a diagnosis.",
+        )
 
 
 async def apply_user_turn(
@@ -855,15 +902,13 @@ async def apply_user_turn(
     payload = _last_system_payload(list(turns))
     current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
     from app.discovery.guide import DiscoveryGuide
-    from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
+    from app.discovery.snapshot import prior_facts_from_snapshot
 
+    snap_payload = None
     if case.patient_id:
-        snap = await current_snapshot(db, case.patient_id)
-        if snap is not None:
-            try:
-                prior = {**prior_facts_from_snapshot(json.loads(snap.payload)), **prior}
-            except json.JSONDecodeError:
-                pass
+        snap_payload = await _snapshot_payload(db, case.patient_id)
+        if snap_payload:
+            prior = {**prior_facts_from_snapshot(snap_payload), **prior}
     if getattr(case, "safety_json", None):
         try:
             held = json.loads(case.safety_json)
@@ -872,6 +917,14 @@ async def apply_user_turn(
         except json.JSONDecodeError:
             pass
     recent = [turn.text for turn in sorted(turns, key=lambda item: item.created_at)][-12:]
+    last_visit = None
+    if snap_payload:
+        from app.discovery.context import last_visit_from_snapshot
+
+        last_visit = last_visit_from_snapshot(snap_payload)
+    person = await _person_context(
+        db, case, prior_facts=prior, last_visit=last_visit, snapshot_payload=snap_payload
+    )
     result = await DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
@@ -884,6 +937,8 @@ async def apply_user_turn(
         recent_turns=recent,
         problem=case.problem_representation,
         on_phase=on_phase,
+        last_visit=last_visit,
+        person=person,
     )
     await _attach_literature(case, text, result)
     await add_turn(
@@ -947,29 +1002,19 @@ async def apply_opening_turn(
     on_phase: Callable[..., Any] | None = None,
 ) -> CaseSnapshot:
     from app.discovery.guide import DiscoveryGuide
-    from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
+    from app.discovery.snapshot import prior_facts_from_snapshot
 
     snapshot = await rebuild_case(db, case)
     await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
     prior: dict[str, str] = {}
-    if case.patient_id:
-        snap = await current_snapshot(db, case.patient_id)
-        if snap is not None:
-            try:
-                prior = prior_facts_from_snapshot(json.loads(snap.payload))
-            except json.JSONDecodeError:
-                prior = {}
+    snap_payload = await _snapshot_payload(db, case.patient_id) if case.patient_id else None
+    if snap_payload:
+        prior = prior_facts_from_snapshot(snap_payload)
     last_visit = None
-    if case.patient_id:
+    if snap_payload:
         from app.discovery.context import last_visit_from_snapshot
-        from app.discovery.snapshot import current_snapshot as _current
 
-        held = await _current(db, case.patient_id)
-        if held is not None:
-            try:
-                last_visit = last_visit_from_snapshot(json.loads(held.payload))
-            except json.JSONDecodeError:
-                last_visit = None
+        last_visit = last_visit_from_snapshot(snap_payload)
     result = await DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
@@ -981,6 +1026,9 @@ async def apply_opening_turn(
         problem=case.problem_representation,
         on_phase=on_phase,
         last_visit=last_visit,
+        person=await _person_context(
+            db, case, prior_facts=prior, last_visit=last_visit, snapshot_payload=snap_payload
+        ),
     )
     await _attach_literature(case, text, result)
     for item in result.new_findings:
