@@ -623,6 +623,72 @@ function renderDiscoveryCase(body) {
   return html;
 }
 
+function provenanceBadge(level) {
+  const label = level === "verified" ? "Verified" : level === "inferred" ? "Inferred" : "Reported";
+  return `<span class="prov-badge ${esc(level || "reported")}">${label}</span>`;
+}
+
+function renderAtlasMemory(body) {
+  if (!body) {
+    return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
+      <h2>Health memory</h2>
+      <p class="muted">Nothing stored yet. The Case fills this as you talk. Nothing here is a diagnosis.</p>
+    </aside>`;
+  }
+  const memory = body.memory_items || [];
+  const timeline = body.timeline || [];
+  const workup = body.prior_workup || [];
+  const memRows = memory.map((item) =>
+    `<li><strong>${esc(item.name)}</strong> ${esc(item.value || "")} ${provenanceBadge(item.provenance)}</li>`
+  ).join("") || "<li class=\"muted\">No structured facts yet.</li>";
+  const timeRows = timeline.map((item) =>
+    `<li>${esc(item.name)}: ${esc(item.value || "")} ${provenanceBadge(item.provenance)}</li>`
+  ).join("") || "<li class=\"muted\">Chronology not established.</li>";
+  const workRows = workup.map((item) =>
+    `<li>${esc(item.name)}: ${esc(item.value || "")} <span class="prov-badge reported">Patient-reported</span></li>`
+  ).join("") || "<li class=\"muted\">Prior workup unknown — not the same as “labs were normal.”</li>";
+  return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
+    <h2>What HerbaGraph knows</h2>
+    ${body.problem_representation ? `<p class="discovery-problem">${esc(body.problem_representation)}</p>` : ""}
+    <h3>Facts</h3><ul>${memRows}</ul>
+    <h3>Timeline</h3><ul>${timeRows}</ul>
+    <h3>Prior workup</h3><ul>${workRows}</ul>
+  </aside>`;
+}
+
+function renderAtlasInvestigation(body) {
+  if (!body) {
+    return `<aside class="atlas-panel atlas-investigate" data-atlas-panel="investigate">
+      <h2>Investigation</h2>
+      <p class="muted">Branches appear after a concern is opened. Relevance is not a diagnosis.</p>
+    </aside>`;
+  }
+  const hypos = body.hypotheses || [];
+  const increasers = body.confidence_increasers || [];
+  const action = body.turn_state && body.turn_state.selected_action;
+  const hypoRows = hypos.map((h) =>
+    `<li><strong>${esc(h.label)}</strong><br><span class="muted">Relevance ${h.investigation_relevance_percent}% · Coverage ${h.investigation_coverage_percent}% · Certainty ${h.diagnostic_certainty_percent}% — not disease probability</span></li>`
+  ).join("") || "<li class=\"muted\">No investigation family activated.</li>";
+  const gapRows = increasers.map((item) =>
+    `<li><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.reason || "")}</span></li>`
+  ).join("") || "<li class=\"muted\">No ranked confidence gaps yet.</li>";
+  return `<aside class="atlas-panel atlas-investigate" data-atlas-panel="investigate">
+    <h2>What we're investigating</h2>
+    <p class="muted">Map v${body.map_version || 1}. Coverage is how thoroughly a branch was assessed.</p>
+    ${action ? `<div class="next-action-card"><strong>Next</strong> ${esc(action.objective || action.type)}</div>` : ""}
+    <h3>Branches</h3><ul>${hypoRows}</ul>
+    <h3>What would increase confidence</h3><ul>${gapRows}</ul>
+  </aside>`;
+}
+
+function renderDisclaimerGate() {
+  if (localStorage.getItem("hg_discovery_disclaimer_v1") === "1") return "";
+  return `<div class="wallet-card discovery-disclaimer" id="discovery-disclaimer">
+    <p>HerbaGraph Discovery is an educational health-information and investigation tool. It helps organize health history, explore evidence, and identify questions or evaluations that may be worth discussing. It does not provide a medical diagnosis and does not replace care from a qualified healthcare professional.</p>
+    <button type="button" class="app-btn app-btn-primary" id="ack-discovery-disclaimer">I understand</button>
+  </div>`;
+}
+
 async function renderDiscovery(caseId, requestedPatientId) {
   const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
   const clinician = isClinicianWorkspace();
@@ -660,16 +726,25 @@ async function renderDiscovery(caseId, requestedPatientId) {
   document.getElementById("app-main").innerHTML = `
     ${pageHeader(clinician ? "Clinic Discovery" : "My discovery", subtitle)}
     ${renderPatientScopeBar(patients, scopeId, "discovery")}
+    ${renderDisclaimerGate()}
     ${formDisabled ? `<p class="muted">Select a patient to open Discovery. A clinician workspace cannot run a case without a patient.</p>` : `
-    <div class="wallet-card discovery-shell">
-      <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. Every turn updates the Case first. Not a diagnosis.</p>
-      ${current && current.problem_representation ? `<p class="discovery-problem">${esc(current.problem_representation)}</p>` : ""}
-      ${renderDiscoveryChat(current, clinician)}
-      <form class="discovery-composer" id="discovery-open-form">
-        <label class="sr-only" for="discovery-concern">${current ? "Your reply" : "What is going on?"}</label>
-        <textarea id="discovery-concern" rows="2" required placeholder="${esc(chatPlaceholder)}"></textarea>
-        <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Send</button>
-      </form>
+    <nav class="atlas-mobile-tabs" aria-label="Discovery views">
+      <button type="button" class="atlas-tab active" data-atlas-tab="chat">Chat</button>
+      <button type="button" class="atlas-tab" data-atlas-tab="memory">Memory</button>
+      <button type="button" class="atlas-tab" data-atlas-tab="investigate">Investigation</button>
+    </nav>
+    <div class="atlas-workspace" id="atlas-workspace">
+      ${renderAtlasMemory(current)}
+      <section class="atlas-panel atlas-chat" data-atlas-panel="chat">
+        <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. Every turn updates the Case first. Not a diagnosis.</p>
+        ${renderDiscoveryChat(current, clinician)}
+        <form class="discovery-composer" id="discovery-open-form">
+          <label class="sr-only" for="discovery-concern">${current ? "Your reply" : "What is going on?"}</label>
+          <textarea id="discovery-concern" rows="2" required placeholder="${esc(chatPlaceholder)}"></textarea>
+          <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Send</button>
+        </form>
+      </section>
+      ${renderAtlasInvestigation(current)}
     </div>`}
     ${caseList}
     <details class="wallet-card discovery-case-board" id="discovery-result" ${current && current.turn_state && current.turn_state.selected_action && current.turn_state.selected_action.type === "show_investigation_map" ? "open" : ""} ${current ? "" : "hidden"}>
@@ -679,6 +754,14 @@ async function renderDiscovery(caseId, requestedPatientId) {
   `;
   wirePatientScopeSelect("discovery");
   wireDiscoveryAnswers();
+  wireAtlasTabs();
+  const ack = document.getElementById("ack-discovery-disclaimer");
+  if (ack) {
+    ack.onclick = () => {
+      localStorage.setItem("hg_discovery_disclaimer_v1", "1");
+      document.getElementById("discovery-disclaimer")?.remove();
+    };
+  }
   const chat = document.getElementById("discovery-chat");
   if (chat) chat.scrollTop = chat.scrollHeight;
   const form = document.getElementById("discovery-open-form");
@@ -715,6 +798,20 @@ async function renderDiscovery(caseId, requestedPatientId) {
       if (board) board.innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
       btn.disabled = false;
     }
+  });
+}
+
+function wireAtlasTabs() {
+  const tabs = document.querySelectorAll("[data-atlas-tab]");
+  if (!tabs.length) return;
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const name = tab.getAttribute("data-atlas-tab");
+      document.querySelectorAll("[data-atlas-tab]").forEach((btn) => btn.classList.toggle("active", btn === tab));
+      document.querySelectorAll("[data-atlas-panel]").forEach((panel) => {
+        panel.classList.toggle("atlas-panel-active", panel.getAttribute("data-atlas-panel") === name);
+      });
+    });
   });
 }
 

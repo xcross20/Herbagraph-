@@ -2905,6 +2905,32 @@
         "app/discovery/actions.py",
         "alembic/versions/p6q7r8s9t0u1_discovery_turn_orchestrator.py"
       ]
+    },
+    {
+      "id": "SLICE-123",
+      "title": "Atlas Discovery shell + versioned investigation map",
+      "status": "done",
+      "priority": 1,
+      "problem": "Discovery still looked like a chatbot: no Health Memory, no Investigation panel, no versioned map, no ranked confidence gaps.",
+      "acceptance": [
+        "Three-panel Atlas layout with mobile tabs",
+        "GET /api/v1/cases/{id}/investigation-map returns versioned map",
+        "confidence_increasers present and never a disease probability",
+        "Disclaimer acknowledgement before first session",
+        "Fixture still never says you have small-fiber neuropathy"
+      ],
+      "non_goals": [
+        "Next.js rewrite",
+        "Voice",
+        "Gold Label",
+        "Quest/Labcorp checkout"
+      ],
+      "reversibility": "one-way map versions table; two-way CSS",
+      "artifacts": [
+        "app/discovery/map.py",
+        "frontend/js/workspace-app.js",
+        "frontend/css/app.css"
+      ]
     }
   ],
   "improvement_queue": [

@@ -53,3 +53,9 @@ def test_workspace_app_enforces_portal_path():
     assert "data-select-value" in js
     assert "file_upload" in js
     assert "problem_representation" in js
+    assert "atlas-workspace" in js
+    assert "What HerbaGraph knows" in js
+    assert "What we're investigating" in js
+    assert "What would increase confidence" in js
+    assert "discovery_disclaimer" in js
+    assert "not disease probability" in js

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -26,12 +27,14 @@ from app.discovery.service import (
 from app.models.enums import UserRole
 from app.models.lab import LabReport
 from app.models.user import User
+from app.models.discovery import DiscoveryMapVersion, DiscoveryTurn
 from app.schemas.discovery import (
     DiscoveryAnswerCreate,
     DiscoveryCaseCreate,
     DiscoveryCaseRead,
     DiscoveryCaseRebuild,
     DiscoveryTurnCreate,
+    DiscoveryTurnRead,
 )
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
@@ -77,6 +80,57 @@ async def open_case(
     await apply_opening_turn(db, case, payload.presenting_concern, audience=audience)
     await db.commit()
     return await case_to_read(db, case)
+
+
+@router.get("/{case_id}/turns", response_model=list[DiscoveryTurnRead])
+async def list_case_turns(
+    case_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DiscoveryTurnRead]:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    rows = (
+        await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
+    ).scalars().all()
+    return [
+        DiscoveryTurnRead(
+            id=row.id,
+            role=row.role,
+            text=row.text,
+            kind=row.kind,
+            question_code=row.question_code,
+            created_at=row.created_at,
+        )
+        for row in sorted(rows, key=lambda item: item.created_at)
+    ]
+
+
+@router.get("/{case_id}/investigation-map")
+async def get_investigation_map(
+    case_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    latest = (
+        await db.execute(
+            select(DiscoveryMapVersion)
+            .where(DiscoveryMapVersion.case_id == case.id)
+            .order_by(DiscoveryMapVersion.version.desc())
+        )
+    ).scalars().first()
+    if latest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation map not found")
+    return {
+        "case_id": str(case.id),
+        "version": latest.version,
+        "not_disease_probability": True,
+        **json.loads(latest.payload),
+    }
 
 
 @router.get("/{case_id}", response_model=DiscoveryCaseRead)

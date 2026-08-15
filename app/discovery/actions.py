@@ -59,6 +59,16 @@ QUESTIONS: tuple[CatalogQuestion, ...] = (
         0.78,
     ),
     CatalogQuestion(
+        "q_prior_workup",
+        "Have you already had testing specifically for this — labs, EMG, or imaging?",
+        "prior_workup",
+        "completion",
+        "Ask what has already been evaluated before recommending new tests.",
+        ("Labs", "EMG or nerve conduction", "Imaging", "None that I know of", "Not sure"),
+        "single_select",
+        0.68,
+    ),
+    CatalogQuestion(
         "q_emg",
         "Have you ever had an EMG or nerve-conduction study for this?",
         "emg_status",
@@ -147,6 +157,8 @@ def generate_actions(
         if question.code == "q_distribution" and "laterality" not in facts:
             continue
         if question.code == "q_temperature" and "laterality" not in facts:
+            continue
+        if question.code == "q_prior_workup" and "laterality" not in facts:
             continue
         if question.code == "q_emg" and "laterality" not in facts:
             continue

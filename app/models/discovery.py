@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import Enum, Float, ForeignKey, String, Text
+from sqlalchemy import Enum, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -47,6 +47,9 @@ class DiscoveryCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="case", cascade="all, delete-orphan"
     )
     turns: Mapped[list["DiscoveryTurn"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan"
+    )
+    map_versions: Mapped[list["DiscoveryMapVersion"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"
     )
 
@@ -126,3 +129,16 @@ class DiscoveryTurn(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     payload: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     case: Mapped[DiscoveryCase] = relationship(back_populates="turns")
+
+
+class DiscoveryMapVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Append-only Investigation Map. Never overwrite history."""
+
+    __tablename__ = "discovery_map_versions"
+
+    case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[str] = mapped_column(Text, nullable=False)
+
+    case: Mapped[DiscoveryCase] = relationship(back_populates="map_versions")

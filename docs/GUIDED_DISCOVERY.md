@@ -148,6 +148,45 @@ Conversation is turn-based: the system asks **one** current question, waits, the
 
 **Door class:** one-way for `discovery_outcomes` / `discovery_turns` schema. Two-way for question copy and portal chrome.
 
+## SPEC: Atlas Discovery workspace (master-tech Phase 1)
+
+**Problem:** A person investigating burning feet cannot see what HerbaGraph knows, what it is investigating, and what would increase confidence in one workspace, so Discovery still looks like a chatbot and they cannot tell whether they should answer, upload, or stop.
+
+**Acceptance claims:**
+
+1. Discovery desktop shows three panels: Health memory, Conversation, Investigation.
+2. Memory items carry a provenance badge (reported / unverified / inferred), never silently confirmed.
+3. Investigation panel lists hypothesis families with relevance and coverage, plus “what would increase confidence,” and never a disease probability.
+4. `GET /api/v1/cases/{id}/investigation-map` returns a versioned map; a material turn increments the version.
+5. Silent failure: the conversation still cannot say “you have small-fiber neuropathy.”
+6. First session requires acknowledging the educational/not-a-diagnosis disclaimer.
+
+**Non-goals:** Next.js rewrite, voice, Gold Label, Quest/Labcorp checkout, Kafka, imaging parsers.
+
+**Slices:** 1. Atlas shell + map API + confidence list on the existing FastAPI/static stack.
+
+**Door class:** one-way for investigation-map JSON. Two-way for CSS/layout.
+
+**Riskiest unknown:** whether the existing Case payload already contains enough to fill both side panels without a Patient Snapshot table.
+
+## DESIGN: Atlas + versioned map
+
+**Data model:** `discovery_map_versions(case_id, version, payload_json)`. Map is derived from Case findings + hypotheses + unknowns. Patient Snapshot table deferred.
+
+**Seams:** map builder / orchestrator — pass (pure). map API / CaseRead — pass. Atlas CSS / existing workspace-app — fail-on-purpose until this slice (layout was single-column).
+
+**Decisions:** Keep static frontend (two-way) instead of Next.js — rewrite is not required to ship Atlas. Version maps on payload hash change (one-way JSON).
+
+## RISK MAP: Atlas slice
+
+1. Rebuild wipes map versions — P:L Cost:H Invisibility:H → append-only versions, never delete. Test: version increments, old version remains.
+2. UI implies diagnosis via panel labels — P:M Cost:H Invisibility:H → copy review + contract test forbids “you have” / disease %.
+3. Mobile three-column crush — P:H Cost:M Invisibility:L → tabs under 900px.
+
+**Clean zones:** orchestrator action selection, lab engine.
+
+**Spike required:** none — CaseRead already has findings, hypotheses, unknowns, problem_representation.
+
 ## Slice 4 — Turn orchestrator
 
 **Problem:** Discovery still behaves like a question list. A real investigation turn must update the Case first, then choose a next action, then speak — otherwise the chat decides clinical direction.

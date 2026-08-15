@@ -14,6 +14,7 @@ from app.models.discovery import (
     DiscoveryHypothesis,
     DiscoveryOutcome,
     DiscoveryTurn,
+    DiscoveryMapVersion,
 )
 from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
@@ -47,6 +48,7 @@ __all__ = [
     "DiscoveryHypothesis",
     "DiscoveryOutcome",
     "DiscoveryTurn",
+    "DiscoveryMapVersion",
     "Compound",
     "InterventionCompound",
     "Citation",

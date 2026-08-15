@@ -12,11 +12,13 @@ from sqlalchemy.orm import selectinload
 from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
+from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
 from app.discovery.orchestrator import facts_from_findings, orchestrate
 from app.models.discovery import (
     DiscoveryCase,
     DiscoveryFinding,
     DiscoveryHypothesis,
+    DiscoveryMapVersion,
     DiscoveryOutcome,
     DiscoveryTurn,
 )
@@ -82,6 +84,85 @@ def labs_from_results(rows: list[LabResult]) -> list[NormalizedLabResult]:
 
 def _percent(score: float) -> int:
     return int(round(max(0.0, min(1.0, score)) * 100))
+
+
+def _provenance(item: FindingDraft) -> str:
+    value = (item.value or "").lower()
+    if "unverified" in value or value in {"mentioned", "reported_normal", "reported_abnormal"}:
+        return "reported"
+    if item.source == "lab_engine":
+        return "verified"
+    if item.kind == "assessment" and value == "already_assessed":
+        return "reported"
+    if item.source == "intake":
+        return "reported"
+    return "inferred"
+
+
+def _memory_items_from_findings(findings: list[FindingDraft]) -> list[dict]:
+    items = []
+    for item in findings:
+        if item.kind in {"concern"}:
+            continue
+        items.append(
+            {
+                "name": item.name,
+                "value": item.value,
+                "kind": item.kind,
+                "provenance": _provenance(item),
+            }
+        )
+    return items[:24]
+
+
+def _timeline_from_findings(findings: list[FindingDraft]) -> list[dict]:
+    rows = []
+    for item in findings:
+        if item.name in {"duration", "onset", "timing"}:
+            rows.append({"name": item.name, "value": item.value, "provenance": _provenance(item)})
+    return rows
+
+
+def _prior_workup_from_findings(findings: list[FindingDraft]) -> list[dict]:
+    rows = []
+    for item in findings:
+        if item.name in {"claimed normal labs", "emg testing", "prior_workup"}:
+            rows.append(
+                {
+                    "name": item.name,
+                    "value": item.value,
+                    "verification": "patient_reported",
+                    "provenance": "reported",
+                }
+            )
+    return rows
+
+
+async def persist_map_version(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryMapVersion:
+    facts = facts_from_findings(snapshot.findings)
+    payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns_from_facts(facts))
+    fingerprint = payload_fingerprint(payload)
+    existing = (
+        await db.execute(
+            select(DiscoveryMapVersion)
+            .where(DiscoveryMapVersion.case_id == case.id)
+            .order_by(DiscoveryMapVersion.version.desc())
+        )
+    ).scalars().first()
+    if existing is not None and existing.fingerprint == fingerprint:
+        case._map_version = existing.version
+        return existing
+    version = 1 if existing is None else existing.version + 1
+    row = DiscoveryMapVersion(
+        case_id=case.id,
+        version=version,
+        fingerprint=fingerprint,
+        payload=json.dumps(payload),
+    )
+    db.add(row)
+    await db.flush()
+    case._map_version = version
+    return row
 
 
 def _question_reads(questions) -> list[DiscoveryQuestionRead]:
@@ -174,6 +255,10 @@ def snapshot_to_read(
             options=list(interaction_raw.get("options") or []),
             accepted_types=list(interaction_raw.get("accepted_types") or []),
         )
+    facts = facts_from_findings(snapshot.findings)
+    unknowns = list(payload.get("unknowns") or unknowns_from_facts(facts))
+    map_payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns)
+    map_version = getattr(case, "_map_version", None)
     return DiscoveryCaseRead(
         id=case.id,
         presenting_concern=case.presenting_concern,
@@ -268,6 +353,12 @@ def snapshot_to_read(
         problem_representation=getattr(case, "problem_representation", None),
         interaction=interaction,
         turn_state=turn_state,
+        investigation_map=map_payload,
+        map_version=map_version,
+        confidence_increasers=map_payload.get("confidence_increasers") or [],
+        timeline=_timeline_from_findings(snapshot.findings),
+        prior_workup=_prior_workup_from_findings(snapshot.findings),
+        memory_items=_memory_items_from_findings(snapshot.findings),
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -608,6 +699,8 @@ async def rebuild_case(
     snapshot.what_changed = describe_rebuild_changes(previous, snapshot)
     await apply_snapshot(db, case, snapshot)
     await db.flush()
+    if case.id is not None:
+        await persist_map_version(db, case, snapshot)
     return snapshot
 
 
@@ -824,4 +917,13 @@ async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRe
     turns = (
         await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
     ).scalars().all()
+    latest_map = (
+        await db.execute(
+            select(DiscoveryMapVersion)
+            .where(DiscoveryMapVersion.case_id == case.id)
+            .order_by(DiscoveryMapVersion.version.desc())
+        )
+    ).scalars().first()
+    if latest_map is not None:
+        case._map_version = latest_map.version
     return snapshot_to_read(case, snapshot_from_case(case), outcomes=list(outcomes), turns=list(turns))

@@ -37,6 +37,10 @@ class DiscoveryTurnCreate(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
+class DiscoveryDisclaimerAck(BaseModel):
+    version: str = Field(default="discovery_disclaimer_v1", max_length=80)
+
+
 class DiscoveryFindingRead(BaseModel):
     kind: str
     name: str
@@ -158,6 +162,12 @@ class DiscoveryCaseRead(BaseModel):
     problem_representation: str | None = None
     interaction: DiscoveryInteractionRead | None = None
     turn_state: DiscoveryTurnStateRead | None = None
+    investigation_map: dict | None = None
+    map_version: int | None = None
+    confidence_increasers: list[dict] = []
+    timeline: list[dict] = []
+    prior_workup: list[dict] = []
+    memory_items: list[dict] = []
     disclaimer: str
     created_at: datetime
     updated_at: datetime

@@ -1,5 +1,7 @@
 """API: Case is persisted and rebuild does not invent a diagnosis."""
 
+import json
+
 import pytest
 
 from app.models.enums import LabResultStatus
@@ -201,6 +203,32 @@ async def test_chat_turn_opens_case_without_writing_diagnosis(authed_client):
     assert any(t["role"] == "user" and "tingling" in t["text"].lower() for t in body["turns"])
     assert all(h["status"] == "open" for h in body["hypotheses"])
     assert "diagnosis" in body["disclaimer"].lower()
+
+
+async def test_investigation_map_is_versioned_and_not_a_diagnosis(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={
+            "presenting_concern": (
+                "For six months, my feet have burned at night. My doctor says my blood work is normal."
+            )
+        },
+    )
+    assert created.status_code == 201, created.text
+    case_id = created.json()["id"]
+    assert created.json()["map_version"] >= 1
+    assert created.json()["confidence_increasers"]
+    assert created.json()["memory_items"]
+    mapped = await authed_client.get(f"/api/v1/cases/{case_id}/investigation-map")
+    assert mapped.status_code == 200, mapped.text
+    body = mapped.json()
+    assert body["version"] >= 1
+    assert body["not_disease_probability"] is True
+    blob = json.dumps(body).lower()
+    assert "you have small-fiber" not in blob
+    turns = await authed_client.get(f"/api/v1/cases/{case_id}/turns")
+    assert turns.status_code == 200
+    assert turns.json()
 
 
 async def test_case_requires_auth(client):
