@@ -109,6 +109,71 @@ def build_map_payload(
     }
 
 
+def build_map_payload_v2(
+    *,
+    case_id: str,
+    version: int,
+    branches: list[dict],
+    evidence: list[dict],
+    gaps: list[dict],
+) -> dict:
+    """Serialize persistent branch state. No diagnostic probability."""
+    by_branch: dict[str, list[dict]] = {}
+    for item in evidence:
+        by_branch.setdefault(str(item.get("branch_code") or ""), []).append(item)
+    gaps_by_branch: dict[str, list[dict]] = {}
+    for item in gaps:
+        gaps_by_branch.setdefault(str(item.get("branch_code") or ""), []).append(item)
+    rows = []
+    counts = {"resolved_or_low_support": 0, "partially_evaluated": 0, "not_evaluated": 0}
+    for branch in branches:
+        code = branch.get("code") or ""
+        status = branch.get("status") or "not_evaluated"
+        if status in {"conditionally_resolved", "adequately_evaluated_no_support", "externally_confirmed"}:
+            counts["resolved_or_low_support"] += 1
+        elif status in {"partially_evaluated", "supported_for_further_investigation", "reopened"}:
+            counts["partially_evaluated"] += 1
+        else:
+            counts["not_evaluated"] += 1
+        links = by_branch.get(code, [])
+        branch_gaps = gaps_by_branch.get(code, [])
+        rows.append(
+            {
+                "id": branch.get("id"),
+                "code": code,
+                "label": branch.get("label"),
+                "status": status,
+                "relevance": "HIGH" if float(branch.get("investigation_relevance") or 0) >= 0.55 else "MODERATE",
+                "coverage": branch.get("coverage") or 0,
+                "coverage_confidence": branch.get("coverage_confidence") or 0,
+                "supporting_evidence": [item for item in links if item.get("relationship") == "supports"],
+                "weakening_evidence": [item for item in links if item.get("relationship") in {"weakens", "contradicts"}],
+                "non_addressing_evidence": [item for item in links if item.get("relationship") == "does_not_address"],
+                "resolved_gaps": [item for item in branch_gaps if item.get("status") == "resolved"],
+                "open_gaps": [item for item in branch_gaps if item.get("status") != "resolved"],
+                "next_best_evidence": [
+                    {"label": item.get("label"), "reason": item.get("description") or "This would change the picture."}
+                    for item in branch_gaps
+                    if item.get("status") != "resolved"
+                ][:3],
+                "not_a_diagnosis": True,
+            }
+        )
+    increasers = []
+    for row in rows:
+        for item in row["open_gaps"][:2]:
+            increasers.append({"label": item.get("label") or "Open gap", "reason": item.get("description") or "Unresolved evidence gap."})
+    return {
+        "case_id": case_id,
+        "version": version,
+        "investigation_only": True,
+        "summary": counts,
+        "branches": rows,
+        "confidence_increasers": increasers[:8],
+        "disclaimer": "Investigation relevance is not a diagnosis. Coverage is completeness, not probability.",
+    }
+
+
 def payload_fingerprint(payload: dict) -> str:
     encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()[:16]

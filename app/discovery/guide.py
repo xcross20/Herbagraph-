@@ -48,20 +48,53 @@ class NextActionCandidate(BaseModel):
     options: list[str] = Field(default_factory=list)
 
 
+class CandidateInterpretation(BaseModel):
+    statement: str = ""
+    concept: str | None = None
+
+
+class CandidateTimelineEvent(BaseModel):
+    label: str = ""
+    date_text: str | None = None
+    relationship: str | None = None
+    confidence: float = 0.5
+
+
+class BranchUpdateCandidate(BaseModel):
+    branch_code: str | None = None
+    proposed_label: str = ""
+    operation: str = "NO_CHANGE"
+    rationale: str = ""
+
+
+class ToolRequest(BaseModel):
+    tool: str = ""
+    query: dict[str, Any] = Field(default_factory=dict)
+    reason: str = ""
+
+
 class DiscoveryTurnPlan(BaseModel):
     user_intents: list[str] = Field(default_factory=list)
     reported_facts: list[CandidateFinding] = Field(default_factory=list)
+    reported_findings: list[CandidateFinding] = Field(default_factory=list)
     patient_interpretations: list[str] = Field(default_factory=list)
     timeline_updates: list[str] = Field(default_factory=list)
+    timeline_events: list[CandidateTimelineEvent] = Field(default_factory=list)
     prior_workup: list[dict[str, Any]] = Field(default_factory=list)
+    prior_workup_updates: list[dict[str, Any]] = Field(default_factory=list)
+    branch_updates: list[BranchUpdateCandidate] = Field(default_factory=list)
+    evidence_gap_updates: list[dict[str, Any]] = Field(default_factory=list)
     contradictions: list[str] = Field(default_factory=list)
+    corrections: list[dict[str, Any]] = Field(default_factory=list)
     safety_flags: list[str] = Field(default_factory=list)
     uncertainty_updates: list[str] = Field(default_factory=list)
     literature_queries: list[str] = Field(default_factory=list)
+    tool_requests: list[ToolRequest] = Field(default_factory=list)
     action_candidates: list[NextActionCandidate] = Field(default_factory=list)
     recommended_next_action: NextActionCandidate | None = None
     problem_representation: str = ""
     missing_dimensions: list[str] = Field(default_factory=list)
+    unresolved_dimensions: list[str] = Field(default_factory=list)
     reasoning_summary: str = ""
     wants_evidence: bool = False
 
@@ -192,6 +225,49 @@ def coerce_plan_payload(raw: dict[str, Any] | None) -> dict[str, Any]:
     ]
     rec = data.get("recommended_next_action")
     data["recommended_next_action"] = _as_action(rec) if rec else None
+    events: list[dict[str, Any]] = []
+    for item in _as_list(data.get("timeline_events")):
+        if isinstance(item, dict) and (item.get("label") or item.get("event")):
+            events.append(
+                {
+                    "label": _as_text(item.get("label") or item.get("event")),
+                    "date_text": _as_text(item.get("date_text") or item.get("date")) or None,
+                    "relationship": _as_text(item.get("relationship")) or None,
+                }
+            )
+        elif _as_text(item):
+            events.append({"label": _as_text(item)})
+    data["timeline_events"] = events
+    branches: list[dict[str, Any]] = []
+    for item in _as_list(data.get("branch_updates")):
+        if isinstance(item, dict) and (item.get("proposed_label") or item.get("branch_code")):
+            branches.append(
+                {
+                    "branch_code": item.get("branch_code"),
+                    "proposed_label": _as_text(item.get("proposed_label") or item.get("label")),
+                    "operation": str(item.get("operation") or "NO_CHANGE"),
+                    "rationale": _as_text(item.get("rationale")),
+                }
+            )
+    data["branch_updates"] = branches
+    tools: list[dict[str, Any]] = []
+    for item in _as_list(data.get("tool_requests")):
+        if isinstance(item, dict) and item.get("tool"):
+            tools.append(
+                {
+                    "tool": str(item.get("tool")),
+                    "query": item.get("query") if isinstance(item.get("query"), dict) else {},
+                    "reason": _as_text(item.get("reason")),
+                }
+            )
+    data["tool_requests"] = tools
+    data["prior_workup_updates"] = [
+        row for item in _as_list(data.get("prior_workup_updates")) if (row := _as_workup(item))
+    ]
+    data["corrections"] = [item for item in _as_list(data.get("corrections")) if isinstance(item, dict)]
+    data["evidence_gap_updates"] = [
+        item for item in _as_list(data.get("evidence_gap_updates")) if isinstance(item, dict)
+    ]
     if data.get("problem_representation") is not None and not isinstance(data.get("problem_representation"), str):
         data["problem_representation"] = _as_text(data.get("problem_representation"))
     if data.get("reasoning_summary") is not None and not isinstance(data.get("reasoning_summary"), str):
@@ -264,6 +340,14 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
     ):
         plan.problem_representation = ""
     plan.uncertainty_updates = [item.strip()[:240] for item in plan.uncertainty_updates if item][:12]
+    if not plan.reported_findings:
+        plan.reported_findings = list(plan.reported_facts)
+    if not plan.timeline_events:
+        plan.timeline_events = [CandidateTimelineEvent(label=item) for item in plan.timeline_updates]
+    if not plan.prior_workup_updates:
+        plan.prior_workup_updates = list(plan.prior_workup)
+    if not plan.unresolved_dimensions:
+        plan.unresolved_dimensions = list(plan.missing_dimensions)
     return plan
 
 

@@ -13,6 +13,10 @@ _PASS_A_FILES = (
     "consumer_claims_policy.md",
     "literature_policy.md",
     "memory_policy.md",
+    "investigation_policy.md",
+    "coverage_policy.md",
+    "retraction_policy.md",
+    "intervention_policy.md",
 )
 
 _PASS_B_FILES = (
