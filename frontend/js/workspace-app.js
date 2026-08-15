@@ -511,29 +511,34 @@ function investigationGroupLabel(group) {
   return group;
 }
 
+function renderDiscoveryAnswerButtons(question) {
+  if (!question) return "";
+  return `<div class="discovery-question" data-question-code="${esc(question.code)}">
+    <div class="discovery-answer-row">
+      <button type="button" class="app-btn app-btn-primary" data-answer="yes">Yes</button>
+      <button type="button" class="app-btn" data-answer="no">No</button>
+      <button type="button" class="app-btn app-btn-ghost" data-answer="unknown">Not sure</button>
+    </div>
+  </div>`;
+}
+
 function renderDiscoveryChat(body, clinician) {
   const turns = (body && body.turns) || [];
-  const questions = (body && body.next_questions) || [];
+  const current = body && body.current_question;
   let html = `<div class="discovery-chat" id="discovery-chat">`;
   if (!turns.length) {
-    html += `<div class="discovery-bubble system">I will not diagnose. ${clinician ? "Describe this patient's concern, or answer the next question." : "Tell me what is going on, or answer the next question. This stays on your profile."}</div>`;
+    html += `<div class="discovery-bubble system">I will not diagnose. ${clinician ? "What is going on for this patient?" : "What is going on?"}</div>`;
   }
+  const lastSystem = [...turns].reverse().find((t) => t.role === "system");
   for (const turn of turns) {
-    html += `<div class="discovery-bubble ${turn.role === "user" ? "user" : "system"}">${esc(turn.text)}</div>`;
-  }
-  if (questions.length) {
-    html += `<div class="discovery-questions"><p class="muted">Next questions — these close gaps. They are not a diagnosis interview.</p>`;
-    for (const q of questions) {
-      html += `<div class="discovery-question" data-question-code="${esc(q.code)}">
-        <p>${esc(q.prompt)}</p>
-        <div class="discovery-answer-row">
-          <button type="button" class="app-btn app-btn-primary" data-answer="yes">Yes</button>
-          <button type="button" class="app-btn" data-answer="no">No</button>
-          <button type="button" class="app-btn app-btn-ghost" data-answer="unknown">Not sure</button>
-        </div>
-      </div>`;
+    html += `<div class="discovery-bubble ${turn.role === "user" ? "user" : "system"}">${esc(turn.text)}`;
+    if (current && turn === lastSystem && turn.question_code === current.code) {
+      html += renderDiscoveryAnswerButtons(current);
     }
     html += `</div>`;
+  }
+  if (current && (!lastSystem || lastSystem.question_code !== current.code)) {
+    html += `<div class="discovery-bubble system">${esc(current.prompt)}${renderDiscoveryAnswerButtons(current)}</div>`;
   }
   html += `</div>`;
   return html;
@@ -633,30 +638,44 @@ async function renderDiscovery(caseId, requestedPatientId) {
   }
 
   const formDisabled = clinician && !scopeId;
-  const chatPlaceholder = clinician
-    ? "Describe this patient's concern, or add a note to the case…"
-    : "Describe what is going on, or add a note…";
+  const chatPlaceholder = current && current.current_question
+    ? "Yes, no, not sure — or add a note"
+    : (clinician ? "Describe this patient's concern…" : "What's going on?");
   document.getElementById("app-main").innerHTML = `
     ${pageHeader(clinician ? "Clinic Discovery" : "My discovery", subtitle)}
     ${renderPatientScopeBar(patients, scopeId, "discovery")}
     ${formDisabled ? `<p class="muted">Select a patient to open Discovery. A clinician workspace cannot run a case without a patient.</p>` : `
     <div class="wallet-card discovery-shell">
+      <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. One question per turn. Not a diagnosis.</p>
       ${renderDiscoveryChat(current, clinician)}
-      <form id="discovery-open-form">
-        <label for="discovery-concern">${current ? (clinician ? "Add to this patient's case" : "Add to your case") : (clinician ? "Presenting concern for this patient" : "What is going on?")}</label>
-        <textarea id="discovery-concern" rows="3" required placeholder="${esc(chatPlaceholder)}"></textarea>
-        <div class="page-header-actions" style="margin-top:0.75rem">
-          <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">${current ? "Send to case" : "Open case"}</button>
-        </div>
+      <form class="discovery-composer" id="discovery-open-form">
+        <label class="sr-only" for="discovery-concern">${current ? "Your reply" : "What is going on?"}</label>
+        <textarea id="discovery-concern" rows="2" required placeholder="${esc(chatPlaceholder)}"></textarea>
+        <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Send</button>
       </form>
     </div>`}
     ${caseList}
-    <div id="discovery-result">${current ? renderDiscoveryCase(current) : `<p class="muted">No diagnosis will be written. Relevance means “worth investigating.” Chat is only an interface — the Case is the source of truth.</p>`}</div>
+    <details class="wallet-card discovery-case-board" id="discovery-result" ${current ? "" : "hidden"}>
+      <summary>Case board — coverage and hypotheses, not a diagnosis</summary>
+      ${current ? renderDiscoveryCase(current) : ""}
+    </details>
   `;
   wirePatientScopeSelect("discovery");
   wireDiscoveryAnswers();
+  const chat = document.getElementById("discovery-chat");
+  if (chat) chat.scrollTop = chat.scrollHeight;
   const form = document.getElementById("discovery-open-form");
   if (!form) return;
+  const box = document.getElementById("discovery-concern");
+  if (box) {
+    box.focus();
+    box.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+  }
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const concern = document.getElementById("discovery-concern").value.trim();
@@ -675,7 +694,8 @@ async function renderDiscovery(caseId, requestedPatientId) {
       history.replaceState({}, document.title, `#discovery?${qs}`);
       await renderDiscovery(body.id, scopeId);
     } catch (err) {
-      document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
+      const board = document.getElementById("discovery-result");
+      if (board) board.innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
       btn.disabled = false;
     }
   });

@@ -154,6 +154,49 @@ async def test_answer_yes_records_outcome_and_closes_gap(authed_client):
     assert all("you have" not in t["text"].lower() for t in body["turns"])
 
 
+async def test_conversation_is_one_question_per_turn(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "burning feet at night"},
+    )
+    assert created.status_code == 201, created.text
+    opened = created.json()
+    assert opened["current_question"] is not None
+    first_code = opened["current_question"]["code"]
+    system_turns = [t for t in opened["turns"] if t["role"] == "system"]
+    assert len(system_turns) == 1
+    assert opened["current_question"]["prompt"] in system_turns[0]["text"]
+    assert system_turns[0]["question_code"] == first_code
+
+    rebuilt = await authed_client.post(
+        f"/api/v1/cases/{opened['id']}/rebuild",
+        json={
+            "labs": [
+                {"biomarker_name": "Vitamin B12", "value": 210, "status": LabResultStatus.LOW.value, "unit": "pg/mL"},
+                {"biomarker_name": "MCV", "value": 104, "status": LabResultStatus.HIGH.value, "unit": "fL"},
+            ]
+        },
+    )
+    assert rebuilt.status_code == 200, rebuilt.text
+    current = rebuilt.json()["current_question"]
+    assert current is not None
+
+    typed = await authed_client.post(
+        f"/api/v1/cases/{opened['id']}/turns",
+        json={"text": "yes"},
+    )
+    assert typed.status_code == 200, typed.text
+    body = typed.json()
+    nxt = body["current_question"]
+    assert nxt is None or nxt["code"] != current["code"]
+    last = body["turns"][-1]
+    assert last["role"] == "system"
+    assert "you have" not in last["text"].lower()
+    if nxt:
+        assert nxt["prompt"] in last["text"]
+        assert last["text"].count("?") == 1
+
+
 async def test_chat_turn_opens_case_without_writing_diagnosis(authed_client):
     created = await authed_client.post(
         "/api/v1/cases",

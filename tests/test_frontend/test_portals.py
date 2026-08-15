@@ -39,7 +39,6 @@ def test_login_uses_portal_home():
 def test_workspace_app_enforces_portal_path():
     js = (ROOT / "js" / "workspace-app.js").read_text(encoding="utf-8")
     assert "portalPath" in js
-    assert "Next questions" in js
     assert "What changed" in js
     assert "renderClinicDashboard" in js
     assert "renderPersonalDashboard" in js
@@ -48,4 +47,7 @@ def test_workspace_app_enforces_portal_path():
     assert "Clinic portal" in js
     assert "Personal portal" in js
     assert "discovery-chat" in js
+    assert "discovery-composer" in js
+    assert "current_question" in js
     assert "Chat is only an interface" in js
+    assert "One question per turn" in js

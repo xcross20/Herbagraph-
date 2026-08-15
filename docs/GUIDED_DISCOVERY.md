@@ -126,6 +126,8 @@ Two portals, one API:
 
 Discovery also emits `next_questions` (question engine) and `what_changed` (rebuild reconciliation).
 
+Conversation is turn-based: the system asks **one** current question, waits, then asks the next. Typing `yes` / `no` / `not sure` answers that question. The Case stays the source of truth; chat is only the interface.
+
 ## Slice 3 — Answerable Discovery + outcomes + chat as interface
 
 **Problem:** Clinicians and individuals land in the same workspace shape, and Discovery questions cannot be recorded, so coverage never updates from conversation and the Case is not actually the source of truth.

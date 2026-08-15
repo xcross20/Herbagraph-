@@ -124,6 +124,7 @@ class DiscoveryCaseRead(BaseModel):
     branch_coverage: list[BranchCoverageRead]
     monitor_plan: list[MonitorItemRead] = []
     next_questions: list[DiscoveryQuestionRead] = []
+    current_question: DiscoveryQuestionRead | None = None
     what_changed: list[str] = []
     outcomes: list[DiscoveryOutcomeRead] = []
     turns: list[DiscoveryTurnRead] = []

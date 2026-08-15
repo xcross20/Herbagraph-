@@ -9,6 +9,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.discovery.conversation import answer_preface, compose_system_reply, parse_turn_answer
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.models.discovery import (
     DiscoveryCase,
@@ -76,6 +77,20 @@ def labs_from_results(rows: list[LabResult]) -> list[NormalizedLabResult]:
 
 def _percent(score: float) -> int:
     return int(round(max(0.0, min(1.0, score)) * 100))
+
+
+def _question_reads(questions) -> list[DiscoveryQuestionRead]:
+    return [
+        DiscoveryQuestionRead(
+            code=item.code,
+            prompt=item.prompt,
+            kind=item.kind,
+            closes=item.closes,
+            hypothesis_code=item.hypothesis_code,
+            utility=item.utility,
+        )
+        for item in questions
+    ]
 
 
 def snapshot_to_read(
@@ -151,17 +166,8 @@ def snapshot_to_read(
             )
             for item in snapshot.monitor_plan
         ],
-        next_questions=[
-            DiscoveryQuestionRead(
-                code=item.code,
-                prompt=item.prompt,
-                kind=item.kind,
-                closes=item.closes,
-                hypothesis_code=item.hypothesis_code,
-                utility=item.utility,
-            )
-            for item in snapshot.next_questions
-        ],
+        next_questions=_question_reads(snapshot.next_questions),
+        current_question=_question_reads(snapshot.next_questions[:1])[0] if snapshot.next_questions else None,
         what_changed=list(snapshot.what_changed),
         outcomes=[
             DiscoveryOutcomeRead(
@@ -469,18 +475,21 @@ async def add_turn(
     return turn
 
 
-def _system_summary(snapshot: CaseSnapshot) -> str:
-    if not snapshot.hypotheses:
-        return (
-            "No investigation family activated. This is not a diagnosis. "
-            "Add a clearer concern or labs if you want coverage to move."
-        )
-    labels = ", ".join(item.label for item in snapshot.hypotheses[:3])
-    return (
-        f"Investigation families in view: {labels}. "
-        "Relevance means worth looking into — not a diagnosis. "
-        f"Coverage is {int(round(snapshot.investigation_coverage * 100))}% of expected checks, "
-        "not disease probability."
+async def add_system_reply(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    snapshot: CaseSnapshot,
+    *,
+    preface: str | None = None,
+) -> DiscoveryTurn:
+    text, question_code = compose_system_reply(snapshot, preface=preface)
+    return await add_turn(
+        db,
+        case,
+        role=DiscoveryTurnRole.SYSTEM,
+        text=text,
+        kind="question" if question_code else "system",
+        question_code=question_code,
     )
 
 
@@ -529,6 +538,7 @@ async def answer_question(
     code: str,
     answer: str,
     note: str | None = None,
+    spoken: str | None = None,
 ) -> CaseSnapshot:
     snapshot = snapshot_from_case(case)
     question = _question_from_snapshot(snapshot, code)
@@ -565,12 +575,12 @@ async def answer_question(
         db,
         case,
         role=DiscoveryTurnRole.USER,
-        text=f"{question.prompt} — {answer}" + (f" ({note})" if note else ""),
+        text=spoken or {"yes": "Yes", "no": "No", "unknown": "Not sure"}[answer],
         kind="answer",
         question_code=question.code,
     )
     updated = await rebuild_case(db, case)
-    await add_turn(db, case, role=DiscoveryTurnRole.SYSTEM, text=_system_summary(updated), kind="system")
+    await add_system_reply(db, case, updated, preface=answer_preface(answer))
     return updated
 
 
@@ -589,8 +599,18 @@ async def record_user_note(db: AsyncSession, case: DiscoveryCase, text: str) -> 
     await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="note")
     await db.flush()
     snapshot = await rebuild_case(db, case)
-    await add_turn(db, case, role=DiscoveryTurnRole.SYSTEM, text=_system_summary(snapshot), kind="system")
+    await add_system_reply(db, case, snapshot)
     return snapshot
+
+
+async def apply_user_turn(db: AsyncSession, case: DiscoveryCase, text: str) -> CaseSnapshot:
+    """Typed chat: a bare yes/no answers the current question; anything else is a note."""
+    parsed = parse_turn_answer(text)
+    snapshot = snapshot_from_case(case)
+    current = snapshot.next_questions[0] if snapshot.next_questions else None
+    if parsed and current is not None:
+        return await answer_question(db, case, code=current.code, answer=parsed, spoken=text.strip())
+    return await record_user_note(db, case, text)
 
 
 def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:

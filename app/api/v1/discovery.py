@@ -11,7 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.service import (
+    add_system_reply,
     add_turn,
+    apply_user_turn,
     answer_question,
     case_to_read,
     create_case,
@@ -21,7 +23,6 @@ from app.discovery.service import (
     latest_lab_report,
     list_owned_cases,
     rebuild_case,
-    record_user_note,
 )
 from app.models.enums import DiscoveryTurnRole
 from app.models.lab import LabReport
@@ -72,7 +73,7 @@ async def open_case(
         if report is not None:
             labs = labs_from_results(report.lab_results)
             lab_report_id = report.id
-    await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
+    snapshot = await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
     await add_turn(
         db,
         case,
@@ -80,16 +81,7 @@ async def open_case(
         text=payload.presenting_concern.strip(),
         kind="concern",
     )
-    await add_turn(
-        db,
-        case,
-        role=DiscoveryTurnRole.SYSTEM,
-        text=(
-            "Case opened. Relevance is not a diagnosis. "
-            "Answer the next questions or add a note — the Case stays the source of truth."
-        ),
-        kind="system",
-    )
+    await add_system_reply(db, case, snapshot)
     await db.commit()
     return await case_to_read(db, case)
 
@@ -182,6 +174,6 @@ async def add_case_turn(
     case = await get_owned_case(db, case_id, current_user.id)
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
-    await record_user_note(db, case, payload.text)
+    await apply_user_turn(db, case, payload.text)
     await db.commit()
     return await case_to_read(db, case)
