@@ -477,8 +477,8 @@ function renderOnboardingBanner() {
     : `<a class="app-btn app-btn-primary" href="#patients">Open my profile</a>`;
   return `
     <div class="app-card onboarding-welcome" style="margin-bottom:1.25rem;border-color:rgba(46,125,87,0.25);background:linear-gradient(180deg,#f8fcf9 0%,#fff 100%)">
-      <h2 style="margin:0 0 0.35rem;font-size:1.15rem">Welcome to HerbaGraph</h2>
-      <p class="muted" style="margin:0 0 0.85rem">Let's set up your workspace and run your first analysis.</p>
+      <h2 style="margin:0 0 0.35rem;font-size:1.15rem">${isClinician ? "Welcome to the clinic portal" : "Welcome to your personal portal"}</h2>
+      <p class="muted" style="margin:0 0 0.85rem">${isClinician ? "Set up patients first. Discovery and Evidence follow the active record." : "This workspace is only about you. Labs, discovery, and evidence stay on your profile."}</p>
       <ol style="margin:0 0 1rem;padding-left:1.2rem;color:#555;font-size:0.9rem;line-height:1.55">
         <li>Account creation</li>
         <li>Workspace setup</li>
@@ -511,26 +511,50 @@ function investigationGroupLabel(group) {
   return group;
 }
 
+function renderDiscoveryChat(body, clinician) {
+  const turns = (body && body.turns) || [];
+  const questions = (body && body.next_questions) || [];
+  let html = `<div class="discovery-chat" id="discovery-chat">`;
+  if (!turns.length) {
+    html += `<div class="discovery-bubble system">I will not diagnose. ${clinician ? "Describe this patient's concern, or answer the next question." : "Tell me what is going on, or answer the next question. This stays on your profile."}</div>`;
+  }
+  for (const turn of turns) {
+    html += `<div class="discovery-bubble ${turn.role === "user" ? "user" : "system"}">${esc(turn.text)}</div>`;
+  }
+  if (questions.length) {
+    html += `<div class="discovery-questions"><p class="muted">Next questions — these close gaps. They are not a diagnosis interview.</p>`;
+    for (const q of questions) {
+      html += `<div class="discovery-question" data-question-code="${esc(q.code)}">
+        <p>${esc(q.prompt)}</p>
+        <div class="discovery-answer-row">
+          <button type="button" class="app-btn app-btn-primary" data-answer="yes">Yes</button>
+          <button type="button" class="app-btn" data-answer="no">No</button>
+          <button type="button" class="app-btn app-btn-ghost" data-answer="unknown">Not sure</button>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
 function renderDiscoveryCase(body) {
   if (!body) return "";
   const hypos = body.hypotheses || [];
   const branches = body.branch_coverage || [];
+  const outcomes = body.outcomes || [];
   let html = `<p class="page-subtitle">${esc(body.disclaimer || "")}</p>`;
   html += `<div class="metric-grid">`;
   html += `<div class="metric-card"><div class="metric-label">Investigation coverage</div><div class="metric-value">${body.investigation_coverage_percent || 0}%</div><div class="metric-delta">Not disease probability</div></div>`;
   html += `<div class="metric-card"><div class="metric-label">Open hypotheses</div><div class="metric-value">${hypos.length}</div><div class="metric-delta">None are diagnoses</div></div>`;
+  html += `<div class="metric-card"><div class="metric-label">Recorded checks</div><div class="metric-value">${outcomes.length}</div><div class="metric-delta">Outcomes, not conclusions</div></div>`;
   html += `</div>`;
   const changed = body.what_changed || [];
   if (changed.length) {
     html += `<div class="wallet-card"><h2>What changed</h2><ul>`;
     for (const line of changed) html += `<li>${esc(line)}</li>`;
     html += `</ul></div>`;
-  }
-  const questions = body.next_questions || [];
-  if (questions.length) {
-    html += `<div class="wallet-card"><h2>Next questions</h2><p class="muted">These close the most important gaps. They are not a diagnosis interview.</p><ol>`;
-    for (const q of questions) html += `<li>${esc(q.prompt)}</li>`;
-    html += `</ol></div>`;
   }
   const plan = body.monitor_plan || [];
   if (plan.length) {
@@ -547,6 +571,13 @@ function renderDiscoveryCase(body) {
       html += `<div class="signal-bar-track"><div class="signal-bar-fill" style="width:${row.coverage_percent}%"></div></div>`;
     }
     html += `</div>`;
+  }
+  if (outcomes.length) {
+    html += `<div class="wallet-card"><h2>Outcomes</h2><ul>`;
+    for (const row of outcomes) {
+      html += `<li><strong>${esc(row.label)}</strong> <span class="status-chip ${row.status === "completed" ? "ready" : "review"}">${esc(row.status)}</span></li>`;
+    }
+    html += `</ul></div>`;
   }
   for (const h of hypos) {
     html += `<article class="wallet-card">`;
@@ -602,21 +633,28 @@ async function renderDiscovery(caseId, requestedPatientId) {
   }
 
   const formDisabled = clinician && !scopeId;
+  const chatPlaceholder = clinician
+    ? "Describe this patient's concern, or add a note to the case…"
+    : "Describe what is going on, or add a note…";
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Guided Discovery", subtitle)}
+    ${pageHeader(clinician ? "Clinic Discovery" : "My discovery", subtitle)}
     ${renderPatientScopeBar(patients, scopeId, "discovery")}
     ${formDisabled ? `<p class="muted">Select a patient to open Discovery. A clinician workspace cannot run a case without a patient.</p>` : `
-    <form class="wallet-card" id="discovery-open-form">
-      <label for="discovery-concern">${clinician ? "Presenting concern for this patient" : "What is going on?"}</label>
-      <textarea id="discovery-concern" rows="3" required placeholder="For six months, my feet have burned at night. My doctor says my blood work is normal.">${current ? esc(current.presenting_concern) : ""}</textarea>
-      <div class="page-header-actions" style="margin-top:0.75rem">
-        <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Open or update case</button>
-      </div>
-    </form>`}
+    <div class="wallet-card discovery-shell">
+      ${renderDiscoveryChat(current, clinician)}
+      <form id="discovery-open-form">
+        <label for="discovery-concern">${current ? (clinician ? "Add to this patient's case" : "Add to your case") : (clinician ? "Presenting concern for this patient" : "What is going on?")}</label>
+        <textarea id="discovery-concern" rows="3" required placeholder="${esc(chatPlaceholder)}"></textarea>
+        <div class="page-header-actions" style="margin-top:0.75rem">
+          <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">${current ? "Send to case" : "Open case"}</button>
+        </div>
+      </form>
+    </div>`}
     ${caseList}
-    <div id="discovery-result">${current ? renderDiscoveryCase(current) : `<p class="muted">No diagnosis will be written. Relevance means “worth investigating.”</p>`}</div>
+    <div id="discovery-result">${current ? renderDiscoveryCase(current) : `<p class="muted">No diagnosis will be written. Relevance means “worth investigating.” Chat is only an interface — the Case is the source of truth.</p>`}</div>
   `;
   wirePatientScopeSelect("discovery");
+  wireDiscoveryAnswers();
   const form = document.getElementById("discovery-open-form");
   if (!form) return;
   form.addEventListener("submit", async (event) => {
@@ -626,34 +664,47 @@ async function renderDiscovery(caseId, requestedPatientId) {
     btn.disabled = true;
     try {
       let body;
-      const payload = { presenting_concern: concern, patient_id: scopeId };
       if (current && current.id) {
-        body = await api(`/api/v1/cases/${current.id}/rebuild`, "POST", payload);
+        body = await api(`/api/v1/cases/${current.id}/turns`, "POST", { text: concern });
       } else {
-        body = await api("/api/v1/cases", "POST", payload);
+        body = await api("/api/v1/cases", "POST", { presenting_concern: concern, patient_id: scopeId });
       }
       current = body;
       const qs = new URLSearchParams({ case: body.id });
       if (scopeId) qs.set("patient", scopeId);
       history.replaceState({}, document.title, `#discovery?${qs}`);
-      document.getElementById("discovery-result").innerHTML = renderDiscoveryCase(body);
+      await renderDiscovery(body.id, scopeId);
     } catch (err) {
       document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not update case")}</p>`;
-    } finally {
       btn.disabled = false;
     }
   });
 }
 
-async function renderDashboard() {
-  const dash = await api("/api/v1/workspace/dashboard");
-  lastDashboard = dash;
-  const activeAnalyses = dash.recent_sessions.filter(s => s.status === "analyzing" || s.status === "pending").length;
-  const needsReview = buildAttentionItems(dash).length;
-  const reportsCount = dash.recent_reports.length + dash.patients.filter(p => p.latest_report_id).length;
-  const name = dash.user_full_name ? `, ${esc(dash.user_full_name)}` : "";
+function wireDiscoveryAnswers() {
+  document.querySelectorAll("[data-question-code]").forEach((row) => {
+    row.querySelectorAll("[data-answer]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const code = row.getAttribute("data-question-code");
+        const answer = btn.getAttribute("data-answer");
+        const caseMatch = /case=([^&]+)/.exec(location.hash);
+        if (!caseMatch) return;
+        btn.disabled = true;
+        try {
+          const body = await api(`/api/v1/cases/${caseMatch[1]}/answers`, "POST", { code, answer });
+          const patientMatch = /patient=([^&]+)/.exec(location.hash);
+          await renderDiscovery(body.id, patientMatch ? patientMatch[1] : null);
+        } catch (err) {
+          document.getElementById("discovery-result").innerHTML = `<p class="muted">${esc(err.message || "Could not record answer")}</p>`;
+          btn.disabled = false;
+        }
+      });
+    });
+  });
+}
 
-  const patientRows = dash.patients.map(p => {
+function clinicPatientRows(dash) {
+  return dash.patients.map(p => {
     const st = patientStatus(p, dash.recent_labs);
     const report = dash.recent_reports.find(r => r.patient_id === p.id);
     return `<tr data-href="#patient/${p.id}">
@@ -665,22 +716,28 @@ async function renderDashboard() {
       <td class="mono">${report ? relTime(report.created_at) : "—"}</td>
     </tr>`;
   }).join("") || `<tr class="no-hover"><td colspan="6" class="muted">No patients yet</td></tr>`;
+}
 
-  const reportRows = dash.recent_reports.map(r => `
+function reportRowsHtml(dash, clinician) {
+  return dash.recent_reports.map(r => `
     <tr data-href="/report.html?report_id=${r.id}">
-      <td>${esc(r.patient_display_name || "—")}</td>
+      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
       <td>${esc(primaryFinding(r.title))}</td>
       <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
       <td class="mono">${fmtDate(r.created_at)}</td>
       <td><a href="/report.html?report_id=${r.id}">View report</a></td>
-    </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No reports yet</td></tr>`;
+    </tr>`).join("") || `<tr class="no-hover"><td colspan="${clinician ? 5 : 4}" class="muted">No reports yet</td></tr>`;
+}
 
-  document.getElementById("app-main").innerHTML = `
+function renderClinicDashboard(dash, name) {
+  const activeAnalyses = dash.recent_sessions.filter(s => s.status === "analyzing" || s.status === "pending").length;
+  const needsReview = buildAttentionItems(dash).length;
+  return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, isClinicianWorkspace() ? "Clinic workspace — each patient has their own Discovery and Evidence." : "Your personal workspace — labs, discovery, and evidence stay on your profile.", `<a class="app-btn app-btn-primary" href="#upload">Upload labs</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Clinic portal — each patient has their own Discovery, Evidence, and reports.", `<a class="app-btn app-btn-primary" href="#patients">Add patient</a>`)}
     ${commandBar()}
     <div class="metric-grid">
-      <div class="metric-card"><div class="metric-label">${isClinicianWorkspace() ? "Patients" : "Your profile"}</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">${isClinicianWorkspace() ? "In workspace" : "Personal record"}</div></div>
+      <div class="metric-card"><div class="metric-label">Patients</div><div class="metric-value">${dash.patients.length}</div><div class="metric-delta">In this clinic</div></div>
       <div class="metric-card"><div class="metric-label">Active analyses</div><div class="metric-value">${activeAnalyses}</div><div class="metric-delta">${activeAnalyses ? "Processing" : "None running"}</div></div>
       <div class="metric-card"><div class="metric-label">Reports</div><div class="metric-value">${dash.recent_reports.length}</div><div class="metric-delta">Recent analyses</div></div>
       <div class="metric-card"><div class="metric-label">Needs review</div><div class="metric-value">${needsReview}</div><div class="metric-delta">Attention items</div></div>
@@ -693,17 +750,17 @@ async function renderDashboard() {
       <h2>Recent patients</h2>
       <div class="data-table-wrap"><table class="data-table"><thead><tr>
         <th>Patient</th><th>Labs</th><th>Analyses</th><th>Latest report</th><th>Status</th><th>Updated</th>
-      </tr></thead><tbody>${patientRows}</tbody></table></div>
+      </tr></thead><tbody>${clinicPatientRows(dash)}</tbody></table></div>
     </div>
     <div class="workspace-section">
       <h2>Recent reports</h2>
       <div class="data-table-wrap"><table class="data-table"><thead><tr>
         <th>Patient</th><th>Primary finding</th><th>Confidence</th><th>Created</th><th></th>
-      </tr></thead><tbody>${reportRows}</tbody></table></div>
+      </tr></thead><tbody>${reportRowsHtml(dash, true)}</tbody></table></div>
     </div>
     <div class="form-grid-2" style="margin-top:0.5rem">
       <div class="workspace-section">
-        <h2>Biological signals across your workspace</h2>
+        <h2>Biological signals across the clinic</h2>
         <div class="app-card">${renderSignalBars(buildBiologicalSignals(dash))}</div>
       </div>
       <div class="workspace-section">
@@ -711,6 +768,64 @@ async function renderDashboard() {
         <div class="app-card">${renderActivityFeed(buildActivityFeed(dash))}</div>
       </div>
     </div>`;
+}
+
+function renderPersonalDashboard(dash, name) {
+  const latest = dash.recent_reports[0];
+  const labs = dash.recent_labs || [];
+  const needsReview = buildAttentionItems(dash).length;
+  return `
+    ${renderOnboardingBanner()}
+    ${pageHeader(`${greeting()}${name}`, "Personal portal — your labs, discovery, and evidence stay on one Self profile.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
+    ${commandBar()}
+    <div class="metric-grid">
+      <div class="metric-card"><div class="metric-label">Your profile</div><div class="metric-value">Self</div><div class="metric-delta">Personal record</div></div>
+      <div class="metric-card"><div class="metric-label">Labs</div><div class="metric-value">${labs.length}</div><div class="metric-delta">Uploaded files</div></div>
+      <div class="metric-card"><div class="metric-label">Reports</div><div class="metric-value">${dash.recent_reports.length}</div><div class="metric-delta">Your analyses</div></div>
+      <div class="metric-card"><div class="metric-label">Needs review</div><div class="metric-value">${needsReview}</div><div class="metric-delta">Attention items</div></div>
+    </div>
+    <div class="form-grid-2">
+      <div class="app-card">
+        <h2>Continue your discovery</h2>
+        <p class="muted">Chat is only an interface. The Case is the source of truth — no diagnosis is written here.</p>
+        <a class="app-btn app-btn-primary" href="#discovery">Open my discovery</a>
+      </div>
+      <div class="app-card">
+        <h2>Latest report</h2>
+        ${latest
+          ? `<p>${esc(primaryFinding(latest.title))}</p><a class="app-btn" href="/report.html?report_id=${latest.id}">Open my report</a>`
+          : `<p class="muted">No report yet. Upload labs to run your first analysis.</p>`}
+      </div>
+    </div>
+    <div class="workspace-section">
+      <h2>Needs attention</h2>
+      ${renderAttentionList(buildAttentionItems(dash))}
+    </div>
+    <div class="workspace-section">
+      <h2>My reports</h2>
+      <div class="data-table-wrap"><table class="data-table"><thead><tr>
+        <th>Primary finding</th><th>Confidence</th><th>Created</th><th></th>
+      </tr></thead><tbody>${reportRowsHtml(dash, false)}</tbody></table></div>
+    </div>
+    <div class="form-grid-2" style="margin-top:0.5rem">
+      <div class="workspace-section">
+        <h2>Your biological signals</h2>
+        <div class="app-card">${renderSignalBars(buildBiologicalSignals(dash))}</div>
+      </div>
+      <div class="workspace-section">
+        <h2>Recent activity</h2>
+        <div class="app-card">${renderActivityFeed(buildActivityFeed(dash))}</div>
+      </div>
+    </div>`;
+}
+
+async function renderDashboard() {
+  const dash = await api("/api/v1/workspace/dashboard");
+  lastDashboard = dash;
+  const name = dash.user_full_name ? `, ${esc(dash.user_full_name)}` : "";
+  document.getElementById("app-main").innerHTML = isClinicianWorkspace()
+    ? renderClinicDashboard(dash, name)
+    : renderPersonalDashboard(dash, name);
   wireTableRows();
   wireCommandSearch(dash);
   wireOnboardingBanner();

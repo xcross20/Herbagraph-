@@ -2801,7 +2801,7 @@
     {
       "id": "SLICE-119",
       "title": "Guided Discovery Case/Finding/Hypothesis + investigation coverage",
-      "status": "in_progress",
+      "status": "done",
       "priority": 1,
       "problem": "Users start from a concern but HerbaGraph only persists lab reports, so hypotheses and coverage vanish between requests.",
       "acceptance": [
@@ -2848,6 +2848,34 @@
         "app/discovery/service.py",
         "app/discovery/engine.py",
         "frontend/app.html"
+      ]
+    },
+    {
+      "id": "SLICE-121",
+      "title": "Dual portals + answerable Discovery outcomes/chat",
+      "status": "done",
+      "priority": 1,
+      "problem": "Clinicians and individuals still shared one workspace shape, and Discovery questions could not be recorded, so coverage never updated from conversation.",
+      "acceptance": [
+        "Clinician home is clinic panel; personal home is a single Self profile",
+        "POST /api/v1/cases/{id}/answers yes on MMA persists an outcome and removes MMA from missing markers",
+        "Test utility formula ranks MMA above skin biopsy",
+        "Chat turn updates the Case and never writes a diagnosis",
+        "Rebuild after an answer keeps previously ingested labs"
+      ],
+      "non_goals": [
+        "Gold Label",
+        "Imaging parsers",
+        "Next.js",
+        "Admin case console"
+      ],
+      "reversibility": "one-way schema for outcomes/turns; two-way UI",
+      "artifacts": [
+        "app/discovery/utility.py",
+        "app/discovery/service.py",
+        "frontend/clinic.html",
+        "frontend/me.html",
+        "frontend/js/workspace-app.js"
       ]
     }
   ],
@@ -3372,7 +3400,14 @@
       "status": "done",
       "priority": "medium",
       "rationale": "Case now persists hypotheses; the loop is incomplete without outcome/monitor objects.",
-      "completed_in": "SLICE-120"
+      "completed_in": "SLICE-121"
+    },
+    {
+      "id": "IMP-059",
+      "title": "Admin case console for Guided Discovery review",
+      "status": "proposed",
+      "priority": "low",
+      "rationale": "Cases and outcomes persist; operators still cannot inspect another user's case without a dedicated admin surface."
     }
   ]
 }

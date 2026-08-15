@@ -1311,3 +1311,73 @@
   border-radius: var(--radius-sm);
   font: inherit;
 }
+
+.wallet-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem;
+  margin: 0 0 1rem;
+}
+.wallet-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.wallet-card h3 {
+  margin: 0.85rem 0 0.35rem;
+  font-size: 0.88rem;
+}
+
+.discovery-shell {
+  display: grid;
+  gap: 1rem;
+}
+.discovery-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.15rem 0.1rem 0.35rem;
+}
+.discovery-bubble {
+  max-width: 42rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+.discovery-bubble.system {
+  background: var(--app-green-soft);
+  color: var(--app-ink);
+}
+.discovery-bubble.user {
+  margin-left: auto;
+  background: #171918;
+  color: #f4f6f2;
+}
+.discovery-questions {
+  display: grid;
+  gap: 0.75rem;
+}
+.discovery-question {
+  padding: 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: #fbfcf9;
+}
+.discovery-question p {
+  margin: 0 0 0.55rem;
+}
+.discovery-answer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+body[data-workspace="clinician"] .sidebar-section-label {
+  color: #c9d4b8;
+}
+body[data-workspace="consumer"] .patient-scope-bar.consumer {
+  background: var(--app-green-soft);
+}
