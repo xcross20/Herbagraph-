@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from app.discovery.intake import ExtractedFact
+from app.discovery.safety import SAFETY_ENGINE_RULE
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,18 @@ ALLOWED_FACT_NAMES = frozenset(
         "emg testing",
         "prior_workup",
         "medications",
+        "fever",
+        "vomiting",
+        "jaundice",
+        "severity",
+        "chronology",
+        "trajectory",
+        "abdominal_pain",
+        "chest_pain",
+        "dyspnea",
+        "syncope",
+        "sweating",
+        "patient_interpretation",
     }
 )
 
@@ -113,7 +126,9 @@ def llm_extract_facts(text: str) -> list[dict[str, Any]]:
 def llm_verbalize(*, action_type: str, prompt: str | None, problem: str, audience: str) -> str | None:
     data = try_llm_json(
         "You verbalize a predetermined Discovery action. Do not change the action. "
-        "Do not diagnose. Never say 'you have' a disease. JSON {\"message\":\"\"}.",
+        "Do not diagnose. Never say 'you have' a disease. "
+        "Do not name inferred conditions. JSON {\"message\":\"\"}. "
+        + SAFETY_ENGINE_RULE,
         f"audience={audience}\naction={action_type}\nrequired_question={prompt or ''}\n"
         f"problem={problem}\nInclude the required question if provided.",
     )

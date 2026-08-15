@@ -151,6 +151,12 @@ class DiscoveryTurnStateRead(BaseModel):
     contradictions: list[str] = []
     what_changed: list[str] = []
     critic: str = ""
+    safety_evidence_status: str | None = None
+    safety_confidence: str | None = None
+    safety_override: bool = False
+    discovery_can_continue: bool = True
+    clinical_followup_needed: bool = False
+    safety_net: dict | None = None
 
 
 class DiscoveryOutcomeRead(BaseModel):
@@ -199,6 +205,7 @@ class DiscoveryCaseRead(BaseModel):
     prior_workup: list[dict] = []
     memory_items: list[dict] = []
     literature: list[dict] = []
+    safety: dict | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime

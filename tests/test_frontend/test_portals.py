@@ -52,6 +52,8 @@ def test_workspace_app_enforces_portal_path():
     assert "discovery-composer" in js
     assert "current_question" in js
     assert "Chat is only an interface" in js
+    assert "data-safety-state" in js
+    assert "Urgent in-person evaluation" in js
     assert "data-select-value" in js
     assert "file_upload" in js
     assert "problem_representation" in js

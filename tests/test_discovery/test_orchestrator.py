@@ -22,7 +22,8 @@ def test_fixture_extracts_symptoms_not_a_diagnosis():
     result = orchestrate(FIXTURE, prior_facts={}, asked=[], answered=set())
     assert result.action.type == "ask_question"
     assert result.action.question_id == "q_laterality"
-    assert result.safety_status == "routine"
+    assert result.safety_status == "S2"
+    assert result.discovery_can_continue is True
     assert "you have" not in result.message.lower()
     assert "you have small-fiber" not in result.message.lower()
     assert "small-fiber neuropathy" not in result.message.lower()
@@ -40,7 +41,7 @@ def test_opening_does_not_dump_a_differential():
 
 def test_sudden_weakness_overrides_discovery():
     text = "It started this morning and now I can't lift my right foot."
-    assert screen_safety(text).status == "urgent"
+    assert screen_safety(text).status == "S4"
     result = orchestrate(text, prior_facts={}, asked=[], answered=set())
     assert result.action.type == "show_safety_message"
     assert result.stage == "safety_triage"

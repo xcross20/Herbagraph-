@@ -17,7 +17,12 @@ from app.discovery.intake import (
 from app.discovery.ai import merge_llm_facts, pick_verbalization
 from app.discovery.intent import classify_intent
 from app.discovery.literature import wants_evidence
-from app.discovery.safety import screen_safety
+from app.discovery.safety import (
+    assess_safety,
+    extract_safety_findings,
+    findings_from_fact_map,
+    safety_findings_to_facts,
+)
 
 
 _PATTERN_UNKNOWNS = (
@@ -46,6 +51,10 @@ class TurnResult:
     citations: list[dict] = field(default_factory=list)
     llm_used: bool = False
     critic: str = "Investigation relevance is not a diagnosis."
+    safety: dict = field(default_factory=dict)
+    discovery_can_continue: bool = True
+    clinical_followup_needed: bool = False
+    safety_override: bool = False
 
     def as_dict(self) -> dict:
         payload = asdict(self)
@@ -55,9 +64,11 @@ class TurnResult:
 
 
 def _stage(safety_status: str, facts: dict[str, str], action: NextAction, turn_count: int) -> str:
-    if safety_status == "urgent":
+    if safety_status in {"S4", "S3", "urgent"}:
         return "safety_triage"
-    if action.type == "show_safety_message":
+    if action.type in {"show_safety_message", "advise_prompt_evaluation"}:
+        return "safety_triage"
+    if safety_status == "S1":
         return "safety_triage"
     if "laterality" not in facts:
         return "opening"
@@ -99,8 +110,12 @@ def _compose(
 ) -> str:
     if action.type == "show_safety_message":
         return (
-            "This pattern needs urgent in-person evaluation, not more Discovery questions. "
-            "New weakness or a sudden change is outside what this workspace can organize. "
+            "Based on what you've shared so far, this needs urgent in-person evaluation "
+            "rather than more Discovery questions. This is not a diagnosis."
+        )
+    if action.type == "advise_prompt_evaluation":
+        return (
+            "Based on what you've shared so far, prompt in-person assessment would be the safer next step. "
             "This is not a diagnosis."
         )
     if action.type == "clarify" and contradictions:
@@ -150,8 +165,15 @@ def orchestrate(
     llm_message: str | None = None,
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
-    safety = screen_safety(text)
+    prior_safety = findings_from_fact_map(prior_facts)
+    safety_findings = extract_safety_findings(text, prior_safety)
+    safety = assess_safety(safety_findings, asked=set(asked))
     incoming = extract_facts(text, current_question_closes=current_closes)
+    have = {item.name for item in incoming}
+    for item in safety_findings_to_facts(safety_findings):
+        if item.name not in have:
+            incoming.append(item)
+            have.add(item.name)
     if llm_fact_rows:
         incoming = merge_llm_facts(incoming, llm_fact_rows)
     if "uncertainty" in intents and current_closes:
@@ -173,20 +195,32 @@ def orchestrate(
         asked=set(asked),
         answered=set(answered),
         contradictions=contradictions,
-        safety_status=safety.status,
+        safety_status=safety.state,
         hypotheses=snapshot.hypotheses,
         turn_count=turn_count,
         wants_evidence=wants_evidence(text),
+        safety=safety,
     )
     action = select_action(candidates)
-    message = safety.message if safety.status == "urgent" else _compose(
-        action,
-        audience=audience,
-        facts=merged,
-        prior_facts=prior_facts,
-        contradictions=contradictions,
-    )
-    if safety.status != "urgent":
+    if safety.state in {"S3", "S4"}:
+        message = safety.message or _compose(
+            action,
+            audience=audience,
+            facts=merged,
+            prior_facts=prior_facts,
+            contradictions=contradictions,
+        )
+    else:
+        message = _compose(
+            action,
+            audience=audience,
+            facts=merged,
+            prior_facts=prior_facts,
+            contradictions=contradictions,
+        )
+        if safety.state == "S1" and safety.preface and safety.preface not in message:
+            message = f"{safety.preface} {message}".strip()
+    if safety.state != "S4":
         message = pick_verbalization(message, llm_message)
     if _critic(message) == "blocked":
         message = "I updated the Case. I will not write a diagnosis. " + (action.prompt or "")
@@ -197,8 +231,8 @@ def orchestrate(
 
     return TurnResult(
         intents=intents,
-        safety_status=safety.status,
-        stage=_stage(safety.status, merged, action, turn_count),
+        safety_status=safety.state,
+        stage=_stage(safety.state, merged, action, turn_count),
         new_findings=facts_to_findings(incoming),
         contradictions=contradictions,
         problem_representation=problem_representation(merged),
@@ -209,6 +243,11 @@ def orchestrate(
         interaction=action.interaction,
         what_changed=changed,
         llm_used=bool(llm_fact_rows or llm_message),
+        safety=safety.as_dict(),
+        discovery_can_continue=safety.discovery_can_continue,
+        clinical_followup_needed=safety.clinical_followup_needed,
+        safety_override=safety.override,
+        critic=safety.critic if safety.state in {"S3", "S4"} else "Investigation relevance is not a diagnosis.",
     )
 
 

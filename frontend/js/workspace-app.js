@@ -628,6 +628,25 @@ function provenanceBadge(level) {
   return `<span class="prov-badge ${esc(level || "reported")}">${label}</span>`;
 }
 
+function renderSafetyBanner(body) {
+  const state = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state);
+  if (!state || state === "S0") return "";
+  const net = (body.turn_state && body.turn_state.safety_net) || (body.safety && body.safety.safety_net) || {};
+  const watch = (net.watch_for || []).slice(0, 5).map((item) => esc(item)).join("; ");
+  const canContinue = body.turn_state ? body.turn_state.discovery_can_continue !== false : true;
+  const label = {
+    S1: "Safety information incomplete — clarifying before any disposition.",
+    S2: "Routine clinical follow-up is reasonable. Discovery can continue.",
+    S3: "Prompt in-person assessment is advised. Only limited continuation here.",
+    S4: "Urgent in-person evaluation is advised. Discovery is paused.",
+  }[state] || "";
+  if (!label) return "";
+  return `<div class="safety-banner" data-safety-state="${esc(state)}">
+    <p><strong>${esc(state)}</strong> ${label}</p>
+    ${watch && canContinue ? `<p class="muted">If the pattern changes — ${watch} — seek prompt medical evaluation.</p>` : ""}
+  </div>`;
+}
+
 function renderAtlasMemory(body) {
   if (!body) {
     return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
@@ -650,6 +669,7 @@ function renderAtlasMemory(body) {
   return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
     <h2>What HerbaGraph knows</h2>
     ${body.problem_representation ? `<p class="discovery-problem">${esc(body.problem_representation)}</p>` : ""}
+    ${renderSafetyBanner(body)}
     <h3>Facts</h3><ul>${memRows}</ul>
     <h3>Timeline</h3><ul>${timeRows}</ul>
     <h3>Prior workup</h3><ul>${workRows}</ul>

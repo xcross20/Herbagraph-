@@ -80,6 +80,22 @@
     if (sel) sel.onchange = () => { patientId = sel.value || null; };
   }
 
+  function renderAskSafety(body) {
+    const state = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state);
+    if (!state || state === "S0") return "";
+    const net = (body.turn_state && body.turn_state.safety_net) || (body.safety && body.safety.safety_net) || {};
+    const watch = (net.watch_for || []).slice(0, 4).map((item) => esc(item)).join("; ");
+    const canContinue = !body.turn_state || body.turn_state.discovery_can_continue !== false;
+    const label = {
+      S1: "Safety information incomplete. Clarifying before any disposition.",
+      S2: "Routine follow-up is reasonable. Discovery can continue.",
+      S3: "Prompt in-person assessment advised.",
+      S4: "Urgent in-person evaluation advised. Discovery paused.",
+    }[state];
+    if (!label) return "";
+    return `<h2>Safety</h2><p class="ask-note" data-safety-state="${esc(state)}">${esc(state)} — ${esc(label)}</p>${watch && canContinue ? `<p class="ask-note">Watch for: ${watch}.</p>` : ""}`;
+  }
+
   function renderThread() {
     const body = currentCase;
     const turns = (body.turns || []).map((t) =>
@@ -114,6 +130,7 @@
           <h2>What we know</h2><ul>${memory}</ul>
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
+          ${renderAskSafety(body)}
           <h2>Literature</h2>
           <ul>${cites}</ul>
           <p class="ask-note">Citations come from PubMed. They are not a diagnosis.</p>

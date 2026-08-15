@@ -286,6 +286,104 @@ The LLM may explain the decomposition. It may not invent the numbers. Scores are
 
 **Spike required:** none — PubMed client and `llm_client` already exist.
 
+## SPEC: Safety & nuance engine (S0–S4)
+
+**Problem:** A person with chronic, vague, or self-labeled symptoms cannot continue an investigation because a keyword match treats uncertainty as an emergency, costing either panic or a missed true acute pattern.
+
+**Acceptance claims:**
+
+1. Disposition is one of `S0` | `S1` | `S2` | `S3` | `S4`. There is no binary SAFE/URGENT.
+2. “My gallbladder hurts.” is `S1` with clarifiers. It is not `S4`. The Case stores a patient interpretation, not a biliary diagnosis.
+3. Case A (intermittent RUQ after eating, six months) is not `S4`. Case B (severe RUQ eight hours + repeated vomiting + fever) is `S4` and overrides Discovery. Case D (“I think I have sepsis because Google said so”) does not inherit the disease name and is not `S4`.
+4. Historical jaundice plus current mild discomfort does not fire an acute emergency rule. Explicit “no fever, vomiting, or yellowing” is stored as absent, not omitted.
+5. Sudden focal weakness (“this morning… I can't lift my right foot”) remains `S4` and still interrupts. Six-month burning feet remains Discovery (laterality), not an emergency.
+6. Silent failure: safety copy never names an inferred disease (`sepsis`, `cholecystitis`, `you have`) and a hypothesis cannot independently escalate.
+
+**Non-goals:** Hundreds of eval items, FDA clearance, LLM-authored disposition, replacing the intervention safety engine, Gold Label.
+
+**Slices:** 1. Finding-driven S0–S4 + critic + safety net + NBA policy on the existing orchestrator.
+
+**Door class:** one-way for `safety_status` values (`S0`–`S4`) and the safety payload on TurnState. Two-way for clarifier copy.
+
+**Riskiest unknown:** whether S1 on every incomplete presentation will steal the first burning-feet laterality question.
+
+## DESIGN: Safety & nuance
+
+**Data model:** no new tables. `SafetyFinding` and `SafetyAssessment` are computed each turn from the current message plus prior fact map. The assessment is stored on the turn payload. `SafetyNet` is derived from the active domain.
+
+**Seams:**
+
+| Seam | Grade |
+|---|---|
+| Safety / hypotheses | pass — hypotheses never enter disposition |
+| Safety / orchestrator | pass — assessment is an input to NBA, not a chat personality |
+| Safety / lab-intervention safety engine | pass — different object |
+| Safety copy / LLM | pass — composer verbalizes; critic blocks disease names |
+
+**Decisions:**
+
+| Decision | Door | Choice | Why |
+|---|---|---|---|
+| Five dispositions | one-way | S0–S4 | binary SAFE/URGENT cannot hold chronic uncertainty |
+| Escalate on hypothesis | one-way | never | AHRQ: no premature closure / self-frightening |
+| S1 vs burning-feet opening | two-way | S1 only for attention domains (abdominal, chest, inherited disease labels). Chronic sensory stays S2 | otherwise laterality is stolen |
+| Persist SafetyNet table | two-way | derive + turn payload | recomputed from findings |
+
+### ADR-5: Finding-driven five-level Discovery safety — 2026-08-15 — accepted
+
+**Context:** Keyword `can't lift` / `gallbladder` / patient Google diagnoses were collapsing Discovery into a panic button.
+
+**Decision:** Replace `routine`/`watch`/`urgent` with S0–S4. Consume FINDINGS (with acuity, chronology, trajectory, temporality, explicit negatives). Interpretations and hypotheses cannot escalate. S3/S4 pass a deterministic SafetyCritic. S4 overrides NBA; S1 asks 1–3 clarifiers; S0/S2 continue Discovery.
+
+**Alternatives:** Keep binary urgent + more regex — lost; still no incomplete state. LLM triage — lost; model would own interruption.
+
+**Consequences:** Public `safety_status` values change. Old `urgent`/`routine` payloads normalize on read. Verified: orchestrator already screens every turn. Guess: S1 will be the common early abdominal state.
+
+**Revisit if:** counsel requires a different patient-facing claim, or S1 steals laterality on sensory cases.
+
+## RISK MAP: Safety & nuance
+
+1. Missed true emergency (sudden focal weakness / chest constellation) after the rewrite — P:M Cost:H Invisibility:H → keep those fixtures red-first; critic cannot downgrade a current multi-finding emergency.
+2. False S4 from a disease name or historical red flag — P:H Cost:H Invisibility:H → only current/recent present findings; critic downgrades interpretation-only and historical-combo.
+3. S1 steals burning-feet laterality — P:H Cost:M Invisibility:M → attention domains only; chronic sensory is S2. Test: existing fixture still asks `q_laterality`.
+4. Safety copy names a diagnosis — P:M Cost:H Invisibility:H → composer + critic banned phrases; Case D test.
+
+**Clean zones:** lab parser, PubMed, four-score decomposition, intervention safety engine.
+
+**Spike required:** none — existing sudden-weakness and burning-feet fixtures are the spike.
+
+## TEST REPORT: Safety & nuance
+
+**Claims → tests:** S0–S4 (`test_disposition_is_five_levels_not_binary`); Case A/B/C/D; historical jaundice; explicit negatives; sudden focal vs chronic generalized weakness; crushing chest does not ask a scale; burning-feet laterality preserved; hypothesis text does not escalate.
+
+**Risk map coverage:** missed emergency (foot + arm + chest); false S4 from Google/gallbladder/history; laterality theft; diagnosis copy.
+
+**Red-first log:** follow-up stayed S1 until routine chronic pattern ranked above leftover jaundice unknown; “or yellowing” missed jaundice absence. Both re-seen green.
+
+**NOT covered (declared):** hundreds of eval items; live KPI dashboard; FDA/counsel review.
+
+## REVIEW: Safety & nuance
+
+**Blocking:** none against the six claims.
+
+**Should-fix:** expand the eval set beyond the named fixtures; measure false-alarm rate in production.
+
+**Noted:** no new table — SafetyNet is derived each turn. Intervention safety engine untouched.
+
+**Hostile trace log:** “I think I have sepsis” → interpretation stored, speech has no “sepsis”, not S4. Historical jaundice + mild discomfort ≠ S4. Burning feet still `q_laterality`.
+
+**Verdict:** pass to SRE.
+
+## OPS PLAN: Safety & nuance
+
+**Signals:** S4 rate vs S1 rate on `/turns`; messages containing banned disease names; laterality stolen (S1 on burning-feet openings).
+
+**Rollback:** revert the commit. No migration. Old `urgent`/`routine` payloads normalize on read. Strands nothing persisted except turn JSON that already existed.
+
+**Launch:** web + worker. No reseed.
+
+**Tripwires:** S4 on “gallbladder hurts” alone → critic/extract regression, revert. Sudden “can't lift” not S4 → emergency miss, revert immediately.
+
 ## TEST REPORT: Phases 1–6 + LLM
 
 **Claims → tests:**

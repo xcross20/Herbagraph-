@@ -244,9 +244,12 @@ def snapshot_to_read(
         )
     turn_state = None
     if payload.get("stage") and action_raw.get("type"):
+        from app.discovery.safety import normalize_state
+
+        safety_raw = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
         turn_state = DiscoveryTurnStateRead(
             stage=str(payload.get("stage") or case.stage or "opening"),
-            safety_status=str(payload.get("safety_status") or "routine"),
+            safety_status=normalize_state(str(payload.get("safety_status") or safety_raw.get("state") or "S0")),
             intents=list(payload.get("intents") or []),
             selected_action=DiscoveryActionRead(
                 type=str(action_raw.get("type")),
@@ -259,6 +262,14 @@ def snapshot_to_read(
             contradictions=list(payload.get("contradictions") or []),
             what_changed=list(payload.get("what_changed") or []),
             critic=str(payload.get("critic") or ""),
+            safety_evidence_status=safety_raw.get("evidence_status"),
+            safety_confidence=safety_raw.get("confidence"),
+            safety_override=bool(payload.get("safety_override") or safety_raw.get("override")),
+            discovery_can_continue=payload.get("discovery_can_continue", safety_raw.get("discovery_can_continue", True)),
+            clinical_followup_needed=bool(
+                payload.get("clinical_followup_needed") or safety_raw.get("clinical_followup_needed")
+            ),
+            safety_net=safety_raw.get("safety_net"),
         )
     interaction = None
     if isinstance(interaction_raw, dict) and interaction_raw.get("type"):
@@ -372,6 +383,7 @@ def snapshot_to_read(
         prior_workup=_prior_workup_from_findings(snapshot.findings),
         memory_items=_memory_items_from_findings(snapshot.findings),
         literature=_literature_from_case(case),
+        safety=payload.get("safety") if isinstance(payload.get("safety"), dict) else None,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -120,9 +121,13 @@ def generate_actions(
     hypotheses: list,
     turn_count: int,
     wants_evidence: bool = False,
+    safety: Any | None = None,
 ) -> list[NextAction]:
+    from app.discovery.safety import normalize_state
+
     actions: list[NextAction] = []
-    if safety_status == "urgent":
+    state = safety.state if safety is not None else normalize_state(safety_status)
+    if state == "S4":
         return [
             NextAction(
                 type="show_safety_message",
@@ -130,7 +135,39 @@ def generate_actions(
                 score=1.0,
             )
         ]
-    if wants_evidence and safety_status != "urgent":
+    if state == "S3":
+        limited = [
+            NextAction(
+                type="advise_prompt_evaluation",
+                objective="Advise prompt in-person assessment. Limited continuation only.",
+                prompt=(safety.message if safety is not None else None),
+                score=0.99,
+            )
+        ]
+        if wants_evidence:
+            limited.append(
+                NextAction(
+                    type="retrieve_evidence",
+                    objective="Attach retrieved PubMed citations to the Case. Do not invent PMIDs.",
+                    prompt="I can attach retrieved literature. Citations only come from PubMed. This is not a diagnosis.",
+                    score=0.5,
+                )
+            )
+        return limited
+    if state == "S1" and safety is not None:
+        for index, item in enumerate(getattr(safety, "clarifiers", []) or []):
+            options = list(item.options)
+            actions.append(
+                NextAction(
+                    type="ask_question",
+                    objective="Clarify safety-discriminating facts before disposition.",
+                    question_id=item.code,
+                    prompt=item.prompt,
+                    interaction={"type": "single_select", "options": options} if options else {"type": "yes_no", "options": ["Yes", "No", "Not sure"]},
+                    score=0.96 - (index * 0.01),
+                )
+            )
+    if wants_evidence and state != "S4":
         actions.append(
             NextAction(
                 type="retrieve_evidence",
@@ -161,7 +198,7 @@ def generate_actions(
     for question in QUESTIONS:
         if _asked_or_answered(question, asked, facts, answered):
             continue
-        if question.kind == "safety" and safety_status == "routine":
+        if question.kind == "safety" and state in {"S0", "S2", "routine"}:
             continue
         if question.kind == "safety" and not neuro:
             continue
