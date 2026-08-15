@@ -1,0 +1,184 @@
+/* Secondary Ask portal. Uses the existing Case API. Does not replace the workspace. */
+(function () {
+  const API = window.location.origin;
+  const Auth = window.HerbaGraphAuth;
+  const WS = window.HerbaGraphWorkspace;
+  const EXAMPLES = [
+    "For six months, my feet have burned at night. My doctor says my blood work is normal.",
+    "I already have labs — take me to upload.",
+    "Fatigue and hair loss for a few months.",
+  ];
+
+  function esc(s) {
+    return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  async function api(path, method, body) {
+    const headers = { "Content-Type": "application/json" };
+    if (window.hgToken) headers.Authorization = `Bearer ${window.hgToken}`;
+    let resp = await fetch(API + path, { method: method || "GET", headers, body: body ? JSON.stringify(body) : undefined });
+    if (resp.status === 401 && window.hgRefreshToken) {
+      await Auth.refreshTokens();
+      headers.Authorization = `Bearer ${window.hgToken}`;
+      resp = await fetch(API + path, { method: method || "GET", headers, body: body ? JSON.stringify(body) : undefined });
+    }
+    if (!resp.ok) throw new Error((await resp.text()) || resp.statusText);
+    return resp.status === 204 ? null : resp.json();
+  }
+
+  function params() {
+    return new URLSearchParams(location.search);
+  }
+
+  function goWorkspace(hash) {
+    const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: hash || "#dashboard" })) || "/me.html#dashboard";
+    location.href = home;
+  }
+
+  let currentUser = null;
+  let currentCase = null;
+  let patients = [];
+  let patientId = null;
+
+  function renderHome() {
+    const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
+    document.getElementById("ask-main").innerHTML = `
+      <section class="ask-home">
+        <h1>Ask HerbaGraph</h1>
+        <p class="ask-lede">A second way into the same workspace. Ask about a concern. Labs, reports, and evidence stay where they are.</p>
+        ${clinician ? `<p class="ask-scope">Patient <select id="ask-patient">${patients.map((p) => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("") || "<option value=\"\">Add a patient in the workspace first</option>"}</select></p>` : ""}
+        <form class="ask-composer" id="ask-form">
+          <textarea id="ask-input" rows="2" required placeholder="Describe what is going on…"></textarea>
+          <button type="submit">Ask</button>
+        </form>
+        <div class="ask-chips">
+          ${EXAMPLES.map((ex, i) => `<button type="button" class="ask-chip" data-ex="${i}">${esc(i === 1 ? "I already have labs" : ex.slice(0, 42) + (ex.length > 42 ? "…" : ""))}</button>`).join("")}
+        </div>
+        <p class="ask-note">Not a diagnosis. The Case is the source of truth — this page is only a conversation surface.</p>
+      </section>`;
+    document.getElementById("ask-form").onsubmit = async (e) => {
+      e.preventDefault();
+      await startOrContinue(document.getElementById("ask-input").value.trim());
+    };
+    document.querySelectorAll("[data-ex]").forEach((btn) => {
+      btn.onclick = async () => {
+        const ex = EXAMPLES[Number(btn.getAttribute("data-ex"))];
+        if (ex.includes("upload")) { goWorkspace("#upload"); return; }
+        document.getElementById("ask-input").value = ex;
+        await startOrContinue(ex);
+      };
+    });
+    const sel = document.getElementById("ask-patient");
+    if (sel) sel.onchange = () => { patientId = sel.value || null; };
+  }
+
+  function renderThread() {
+    const body = currentCase;
+    const turns = (body.turns || []).map((t) =>
+      `<div class="ask-msg ${t.role === "user" ? "user" : "system"}">${esc(t.text)}${t === body.turns[body.turns.length - 1] && t.role === "system" ? renderFollowups(body) : ""}</div>`
+    ).join("");
+    const memory = (body.memory_items || []).slice(0, 8).map((i) => `<li>${esc(i.name)}: ${esc(i.value || "")}</li>`).join("") || "<li>No facts yet</li>";
+    const gaps = (body.confidence_increasers || []).slice(0, 5).map((i) => `<li>${esc(i.label)}</li>`).join("") || "<li>No ranked gaps yet</li>";
+    const hypos = (body.hypotheses || []).slice(0, 5).map((h) => `<li>${esc(h.label)}</li>`).join("") || "<li>No open families</li>";
+    const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: "#dashboard" })) || "/me.html#dashboard";
+    document.getElementById("ask-main").innerHTML = `
+      <div class="ask-thread">
+        <div>
+          <div class="ask-thread-main" id="ask-thread-main">${turns}</div>
+          <div class="ask-dock">
+            <form class="ask-composer" id="ask-form">
+              <textarea id="ask-input" rows="2" required placeholder="Ask a follow-up, or add a note…"></textarea>
+              <button type="submit">Ask</button>
+            </form>
+            <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged.</p>
+          </div>
+        </div>
+        <aside class="ask-rail">
+          <h2>Sources in this workspace</h2>
+          <ul>
+            <li><a href="${home.replace("#dashboard", "#upload")}">Uploaded labs</a></li>
+            <li><a href="${home.replace("#dashboard", "#reports")}">Reports</a></li>
+            <li><a href="${home.replace("#dashboard", "#evidence")}">Evidence</a></li>
+          </ul>
+          <h2>What we know</h2><ul>${memory}</ul>
+          <h2>Investigating</h2><ul>${hypos}</ul>
+          <h2>Would increase confidence</h2><ul>${gaps}</ul>
+          <p class="ask-note">Coverage is completeness, not disease probability. Map v${body.map_version || 1}.</p>
+        </aside>
+      </div>`;
+    document.getElementById("ask-form").onsubmit = async (e) => {
+      e.preventDefault();
+      await startOrContinue(document.getElementById("ask-input").value.trim());
+    };
+    document.querySelectorAll("[data-select-value], [data-answer]").forEach((btn) => {
+      btn.onclick = () => startOrContinue(btn.getAttribute("data-select-value") || btn.textContent.trim());
+    });
+    const main = document.getElementById("ask-thread-main");
+    if (main) main.scrollTop = main.scrollHeight;
+  }
+
+  function renderFollowups(body) {
+    const interaction = body.interaction;
+    if (interaction && interaction.type === "file_upload") {
+      return `<div class="ask-followups"><button type="button" class="ask-chip" data-select-value="I will upload records">I will upload records</button></div>`;
+    }
+    if (interaction && interaction.options && interaction.options.length) {
+      return `<div class="ask-followups">${interaction.options.map((opt) =>
+        `<button type="button" class="ask-chip" data-select-value="${esc(opt)}">${esc(opt)}</button>`
+      ).join("")}</div>`;
+    }
+    return "";
+  }
+
+  async function startOrContinue(text) {
+    if (!text) return;
+    if (text.toLowerCase().includes("upload records")) {
+      goWorkspace("#upload");
+      return;
+    }
+    const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
+    if (clinician && !patientId) {
+      document.getElementById("ask-main").innerHTML = `<p class="ask-home">Select a patient in the workspace first, then come back to Ask.</p>`;
+      return;
+    }
+    if (currentCase && currentCase.id) {
+      currentCase = await api(`/api/v1/cases/${currentCase.id}/turns`, "POST", { text });
+    } else {
+      currentCase = await api("/api/v1/cases", "POST", { presenting_concern: text, patient_id: patientId || null });
+    }
+    const next = new URL(location.href);
+    next.searchParams.set("case", currentCase.id);
+    if (patientId) next.searchParams.set("patient", patientId);
+    history.replaceState({}, "", next);
+    renderThread();
+  }
+
+  async function boot() {
+    const logo = document.getElementById("ask-logo");
+    if (logo && typeof herbagraphLogoLink === "function") logo.innerHTML = herbagraphLogoLink("/ask.html");
+    if (!(await Auth.ensureSession())) { location.href = "/login.html?next=/ask.html"; return; }
+    currentUser = await api("/api/v1/auth/me");
+    const home = WS.workspaceHome(currentUser.role, { hash: "#dashboard" });
+    document.getElementById("ask-workspace-link").href = home;
+    document.getElementById("ask-labs-link").href = home.replace("#dashboard", "#upload");
+    document.getElementById("ask-reports-link").href = home.replace("#dashboard", "#reports");
+    patients = await api("/api/v1/patients");
+    if (!WS.isClinicianRole(currentUser.role) && patients[0]) patientId = patients[0].id;
+    if (params().get("patient")) patientId = params().get("patient");
+    if (params().get("case")) {
+      try {
+        currentCase = await api(`/api/v1/cases/${params().get("case")}`);
+        if (currentCase.patient_id) patientId = currentCase.patient_id;
+        renderThread();
+        return;
+      } catch (_) {
+        currentCase = null;
+      }
+    }
+    renderHome();
+  }
+
+  boot().catch((err) => {
+    document.getElementById("ask-main").innerHTML = `<p class="ask-home">${esc(err.message || "Could not open Ask")}</p>`;
+  });
+})();

@@ -1,0 +1,171 @@
+/* Secondary Ask portal — Perplexity-like, sits on top of the existing workspace. */
+
+.ask-body {
+  margin: 0;
+  min-height: 100vh;
+  background: #f6f7f3;
+  color: #171918;
+  font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.ask-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1.25rem;
+  border-bottom: 1px solid #e4e7e1;
+  background: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.ask-topbar-nav {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.88rem;
+}
+.ask-topbar-nav a { color: #4d564f; text-decoration: none; }
+.ask-topbar-nav a:hover { color: #117744; }
+
+.ask-main { min-height: calc(100vh - 56px); }
+
+.ask-home {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 12vh 1.25rem 4rem;
+  text-align: center;
+}
+
+.ask-home h1 {
+  margin: 0 0 0.45rem;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+}
+
+.ask-home .ask-lede {
+  margin: 0 0 1.5rem;
+  color: #5c645e;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.ask-composer {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-end;
+  padding: 0.65rem 0.7rem 0.65rem 0.9rem;
+  border: 1px solid #d8ddd6;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 28px rgba(20, 24, 21, 0.06);
+  text-align: left;
+}
+
+.ask-composer textarea {
+  flex: 1;
+  border: 0;
+  resize: none;
+  min-height: 3.2rem;
+  max-height: 9rem;
+  font: inherit;
+  outline: none;
+  background: transparent;
+}
+
+.ask-composer button {
+  border: 0;
+  background: #117744;
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.55rem 0.9rem;
+  font: inherit;
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.ask-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.ask-chip {
+  border: 1px solid #d8ddd6;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  color: #2c332f;
+}
+.ask-chip:hover { border-color: #117744; }
+
+.ask-thread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 0;
+  min-height: calc(100vh - 56px);
+}
+
+.ask-thread-main {
+  display: flex;
+  flex-direction: column;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 6.5rem;
+}
+
+.ask-msg {
+  max-width: 40rem;
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+.ask-msg.user {
+  margin-left: auto;
+  background: #171918;
+  color: #f4f6f2;
+}
+.ask-msg.system {
+  background: #fff;
+  border: 1px solid #e4e7e1;
+}
+
+.ask-followups { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.65rem; }
+
+.ask-dock {
+  position: sticky;
+  bottom: 0;
+  padding: 0.75rem 1.25rem 1.1rem;
+  background: linear-gradient(180deg, transparent, #f6f7f3 30%);
+}
+
+.ask-rail {
+  border-left: 1px solid #e4e7e1;
+  background: #fbfcf9;
+  padding: 1rem 1rem 2rem;
+  overflow: auto;
+}
+.ask-rail h2 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6a726c; margin: 1rem 0 0.4rem; }
+.ask-rail h2:first-child { margin-top: 0; }
+.ask-rail ul { margin: 0; padding-left: 1.05rem; }
+.ask-rail li { margin: 0.3rem 0; font-size: 0.84rem; }
+
+.ask-scope { margin: 0 0 0.75rem; font-size: 0.84rem; color: #5c645e; }
+.ask-scope select { margin-left: 0.35rem; }
+
+.ask-note { font-size: 0.78rem; color: #6a726c; margin: 0.75rem 0 0; }
+
+@media (max-width: 900px) {
+  .ask-thread { grid-template-columns: 1fr; }
+  .ask-rail { border-left: 0; border-top: 1px solid #e4e7e1; }
+}

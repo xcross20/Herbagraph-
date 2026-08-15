@@ -34,8 +34,9 @@ def test_app_html_splits_clinician_and_consumer_workspace():
 def test_app_html_has_discovery_route():
     html = _CLINIC.read_text(encoding="utf-8")
     js = _APP_JS.read_text(encoding="utf-8")
-    assert 'href="#discovery"' in html
-    assert "renderDiscovery" in js
+    assert 'href="/ask.html"' in html
+    assert 'location.replace(next.pathname + next.search)' in js
+    assert "/ask.html" in js
     assert "/api/v1/cases" in js
     assert "brand-logo.js" in html
     assert "app-nav-logo" in html

@@ -923,7 +923,7 @@ function renderPersonalDashboard(dash, name) {
       <div class="app-card">
         <h2>Continue your discovery</h2>
         <p class="muted">Chat is only an interface. The Case is the source of truth — no diagnosis is written here.</p>
-        <a class="app-btn app-btn-primary" href="#discovery">Open my discovery</a>
+        <a class="app-btn app-btn-primary" href="/ask.html">Open Ask</a>
       </div>
       <div class="app-card">
         <h2>Latest report</h2>
@@ -2101,7 +2101,13 @@ async function render() {
     const path = hash.split("?")[0];
 
     if (path === "dashboard") { setActiveNav("dashboard"); await renderDashboard(); }
-    else if (path === "discovery") { setActiveNav("discovery"); await renderDiscovery(params.get("case"), params.get("patient")); }
+    else if (path === "discovery") {
+      const next = new URL("/ask.html", location.origin);
+      if (params.get("case")) next.searchParams.set("case", params.get("case"));
+      if (params.get("patient")) next.searchParams.set("patient", params.get("patient"));
+      location.replace(next.pathname + next.search);
+      return;
+    }
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
     else if (path === "reports") { setActiveNav("reports"); await renderReports(params.get("patient")); }
     else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(params.get("patient")); }

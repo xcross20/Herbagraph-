@@ -9,7 +9,9 @@ def test_clinic_and_personal_portals_exist():
     assert "Clinic portal" in clinic
     assert "Personal portal" in me
     assert "Patients" in clinic
-    assert "My discovery" in me
+    assert "Ask" in me
+    assert "/ask.html" in me
+    assert "/ask.html" in clinic
     assert "My labs" in me
     assert "HG_PORTAL = \"clinic\"" in clinic
     assert "HG_PORTAL = \"personal\"" in me
@@ -53,9 +55,17 @@ def test_workspace_app_enforces_portal_path():
     assert "data-select-value" in js
     assert "file_upload" in js
     assert "problem_representation" in js
-    assert "atlas-workspace" in js
-    assert "What HerbaGraph knows" in js
-    assert "What we're investigating" in js
-    assert "What would increase confidence" in js
-    assert "discovery_disclaimer" in js
-    assert "not disease probability" in js
+    assert 'location.replace(next.pathname + next.search)' in js
+    assert "/ask.html" in js
+
+
+def test_ask_portal_is_secondary_not_a_workspace_replacement():
+    ask = (ROOT / "ask.html").read_text(encoding="utf-8")
+    js = (ROOT / "js" / "ask-app.js").read_text(encoding="utf-8")
+    assert "Ask | HerbaGraph" in ask
+    assert "/js/ask-app.js" in ask
+    assert "Ask HerbaGraph" in js
+    assert "second way into the same workspace" in js
+    assert "/api/v1/cases" in js
+    assert "ask-rail" in js
+    assert "Back to workspace" in js
