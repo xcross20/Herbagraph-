@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -47,6 +50,34 @@ from app.schemas.discovery import (
 )
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
+
+
+def _ndjson_stream(work):
+    async def events():
+        queue: asyncio.Queue = asyncio.Queue()
+
+        async def on_phase(phase: str, label: str) -> None:
+            await queue.put({"event": "thinking", "phase": phase, "label": label})
+
+        async def run() -> None:
+            try:
+                await work(queue.put, on_phase)
+            except Exception as exc:
+                await queue.put({"event": "error", "detail": str(exc)})
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(run())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                yield json.dumps(jsonable_encoder(item)) + "\n"
+        finally:
+            await task
+
+    return StreamingResponse(events(), media_type="application/x-ndjson")
 
 
 @router.get("", response_model=list[DiscoveryCaseRead])
@@ -111,6 +142,46 @@ async def open_case(
     await apply_opening_turn(db, case, payload.presenting_concern, audience=audience)
     await db.commit()
     return await case_to_read(db, case)
+
+
+@router.post("/stream")
+async def stream_open_case(
+    payload: DiscoveryCaseCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    async def work(put, on_phase) -> None:
+        await put({"event": "accepted", "text": payload.presenting_concern})
+        case = await create_case(
+            db,
+            user_id=current_user.id,
+            presenting_concern=payload.presenting_concern,
+            patient_id=payload.patient_id,
+        )
+        report = await latest_lab_report(db, current_user.id, payload.patient_id)
+        labs = []
+        lab_report_id = None
+        if report is not None:
+            loaded = await db.execute(
+                select(LabReport)
+                .where(LabReport.id == report.id)
+                .options(selectinload(LabReport.lab_results))
+            )
+            report = loaded.scalar_one_or_none()
+            if report is not None:
+                labs = labs_from_results(report.lab_results)
+                lab_report_id = report.id
+        await rebuild_case(db, case, labs=labs, lab_report_id=lab_report_id)
+        audience = (
+            "clinician"
+            if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN}
+            else "consumer"
+        )
+        await apply_opening_turn(db, case, payload.presenting_concern, audience=audience, on_phase=on_phase)
+        await db.commit()
+        await put({"event": "done", "case": await case_to_read(db, case)})
+
+    return _ndjson_stream(work)
 
 
 @router.get("/{case_id}/turns", response_model=list[DiscoveryTurnRead])
@@ -256,6 +327,31 @@ async def add_case_turn(
     await apply_user_turn(db, case, payload.text, audience=audience)
     await db.commit()
     return await case_to_read(db, case)
+
+
+@router.post("/{case_id}/turns/stream")
+async def stream_case_turn(
+    case_id: uuid.UUID,
+    payload: DiscoveryTurnCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    async def work(put, on_phase) -> None:
+        await put({"event": "accepted", "text": payload.text})
+        case = await get_owned_case(db, case_id, current_user.id)
+        if case is None:
+            await put({"event": "error", "detail": "Case not found"})
+            return
+        audience = (
+            "clinician"
+            if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN}
+            else "consumer"
+        )
+        await apply_user_turn(db, case, payload.text, audience=audience, on_phase=on_phase)
+        await db.commit()
+        await put({"event": "done", "case": await case_to_read(db, case)})
+
+    return _ndjson_stream(work)
 
 
 @router.post("/{case_id}/testing-plan", response_model=list[DiscoveryTestPlanItemRead])

@@ -35,6 +35,36 @@
     return resp.status === 204 ? null : resp.json();
   }
 
+  async function apiStream(path, body, onEvent) {
+    const headers = { "Content-Type": "application/json" };
+    if (window.hgToken) headers.Authorization = `Bearer ${window.hgToken}`;
+    let resp = await fetch(API + path, { method: "POST", headers, body: JSON.stringify(body) });
+    if (resp.status === 401 && window.hgRefreshToken) {
+      await Auth.refreshTokens();
+      headers.Authorization = `Bearer ${window.hgToken}`;
+      resp = await fetch(API + path, { method: "POST", headers, body: JSON.stringify(body) });
+    }
+    if (!resp.ok || !resp.body) {
+      const raw = await resp.text();
+      throw new Error(raw || resp.statusText);
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buf += decoder.decode(chunk.value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        onEvent(JSON.parse(line));
+      }
+    }
+    if (buf.trim()) onEvent(JSON.parse(buf));
+  }
+
   function params() {
     return new URLSearchParams(location.search);
   }
@@ -142,7 +172,8 @@
       turnsHtml += `<div class="ask-msg user pending" data-pending-prompt="1">${esc(pendingUser)}</div>`;
     }
     if (isThinking) {
-      turnsHtml += `<div class="ask-msg system thinking" data-ask-thinking="1" aria-live="polite"><span class="ask-think-dot"></span><span class="ask-think-dot"></span><span class="ask-think-dot"></span> Discovery Guide is thinking…</div>`;
+      const label = options.thinkLabel || "Discovery Guide is thinking…";
+      turnsHtml += `<div class="ask-msg system thinking" data-ask-thinking="1" aria-live="polite"><span class="ask-think-dot"></span><span class="ask-think-dot"></span><span class="ask-think-dot"></span> ${esc(label)}</div>`;
     }
     if (error) {
       turnsHtml += `<div class="ask-msg system error">${esc(error)}</div>`;
@@ -261,14 +292,22 @@
     }
     sending = true;
     if (!currentCase || !currentCase.turns) currentCase = currentCase && currentCase.id ? currentCase : emptyCase();
-    renderThread({ pendingUser: text, thinking: true });
+    renderThread({ pendingUser: text, thinking: true, thinkLabel: "Discovery Guide is thinking…" });
     const input = document.getElementById("ask-input");
     if (input) input.value = "";
     try {
-      if (currentCase && currentCase.id) {
-        currentCase = await api(`/api/v1/cases/${currentCase.id}/turns`, "POST", { text });
-      } else {
-        currentCase = await api("/api/v1/cases", "POST", { presenting_concern: text, patient_id: patientId || null });
+      const existingId = currentCase && currentCase.id;
+      const path = existingId ? `/api/v1/cases/${existingId}/turns/stream` : "/api/v1/cases/stream";
+      const body = existingId ? { text } : { presenting_concern: text, patient_id: patientId || null };
+      await apiStream(path, body, (ev) => {
+        if (ev.event === "thinking") {
+          renderThread({ pendingUser: text, thinking: true, thinkLabel: ev.label || "Discovery Guide is thinking…" });
+        }
+        if (ev.event === "done" && ev.case) currentCase = ev.case;
+        if (ev.event === "error") throw new Error(ev.detail || "Could not send that.");
+      });
+      if (!currentCase || !currentCase.id) {
+        throw new Error("Could not open that turn.");
       }
       const next = new URL(location.href);
       next.searchParams.set("case", currentCase.id);

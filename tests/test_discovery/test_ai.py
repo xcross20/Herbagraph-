@@ -4,6 +4,7 @@ from app.discovery.ai import (
     ALLOWED_FACT_NAMES,
     critic_allows,
     discovery_llm_ready,
+    is_denied_concept,
     merge_llm_facts,
     pick_verbalization,
 )
@@ -49,6 +50,29 @@ def test_llm_facts_keep_allow_list_only():
     assert "diagnosis" not in names
     assert names.count("burning sensation") == 1
     assert merged[0].value == "reported"
+
+
+def test_deny_list_uses_word_boundaries():
+    assert is_denied_concept("trigeminal neuralgia")
+    assert is_denied_concept("You have diabetes")
+    assert not is_denied_concept("right-sided facial pressure")
+    assert not is_denied_concept("tumorigenesis panel")
+    assert not is_denied_concept("gallbladder")
+
+
+def test_merge_keeps_multiple_patient_interpretations():
+    merged = merge_llm_facts(
+        [],
+        [
+            {"name": "patient_interpretation", "value": "maybe gallbladder", "kind": "context"},
+            {"name": "patient_interpretation", "value": "maybe related to shock", "kind": "context"},
+        ],
+        allow_open=True,
+    )
+    values = {item.value for item in merged}
+    assert "maybe gallbladder" in values
+    assert "maybe related to shock" in values
+    assert len(merged) == 2
 
 
 def test_allow_list_does_not_include_diseases():

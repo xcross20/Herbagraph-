@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import inspect
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -113,18 +115,35 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
     return plan
 
 
+def _next_repeatable(stem: str, used: set[str]) -> str:
+    if stem not in used:
+        used.add(stem)
+        return stem
+    index = 2
+    while f"{stem}_{index}" in used:
+        index += 1
+    keyed = f"{stem}_{index}"
+    used.add(keyed)
+    return keyed
+
+
 def plan_to_fact_rows(plan: DiscoveryTurnPlan) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    used: set[str] = set()
     for item in plan.reported_facts:
-        rows.append({"name": item.concept.lower(), "value": item.value or "reported", "kind": item.type})
+        name = item.concept.lower()
+        if name in used:
+            continue
+        used.add(name)
+        rows.append({"name": name, "value": item.value or "reported", "kind": item.type})
     for interp in plan.patient_interpretations:
-        rows.append({"name": "patient_interpretation", "value": interp, "kind": "context"})
+        rows.append({"name": _next_repeatable("patient_interpretation", used), "value": interp, "kind": "context"})
     for event in plan.timeline_updates:
-        rows.append({"name": "timeline", "value": event, "kind": "context"})
+        rows.append({"name": _next_repeatable("timeline", used), "value": event, "kind": "context"})
     for row in plan.prior_workup:
         rows.append(
             {
-                "name": "prior_workup",
+                "name": _next_repeatable("prior_workup", used),
                 "value": f"{row['test']}: {row['result']} (patient_reported)",
                 "kind": "assessment",
             }
@@ -170,13 +189,21 @@ def guide_candidates_to_actions(plan: DiscoveryTurnPlan) -> list[NextAction]:
     return ranked
 
 
+async def _emit(on_phase: Callable[..., Any] | None, phase: str, label: str) -> None:
+    if on_phase is None:
+        return
+    maybe = on_phase(phase, label)
+    if inspect.isawaitable(maybe):
+        await maybe
+
+
 class DiscoveryGuide:
     """Longitudinal conversational health investigation agent."""
 
-    def plan_turn(self, text: str, *, context: dict[str, Any]) -> DiscoveryTurnPlan | None:
+    async def plan_turn(self, text: str, *, context: dict[str, Any]) -> DiscoveryTurnPlan | None:
         if not discovery_llm_ready():
             return None
-        data = try_llm_json(
+        data = await try_llm_json(
             pass_a_system_prompt(),
             (
                 f"user_turn:\n{text}\n\n"
@@ -191,7 +218,7 @@ class DiscoveryGuide:
             return None
         return validate_plan(data)
 
-    def compose_turn(
+    async def compose_turn(
         self,
         *,
         action: NextAction,
@@ -202,7 +229,7 @@ class DiscoveryGuide:
     ) -> str | None:
         if not discovery_llm_ready():
             return None
-        data = try_llm_json(
+        data = await try_llm_json(
             pass_b_system_prompt(),
             (
                 f"audience={audience}\n"
@@ -219,7 +246,7 @@ class DiscoveryGuide:
         message = data.get("message")
         return str(message) if message else None
 
-    def process_turn(
+    async def process_turn(
         self,
         text: str,
         *,
@@ -233,10 +260,12 @@ class DiscoveryGuide:
         recent_turns: list[str] | None = None,
         problem: str | None = None,
         plan: DiscoveryTurnPlan | None = None,
+        on_phase: Callable[..., Any] | None = None,
     ) -> TurnResult:
         used_plan = plan
         if used_plan is None:
-            used_plan = self.plan_turn(
+            await _emit(on_phase, "planning", "Reading your story…")
+            used_plan = await self.plan_turn(
                 text,
                 context={
                     "concern": concern,
@@ -261,7 +290,8 @@ class DiscoveryGuide:
             guide_actions=guide_actions or None,
             wants_evidence=wants_literature,
         )
-        spoken = self.compose_turn(
+        await _emit(on_phase, "speaking", "Writing a reply…")
+        spoken = await self.compose_turn(
             action=result.action,
             safety_state=result.safety_status,
             problem=result.problem_representation,

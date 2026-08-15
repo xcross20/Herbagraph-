@@ -74,8 +74,9 @@ def test_validate_plan_drops_diagnosis_findings():
     assert all(row["verification"] == "patient_reported" for row in plan.prior_workup)
 
 
-def test_guide_opening_uses_case_specific_question():
-    result = DiscoveryGuide().process_turn(
+@pytest.mark.asyncio
+async def test_guide_opening_uses_case_specific_question():
+    result = await DiscoveryGuide().process_turn(
         FACIAL,
         prior_facts={},
         asked=[],
@@ -98,7 +99,8 @@ def test_guide_opening_uses_case_specific_question():
     assert "electrical injury" in result.problem_representation.lower()
 
 
-def test_guide_cannot_override_s4():
+@pytest.mark.asyncio
+async def test_guide_cannot_override_s4():
     plan = validate_plan(
         {
             "action_candidates": [
@@ -112,7 +114,7 @@ def test_guide_cannot_override_s4():
     )
     text = "It started this morning and now I can't lift my right foot."
     assert screen_safety(text).status == "S4"
-    result = DiscoveryGuide().process_turn(
+    result = await DiscoveryGuide().process_turn(
         text,
         prior_facts={},
         asked=[],
@@ -124,8 +126,9 @@ def test_guide_cannot_override_s4():
     assert "1-10" not in result.message.lower()
 
 
-def test_no_plan_falls_back_to_deterministic_laterality():
-    result = DiscoveryGuide().process_turn(
+@pytest.mark.asyncio
+async def test_no_plan_falls_back_to_deterministic_laterality():
+    result = await DiscoveryGuide().process_turn(
         "For six months, my feet have burned at night. My doctor says my blood work is normal.",
         prior_facts={},
         asked=[],
@@ -137,7 +140,8 @@ def test_no_plan_falls_back_to_deterministic_laterality():
     assert result.llm_used is False
 
 
-def test_gallbladder_story_keeps_theory_as_interpretation():
+@pytest.mark.asyncio
+async def test_gallbladder_story_keeps_theory_as_interpretation():
     plan = validate_plan(
         {
             "reported_facts": [
@@ -155,7 +159,7 @@ def test_gallbladder_story_keeps_theory_as_interpretation():
             ],
         }
     )
-    result = DiscoveryGuide().process_turn(
+    result = await DiscoveryGuide().process_turn(
         GALLBLADDER,
         prior_facts={},
         asked=[],

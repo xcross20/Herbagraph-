@@ -1,10 +1,26 @@
 """Phases 1–6 + LLM: snapshot, documents, and PubMed on the existing Case API."""
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
 pytestmark = pytest.mark.asyncio
+
+
+async def test_case_stream_accepts_then_finishes(authed_client):
+    resp = await authed_client.post(
+        "/api/v1/cases/stream",
+        json={"presenting_concern": "For six months, my feet have burned at night."},
+    )
+    assert resp.status_code == 200, resp.text
+    rows = [json.loads(line) for line in resp.text.splitlines() if line.strip()]
+    events = [row["event"] for row in rows]
+    assert "accepted" in events
+    assert "done" in events
+    done = next(row for row in rows if row["event"] == "done")
+    assert done["case"]["id"]
+    assert done["case"]["turns"]
 
 
 async def test_lab_document_is_rejected_with_409(authed_client):

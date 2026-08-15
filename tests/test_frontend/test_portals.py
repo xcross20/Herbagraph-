@@ -86,4 +86,6 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "data-pending-prompt" in js
     assert "data-ask-thinking" in js
     assert "Discovery Guide is thinking" in js
+    assert "/api/v1/cases/stream" in js
+    assert "/turns/stream" in js
     assert 'e.key === "Enter"' in js

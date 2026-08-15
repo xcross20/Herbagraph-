@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -814,6 +816,7 @@ async def apply_user_turn(
     text: str,
     *,
     audience: str = "consumer",
+    on_phase: Callable[..., Any] | None = None,
 ) -> CaseSnapshot:
     """One orchestrated turn: mutate the Case, then speak the chosen action."""
     turns = (
@@ -840,7 +843,7 @@ async def apply_user_turn(
             except json.JSONDecodeError:
                 pass
     recent = [turn.text for turn in sorted(turns, key=lambda item: item.created_at)][-12:]
-    result = DiscoveryGuide().process_turn(
+    result = await DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
         asked=asked,
@@ -851,6 +854,7 @@ async def apply_user_turn(
         turn_count=len(turns),
         recent_turns=recent,
         problem=case.problem_representation,
+        on_phase=on_phase,
     )
     if result.action.type == "retrieve_evidence":
         query = (case.presenting_concern or text)[:180]
@@ -918,6 +922,7 @@ async def apply_opening_turn(
     text: str,
     *,
     audience: str = "consumer",
+    on_phase: Callable[..., Any] | None = None,
 ) -> CaseSnapshot:
     from app.discovery.guide import DiscoveryGuide
     from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
@@ -932,7 +937,7 @@ async def apply_opening_turn(
                 prior = prior_facts_from_snapshot(json.loads(snap.payload))
             except json.JSONDecodeError:
                 prior = {}
-    result = DiscoveryGuide().process_turn(
+    result = await DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
         asked=[],
@@ -941,6 +946,7 @@ async def apply_opening_turn(
         audience=audience,
         turn_count=0,
         problem=case.problem_representation,
+        on_phase=on_phase,
     )
     for item in result.new_findings:
         kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"

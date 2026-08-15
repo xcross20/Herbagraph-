@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 from app.discovery.intake import ExtractedFact
@@ -69,8 +70,39 @@ DENIED_CONCEPTS = (
 
 
 def is_denied_concept(text: str) -> bool:
+    """Whole-token / whole-phrase match. 'gallbladder' is not 'bladder'; 'tumorigenesis' is not 'tumor'."""
     blob = (text or "").lower()
-    return any(token in blob for token in DENIED_CONCEPTS)
+    for token in DENIED_CONCEPTS:
+        if re.search(rf"(?<![\w]){re.escape(token)}(?![\w])", blob):
+            return True
+    return False
+
+
+_REPEATABLE_PREFIXES = ("patient_interpretation", "timeline", "prior_workup")
+
+
+def _is_repeatable(name: str) -> bool:
+    return any(name == prefix or name.startswith(prefix + "_") for prefix in _REPEATABLE_PREFIXES)
+
+
+def _unique_fact_name(name: str, have: set[str]) -> str | None:
+    if name not in have:
+        return name
+    if not _is_repeatable(name):
+        return None
+    stem = next(prefix for prefix in _REPEATABLE_PREFIXES if name == prefix or name.startswith(prefix + "_"))
+    index = 2
+    while f"{stem}_{index}" in have:
+        index += 1
+    return f"{stem}_{index}"
+
+
+def _name_is_allowed(name: str, *, allow_open: bool) -> bool:
+    if name in ALLOWED_FACT_NAMES or _is_repeatable(name):
+        return True
+    if allow_open and not is_denied_concept(name) and 3 <= len(name) <= 160:
+        return True
+    return False
 
 
 def critic_allows(text: str) -> bool:
@@ -91,15 +123,15 @@ def merge_llm_facts(
         name = str(raw.get("name") or "").strip().lower()
         value = str(raw.get("value") or "reported").strip()[:200]
         kind = str(raw.get("kind") or "symptom")
-        if not name or name in have or not value:
+        if not name or not value:
             continue
-        if name not in ALLOWED_FACT_NAMES:
-            if not allow_open or is_denied_concept(name) or not (3 <= len(name) <= 160):
-                continue
+        keyed = _unique_fact_name(name, have)
+        if keyed is None or not _name_is_allowed(keyed, allow_open=allow_open):
+            continue
         if kind not in {"symptom", "context", "assessment"}:
             kind = "symptom"
-        extra.append(ExtractedFact(name=name, value=value, kind=kind))
-        have.add(name)
+        extra.append(ExtractedFact(name=keyed, value=value, kind=kind))
+        have.add(keyed)
     return [*base, *extra]
 
 
@@ -123,14 +155,14 @@ def discovery_llm_ready() -> bool:
     return bool(key) and not key.startswith("test-")
 
 
-def try_llm_json(system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
-    from app.pipeline.llm_client import parse_llm_json, sync_chat_json, create_sync_client
+async def try_llm_json(system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
+    from app.pipeline.llm_client import async_chat_json, create_async_client, parse_llm_json
 
     if not discovery_llm_ready():
         return None
+    client = create_async_client()
     try:
-        client = create_sync_client()
-        raw = sync_chat_json(
+        raw = await async_chat_json(
             client,
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -143,10 +175,12 @@ def try_llm_json(system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
     except Exception:
         logger.info("discovery LLM unavailable; using deterministic path")
         return None
+    finally:
+        await client.close()
 
 
-def llm_extract_facts(text: str) -> list[dict[str, Any]]:
-    data = try_llm_json(
+async def llm_extract_facts(text: str) -> list[dict[str, Any]]:
+    data = await try_llm_json(
         "Extract structured health facts as JSON {\"facts\":[{\"name\":\"\",\"value\":\"\"}]}. "
         "Use only these names: " + ", ".join(sorted(ALLOWED_FACT_NAMES)) + ". "
         "Do not diagnose. Do not invent labs.",
@@ -158,8 +192,8 @@ def llm_extract_facts(text: str) -> list[dict[str, Any]]:
     return rows if isinstance(rows, list) else []
 
 
-def llm_verbalize(*, action_type: str, prompt: str | None, problem: str, audience: str) -> str | None:
-    data = try_llm_json(
+async def llm_verbalize(*, action_type: str, prompt: str | None, problem: str, audience: str) -> str | None:
+    data = await try_llm_json(
         "You verbalize a predetermined Discovery action. Do not change the action. "
         "Do not diagnose. Never say 'you have' a disease. "
         "Do not name inferred conditions. JSON {\"message\":\"\"}. "
