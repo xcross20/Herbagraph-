@@ -48,6 +48,7 @@
   let currentCase = null;
   let patients = [];
   let patientId = null;
+  let sending = false;
 
   function renderHome() {
     const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
@@ -65,10 +66,7 @@
         </div>
         <p class="ask-note">Not a diagnosis. The Case is the source of truth — this page is only a conversation surface.</p>
       </section>`;
-    document.getElementById("ask-form").onsubmit = async (e) => {
-      e.preventDefault();
-      await startOrContinue(document.getElementById("ask-input").value.trim());
-    };
+    bindComposer();
     document.querySelectorAll("[data-ex]").forEach((btn) => {
       btn.onclick = async () => {
         const ex = EXAMPLES[Number(btn.getAttribute("data-ex"))];
@@ -97,11 +95,59 @@
     return `<h2>Safety</h2><p class="ask-note" data-safety-state="${esc(state)}">${esc(state)} — ${esc(label)}</p>${watch && canContinue ? `<p class="ask-note">Watch for: ${watch}.</p>` : ""}`;
   }
 
-  function renderThread() {
-    const body = currentCase;
-    const turns = (body.turns || []).map((t) =>
-      `<div class="ask-msg ${t.role === "user" ? "user" : "system"}">${esc(t.text)}${t === body.turns[body.turns.length - 1] && t.role === "system" ? renderFollowups(body) : ""}</div>`
+  function bindComposer() {
+    const form = document.getElementById("ask-form");
+    const input = document.getElementById("ask-input");
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const value = input ? input.value.trim() : "";
+        await startOrContinue(value);
+      };
+    }
+    if (input) {
+      input.onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          form && form.requestSubmit ? form.requestSubmit() : startOrContinue(input.value.trim());
+        }
+      };
+    }
+  }
+
+  function emptyCase() {
+    return {
+      turns: [],
+      memory_items: [],
+      hypotheses: [],
+      confidence_increasers: [],
+      literature: [],
+      map_version: 1,
+    };
+  }
+
+  function renderThread(opts) {
+    const options = opts || {};
+    const body = currentCase || emptyCase();
+    const pendingUser = options.pendingUser || "";
+    const isThinking = !!options.thinking;
+    const error = options.error || "";
+    const serverTurns = body.turns || [];
+    const lastServer = serverTurns[serverTurns.length - 1];
+    const alreadyLogged = lastServer && lastServer.role === "user" && lastServer.text === pendingUser;
+    let turnsHtml = serverTurns.map((t) =>
+      `<div class="ask-msg ${t.role === "user" ? "user" : "system"}">${esc(t.text)}${t === lastServer && t.role === "system" && !isThinking ? renderFollowups(body) : ""}</div>`
     ).join("");
+    if (pendingUser && !alreadyLogged) {
+      turnsHtml += `<div class="ask-msg user pending" data-pending-prompt="1">${esc(pendingUser)}</div>`;
+    }
+    if (isThinking) {
+      turnsHtml += `<div class="ask-msg system thinking" data-ask-thinking="1" aria-live="polite"><span class="ask-think-dot"></span><span class="ask-think-dot"></span><span class="ask-think-dot"></span> Discovery Guide is thinking…</div>`;
+    }
+    if (error) {
+      turnsHtml += `<div class="ask-msg system error">${esc(error)}</div>`;
+    }
+    const turns = turnsHtml;
     const memory = (body.memory_items || []).slice(0, 8).map((i) => `<li>${esc(i.name)}: ${esc(i.value || "")}</li>`).join("") || "<li>No facts yet</li>";
     const gaps = (body.confidence_increasers || []).slice(0, 5).map((i) => `<li>${esc(i.label)}</li>`).join("") || "<li>No ranked gaps yet</li>";
     const hypos = (body.hypotheses || []).slice(0, 5).map((h) => `<li>${esc(h.label)}</li>`).join("") || "<li>No open families</li>";
@@ -115,8 +161,8 @@
           <div class="ask-thread-main" id="ask-thread-main">${turns}</div>
           <div class="ask-dock">
             <form class="ask-composer" id="ask-form">
-              <textarea id="ask-input" rows="2" required placeholder="Ask a follow-up, or add a note…"></textarea>
-              <button type="submit">Ask</button>
+              <textarea id="ask-input" rows="2" required placeholder="Ask a follow-up, or add a note…" ${sending ? "disabled" : ""}></textarea>
+              <button type="submit" ${sending ? "disabled" : ""}>${sending ? "Sending…" : "Ask"}</button>
             </form>
             <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged.</p>
           </div>
@@ -148,10 +194,7 @@
           <p class="ask-note">Coverage is completeness, not disease probability. Map v${body.map_version || 1}.</p>
         </aside>
       </div>`;
-    document.getElementById("ask-form").onsubmit = async (e) => {
-      e.preventDefault();
-      await startOrContinue(document.getElementById("ask-input").value.trim());
-    };
+    bindComposer();
     document.querySelectorAll("[data-select-value], [data-answer]").forEach((btn) => {
       btn.onclick = () => startOrContinue(btn.getAttribute("data-select-value") || btn.textContent.trim());
     });
@@ -206,7 +249,7 @@
   }
 
   async function startOrContinue(text) {
-    if (!text) return;
+    if (!text || sending) return;
     if (text.toLowerCase().includes("upload records")) {
       goWorkspace("#upload");
       return;
@@ -216,16 +259,27 @@
       document.getElementById("ask-main").innerHTML = `<p class="ask-home">Select a patient in the workspace first, then come back to Ask.</p>`;
       return;
     }
-    if (currentCase && currentCase.id) {
-      currentCase = await api(`/api/v1/cases/${currentCase.id}/turns`, "POST", { text });
-    } else {
-      currentCase = await api("/api/v1/cases", "POST", { presenting_concern: text, patient_id: patientId || null });
+    sending = true;
+    if (!currentCase || !currentCase.turns) currentCase = currentCase && currentCase.id ? currentCase : emptyCase();
+    renderThread({ pendingUser: text, thinking: true });
+    const input = document.getElementById("ask-input");
+    if (input) input.value = "";
+    try {
+      if (currentCase && currentCase.id) {
+        currentCase = await api(`/api/v1/cases/${currentCase.id}/turns`, "POST", { text });
+      } else {
+        currentCase = await api("/api/v1/cases", "POST", { presenting_concern: text, patient_id: patientId || null });
+      }
+      const next = new URL(location.href);
+      next.searchParams.set("case", currentCase.id);
+      if (patientId) next.searchParams.set("patient", patientId);
+      history.replaceState({}, "", next);
+      sending = false;
+      renderThread();
+    } catch (err) {
+      sending = false;
+      renderThread({ pendingUser: text, error: err.message || "Could not send that. Try again." });
     }
-    const next = new URL(location.href);
-    next.searchParams.set("case", currentCase.id);
-    if (patientId) next.searchParams.set("patient", patientId);
-    history.replaceState({}, "", next);
-    renderThread();
   }
 
   async function boot() {

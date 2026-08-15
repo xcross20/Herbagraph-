@@ -430,6 +430,23 @@ The LLM may explain the decomposition. It may not invent the numbers. Scores are
 
 **Spike required:** none — `llm_client` already exists.
 
+## REVIEW: Engine bugs (2026-08-15)
+
+**Blocking:**
+1. Ask submit painted nothing until both Guide LLM passes returned — user message must appear immediately. Fixed in Ask UI (pending prompt + thinking).
+2. `bladder` regex matched `gallbladder`, inventing a sphincter-change finding on RUQ stories. Fixed with word boundaries.
+
+**Should-fix:**
+3. Pass A + Pass B are sequential **sync** HTTP calls inside an async FastAPI route — they block the event loop and cause the remaining lag after the UI acknowledges the prompt.
+4. Only one `patient_interpretation` name is kept; later interpretations collide.
+5. Deny-list is substring-based (`tumor`, `stroke`) and can drop legitimate reported phrases.
+
+**Noted:** No streaming yet. Thinking indicator is local, not token stream.
+
+**Hostile trace log:** “I think it's my gallbladder” no longer yields `sphincter change`. Enter submits immediately; Shift+Enter still newlines.
+
+**Verdict:** UI + sphincter false-positive pass to SRE. Sync LLM blocking remains the top remaining latency bug.
+
 ## TEST REPORT: Phases 1–6 + LLM
 
 **Claims → tests:**

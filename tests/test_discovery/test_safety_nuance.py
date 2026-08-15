@@ -92,6 +92,15 @@ def test_historical_jaundice_does_not_make_an_emergency():
     assert result.action.type != "show_safety_message"
 
 
+def test_gallbladder_is_not_a_sphincter_finding():
+    from app.discovery.intake import extract_facts
+    from app.discovery.safety import extract_safety_findings
+
+    text = "I think it's my gallbladder because fatty food makes it worse."
+    assert not any(item.name == "sphincter change" for item in extract_facts(text))
+    assert not any(item.concept == "sphincter_change" for item in extract_safety_findings(text))
+
+
 def test_explicit_negatives_are_stored():
     findings = extract_safety_findings(NEGATED)
     by_name = {item.concept: item.presence for item in findings}

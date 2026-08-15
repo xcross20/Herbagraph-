@@ -234,7 +234,7 @@ def extract_safety_findings(text: str, prior: Iterable[SafetyFinding] | None = N
     elif re.search(r"\bnew weakness\b", blob):
         present("weakness", qualifier="focal")
 
-    if re.search(r"bladder|bowel control", blob):
+    if re.search(r"\bbladder\b|\bbowel control\b", blob):
         present("sphincter_change")
 
     if re.search(r"can't keep (?:fluids|anything) down|unable to keep fluids", blob):

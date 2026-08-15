@@ -83,3 +83,7 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "/documents" in js
     assert "why? show evidence" in js
     assert "pubmed.ncbi.nlm.nih.gov" in js
+    assert "data-pending-prompt" in js
+    assert "data-ask-thinking" in js
+    assert "Discovery Guide is thinking" in js
+    assert 'e.key === "Enter"' in js
