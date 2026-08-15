@@ -384,6 +384,52 @@ The LLM may explain the decomposition. It may not invent the numbers. Scores are
 
 **Tripwires:** S4 on “gallbladder hurts” alone → critic/extract regression, revert. Sudden “can't lift” not S4 → emergency miss, revert immediately.
 
+## SPEC: Discovery Guide Phase A
+
+**Problem:** A person with an unstructured story (facial pressure after a shock, meal-related rib pain, fatigue and hair loss) cannot start a real investigation because Ask only understands a small regex catalog, costing a canned question or a dead end.
+
+**Acceptance claims:**
+
+1. When a live LLM is configured, the opening turn invokes Discovery Guide (not regex-only).
+2. The facial-pressure fixture extracts reported symptoms, a timeline candidate, patient-reported MRI, and a patient interpretation — and does not store “trigeminal neuralgia” as a finding or say “you have.”
+3. The Guide proposes 1–7 next-action candidates; deterministic safety can still force S4 and discard the Guide’s question.
+4. If the LLM is absent or fails, the existing orchestrator still opens burning-feet with laterality.
+5. Silent failure: a Guide-proposed disease name is dropped from findings; speech cannot contain “you have” + a diagnosis.
+
+**Non-goals:** Voice, full tool roster, fine-tuning, Next.js `/discovery/{id}` rewrite, clinician review, lab ordering.
+
+**Slices:** 1. This slice — two-pass Guide on opening and follow-up. 2. Context assembly + PubMed tool. 3. Live map proposals.
+
+**Door class:** two-way for prompts and candidate scoring. One-way for “opening calls the Guide when a live key exists.”
+
+## DESIGN: Discovery Guide Phase A
+
+**Data model:** no new tables. `DiscoveryTurnPlan` is ephemeral JSON on the turn payload (`guide_plan`). Case findings still persist through the existing merge.
+
+**Seams:** Guide / safety (pass — S4 wins). Guide / fact merge (pass — deny-list). Guide / orchestrator (pass — fallback). Prompts / code (pass — files composed at runtime).
+
+### ADR-6: LLM-led consultation, deterministic validation — 2026-08-15 — accepted
+
+**Context:** Peripheral LLM extract/verbalize could not handle a wide-range opening story.
+
+**Decision:** `DiscoveryGuide.process_turn` is the conversation path. Pass A emits a structured plan. Safety, deny-list, and NBA scoring validate. Pass B writes speech for the selected action. No live key → current orchestrator.
+
+**Alternatives:** Chat completion with no schema — lost; diagnoses leak. Keep regex-first Ask — lost; cannot run the facial fixture.
+
+**Consequences:** Opening latency rises when the LLM is up. Tests stay deterministic via `test-` keys.
+
+**Revisit if:** tool-calling replaces the two-pass JSON plan.
+
+## RISK MAP: Discovery Guide Phase A
+
+1. Opening writes a diagnosis from a long narrative — P:M Cost:H Invisibility:H → deny-list + speech critic + facial fixture.
+2. S4 no longer interrupts because the Guide asked a question — P:M Cost:H Invisibility:H → safety still runs first; S4 returns only emergency action.
+3. Live key down makes Ask empty — P:M Cost:H Invisibility:M → fallback orchestrator; burning-feet test.
+
+**Clean zones:** lab parser, PubMed PMID filter, snapshot table.
+
+**Spike required:** none — `llm_client` already exists.
+
 ## TEST REPORT: Phases 1–6 + LLM
 
 **Claims → tests:**

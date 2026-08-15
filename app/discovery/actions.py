@@ -122,6 +122,7 @@ def generate_actions(
     turn_count: int,
     wants_evidence: bool = False,
     safety: Any | None = None,
+    guide_actions: list | None = None,
 ) -> list[NextAction]:
     from app.discovery.safety import normalize_state
 
@@ -281,6 +282,13 @@ def generate_actions(
                 score=0.72,
             )
         )
+
+    for item in guide_actions or []:
+        if item.question_id and item.question_id in asked:
+            continue
+        if item.prompt and any(existing.prompt == item.prompt for existing in actions):
+            continue
+        actions.append(item)
 
     actions.sort(key=lambda item: item.score, reverse=True)
     return actions

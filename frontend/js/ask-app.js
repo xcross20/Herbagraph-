@@ -6,7 +6,8 @@
   const EXAMPLES = [
     "For six months, my feet have burned at night. My doctor says my blood work is normal.",
     "I already have labs — take me to upload.",
-    "Fatigue and hair loss for a few months.",
+    "I've been having pressure on the right side of my face for almost a year.",
+    "I've been dealing with this weird pain under my right ribs for eight months.",
   ];
 
   function esc(s) {
@@ -52,12 +53,12 @@
     const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
     document.getElementById("ask-main").innerHTML = `
       <section class="ask-home">
-        <h1>Ask HerbaGraph</h1>
-        <p class="ask-lede">A second way into the same workspace. Ask about a concern. Labs, reports, and evidence stay where they are.</p>
+        <h1>Discovery Guide</h1>
+        <p class="ask-lede">Tell me what's been going on. Start wherever makes sense. Labs, reports, and evidence stay in the workspace.</p>
         ${clinician ? `<p class="ask-scope">Patient <select id="ask-patient">${patients.map((p) => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("") || "<option value=\"\">Add a patient in the workspace first</option>"}</select></p>` : ""}
         <form class="ask-composer" id="ask-form">
-          <textarea id="ask-input" rows="2" required placeholder="Describe what is going on…"></textarea>
-          <button type="submit">Ask</button>
+          <textarea id="ask-input" rows="3" required placeholder="Start wherever makes sense…"></textarea>
+          <button type="submit">Talk to Discovery Guide</button>
         </form>
         <div class="ask-chips">
           ${EXAMPLES.map((ex, i) => `<button type="button" class="ask-chip" data-ex="${i}">${esc(i === 1 ? "I already have labs" : ex.slice(0, 42) + (ex.length > 42 ? "…" : ""))}</button>`).join("")}

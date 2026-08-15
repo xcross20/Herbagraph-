@@ -16,7 +16,7 @@ from app.discovery.intake import (
 )
 from app.discovery.ai import merge_llm_facts, pick_verbalization
 from app.discovery.intent import classify_intent
-from app.discovery.literature import wants_evidence
+from app.discovery.literature import wants_evidence as text_wants_evidence
 from app.discovery.safety import (
     assess_safety,
     extract_safety_findings,
@@ -55,6 +55,7 @@ class TurnResult:
     discovery_can_continue: bool = True
     clinical_followup_needed: bool = False
     safety_override: bool = False
+    guide_plan: dict | None = None
 
     def as_dict(self) -> dict:
         payload = asdict(self)
@@ -163,6 +164,8 @@ def orchestrate(
     turn_count: int = 0,
     llm_fact_rows: list | None = None,
     llm_message: str | None = None,
+    guide_actions: list | None = None,
+    wants_evidence: bool | None = None,
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
     prior_safety = findings_from_fact_map(prior_facts)
@@ -175,7 +178,7 @@ def orchestrate(
             incoming.append(item)
             have.add(item.name)
     if llm_fact_rows:
-        incoming = merge_llm_facts(incoming, llm_fact_rows)
+        incoming = merge_llm_facts(incoming, llm_fact_rows, allow_open=True)
     if "uncertainty" in intents and current_closes:
         incoming = [
             *incoming,
@@ -198,8 +201,9 @@ def orchestrate(
         safety_status=safety.state,
         hypotheses=snapshot.hypotheses,
         turn_count=turn_count,
-        wants_evidence=wants_evidence(text),
+        wants_evidence=bool(wants_evidence) or text_wants_evidence(text),
         safety=safety,
+        guide_actions=guide_actions,
     )
     action = select_action(candidates)
     if safety.state in {"S3", "S4"}:

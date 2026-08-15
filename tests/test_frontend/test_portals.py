@@ -59,7 +59,7 @@ def test_workspace_app_enforces_portal_path():
     assert "problem_representation" in js
     assert 'location.replace(next.pathname + next.search)' in js
     assert "/ask.html" in js
-    assert "Start Discovery" in js
+    assert "Talk to Discovery Guide" in js
     assert "Analyze my labs" in js
     assert "My investigations" in js
     assert "Recommended by Discovery" in js
@@ -72,10 +72,10 @@ def test_workspace_app_enforces_portal_path():
 def test_ask_portal_is_secondary_not_a_workspace_replacement():
     ask = (ROOT / "ask.html").read_text(encoding="utf-8")
     js = (ROOT / "js" / "ask-app.js").read_text(encoding="utf-8")
-    assert "Ask | HerbaGraph" in ask
+    assert "Discovery Guide | HerbaGraph" in ask
     assert "/js/ask-app.js" in ask
-    assert "Ask HerbaGraph" in js
-    assert "second way into the same workspace" in js
+    assert "Discovery Guide" in js
+    assert "Start wherever makes sense" in js
     assert "/api/v1/cases" in js
     assert "ask-rail" in js
     assert "Back to workspace" in js

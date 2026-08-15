@@ -52,22 +52,53 @@ _BANNED = (
     "diagnosed with",
 )
 
+DENIED_CONCEPTS = (
+    "trigeminal neuralgia",
+    "neuropathy",
+    "small-fiber",
+    "diabetes",
+    "sepsis",
+    "cholecystitis",
+    "appendicitis",
+    "cancer",
+    "tumor",
+    "stroke",
+    "diagnosis",
+    "you have",
+)
+
+
+def is_denied_concept(text: str) -> bool:
+    blob = (text or "").lower()
+    return any(token in blob for token in DENIED_CONCEPTS)
+
 
 def critic_allows(text: str) -> bool:
     lowered = (text or "").lower()
     return not any(phrase in lowered for phrase in _BANNED)
 
 
-def merge_llm_facts(base: list[ExtractedFact], proposed: list[dict[str, Any]]) -> list[ExtractedFact]:
-    """Keep only allow-listed names. Deterministic facts win on the same name."""
+def merge_llm_facts(
+    base: list[ExtractedFact],
+    proposed: list[dict[str, Any]],
+    *,
+    allow_open: bool = False,
+) -> list[ExtractedFact]:
+    """Keep allow-listed names, or open reported concepts that are not diagnoses."""
     have = {item.name for item in base}
     extra: list[ExtractedFact] = []
     for raw in proposed or []:
         name = str(raw.get("name") or "").strip().lower()
         value = str(raw.get("value") or "reported").strip()[:200]
-        if name not in ALLOWED_FACT_NAMES or name in have or not value:
+        kind = str(raw.get("kind") or "symptom")
+        if not name or name in have or not value:
             continue
-        extra.append(ExtractedFact(name=name, value=value, kind="symptom"))
+        if name not in ALLOWED_FACT_NAMES:
+            if not allow_open or is_denied_concept(name) or not (3 <= len(name) <= 160):
+                continue
+        if kind not in {"symptom", "context", "assessment"}:
+            kind = "symptom"
+        extra.append(ExtractedFact(name=name, value=value, kind=kind))
         have.add(name)
     return [*base, *extra]
 
@@ -79,9 +110,13 @@ def pick_verbalization(fallback: str, candidate: str | None) -> str:
 
 
 def discovery_llm_ready() -> bool:
-    """Live keys only. Fixture keys (`test-…`) must keep Discovery deterministic."""
+    """Live keys only. Pytest and fixture keys (`test-…`) stay deterministic."""
+    import os
+
     from app.pipeline.llm_client import llm_api_key, llm_configured
 
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
     if not llm_configured():
         return False
     key = (llm_api_key() or "").strip()

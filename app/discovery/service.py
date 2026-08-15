@@ -13,7 +13,7 @@ from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
-from app.discovery.orchestrator import facts_from_findings, orchestrate
+from app.discovery.orchestrator import facts_from_findings
 from app.models.discovery import (
     DiscoveryCase,
     DiscoveryFinding,
@@ -827,7 +827,8 @@ async def apply_user_turn(
     prior = facts_from_findings(findings)
     payload = _last_system_payload(list(turns))
     current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
-    from app.discovery.ai import llm_extract_facts, llm_verbalize, pick_verbalization
+    from app.discovery.ai import pick_verbalization
+    from app.discovery.guide import DiscoveryGuide
     from app.discovery.literature import retrieve_citations
     from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
 
@@ -838,7 +839,8 @@ async def apply_user_turn(
                 prior = {**prior_facts_from_snapshot(json.loads(snap.payload)), **prior}
             except json.JSONDecodeError:
                 pass
-    result = orchestrate(
+    recent = [turn.text for turn in sorted(turns, key=lambda item: item.created_at)][-12:]
+    result = DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
         asked=asked,
@@ -847,15 +849,9 @@ async def apply_user_turn(
         concern=case.presenting_concern,
         audience=audience,
         turn_count=len(turns),
-        llm_fact_rows=llm_extract_facts(text) or None,
+        recent_turns=recent,
+        problem=case.problem_representation,
     )
-    spoken = llm_verbalize(
-        action_type=result.action.type,
-        prompt=result.action.prompt,
-        problem=result.problem_representation,
-        audience=audience,
-    )
-    result.message = pick_verbalization(result.message, spoken)
     if result.action.type == "retrieve_evidence":
         query = (case.presenting_concern or text)[:180]
         cites = await retrieve_citations(query)
@@ -923,6 +919,7 @@ async def apply_opening_turn(
     *,
     audience: str = "consumer",
 ) -> CaseSnapshot:
+    from app.discovery.guide import DiscoveryGuide
     from app.discovery.snapshot import current_snapshot, prior_facts_from_snapshot
 
     snapshot = await rebuild_case(db, case)
@@ -935,7 +932,7 @@ async def apply_opening_turn(
                 prior = prior_facts_from_snapshot(json.loads(snap.payload))
             except json.JSONDecodeError:
                 prior = {}
-    result = orchestrate(
+    result = DiscoveryGuide().process_turn(
         text,
         prior_facts=prior,
         asked=[],
@@ -943,6 +940,7 @@ async def apply_opening_turn(
         concern=text,
         audience=audience,
         turn_count=0,
+        problem=case.problem_representation,
     )
     for item in result.new_findings:
         kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"

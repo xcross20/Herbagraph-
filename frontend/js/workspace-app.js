@@ -887,8 +887,8 @@ function reportRowsHtml(dash, clinician) {
 function renderLaunchCards() {
   return `<div class="launch-grid">
     <a class="launch-card" href="/ask.html">
-      <h2>Start Discovery</h2>
-      <p>Talk through a health concern. This opens Ask — it does not replace this workspace.</p>
+      <h2>Talk to Discovery Guide</h2>
+      <p>Tell the investigation guide what's been going on. This opens Ask — it does not replace this workspace.</p>
     </a>
     <a class="launch-card" href="#upload">
       <h2>Analyze my labs</h2>
