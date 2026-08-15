@@ -45,7 +45,9 @@ def pass_a_system_prompt() -> str:
         '"problem_representation":"","missing_dimensions":[],"reasoning_summary":"","wants_evidence":false}\n'
         "action type must be one of ASK_QUESTION, ASK_SMALL_GROUP, REFLECT, CLARIFY, "
         "SEARCH_LITERATURE, REQUEST_RECORD, SHOW_INVESTIGATION_MAP, ESCALATE_SAFETY.\n"
-        "Do not diagnose. Facts are reported only. Interpretations stay in patient_interpretations."
+        "Do not diagnose. Facts are reported only. Interpretations stay in patient_interpretations "
+        "as strings. Parse the entire story — keep odd triggers, failed treatments, and incomplete "
+        "threads as separate items. Do not collapse a complex case into one symptom."
     )
 
 

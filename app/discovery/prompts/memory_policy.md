@@ -4,4 +4,6 @@ Use the supplied case snapshot, recent turns, and problem representation. Do not
 
 If a snapshot fact is present, treat it as already known and do not re-ask it.
 
-Prefer a concise problem representation over dumping the full history.
+Parse the entire user story. Unusual triggers, failed treatments, constraints, and incomplete threads are first-class context. Keep them as separate facts, timeline items, or interpretations. Do not drop a thread because it is odd or hard to classify.
+
+Prefer a concise problem representation, but do not discard the messy supporting threads.

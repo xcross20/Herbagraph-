@@ -7,7 +7,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from app.discovery.actions import NextAction
 from app.discovery.ai import (
@@ -66,8 +66,160 @@ class DiscoveryTurnPlan(BaseModel):
     wants_evidence: bool = False
 
 
+_TEXT_KEYS = (
+    "text",
+    "value",
+    "concept",
+    "summary",
+    "description",
+    "interpretation",
+    "event",
+    "note",
+    "prompt",
+    "question",
+    "name",
+    "label",
+)
+
+
+def _as_list(raw: Any) -> list[Any]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return raw
+    return [raw]
+
+
+def _as_text(item: Any) -> str:
+    if item is None:
+        return ""
+    if isinstance(item, str):
+        return item.strip()
+    if isinstance(item, (int, float)) and not isinstance(item, bool):
+        return str(item)
+    if isinstance(item, dict):
+        parts: list[str] = []
+        seen: set[str] = set()
+        for key in _TEXT_KEYS:
+            val = item.get(key)
+            if isinstance(val, str) and val.strip() and val.strip().lower() not in seen:
+                seen.add(val.strip().lower())
+                parts.append(val.strip())
+        if parts:
+            return " — ".join(parts)
+        leftover = [
+            str(val).strip()
+            for key, val in item.items()
+            if key not in {"type", "verification", "kind"} and isinstance(val, str) and val.strip()
+        ]
+        return " — ".join(leftover)
+    if isinstance(item, list):
+        return "; ".join(part for part in (_as_text(child) for child in item) if part)
+    return ""
+
+
+def _as_text_list(raw: Any) -> list[str]:
+    return [text for text in (_as_text(item) for item in _as_list(raw)) if text]
+
+
+def _as_finding(item: Any) -> dict[str, str] | None:
+    if isinstance(item, str):
+        concept = item.strip()
+        if not concept:
+            return None
+        return {"concept": concept, "type": "context", "value": "reported"}
+    if not isinstance(item, dict):
+        text = _as_text(item)
+        if not text:
+            return None
+        return {"concept": text, "type": "context", "value": "reported"}
+    concept = _as_text(item.get("concept") or item.get("name") or item.get("text") or "")
+    if not concept:
+        return None
+    value = item.get("value")
+    value_text = value.strip() if isinstance(value, str) and value.strip() else _as_text(value)
+    kind = str(item.get("type") or item.get("kind") or "symptom")
+    return {"concept": concept, "type": kind, "value": value_text or "reported"}
+
+
+def _as_workup(item: Any) -> dict[str, str] | None:
+    if isinstance(item, str):
+        test = item.strip()
+        return {"test": test, "result": "mentioned"} if test else None
+    if not isinstance(item, dict):
+        test = _as_text(item)
+        return {"test": test, "result": "mentioned"} if test else None
+    test = _as_text(item.get("test") or item.get("name") or item.get("concept") or "")
+    if not test:
+        return None
+    result = _as_text(item.get("result") or item.get("value") or "mentioned")
+    return {"test": test, "result": result or "mentioned"}
+
+
+def _as_action(item: Any) -> dict[str, Any] | None:
+    if isinstance(item, str):
+        prompt = item.strip()
+        return {"type": "ASK_QUESTION", "prompt": prompt} if prompt else None
+    if not isinstance(item, dict):
+        return None
+    action_type = str(item.get("type") or "ASK_QUESTION")
+    prompt = _as_text(item.get("prompt") or item.get("text") or "")
+    options = _as_text_list(item.get("options"))
+    reason = _as_text(item.get("reason") or "")
+    if not prompt and action_type not in {"REFLECT", "SHOW_INVESTIGATION_MAP", "ESCALATE_SAFETY"}:
+        return None
+    return {"type": action_type, "prompt": prompt or None, "reason": reason, "options": options}
+
+
+def coerce_plan_payload(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Flatten messy LLM shapes before Pydantic sees them."""
+    data = dict(raw or {})
+    data["reported_facts"] = [row for item in _as_list(data.get("reported_facts")) if (row := _as_finding(item))]
+    for key in (
+        "user_intents",
+        "patient_interpretations",
+        "timeline_updates",
+        "contradictions",
+        "safety_flags",
+        "uncertainty_updates",
+        "literature_queries",
+        "missing_dimensions",
+    ):
+        data[key] = _as_text_list(data.get(key))
+    data["prior_workup"] = [row for item in _as_list(data.get("prior_workup")) if (row := _as_workup(item))]
+    data["action_candidates"] = [
+        row for item in _as_list(data.get("action_candidates")) if (row := _as_action(item))
+    ]
+    rec = data.get("recommended_next_action")
+    data["recommended_next_action"] = _as_action(rec) if rec else None
+    if data.get("problem_representation") is not None and not isinstance(data.get("problem_representation"), str):
+        data["problem_representation"] = _as_text(data.get("problem_representation"))
+    if data.get("reasoning_summary") is not None and not isinstance(data.get("reasoning_summary"), str):
+        data["reasoning_summary"] = _as_text(data.get("reasoning_summary"))
+    return data
+
+
 def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
-    plan = DiscoveryTurnPlan.model_validate(raw or {})
+    payload = coerce_plan_payload(raw)
+    try:
+        plan = DiscoveryTurnPlan.model_validate(payload)
+    except ValidationError:
+        logger.info("discovery plan still invalid after coerce; keeping flattened strings")
+        facts: list[CandidateFinding] = []
+        for item in payload.get("reported_facts") or []:
+            try:
+                facts.append(CandidateFinding.model_validate(item))
+            except ValidationError:
+                continue
+        plan = DiscoveryTurnPlan.model_construct(
+            reported_facts=facts,
+            patient_interpretations=list(payload.get("patient_interpretations") or []),
+            timeline_updates=list(payload.get("timeline_updates") or []),
+            prior_workup=list(payload.get("prior_workup") or []),
+            uncertainty_updates=list(payload.get("uncertainty_updates") or []),
+            literature_queries=list(payload.get("literature_queries") or []),
+            problem_representation=str(payload.get("problem_representation") or ""),
+        )
     kept: list[CandidateFinding] = []
     for item in plan.reported_facts:
         concept = (item.concept or "").strip()
@@ -76,17 +228,17 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
         kind = item.type if item.type in {"symptom", "context", "assessment"} else "symptom"
         kept.append(
             CandidateFinding(
-                concept=concept[:160],
+                concept=concept[:180],
                 type=kind,
-                value=(item.value or "reported")[:200],
+                value=(item.value or "reported")[:400],
                 verification="patient_reported",
             )
         )
-    plan.reported_facts = kept[:16]
+    plan.reported_facts = kept[:32]
     plan.patient_interpretations = [
-        item.strip()[:200] for item in plan.patient_interpretations if item and not is_denied_concept(item)
-    ][:8]
-    plan.timeline_updates = [item.strip()[:200] for item in plan.timeline_updates if item][:8]
+        item.strip()[:400] for item in plan.patient_interpretations if item and not is_denied_concept(item)
+    ][:16]
+    plan.timeline_updates = [item.strip()[:400] for item in plan.timeline_updates if item][:16]
     workup: list[dict[str, Any]] = []
     for row in plan.prior_workup:
         test = str(row.get("test") or "").strip()
@@ -94,12 +246,12 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
             continue
         workup.append(
             {
-                "test": test[:120],
-                "result": str(row.get("result") or "mentioned")[:160],
+                "test": test[:160],
+                "result": str(row.get("result") or "mentioned")[:240],
                 "verification": "patient_reported",
             }
         )
-    plan.prior_workup = workup[:8]
+    plan.prior_workup = workup[:12]
     plan.action_candidates = [
         item
         for item in plan.action_candidates
@@ -111,7 +263,7 @@ def validate_plan(raw: dict[str, Any] | None) -> DiscoveryTurnPlan:
         is_denied_concept(plan.problem_representation) or not critic_allows(plan.problem_representation)
     ):
         plan.problem_representation = ""
-    plan.uncertainty_updates = [item.strip()[:160] for item in plan.uncertainty_updates if item][:8]
+    plan.uncertainty_updates = [item.strip()[:240] for item in plan.uncertainty_updates if item][:12]
     return plan
 
 
@@ -226,9 +378,12 @@ class DiscoveryGuide:
                 f"problem_representation: {context.get('problem') or ''}\n"
                 f"last_visit: {context.get('last_visit') or {}}\n"
                 f"person_context: {context.get('person') or {}}\n"
-                "Produce the DiscoveryTurnPlan JSON. Integrate person_context. "
-                "Do not diagnose. Do not invent labs or citations."
+                "Parse the entire user_turn. Keep odd, incomplete, and unusual threads as separate "
+                "facts, timeline items, or interpretations. Do not collapse a complex story. "
+                "patient_interpretations and timeline_updates are arrays of strings, not objects. "
+                "Integrate person_context. Do not diagnose. Do not invent labs or citations."
             ),
+            max_tokens=2500,
         )
         if not data:
             return None
@@ -256,11 +411,15 @@ class DiscoveryGuide:
                 f"action={action.type}\n"
                 f"required_question={action.prompt or ''}\n"
                 f"problem={problem}\n"
-                f"unknowns={list((plan.missing_dimensions if plan else [])[:6])}\n"
+                f"unknowns={list((plan.missing_dimensions if plan else [])[:10])}\n"
+                f"reported_facts={[item.concept for item in (plan.reported_facts if plan else [])][:20]}\n"
+                f"interpretations={(plan.patient_interpretations if plan else [])[:12]}\n"
+                f"timeline={(plan.timeline_updates if plan else [])[:12]}\n"
                 f"person_context={person or {}}\n"
                 f"retrieved_citations={cite_lines}\n"
-                "Write the user-facing message for this person. Reflect, integrate what we already know about them, "
-                "then include the required question if provided. Mention a citation only if retrieved_citations is non-empty."
+                "Write the user-facing message for this person. Reflect the full story they told, "
+                "integrate what we already know about them, then include the required question if provided. "
+                "Mention a citation only if retrieved_citations is non-empty."
             ),
         )
         if not data:

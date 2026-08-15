@@ -72,7 +72,7 @@ def person_package(
         if key in {"safety_state"}:
             continue
         known.append(f"{key}: {value}")
-        if len(known) == 10:
+        if len(known) == 20:
             break
     held_age = age if isinstance(age, int) and 0 < age < 120 else None
     sex = (biological_sex or "").strip().lower() or None

@@ -100,7 +100,7 @@ def _unique_fact_name(name: str, have: set[str]) -> str | None:
 def _name_is_allowed(name: str, *, allow_open: bool) -> bool:
     if name in ALLOWED_FACT_NAMES or _is_repeatable(name):
         return True
-    if allow_open and not is_denied_concept(name) and 3 <= len(name) <= 160:
+    if allow_open and not is_denied_concept(name) and 3 <= len(name) <= 180:
         return True
     return False
 
@@ -121,7 +121,7 @@ def merge_llm_facts(
     extra: list[ExtractedFact] = []
     for raw in proposed or []:
         name = str(raw.get("name") or "").strip().lower()
-        value = str(raw.get("value") or "reported").strip()[:200]
+        value = str(raw.get("value") or "reported").strip()[:400]
         kind = str(raw.get("kind") or "symptom")
         if not name or not value:
             continue
@@ -155,7 +155,9 @@ def discovery_llm_ready() -> bool:
     return bool(key) and not key.startswith("test-")
 
 
-async def try_llm_json(system_prompt: str, user_prompt: str) -> dict[str, Any] | None:
+async def try_llm_json(
+    system_prompt: str, user_prompt: str, *, max_tokens: int = 800
+) -> dict[str, Any] | None:
     from app.pipeline.llm_client import async_chat_json, create_async_client, parse_llm_json
 
     if not discovery_llm_ready():
@@ -168,7 +170,7 @@ async def try_llm_json(system_prompt: str, user_prompt: str) -> dict[str, Any] |
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=800,
+            max_tokens=max_tokens,
         )
         data = parse_llm_json(raw)
         return data if isinstance(data, dict) else None

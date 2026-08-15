@@ -74,6 +74,75 @@ def test_validate_plan_drops_diagnosis_findings():
     assert all(row["verification"] == "patient_reported" for row in plan.prior_workup)
 
 
+def test_validate_plan_coerces_object_interpretations():
+    plan = validate_plan(
+        {
+            "reported_facts": [
+                {"concept": "right upper abdominal pain", "type": "symptom"},
+                "worse lifting very heavy things",
+            ],
+            "patient_interpretations": [
+                {
+                    "concept": "gallbladder",
+                    "value": "worse after fatty food and lifting very heavy things",
+                }
+            ],
+            "timeline_updates": [{"event": "started eight months ago", "note": "after moving house"}],
+            "prior_workup": ["ultrasound reportedly normal"],
+            "uncertainty_updates": {"question": "whether the ultrasound was complete"},
+        }
+    )
+    interps = " ".join(plan.patient_interpretations).lower()
+    assert "gallbladder" in interps
+    assert "lifting very heavy things" in interps
+    assert any("eight months" in item.lower() for item in plan.timeline_updates)
+    assert plan.prior_workup[0]["test"]
+    assert plan.uncertainty_updates
+    names = [item.concept.lower() for item in plan.reported_facts]
+    assert "right upper abdominal pain" in names
+    assert any("lifting" in name for name in names)
+
+
+def test_validate_plan_keeps_many_threads_from_a_messy_story():
+    facts = [{"concept": f"thread {index} unusual symptom", "type": "symptom"} for index in range(24)]
+    interps = [f"theory {index} about the odd pattern" for index in range(12)]
+    plan = validate_plan(
+        {
+            "reported_facts": [*facts, {"concept": "trigeminal neuralgia"}],
+            "patient_interpretations": interps,
+            "timeline_updates": [f"year {index} flare after an odd trigger" for index in range(12)],
+            "problem_representation": (
+                "A long messy multi-year story with many threads, not a diagnosis."
+            ),
+        }
+    )
+    assert len(plan.reported_facts) >= 20
+    assert len(plan.patient_interpretations) >= 12
+    assert len(plan.timeline_updates) >= 12
+    assert not any("trigeminal" in item.concept for item in plan.reported_facts)
+
+
+def test_validate_plan_does_not_raise_on_hostile_shapes():
+    plan = validate_plan(
+        {
+            "patient_interpretations": [None, 12, {"nested": {"x": 1}}],
+            "reported_facts": "just pain under the ribs",
+            "recommended_next_action": "What happens when you lift something heavy?",
+            "action_candidates": [
+                {
+                    "type": "ASK_QUESTION",
+                    "prompt": "What happens when you lift something heavy?",
+                    "options": [{"label": "worse"}, "same"],
+                }
+            ],
+        }
+    )
+    assert isinstance(plan, DiscoveryTurnPlan)
+    assert plan.reported_facts
+    assert plan.recommended_next_action is not None
+    assert plan.action_candidates[0].options == ["worse", "same"]
+
+
 @pytest.mark.asyncio
 async def test_guide_opening_uses_case_specific_question():
     result = await DiscoveryGuide().process_turn(
@@ -256,7 +325,7 @@ async def test_compose_turn_passes_person_and_real_citations_only(monkeypatch):
 async def test_plan_turn_includes_person_context(monkeypatch):
     captured: dict = {}
 
-    async def fake_json(_system, user):
+    async def fake_json(_system, user, **_kwargs):
         captured["user"] = user
         return {
             "reported_facts": [{"concept": "burning feet", "type": "symptom"}],
