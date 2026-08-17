@@ -1,0 +1,589 @@
+name: HerbaGraph agent loop
+
+# Workflow YAML comes from the default branch (main), not integration/agent.
+# Do not activate until a founder-approved install on protected main. See
+# docs/architecture/adr-0007-agent-loop-bootstrap.md.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+    branches: [integration/agent]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      dry_run:
+        description: Run the in-process fixture demonstration only
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: herbagraph-agent-loop-pr-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr_number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+  checks: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Protocol dry-run and unit tests
+        run: |
+          python -m pytest tests/test_agent_protocol -q --tb=short
+          python scripts/agent_protocol/dry_run.py
+
+  qualify:
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+    runs-on: ubuntu-latest
+    outputs:
+      qualified: ${{ steps.gate.outputs.qualified }}
+      reason: ${{ steps.gate.outputs.reason }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+      head_ref: ${{ steps.gate.outputs.head_ref }}
+      base_sha: ${{ steps.gate.outputs.base_sha }}
+      task: ${{ steps.gate.outputs.task }}
+      trusted_sha: ${{ steps.pin.outputs.trusted_sha }}
+    steps:
+      - name: Resolve default-branch SHA once
+        id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.repository.default_branch }}"
+          SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${BRANCH}" --jq .object.sha)
+          echo "trusted_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "pinned default-branch $BRANCH at $SHA"
+      - name: Reject forks before any checkout of PR code
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          BASE_REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "fork PRs cannot access agent secrets"
+            exit 1
+          fi
+          if [ -n "$HEAD_REF" ] && [[ "$HEAD_REF" != grok/* ]]; then
+            echo "head must be a grok/** branch"
+            exit 1
+          fi
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ steps.pin.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Verify founder-approved bootstrap SHA
+        env:
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          RESOLVED_SHA: ${{ steps.pin.outputs.trusted_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+          from agent_protocol.bootstrap import (
+              github_is_descendant,
+              read_approved_bootstrap_sha,
+              verify_trusted_sha,
+          )
+
+          def request(method, url, token, payload=None):
+              req = urllib.request.Request(
+                  url,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                      "Accept": "application/vnd.github+json",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.loads(resp.read().decode("utf-8"))
+
+          approved = read_approved_bootstrap_sha(Path("trusted"))
+          api = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+          print(
+              verify_trusted_sha(
+                  os.environ["RESOLVED_SHA"],
+                  approved,
+                  is_ancestor=lambda a, r: github_is_descendant(
+                      api_root=api, approved_sha=a, resolved_sha=r, request=request
+                  ),
+              )
+          )
+          PY
+      - name: Qualify from trusted default-branch control plane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          WORKFLOW_RUN_PRS: ${{ toJson(github.event.workflow_run.pull_requests) }}
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${EVENT_PR:-$INPUT_PR}"
+          if [ -z "$PR_NUMBER" ]; then
+            PR_NUMBER=$(python - <<'PY'
+          import json, os
+          prs = json.loads(os.environ.get("WORKFLOW_RUN_PRS") or "[]")
+          print(prs[0]["number"] if prs else "")
+          PY
+          )
+          fi
+          if [ -z "$PR_NUMBER" ]; then
+            echo "no PR to qualify"
+            echo "qualified=false" >> "$GITHUB_OUTPUT"
+            echo "reason=no_pr" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "trusted/scripts")
+          from agent_protocol.parse import parse_handoff
+          from agent_protocol.qualify import qualify_pull_request
+          from agent_protocol.run_architect import comments_from_payload, latest_handoff, pull_request_from_payload
+          pr = json.loads(Path("/tmp/pr.json").read_text())
+          comments = comments_from_payload(json.loads(Path("/tmp/comments.json").read_text()))
+          view = pull_request_from_payload(pr)
+          handoff = latest_handoff(comments, pr.get("body") or "", view.head_sha)
+          result = qualify_pull_request(view, handoff_sha=handoff.commit if handoff else None)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"qualified={'true' if result.allowed else 'false'}\n")
+              handle.write(f"reason={result.reason}\n")
+              handle.write(f"pr_number={view.number}\n")
+              handle.write(f"head_sha={view.head_sha}\n")
+              handle.write(f"head_ref={view.head_ref}\n")
+              handle.write(f"base_sha={(pr.get('base') or {}).get('sha') or ''}\n")
+              handle.write(f"task={handoff.task if handoff else ''}\n")
+          print(result)
+          PY
+        id: gate
+
+  architect-model:
+    needs: qualify
+    if: needs.qualify.outputs.qualified == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Fetch PR metadata and diff without executing PR code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          LIVE=$(python -c "import json; print(json.load(open('/tmp/pr.json'))['head']['sha'].lower())")
+          if [ "$LIVE" != "$HEAD_SHA" ]; then
+            echo "stale before model; no secret use"
+            echo "stale=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" > /tmp/checks.json
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -H "Accept: application/vnd.github.diff" > /tmp/pr.diff
+      - name: Halt if OpenAI secret is missing
+        if: ${{ env.stale != 'true' }}
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY}" ]; then
+            echo "OPENAI_API_KEY missing; writer job will escalate"
+            echo "missing_secret=true" >> "$GITHUB_ENV"
+          fi
+      - name: Assemble Codex prompt from API diff
+        if: ${{ env.stale != 'true' && env.missing_secret != 'true' }}
+        env:
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          {
+            cat trusted/.github/codex/prompts/herbagraph-architect-review.md
+            echo
+            echo "## Exact SHAs"
+            echo "trusted_workflow_sha: ${{ needs.qualify.outputs.trusted_sha }}"
+            echo "head / reviewed_commit must equal ${HEAD_SHA}"
+            echo "PR number: ${PR_NUMBER}"
+            echo
+            echo "## Required check conclusions"
+            python -m json.tool /tmp/checks.json | head -c 20000
+            echo
+            echo "## git diff from GitHub API (no PR checkout)"
+            cat /tmp/pr.diff
+          } > /tmp/codex-prompt.md
+      - name: Run Codex read-only review
+        if: ${{ env.stale != 'true' && env.missing_secret != 'true' }}
+        uses: openai/codex-action@52fe01ec70a42f454c9d2ebd47598f9fd6893d56 # v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          allow-bots: false
+          working-directory: trusted
+          prompt-file: /tmp/codex-prompt.md
+          output-schema-file: trusted/.github/codex/schemas/architect-review.json
+          output-file: /tmp/codex-review.json
+      - name: Bind review artifact
+        if: ${{ env.stale != 'true' && env.missing_secret != 'true' }}
+        env:
+          PYTHONPATH: trusted/scripts
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ needs.qualify.outputs.task }}
+        run: |
+          python trusted/scripts/agent_protocol/write_artifact.py \
+            --pr-number "$PR_NUMBER" \
+            --head-sha "$HEAD_SHA" \
+            --task "$TASK" \
+            --workflow-run-id "${GITHUB_RUN_ID}" \
+            --trusted-workflow-sha "${{ needs.qualify.outputs.trusted_sha }}" \
+            --review-input /tmp/codex-review.json \
+            --output /tmp/review-artifact.json
+          cp /tmp/pr.json /tmp/checks.json /tmp/comments.json /tmp/ || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ env.stale != 'true' }}
+        with:
+          name: architect-review-artifact
+          path: |
+            /tmp/review-artifact.json
+            /tmp/pr.json
+            /tmp/checks.json
+            /tmp/comments.json
+          if-no-files-found: warn
+
+  architect-write:
+    needs: [qualify, architect-model]
+    if: needs.qualify.outputs.qualified == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      checks: read
+    outputs:
+      verdict: ${{ steps.plan.outputs.verdict }}
+      run_correction: ${{ steps.plan.outputs.run_correction }}
+      reason: ${{ steps.plan.outputs.reason }}
+      label: ${{ steps.plan.outputs.label }}
+      task: ${{ steps.plan.outputs.task }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: architect-review-artifact
+          path: /tmp/art
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Plan upsert from digest-bound artifact
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          PYTHONPATH: trusted/scripts
+        run: |
+          set -euo pipefail
+          if [ ! -f /tmp/art/review-artifact.json ]; then
+            echo "run_correction=false" >> "$GITHUB_OUTPUT"
+            echo "reason=missing_review_artifact" >> "$GITHUB_OUTPUT"
+            echo "label=founder-decision-required" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr-live.json
+          LIVE=$(python -c "import json; print(json.load(open('/tmp/pr-live.json'))['head']['sha'].lower())")
+          python trusted/scripts/agent_protocol/run_architect.py \
+            --pr-json /tmp/art/pr.json \
+            --comments-json /tmp/art/comments.json \
+            --review-input /tmp/art/review-artifact.json \
+            --live-head-sha "$LIVE" \
+            --checks-json /tmp/art/checks.json
+      - name: Upsert structured review comment
+        if: ${{ steps.plan.outputs.comment_body != '' && steps.plan.outputs.upsert_action != 'noop' && steps.plan.outputs.reason != 'stale_run_remote_head_changed' && steps.plan.outputs.reason != 'checks_pending' }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          COMMENT_BODY: ${{ steps.plan.outputs.comment_body }}
+          COMMENT_ID: ${{ steps.plan.outputs.comment_id }}
+          UPSERT_ACTION: ${{ steps.plan.outputs.upsert_action }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+        with:
+          script: |
+            const body = process.env.COMMENT_BODY;
+            const pr = Number(process.env.PR_NUMBER);
+            if (process.env.UPSERT_ACTION === 'update' && process.env.COMMENT_ID) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: Number(process.env.COMMENT_ID),
+                body,
+              });
+            } else if (process.env.UPSERT_ACTION === 'create') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
+      - name: Apply review labels
+        if: ${{ steps.plan.outputs.label && steps.plan.outputs.reason != 'stale_run_remote_head_changed' && steps.plan.outputs.reason != 'checks_pending' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          LABEL: ${{ steps.plan.outputs.label }}
+        run: |
+          LIVE=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE,,}" != "${{ needs.qualify.outputs.head_sha }}" ]; then
+            echo "head moved; skip labels"
+            exit 0
+          fi
+          gh label create "$LABEL" --force --description "HerbaGraph agent loop" --color "1D76DB" || true
+          gh pr edit "$PR_NUMBER" --add-label "$LABEL" || true
+
+  correct-model:
+    needs: [qualify, architect-write]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: untrusted
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: architect-review-artifact
+          path: /tmp/art
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Verify digest-bound artifact without write tokens
+        env:
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          TRUSTED_WORKFLOW_SHA: ${{ needs.qualify.outputs.trusted_sha }}
+        run: |
+          python - <<'PY'
+          import os
+          from agent_protocol.artifact import load_artifact
+          art = load_artifact("/tmp/art/review-artifact.json")
+          ok = art.matches(
+              pr_number=int(os.environ["PR_NUMBER"]),
+              head_sha=os.environ["HEAD_SHA"],
+              task=os.environ["TASK"],
+              workflow_run_id=os.environ["GITHUB_RUN_ID"],
+              trusted_workflow_sha=os.environ["TRUSTED_WORKFLOW_SHA"],
+          )
+          if not ok:
+              raise SystemExit("artifact_mismatch")
+          print("artifact ok", art.digest)
+          PY
+      - name: Apply model edits without write tokens
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${XAI_API_KEY}" ]; then
+            echo "XAI_API_KEY missing"
+            exit 1
+          fi
+          {
+            cat trusted/.github/prompts/herbagraph-grok-correction.md
+            echo
+            echo "## Architect review artifact"
+            python -c "import json; print(json.load(open('/tmp/art/review-artifact.json'))['review_payload'])"
+          } > /tmp/grok-prompt.md
+          env -u GITHUB_TOKEN -u GH_TOKEN \
+            python trusted/scripts/agent_protocol/invoke_grok.py /tmp/grok-prompt.md --repo untrusted
+          git -C untrusted add -A
+          git -C untrusted diff --cached --binary > /tmp/correction.patch || true
+          git -C untrusted ls-files --others --exclude-standard >> /tmp/untracked.txt || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: success()
+        with:
+          name: correction-patch
+          path: |
+            /tmp/correction.patch
+            /tmp/untracked.txt
+            /tmp/art/review-artifact.json
+
+  validate:
+    needs: [qualify, architect-write, correct-model]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      manifest_digest: ${{ steps.seal.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: untrusted
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: correction-patch
+          path: /tmp/patch
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Apply patch and seal the manifest before PR tests
+        id: seal
+        env:
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ -s /tmp/patch/correction.patch ]; then
+            git -C "${GITHUB_WORKSPACE}/untrusted" apply --index /tmp/patch/correction.patch \
+              || git -C "${GITHUB_WORKSPACE}/untrusted" apply /tmp/patch/correction.patch
+          fi
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          trusted = Path(os.environ["PYTHONPATH"]).resolve()
+          sys.path[:] = [str(trusted)] + [p for p in sys.path if p not in ("", ".")]
+          from agent_protocol.control_plane import assert_patch_allowed
+          from agent_protocol.manifest import collect_manifest, digest_file, dump_manifest
+          from agent_protocol.testsuites import suites_for_changed_paths
+          root = Path(os.environ["GITHUB_WORKSPACE"]) / "untrusted"
+          paths = assert_patch_allowed(root, expected_head=os.environ["HEAD_SHA"])
+          manifest = collect_manifest(root, paths, parent_sha=os.environ["HEAD_SHA"])
+          sealed = Path("/tmp/validated-manifest.json")
+          sealed.write_text(json.dumps(dump_manifest(manifest)), encoding="utf-8")
+          digest = digest_file(sealed)
+          Path("/tmp/suites.json").write_text(json.dumps(suites_for_changed_paths(paths)), encoding="utf-8")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"digest={digest}\n")
+          print("changed", paths, "digest", digest)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: validated-patch-${{ steps.seal.outputs.digest }}
+          path: /tmp/validated-manifest.json
+          if-no-files-found: error
+      - name: Run mapped suites with no secrets
+        working-directory: untrusted
+        run: |
+          python -m pip install -q -r requirements.txt -r requirements-dev.txt
+          python - <<'PY'
+          import json, subprocess
+          suites = json.loads(open("/tmp/suites.json", encoding="utf-8").read())
+          if not suites:
+              suites = [["python", "-m", "pytest", "tests/test_agent_protocol", "-q"]]
+          for command in suites:
+              print("running", command)
+              subprocess.check_call(command)
+          PY
+
+  commit:
+    needs: [qualify, architect-write, validate]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: validated-patch-${{ needs.validate.outputs.manifest_digest }}
+          path: /tmp/ok
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Fast-forward commit via GitHub API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ needs.qualify.outputs.head_ref }}
+          REVIEWED: ${{ needs.qualify.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          TASK: ${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          MANIFEST_DIGEST: ${{ needs.validate.outputs.manifest_digest }}
+        working-directory: ${{ github.workspace }}/trusted
+        run: |
+          set -euo pipefail
+          LIVE=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE,,}" != "${REVIEWED}" ]; then
+            echo "head moved before commit; abort with no write"
+            exit 0
+          fi
+          if [ ! -s /tmp/ok/validated-manifest.json ]; then
+            echo "no validated manifest"
+            exit 0
+          fi
+          python "${GITHUB_WORKSPACE}/trusted/scripts/agent_protocol/apply_commit.py" \
+            --manifest /tmp/ok/validated-manifest.json \
+            --expected-digest "${MANIFEST_DIGEST}" \
+            --trusted-scripts "${GITHUB_WORKSPACE}/trusted/scripts"
+          NEW=$(python -c "import pathlib; print(pathlib.Path('/tmp/correction.md').read_text().split('Commit: ',1)[-1].splitlines()[0])")
+          LIVE_AFTER=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE_AFTER,,}" != "${NEW,,}" ]; then
+            echo "post-commit head mismatch; skip handoff comment"
+            exit 0
+          fi
+          gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"

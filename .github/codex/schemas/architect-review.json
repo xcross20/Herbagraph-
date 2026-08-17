@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task",
+    "reviewed_commit",
+    "status",
+    "blocking",
+    "should_fix",
+    "noted",
+    "hostile_trace",
+    "required_checks",
+    "allowed_next_scope",
+    "next_owner",
+    "trap_line"
+  ],
+  "properties": {
+    "task": { "type": "string" },
+    "reviewed_commit": { "type": "string", "minLength": 40, "maxLength": 40 },
+    "status": {
+      "type": "string",
+      "enum": [
+        "CHANGES_REQUIRED",
+        "ARCHITECT_APPROVED",
+        "FOUNDER_DECISION_REQUIRED"
+      ]
+    },
+    "blocking": { "type": "array", "items": { "type": "string" } },
+    "should_fix": { "type": "array", "items": { "type": "string" } },
+    "noted": { "type": "array", "items": { "type": "string" } },
+    "hostile_trace": { "type": "string" },
+    "required_checks": { "type": "array", "items": { "type": "string" } },
+    "allowed_next_scope": { "type": "string" },
+    "next_owner": { "type": "string", "enum": ["GROK", "FOUNDER", "NONE"] },
+    "trap_line": { "type": "string" }
+  }
+}
