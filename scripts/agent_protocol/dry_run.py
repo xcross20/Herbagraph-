@@ -104,7 +104,7 @@ def run_dry_run() -> dict:
         head_sha=SHA2,
         completed_cycles=completed_correction_cycles(comments),
     )
-    if second.run_correction or second.reason != "architect_approved_no_merge":
+    if second.run_correction or second.reason != "architect_approved_uat_ready":
         raise AssertionError(second)
     return {
         "qualify": qualify.reason,

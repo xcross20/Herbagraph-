@@ -1,0 +1,43 @@
+# Authoritative risk policy for HerbaGraph UAT autonomy.
+# Empty/unknown structured input is founder-gate. This file does not activate
+# the agent loop or grant merge/deploy permissions.
+
+tiers:
+  autonomous-uat:
+    founder_interrupt: false
+    required_evidence: [rollback, tests, exact_sha_review, required_ci]
+    uat_behavior: merge_integration_then_uat
+    stop_label: uat-ready
+  autonomous-uat-guarded:
+    founder_interrupt: false
+    required_evidence: [rollback, tests, adr, exact_sha_review, required_ci]
+    uat_behavior: merge_integration_then_uat
+    stop_label: uat-ready
+  founder-gate:
+    founder_interrupt: true
+    required_evidence: [founder_approval]
+    uat_behavior: halt_before_action
+    stop_label: founder-decision-required
+  agent-blocked:
+    founder_interrupt: false
+    required_evidence: [engineering_triage]
+    uat_behavior: halt_and_return_to_agents
+    stop_label: agent-blocked
+
+founder_gates:
+  - promote_or_deploy_main_production
+  - destructive_or_irreversible_production_data
+  - breaking_public_contract_without_compat
+  - weaken_or_redesign_auth_privacy_safety
+  - medical_or_regulatory_posture
+  - reasoning_integrity_semantics
+  - expand_autonomous_permissions
+  - north_star_or_lock_in
+  - unknown_blast_radius_or_unproven_rollback
+
+routine_blockers:
+  - ci_failure
+  - merge_conflict
+  - missing_optional_uat_config
+  - exhausted_correction_cycles
+  - uat_deploy_failure
