@@ -1,0 +1,364 @@
+name: HerbaGraph agent loop
+
+# Same-repository grok/** PRs into integration/agent only.
+# Never use pull_request_target. Forks do not receive secrets.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+    branches: [integration/agent]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      dry_run:
+        description: Run the in-process fixture demonstration only
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: herbagraph-agent-loop-${{ github.event.pull_request.number || inputs.pr_number }}-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Protocol dry-run and unit tests
+        run: |
+          python -m pytest tests/test_agent_protocol -q --tb=short
+          python scripts/agent_protocol/dry_run.py
+
+  qualify:
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+    runs-on: ubuntu-latest
+    outputs:
+      qualified: ${{ steps.gate.outputs.qualified }}
+      reason: ${{ steps.gate.outputs.reason }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+      head_ref: ${{ steps.gate.outputs.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Load PR and comments
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          INPUT_PR: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${EVENT_PR:-$INPUT_PR}"
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" > /tmp/comments.json
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from agent_protocol.parse import parse_handoff
+          from agent_protocol.qualify import qualify_pull_request
+          from agent_protocol.run_architect import pull_request_from_payload
+          pr = json.loads(Path("/tmp/pr.json").read_text())
+          comments = json.loads(Path("/tmp/comments.json").read_text())
+          view = pull_request_from_payload(pr)
+          handoff = parse_handoff(pr.get("body") or "")
+          if handoff is None:
+              for item in comments:
+                  parsed = parse_handoff(item.get("body") or "")
+                  if parsed and parsed.commit == view.head_sha:
+                      handoff = parsed
+                      break
+          result = qualify_pull_request(view, handoff_sha=handoff.commit if handoff else None)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"qualified={'true' if result.allowed else 'false'}\n")
+              handle.write(f"reason={result.reason}\n")
+              handle.write(f"pr_number={view.number}\n")
+              handle.write(f"head_sha={view.head_sha}\n")
+              handle.write(f"head_ref={view.head_ref}\n")
+          print(result)
+          PY
+        id: gate
+
+  architect:
+    needs: qualify
+    if: needs.qualify.outputs.qualified == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    outputs:
+      verdict: ${{ steps.plan.outputs.verdict }}
+      run_correction: ${{ steps.plan.outputs.run_correction }}
+      reason: ${{ steps.plan.outputs.reason }}
+      label: ${{ steps.plan.outputs.label }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Halt if OpenAI secret is missing
+        if: ${{ env.OPENAI_API_KEY == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "HERBAGRAPH_ARCHITECT_REVIEW
+          Task: HG-7
+          Reviewed commit: ${HEAD_SHA}
+          Status: FOUNDER_DECISION_REQUIRED
+          Next owner: FOUNDER
+
+          BLOCKING:
+          1. OPENAI_API_KEY is not configured. Automation halted. No secret was created.
+
+          TRAP LINE:
+          1. Approval never merges or deploys."
+          gh pr edit "$PR_NUMBER" --add-label "founder-decision-required" || true
+          echo "missing_openai_secret=true" >> "$GITHUB_ENV"
+      - name: Assemble Codex prompt
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          {
+            cat .github/codex/prompts/herbagraph-architect-review.md
+            echo
+            echo "## Exact head to review"
+            echo "reviewed_commit must equal ${HEAD_SHA}"
+            echo "PR number: ${PR_NUMBER}"
+            echo
+            echo "## Pull request"
+            gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '{title,.body,base:.base.ref,head:.head.ref,sha:.head.sha}'
+            echo
+            echo "## Recent issue comments"
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=20" --jq '.[].body'
+          } > /tmp/codex-prompt.md
+      - name: Run Codex read-only review
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          allow-bots: true
+          prompt-file: /tmp/codex-prompt.md
+          output-schema-file: .github/codex/schemas/architect-review.json
+          output-file: /tmp/codex-review.json
+      - name: Fetch comments and plan upsert
+        if: ${{ env.OPENAI_API_KEY != '' }}
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" > /tmp/comments.json
+          python scripts/agent_protocol/run_architect.py \
+            --pr-json /tmp/pr.json \
+            --comments-json /tmp/comments.json \
+            --review-input /tmp/codex-review.json
+      - name: Upsert structured review comment
+        if: ${{ env.OPENAI_API_KEY != '' && steps.plan.outputs.comment_body != '' && steps.plan.outputs.upsert_action != 'noop' }}
+        uses: actions/github-script@v7
+        env:
+          COMMENT_BODY: ${{ steps.plan.outputs.comment_body }}
+          COMMENT_ID: ${{ steps.plan.outputs.comment_id }}
+          UPSERT_ACTION: ${{ steps.plan.outputs.upsert_action }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+        with:
+          script: |
+            const body = process.env.COMMENT_BODY;
+            const pr = Number(process.env.PR_NUMBER);
+            if (process.env.UPSERT_ACTION === 'update' && process.env.COMMENT_ID) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: Number(process.env.COMMENT_ID),
+                body,
+              });
+            } else if (process.env.UPSERT_ACTION === 'create') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
+      - name: Apply review labels
+        if: ${{ env.OPENAI_API_KEY != '' && steps.plan.outputs.label }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          LABEL: ${{ steps.plan.outputs.label }}
+        run: |
+          gh label create "$LABEL" --force --description "HerbaGraph agent loop" --color "1D76DB" || true
+          gh pr edit "$PR_NUMBER" --add-label "$LABEL" || true
+          if [ "$LABEL" = "architect-approved" ]; then
+            gh pr edit "$PR_NUMBER" --remove-label "changes-required" || true
+          fi
+          if [ "$LABEL" = "changes-required" ]; then
+            gh pr edit "$PR_NUMBER" --remove-label "architect-approved" || true
+          fi
+
+  correct:
+    needs: [qualify, architect]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect.outputs.run_correction == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+    steps:
+      - name: Refuse non-grok heads
+        if: ${{ !startsWith(needs.qualify.outputs.head_ref, 'grok/') }}
+        run: exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_ref }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Confirm review still matches HEAD
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" > /tmp/comments.json
+          python scripts/agent_protocol/run_correct.py --head-sha "$HEAD_SHA" --comments-json /tmp/comments.json
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          # run_correct writes GITHUB_OUTPUT; also fail if current checkout moved
+          print("checked", os.environ["HEAD_SHA"])
+          PY
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+      - name: Halt if XAI secret is missing
+        if: ${{ env.XAI_API_KEY == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "HERBAGRAPH_CORRECTION_REPORT
+          Task: HG-7
+          Status: FOUNDER_DECISION_REQUIRED
+          Reviewed commit: ${HEAD_SHA}
+          Correction-cycle: 0
+
+          BLOCKING:
+          1. XAI_API_KEY is not configured. Automation halted. No secret was created.
+
+          TRAP LINE:
+          1. Approval never merges or deploys."
+          gh label create founder-decision-required --force --color B60205 || true
+          gh pr edit "$PR_NUMBER" --add-label "founder-decision-required" || true
+          exit 1
+      - name: Build correction prompt
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+        run: |
+          {
+            cat .github/prompts/herbagraph-grok-correction.md
+            echo
+            echo "## Architect review artifact"
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
+              --jq '[.[] | select(.body|contains("HERBAGRAPH_ARCHITECT_REVIEW"))] | last | .body'
+          } > /tmp/grok-prompt.md
+      - name: Run Grok headlessly
+        run: python scripts/agent_protocol/invoke_grok.py /tmp/grok-prompt.md
+      - name: Run protocol tests
+        run: python -m pytest tests/test_agent_protocol -q --tb=short
+      - name: Commit and push only this grok branch
+        env:
+          HEAD_REF: ${{ needs.qualify.outputs.head_ref }}
+          REVIEWED: ${{ needs.qualify.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEAD_REF" != grok/* ]]; then
+            echo "refusing to push non-grok branch"
+            exit 1
+          fi
+          git config user.name "herbagraph-agent-loop"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "no file changes from correction"
+            gh label create founder-decision-required --force --color B60205 || true
+            gh pr edit "$PR_NUMBER" --add-label "founder-decision-required" || true
+            exit 1
+          fi
+          git add -A
+          CYCLE=$(python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from agent_protocol.cycle import next_cycle_number
+          from agent_protocol.parse import CommentRecord
+          comments = json.loads(Path("/tmp/comments.json").read_text())
+          print(next_cycle_number([CommentRecord(id=i.get("id"), body=i.get("body") or "") for i in comments]))
+          PY
+          )
+          git commit -m "fix: address architect review ${REVIEWED}
+
+          HerbaGraph-Correction-Cycle: ${CYCLE}
+          HerbaGraph-Reviewed-SHA: ${REVIEWED}
+          "
+          git push origin "HEAD:refs/heads/${HEAD_REF}"
+          NEW_SHA=$(git rev-parse HEAD)
+          python - <<PY
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, "scripts")
+          from agent_protocol.format import render_correction_report, render_handoff
+          cycle = int("${CYCLE}")
+          body = render_correction_report(
+              task="HG-7",
+              pr_number=int("${PR_NUMBER}"),
+              reviewed_commit="${REVIEWED}",
+              new_commit=os.environ.get("NEW_SHA", "${NEW_SHA}"),
+              cycle=cycle,
+              tests="pytest tests/test_agent_protocol -q",
+          )
+          handoff = render_handoff(task="HG-7", commit="${NEW_SHA}", pr_number=int("${PR_NUMBER}"))
+          Path("/tmp/correction.md").write_text(body + "\n" + handoff, encoding="utf-8")
+          PY
+          NEW_SHA=$(git rev-parse HEAD)
+          gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"
