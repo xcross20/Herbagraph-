@@ -1,0 +1,69 @@
+name: HerbaGraph implementation task
+description: Scope an implementation for Grok and Architect review
+title: "[HG] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for product or engineering work that will enter the autonomous agent workflow.
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: What user or system outcome should change?
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: Current behavior
+    validations:
+      required: true
+  - type: textarea
+    id: required
+    attributes:
+      label: Required behavior
+    validations:
+      required: true
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Invariants and constraints
+      description: Include safety, evidence, persistence, privacy, and compatibility constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance tests
+      description: Use a checklist with observable outcomes.
+      placeholder: |
+        - [ ] ...
+    validations:
+      required: true
+  - type: textarea
+    id: hostile
+    attributes:
+      label: Hostile-path tests
+      description: What malformed, repeated, concurrent, unrelated, or correction scenarios must be tested?
+    validations:
+      required: true
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+    validations:
+      required: true
+  - type: dropdown
+    id: owner_gate
+    attributes:
+      label: Founder approval required
+      options:
+        - "No"
+        - "Yes — product scope"
+        - "Yes — migration or deployment"
+        - "Yes — security, privacy, or PHI"
+        - "Yes — medical safety or regulatory"
+    validations:
+      required: true
