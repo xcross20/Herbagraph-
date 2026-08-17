@@ -57,6 +57,15 @@ def test_trusted_checkouts_use_qualify_exact_sha():
     assert "TRUSTED_WORKFLOW_SHA: ${{ github.sha }}" not in text
 
 
+def test_agent_branches_are_reviewable_but_never_auto_corrected_or_promoted():
+    text = WORKFLOW.read_text(encoding="utf-8")
+    qualify = _workflow_section("qualify")
+    assert '"$HEAD_REF" != grok/* && "$HEAD_REF" != agent/*' in qualify
+    for job in ("correct-model", "validate", "commit", "promote-uat"):
+        section = _workflow_section(job)
+        assert "startsWith(needs.qualify.outputs.head_ref, 'grok/')" in section
+
+
 def test_workflow_run_concurrency_is_pr_keyed():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "herbagraph-agent-loop-pr-${{ github.event.pull_request.number" in text
