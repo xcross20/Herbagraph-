@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agent_protocol.artifact import build_artifact
+from agent_protocol.artifact import build_artifact, stamp_trusted_task
 from agent_protocol.auth import select_trusted_review
 from agent_protocol.checks import apply_check_gate, coerce_verdict_for_checks, parse_check_runs
 from agent_protocol.commit_api import create_fast_forward_commit
@@ -54,6 +54,14 @@ def _artifact(sha: str = SHA, task: str = "HG-7", run: str = "99", wf: str = "c"
         trusted_workflow_sha=wf,
         review_payload=_json_review(sha, task),
     )
+
+
+def test_stamp_trusted_task_overrides_codex_ticket_string():
+    raw = _json_review(task="PR #15 agent-loop canary")
+    stamped = stamp_trusted_task(raw, "HG-7")
+    assert '"task":"HG-7"' in stamped
+    assert "PR #15" not in stamped
+    assert stamp_trusted_task("not-json", "HG-7") == "not-json"
 
 
 def test_forged_user_review_cannot_trigger_correction():

@@ -64,3 +64,16 @@ def test_plan_rejects_review_for_other_sha():
     result = plan_architect_action(_pr(), [], review)
     assert result["run_correction"] == "false"
     assert result["reason"] == "review_sha_mismatch"
+
+
+def test_plan_rejects_unstamped_task_mismatch():
+    review = (
+        '{"task":"PR #15 agent-loop canary","status":"CHANGES_REQUIRED",'
+        f'"reviewed_commit":"{SHA}","blocking":["x"],'
+        '"should_fix":[],"noted":[],"hostile_trace":"","required_checks":[],'
+        '"allowed_next_scope":"","next_owner":"GROK","trap_line":""}'
+    )
+    result = plan_architect_action(_pr(), [], review, checks_raw=GREEN)
+    assert result["run_correction"] == "false"
+    assert result["reason"] == "review_task_mismatch"
+    assert result["upsert_action"] == "noop"

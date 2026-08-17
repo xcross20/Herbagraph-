@@ -236,17 +236,19 @@ jobs:
         env:
           PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
           HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ needs.qualify.outputs.task }}
         run: |
           {
             cat trusted/.github/codex/prompts/herbagraph-architect-review.md
             echo
             echo "## Exact SHAs"
+            echo "task must equal: ${TASK}"
             echo "trusted_workflow_sha: ${{ needs.qualify.outputs.trusted_sha }}"
             echo "head / reviewed_commit must equal ${HEAD_SHA}"
             echo "PR number: ${PR_NUMBER}"
             echo
-            echo "## Required check conclusions"
-            python -m json.tool /tmp/checks.json | head -c 20000
+            echo "## Required check conclusions (only gates is required)"
+            python -c 'import json,sys; data=json.load(open("/tmp/checks.json",encoding="utf-8")); rows=data.get("check_runs",data) if isinstance(data,dict) else data; keep=[r for r in (rows or []) if r.get("name")=="gates"]; json.dump({"total_count":len(keep),"check_runs":keep},sys.stdout,indent=2); print()'
             echo
             echo "## git diff from GitHub API (no PR checkout)"
             cat /tmp/pr.diff
@@ -372,6 +374,7 @@ jobs:
         if: ${{ steps.plan.outputs.label && steps.plan.outputs.reason != 'stale_run_remote_head_changed' && steps.plan.outputs.reason != 'checks_pending' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
           LABEL: ${{ steps.plan.outputs.label }}
         run: |
