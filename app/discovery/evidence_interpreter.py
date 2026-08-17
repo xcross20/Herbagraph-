@@ -44,6 +44,9 @@ def interpret_workup(
         result.unresolved.append(raw_label)
         return result
     if resolved.status is ResolverStatus.AMBIGUOUS:
+        from app.discovery.tripwires import record_ambiguous_resolver
+
+        record_ambiguous_resolver()
         result.ambiguous.append(raw_label)
         return result
     assert resolved.match is not None

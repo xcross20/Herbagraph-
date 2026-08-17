@@ -73,7 +73,7 @@ async def _assert_invariants(db_session, case: DiscoveryCase) -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("seed", range(24))
+@pytest.mark.parametrize("seed", range(48))
 async def test_generated_sequences_preserve_truth_invariants(db_session, seed: int):
     rng = random.Random(seed)
     user = User(email=f"prop-{seed}-{uuid.uuid4().hex[:6]}@example.com", hashed_password="x")

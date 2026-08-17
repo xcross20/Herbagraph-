@@ -45,6 +45,9 @@ async def health_check() -> dict:
 async def environment_meta() -> dict:
     """Public, non-secret runtime plane so the UI can label UAT vs production."""
     env = runtime_environment()
+    from app.discovery.dark_launch import truth_layer_is_authoritative
+    from app.discovery.telemetry import snapshot
+
     return {
         "service": "herbagraph",
         "environment": env,
@@ -53,6 +56,8 @@ async def environment_meta() -> dict:
         "public_url": settings.app_public_url or "",
         "git_sha": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "")[:12],
         "synthetic_data_only": env != "production",
+        "truth_layer_authoritative": truth_layer_is_authoritative(),
+        "tripwires": snapshot(),
     }
 
 

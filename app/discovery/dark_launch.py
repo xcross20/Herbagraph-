@@ -23,4 +23,17 @@ def compare_projections(*, legacy_values: list[str], truth_values: list[str]) ->
     divergences = []
     if left != right:
         divergences.append("active_values_differ")
+        from app.discovery.telemetry import increment
+
+        increment("dark_launch_divergence")
     return PathComparison(authoritative=truth_layer_is_authoritative(), divergences=tuple(divergences))
+
+
+def maybe_compare_and_block_write(*, legacy_values: list[str], truth_values: list[str]) -> PathComparison:
+    """Dark launch: compare always; writes stay off until the flag is on."""
+    comparison = compare_projections(legacy_values=legacy_values, truth_values=truth_values)
+    if not comparison.authoritative:
+        from app.discovery.telemetry import increment
+
+        increment("dark_launch_write_suppressed")
+    return comparison

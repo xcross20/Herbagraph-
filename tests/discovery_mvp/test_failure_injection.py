@@ -76,3 +76,65 @@ async def test_stale_retry_and_causal_language_are_explicit_failures(db_session)
             source_event_id="retry-1",
             notes="the supplement caused this",
         )
+
+
+def test_llm_timeout_and_malformed_json_are_not_success():
+    from app.discovery.failure_modes import commit_without_response, document_parse_incomplete, llm_timeout, recover_json
+
+    assert llm_timeout().status == "failed"
+    assert recover_json("{").status in {"failed", "partial"}
+    assert recover_json('{"ok": true').status == "partial"
+    assert recover_json('{"ok": true}').status == "succeeded"
+    assert document_parse_incomplete(parsed_rows=1, expected_rows=4).status == "partial"
+    assert commit_without_response().status == "partial"
+    assert commit_without_response().detail == "committed_response_unsent"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_event_and_restart_during_correction_converge(db_session):
+    import uuid
+
+    from app.discovery.engine import CaseSnapshot, FindingDraft
+    from app.discovery.service import apply_snapshot
+    from app.models.discovery import DiscoveryCase, DiscoveryFinding
+    from app.models.enums import DiscoveryCaseStatus
+    from app.models.user import User
+    from sqlalchemy import select
+
+    user = User(email=f"dup-{uuid.uuid4().hex[:8]}@example.com", hashed_password="x")
+    db_session.add(user)
+    await db_session.flush()
+    case = DiscoveryCase(
+        user_id=user.id,
+        presenting_concern="burning feet",
+        status=DiscoveryCaseStatus.OPEN,
+    )
+    db_session.add(case)
+    await db_session.flush()
+
+    def snap(value: str) -> CaseSnapshot:
+        return CaseSnapshot(
+            presenting_concern=case.presenting_concern,
+            findings=[
+                FindingDraft(kind="context", name="onset", value=value, status=None, branch=None, source="user")
+            ],
+            hypotheses=[],
+            branch_coverage=[],
+            investigation_coverage=0.0,
+        )
+
+    case_id = case.id
+    await apply_snapshot(db_session, case, snap("after surgery"), source_event_id="evt-a")
+    await apply_snapshot(db_session, case, snap("before surgery"), source_event_id="evt-b")
+    await db_session.flush()
+    await db_session.commit()
+    db_session.expire_all()
+    held = await db_session.get(DiscoveryCase, case_id)
+    await apply_snapshot(db_session, held, snap("before surgery"), source_event_id="evt-b")
+    await db_session.flush()
+    rows = list(
+        (await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case_id))).scalars()
+    )
+    actives = [row for row in rows if row.active]
+    assert len(actives) == 1
+    assert actives[0].value == "before surgery"

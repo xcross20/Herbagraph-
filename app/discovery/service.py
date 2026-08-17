@@ -424,6 +424,17 @@ async def apply_snapshot(
     case.snapshot = json.dumps(snapshot.as_dict())
     if case.id is not None:
         event_id = source_event_id or str(uuid.uuid4())
+        from app.discovery.dark_launch import maybe_compare_and_block_write
+
+        held = list(
+            (
+                await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+            ).scalars()
+        )
+        maybe_compare_and_block_write(
+            legacy_values=[item.value or "" for item in snapshot.findings],
+            truth_values=[row.value or "" for row in held if getattr(row, "active", True)],
+        )
         await apply_finding_drafts(db, case.id, snapshot.findings, source_event_id=event_id)
         await db.execute(delete(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case.id))
         await db.flush()
@@ -1209,6 +1220,12 @@ async def ingest_case_document(
             "kind": "lab",
             "accepted": False,
             "detail": "Use the existing lab upload in the workspace. Discovery does not replace the lab parser.",
+        }
+    if kind == "unsupported":
+        return {
+            "kind": "unsupported",
+            "accepted": False,
+            "detail": "Document could not be parsed. This is a failed or unsupported input, not a successful empty report.",
         }
     for item in extract_record_findings(kind, text):
         finding_kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "context"

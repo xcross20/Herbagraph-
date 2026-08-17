@@ -17,6 +17,8 @@ async def test_meta_and_demo_entry(client):
     assert body["service"] == "herbagraph"
     assert body["demo_path"] == "/demo"
     assert body["is_production"] is False
+    assert body["truth_layer_authoritative"] is False
+    assert isinstance(body["tripwires"], dict)
     demo = await client.get("/demo", follow_redirects=False)
     assert demo.status_code == 302
     assert demo.headers["location"] == "/demo.html"

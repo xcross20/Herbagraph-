@@ -120,3 +120,89 @@ async def test_api_safety_escalation_survives_followup(authed_client):
     assert follow.status_code == 200
     blob = follow.text.lower()
     assert "emergency" in blob or "urgent" in blob or follow.json().get("safety")
+
+
+async def test_api_unreadable_lab_is_not_a_successful_discovery_parse(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months my feet have burned at night."},
+    )
+    case_id = created.json()["id"]
+    resp = await authed_client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        json={"filename": "labs.pdf", "text": "%PDF-1.4 unreadable binary junk"},
+    )
+    assert resp.status_code == 409, resp.text
+    assert "not a successful" in resp.text.lower() or "could not be parsed" in resp.text.lower()
+
+
+async def test_api_ambiguous_mri_does_not_resolve_to_brain(authed_client):
+    from app.discovery.resolver import resolve_test
+    from app.models.enums import ResolverStatus
+
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "I had an MRI. My feet still burn."},
+    )
+    assert created.status_code == 201
+    resolved = resolve_test("MRI")
+    assert resolved.status is ResolverStatus.AMBIGUOUS
+    assert resolved.match is None
+
+
+async def test_api_contraindication_is_visible_on_safety_evaluate(authed_client):
+    resp = await authed_client.post(
+        "/api/v1/safety/evaluate",
+        json={
+            "recommendations": [
+                {
+                    "intervention_name": "Curcumin",
+                    "category": "herb",
+                    "mechanism": "NF-kB modulation",
+                    "evidence_level": "moderate",
+                }
+            ],
+            "health_profile": {"current_medications": ["Warfarin"], "known_conditions": []},
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    blob = resp.text.lower()
+    assert "warfarin" in blob or "caution" in blob or "interact" in blob or "flag" in blob
+
+
+async def test_api_correction_chain_visible_after_restart(authed_client, db_session):
+    import uuid
+
+    from app.discovery.engine import CaseSnapshot, FindingDraft
+    from app.discovery.service import apply_snapshot
+    from app.models.discovery import DiscoveryCase
+    from sqlalchemy import select
+
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months my feet have burned at night."},
+    )
+    case_id = uuid.UUID(created.json()["id"])
+    case = (
+        await db_session.execute(select(DiscoveryCase).where(DiscoveryCase.id == case_id))
+    ).scalar_one()
+
+    def snap(value: str) -> CaseSnapshot:
+        return CaseSnapshot(
+            presenting_concern=case.presenting_concern,
+            findings=[
+                FindingDraft(kind="context", name="onset", value=value, status=None, branch=None, source="user")
+            ],
+            hypotheses=[],
+            branch_coverage=[],
+            investigation_coverage=0.0,
+        )
+
+    await apply_snapshot(db_session, case, snap("after surgery"), source_event_id="http-a")
+    await apply_snapshot(db_session, case, snap("before surgery"), source_event_id="http-b")
+    await apply_snapshot(db_session, case, snap("after surgery"), source_event_id="http-a2")
+    await db_session.commit()
+    fetched = await authed_client.get(f"/api/v1/cases/{case_id}")
+    assert fetched.status_code == 200
+    onsets = [item["value"] for item in fetched.json()["findings"] if item["name"] == "onset"]
+    assert onsets == ["after surgery"]
