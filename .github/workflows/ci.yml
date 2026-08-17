@@ -32,7 +32,8 @@ jobs:
         run: bash scripts/ci_catalog_reseed_hint.sh "${{ github.event.pull_request.base.sha }}"
 
       - name: Upload coverage (optional, non-blocking)
-        if: always()
+        if: success()
+        timeout-minutes: 5
         run: |
           python -m pytest tests/ -q --cov=app --cov-report=xml --tb=no || true
         continue-on-error: true

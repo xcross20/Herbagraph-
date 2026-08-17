@@ -163,7 +163,8 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 - Control-plane paths (workflow, protocol helpers, AGENTS.md, prompts/schemas) cannot be edited by a correction.
 - A digest-bound review artifact from the trusted run is required to trigger Grok. `github-actions[bot]` alone is not sufficient.
 - Pending required checks defer with no write. Failed required checks are `CHANGES_REQUIRED`. Missing/untrusted checks escalate to the founder.
-- Approval never merges or deploys.
+- Approval never merges to `main` or deploys production.
+- Guarded merge to `integration/agent` (which updates persistent Railway UAT) is allowed only after exact-SHA `ARCHITECT_APPROVED`, green required `gates`, and every changed path is on the autonomous-uat allowlist (`tests/fixtures/agent_loop_canary.txt`). Any other path stays Founder-gated.
 - The loop workflow is installed from protected `main`. See `docs/architecture/adr-0007-agent-loop-bootstrap.md`.
 
 ### Labels
