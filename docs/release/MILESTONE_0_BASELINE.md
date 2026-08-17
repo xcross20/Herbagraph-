@@ -15,6 +15,7 @@
 | Reviewed Grok PR-A predecessor (PR #6) | `d048fe855fe2179ec16f757ba065c07f96d78ec2` |
 | Repaired Codex PR-A evidence commit (PR #33) | `2590b1af20936bd1cec369478fa7d659a8a1a8c0` |
 | PR #33 tip / SHA pin | `bc9d1b4115b5593381643ff697f3699840f03aa8` |
+| This closeout evidence commit | `1b619482a76add4d89384d573d02c55a896e8250` |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
 | `origin/discovery/investigation-state-v2` | `e7ab37aeed5538546fd657a6b0c1a394ad937510`; unexpectedly merged to `main` by PR #4 |
 | Production deploy SHA | **unknown** — Railway production still sourced from `claude/herbagraph-test-suite-mgmrz1`; no confirmed SHA |
