@@ -59,8 +59,10 @@ Baseline subset still green:
 
 **Source SHA reviewed:** `d048fe855fe2179ec16f757ba065c07f96d78ec2`
 **Branch:** `agent/mvp-baseline-repair`
-**Exact repaired head:** recorded after commit; this log does not equate an
-uncommitted working tree with a SHA.
+**Exact repaired evidence commit:** `2590b1af20936bd1cec369478fa7d659a8a1a8c0`
+
+The later metadata-only commit that records this SHA changes no tests or
+production behavior. Exact-SHA CI remains required before merge.
 
 Review repairs:
 

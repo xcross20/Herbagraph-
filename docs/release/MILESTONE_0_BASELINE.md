@@ -12,7 +12,7 @@
 | `origin/main` | `88c145bf64cea16014a705217597e6efdc962a44` |
 | `origin/integration/agent` | `7132b5121d20cb749b6208419f154374e0c040e6` |
 | Reviewed Grok PR-A predecessor | `d048fe855fe2179ec16f757ba065c07f96d78ec2` |
-| Repaired Codex PR-A head | recorded after the repair commit; never infer from the working tree |
+| Repaired Codex PR-A evidence commit | `2590b1af20936bd1cec369478fa7d659a8a1a8c0` |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
 | `origin/discovery/investigation-state-v2` | `e7ab37aeed5538546fd657a6b0c1a394ad937510`; unexpectedly merged to `main` by PR #4 |
 | Production deploy SHA | **unknown** — Railway production still sourced from `claude/herbagraph-test-suite-mgmrz1`; no confirmed SHA |

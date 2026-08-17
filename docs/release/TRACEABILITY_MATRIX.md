@@ -38,4 +38,6 @@ layer. Production SHA, runtime flags, and migration state are unknown.
 Persistent UAT SHA at last verified check: `843dd55c715b`. Current integration
 base after PR #18: `7132b5121d20cb749b6208419f154374e0c040e6`.
 Reviewed Grok PR-A predecessor: `d048fe855fe2179ec16f757ba065c07f96d78ec2`.
-The repaired Codex head must be recorded only after commit.
+Repaired Codex PR-A evidence commit:
+`2590b1af20936bd1cec369478fa7d659a8a1a8c0`. A metadata-only follow-up records
+that SHA; exact-SHA CI remains required before merge.
