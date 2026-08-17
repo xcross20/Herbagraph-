@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.discovery.epistemics import EpistemicValidator
+
 from app.models.discovery import (
     DiscoveryBranchEvidence,
     DiscoveryCase,
@@ -43,9 +45,9 @@ class FindingMutation(BaseModel):
 
 
 class SupersedeMutation(BaseModel):
-    previous_name: str
+    previous_name: str = ""
     previous_value: str | None = None
-    name: str
+    name: str = ""
     value: str
     reason: str = "user correction"
 
@@ -70,6 +72,7 @@ class BranchMutation(BaseModel):
     category: str = "general"
     rationale: str | None = None
     operation: str = "OPEN"
+    coverage_relation: str | None = None
 
 
 class EvidenceMutation(BaseModel):
@@ -131,6 +134,7 @@ def _kind(raw: str) -> DiscoveryFindingKind:
 async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: MutationBatch) -> MutationResult:
     result = MutationResult()
     now = _now()
+    validator = EpistemicValidator()
     for item in batch.add_findings:
         existing = (
             await db.execute(
@@ -139,7 +143,6 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
                     DiscoveryFinding.name == item.name,
                     DiscoveryFinding.value == item.value,
                     DiscoveryFinding.is_active.is_(True),
-                    DiscoveryFinding.source_turn_id.is_not(None),
                 )
             )
         ).scalars().first()
@@ -160,38 +163,49 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
         )
         result.findings_added += 1
     for item in batch.supersede_findings:
-        prior_rows = list(
-            (
-                await db.execute(
-                    select(DiscoveryFinding).where(
-                        DiscoveryFinding.case_id == case.id,
-                        DiscoveryFinding.name == item.previous_name,
-                        DiscoveryFinding.is_active.is_(True),
-                    )
-                )
-            ).scalars()
+        query = select(DiscoveryFinding).where(
+            DiscoveryFinding.case_id == case.id,
+            DiscoveryFinding.is_active.is_(True),
         )
+        if item.previous_name:
+            query = query.where(DiscoveryFinding.name == item.previous_name)
+        if item.previous_value is not None:
+            query = query.where(DiscoveryFinding.value == item.previous_value)
+        prior_rows = list((await db.execute(query)).scalars())
+        if not prior_rows:
+            continue
+        prior = prior_rows[0]
         replacement = DiscoveryFinding(
             case_id=case.id,
-            kind=DiscoveryFindingKind.CONTEXT,
-            name=item.name[:200],
+            kind=prior.kind,
+            name=(item.name or prior.name)[:200],
             value=item.value,
             source="guide",
             provenance=DiscoveryProvenance.PATIENT_REPORTED,
             verification_state=DiscoveryVerificationState.CORRECTED,
             is_active=True,
-            retraction_reason=item.reason,
+            supersedes_finding_id=prior.id,
         )
         db.add(replacement)
         await db.flush()
-        for prior in prior_rows:
-            prior.is_active = False
-            prior.verification_state = DiscoveryVerificationState.CORRECTED
-            prior.retracted_at = now
-            prior.retraction_reason = item.reason
-            prior.supersedes_finding_id = replacement.id
+        for held in prior_rows:
+            held.is_active = False
+            held.verification_state = DiscoveryVerificationState.CORRECTED
+            held.retracted_at = now
+            held.retraction_reason = item.reason
             result.findings_superseded += 1
     for item in batch.add_timeline_events:
+        existing = (
+            await db.execute(
+                select(DiscoveryTimelineEvent).where(
+                    DiscoveryTimelineEvent.case_id == case.id,
+                    DiscoveryTimelineEvent.label == item.label[:240],
+                    DiscoveryTimelineEvent.is_active.is_(True),
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            continue
         db.add(
             DiscoveryTimelineEvent(
                 case_id=case.id,
@@ -207,6 +221,17 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
         statement = str(item.get("statement") or item.get("value") or "").strip()
         if not statement:
             continue
+        existing = (
+            await db.execute(
+                select(DiscoveryPatientInterpretation).where(
+                    DiscoveryPatientInterpretation.case_id == case.id,
+                    DiscoveryPatientInterpretation.statement == statement[:800],
+                    DiscoveryPatientInterpretation.is_active.is_(True),
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            continue
         db.add(
             DiscoveryPatientInterpretation(
                 case_id=case.id,
@@ -221,6 +246,17 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
             result_state = DiscoveryWorkupResult(item.result_state)
         except ValueError:
             result_state = DiscoveryWorkupResult.UNKNOWN_RESULT
+        existing = (
+            await db.execute(
+                select(DiscoveryPriorWorkupItem).where(
+                    DiscoveryPriorWorkupItem.case_id == case.id,
+                    DiscoveryPriorWorkupItem.raw_test_name == item.raw_test_name[:200],
+                    DiscoveryPriorWorkupItem.result_state == result_state,
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            continue
         db.add(
             DiscoveryPriorWorkupItem(
                 case_id=case.id,
@@ -233,7 +269,9 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
             )
         )
         result.workup_added += 1
-    for item in batch.open_branches:
+    opens = [item for item in batch.open_branches if item.operation != "CLOSE"]
+    closes = [item for item in batch.open_branches if item.operation == "CLOSE"]
+    for item in opens:
         held = (
             await db.execute(
                 select(DiscoveryInvestigationBranch).where(
@@ -276,6 +314,18 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
             relation = DiscoveryEvidenceRelationship(item.relationship)
         except ValueError:
             continue
+        existing = (
+            await db.execute(
+                select(DiscoveryBranchEvidence).where(
+                    DiscoveryBranchEvidence.branch_id == branch.id,
+                    DiscoveryBranchEvidence.relationship == relation,
+                    DiscoveryBranchEvidence.rationale == item.rationale,
+                    DiscoveryBranchEvidence.is_active.is_(True),
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            continue
         db.add(
             DiscoveryBranchEvidence(
                 branch_id=branch.id,
@@ -285,6 +335,16 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
             )
         )
     for item in batch.open_gaps:
+        existing = (
+            await db.execute(
+                select(DiscoveryEvidenceGap).where(
+                    DiscoveryEvidenceGap.case_id == case.id,
+                    DiscoveryEvidenceGap.code == item.code[:80],
+                )
+            )
+        ).scalars().first()
+        if existing is not None:
+            continue
         db.add(
             DiscoveryEvidenceGap(
                 case_id=case.id,
@@ -297,19 +357,62 @@ async def apply_mutation_batch(db: AsyncSession, case: DiscoveryCase, batch: Mut
             )
         )
         result.gaps_opened += 1
+    for item in closes:
+        branch = branches.get(item.code)
+        if branch is None:
+            continue
+        relation = item.coverage_relation
+        if relation is None:
+            linked = [row.relationship.value for row in (
+                await db.execute(
+                    select(DiscoveryBranchEvidence).where(
+                        DiscoveryBranchEvidence.branch_id == branch.id,
+                        DiscoveryBranchEvidence.is_active.is_(True),
+                    )
+                )
+            ).scalars()]
+            relation = linked[0] if linked else None
+        if not validator.validate_branch_resolution(relation=relation, proposed_close=True).allowed:
+            continue
+        branch.status = DiscoveryBranchStatus.CONDITIONALLY_RESOLVED
+        branch.resolved_at = now
     for item in batch.add_corrections:
-        claim = DiscoveryReasoningClaim(
+        original_text = (item.original_text or "").strip()
+        replacement_text = (item.replacement_text or item.reason or "").strip()
+        original = None
+        if original_text:
+            original = (
+                await db.execute(
+                    select(DiscoveryReasoningClaim).where(
+                        DiscoveryReasoningClaim.case_id == case.id,
+                        DiscoveryReasoningClaim.claim_text == original_text,
+                    )
+                )
+            ).scalars().first()
+        if original is None:
+            original = DiscoveryReasoningClaim(
+                case_id=case.id,
+                claim_type="finding",
+                claim_text=original_text or item.reason,
+                status=DiscoveryClaimStatus.SUPERSEDED,
+            )
+            db.add(original)
+            await db.flush()
+        else:
+            original.status = DiscoveryClaimStatus.SUPERSEDED
+        replacement = DiscoveryReasoningClaim(
             case_id=case.id,
-            claim_type="correction",
-            claim_text=item.replacement_text or item.reason,
+            claim_type="finding",
+            claim_text=replacement_text,
             status=DiscoveryClaimStatus.ACTIVE,
         )
-        db.add(claim)
+        db.add(replacement)
         await db.flush()
         db.add(
             DiscoveryReasoningCorrection(
                 case_id=case.id,
-                original_claim_id=claim.id,
+                original_claim_id=original.id,
+                replacement_claim_id=replacement.id,
                 reason=item.reason,
             )
         )

@@ -70,6 +70,7 @@ def upgrade() -> None:
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("reopened_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by", sa.String(40), nullable=False),
+        sa.UniqueConstraint("case_id", "code", name="uq_discovery_branch_case_code"),
     )
     op.create_table(
         "discovery_prior_workup_items",
@@ -128,6 +129,7 @@ def upgrade() -> None:
         sa.Column("opened_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("resolution_evidence_id", sa.CHAR(36), nullable=True),
+        sa.UniqueConstraint("case_id", "code", name="uq_discovery_gap_case_code"),
     )
     op.create_table(
         "discovery_branch_evidence",
@@ -205,6 +207,7 @@ def upgrade() -> None:
         sa.Column("test_id", sa.CHAR(36), sa.ForeignKey("coverage_diagnostic_tests.id"), nullable=False, index=True),
         sa.Column("alias", sa.String(200), nullable=False),
         sa.Column("vendor", sa.String(80), nullable=True),
+        sa.UniqueConstraint("test_id", "alias", name="uq_coverage_alias"),
     )
     op.create_table(
         "coverage_test_protocols",

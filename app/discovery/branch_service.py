@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from app.discovery.catalog import families_for_concern
-from app.discovery.epistemics import EpistemicValidator
+from app.discovery.epistemics import EpistemicValidator, coverage_to_evidence_relationship
 from app.discovery.mutations import BranchMutation, EvidenceMutation, GapMutation
 
 
@@ -62,10 +62,12 @@ def evidence_for_workup(raw_test: str, branch_code: str) -> EvidenceMutation | N
     if not concept:
         return None
     decision = EpistemicValidator().validate_test_inference(raw_test, concept)
-    relation = decision.relation or "inconclusive"
+    mapped = coverage_to_evidence_relationship(decision.relation)
+    if mapped is None:
+        return None
     return EvidenceMutation(
         branch_code=branch_code,
-        relationship=relation if relation != "not_applicable" else "inconclusive",
+        relationship=mapped.value,
         rationale="; ".join(decision.reasons) or None,
         workup_name=raw_test,
     )

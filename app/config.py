@@ -78,11 +78,11 @@ class Settings(BaseSettings):
     app_public_url: str = ""
     # Discovery investigation graph. Additive; legacy rebuild remains as cache.
     discovery_guide_enabled: bool = True
-    discovery_investigation_state_v2: bool = True
-    discovery_coverage_graph_enabled: bool = True
-    discovery_append_only_findings: bool = True
-    discovery_document_reconciliation: bool = True
-    discovery_voice_enabled: bool = True
+    discovery_investigation_state_v2: bool = False
+    discovery_coverage_graph_enabled: bool = False
+    discovery_append_only_findings: bool = False
+    discovery_document_reconciliation: bool = False
+    discovery_voice_enabled: bool = False
     discovery_intervention_ledger: bool = False
 
     @property

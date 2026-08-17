@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.discovery.branch_service import branches_from_concern, default_gaps_for, evidence_for_workup
 from app.discovery.epistemics import EpistemicValidator, gallbladder_split
 from app.discovery.mutations import (
+    BranchMutation,
     CorrectionMutation,
     FindingMutation,
     GapMutation,
     MutationBatch,
+    SupersedeMutation,
     TimelineMutation,
     WorkupMutation,
     apply_mutation_batch,
@@ -105,12 +107,37 @@ def batch_from_turn(*, text: str, concern: str | None, plan: dict[str, Any] | No
             if link is not None:
                 batch.add_branch_evidence.append(link)
     for item in plan.get("corrections") or []:
-        if isinstance(item, dict) and item.get("reason"):
-            batch.add_corrections.append(
-                CorrectionMutation(
+        if not isinstance(item, dict) or not item.get("reason"):
+            continue
+        original_text = item.get("from") or item.get("original_text")
+        replacement_text = item.get("to") or item.get("replacement_text")
+        if original_text and replacement_text and validator.validate_correction(str(original_text), str(replacement_text)).allowed:
+            batch.supersede_findings.append(
+                SupersedeMutation(
+                    previous_value=str(original_text),
+                    value=str(replacement_text),
                     reason=str(item.get("reason")),
-                    original_text=item.get("from") or item.get("original_text"),
-                    replacement_text=item.get("to") or item.get("replacement_text"),
+                )
+            )
+        batch.add_corrections.append(
+            CorrectionMutation(
+                reason=str(item.get("reason")),
+                original_text=original_text,
+                replacement_text=replacement_text,
+            )
+        )
+    for item in plan.get("branch_updates") or []:
+        if not isinstance(item, dict):
+            continue
+        operation = str(item.get("operation") or "NO_CHANGE").upper()
+        code = str(item.get("branch_code") or "").strip()
+        if operation == "CLOSE" and code:
+            batch.open_branches.append(
+                BranchMutation(
+                    code=code,
+                    label=str(item.get("proposed_label") or code),
+                    operation="CLOSE",
+                    rationale=str(item.get("rationale") or ""),
                 )
             )
     for item in plan.get("evidence_gap_updates") or []:

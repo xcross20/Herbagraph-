@@ -9,6 +9,33 @@ from typing import Any
 from app.coverage.evaluator import evaluate
 from app.coverage.resolver import resolve_test
 from app.discovery.ai import is_denied_concept
+from app.models.enums import DiscoveryEvidenceRelationship
+
+_NON_CLOSING = {
+    None,
+    "does_not_directly_assess",
+    "does_not_address",
+    "inconclusive",
+    "not_applicable",
+}
+
+_COVERAGE_TO_EVIDENCE = {
+    "does_not_directly_assess": DiscoveryEvidenceRelationship.DOES_NOT_ADDRESS,
+    "does_not_address": DiscoveryEvidenceRelationship.DOES_NOT_ADDRESS,
+    "directly_assesses": DiscoveryEvidenceRelationship.SUPPORTS,
+    "partially_assesses": DiscoveryEvidenceRelationship.INCONCLUSIVE,
+    "indirectly_informs": DiscoveryEvidenceRelationship.INCONCLUSIVE,
+    "supports": DiscoveryEvidenceRelationship.SUPPORTS,
+    "weakens": DiscoveryEvidenceRelationship.WEAKENS,
+    "contradicts": DiscoveryEvidenceRelationship.CONTRADICTS,
+    "resolves_gap": DiscoveryEvidenceRelationship.RESOLVES_GAP,
+}
+
+
+def coverage_to_evidence_relationship(coverage_relation: str | None) -> DiscoveryEvidenceRelationship | None:
+    if not coverage_relation or coverage_relation == "not_applicable":
+        return None
+    return _COVERAGE_TO_EVIDENCE.get(coverage_relation)
 
 
 _RULED_OUT = re.compile(r"\b(ruled out|ruled-out|excluded|not neurological|nothing neurological)\b", re.I)
@@ -88,7 +115,7 @@ class EpistemicValidator:
         return EpistemicDecision(True, "info", [assessment.explanation], relation=assessment.relation)
 
     def validate_branch_resolution(self, *, relation: str | None, proposed_close: bool) -> EpistemicDecision:
-        if proposed_close and relation in {None, "does_not_directly_assess", "inconclusive", "not_applicable"}:
+        if proposed_close and relation in _NON_CLOSING:
             return EpistemicDecision(False, "block", ["coverage does not justify closing this branch"])
         return EpistemicDecision(True)
 

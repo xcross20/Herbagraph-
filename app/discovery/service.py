@@ -637,7 +637,12 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
     if case.id is None:
         return assessed, answered, extras
     findings = (
-        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        await db.execute(
+            select(DiscoveryFinding).where(
+                DiscoveryFinding.case_id == case.id,
+                DiscoveryFinding.is_active.is_(True),
+            )
+        )
     ).scalars().all()
     outcomes = (
         await db.execute(select(DiscoveryOutcome).where(DiscoveryOutcome.case_id == case.id))
@@ -905,7 +910,12 @@ async def apply_user_turn(
         await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
     ).scalars().all()
     findings = (
-        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        await db.execute(
+            select(DiscoveryFinding).where(
+                DiscoveryFinding.case_id == case.id,
+                DiscoveryFinding.is_active.is_(True),
+            )
+        )
     ).scalars().all()
     asked = [turn.question_code for turn in turns if turn.role == DiscoveryTurnRole.SYSTEM and turn.question_code]
     answered = {item.name for item in findings if item.kind == DiscoveryFindingKind.ASSESSMENT}

@@ -6,7 +6,7 @@ import uuid
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -272,6 +272,7 @@ class DiscoveryPatientInterpretation(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class DiscoveryInvestigationBranch(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "discovery_investigation_branches"
+    __table_args__ = (UniqueConstraint("case_id", "code", name="uq_discovery_branch_case_code"),)
 
     case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
     code: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -352,6 +353,7 @@ class DiscoveryEvidenceEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class DiscoveryEvidenceGap(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "discovery_evidence_gaps"
+    __table_args__ = (UniqueConstraint("case_id", "code", name="uq_discovery_gap_case_code"),)
 
     case_id: Mapped[uuid.UUID] = mapped_column(GUID(), ForeignKey("discovery_cases.id"), nullable=False, index=True)
     branch_id: Mapped[uuid.UUID | None] = mapped_column(
