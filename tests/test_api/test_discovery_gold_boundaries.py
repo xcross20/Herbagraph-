@@ -85,3 +85,38 @@ async def test_api_biliary_concern_plus_emg_does_not_diagnose(authed_client):
     mapped = await authed_client.get(f"/api/v1/cases/{case_id}/investigation-map")
     assert mapped.status_code == 200, mapped.text
     assert "does_not_address" in mapped.text or mapped.json().get("not_disease_probability") is True
+
+
+async def test_api_duplicate_turn_does_not_invent_diagnosis(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months my feet have burned at night."},
+    )
+    case_id = created.json()["id"]
+    first = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "The burning is worse at night."},
+    )
+    second = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "The burning is worse at night."},
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert "you have small-fiber" not in second.text.lower()
+
+
+async def test_api_safety_escalation_survives_followup(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "Chest pain and I cannot catch my breath."},
+    )
+    case_id = created.json()["id"]
+    follow = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "It is still happening on this return visit."},
+    )
+    assert created.status_code == 201
+    assert follow.status_code == 200
+    blob = follow.text.lower()
+    assert "emergency" in blob or "urgent" in blob or follow.json().get("safety")

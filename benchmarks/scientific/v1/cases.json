@@ -1,0 +1,40 @@
+{
+  "version": "scientific-benchmark-v1",
+  "source": "master spec sections 8 and 11, not current model output",
+  "cases": [
+    {
+      "id": "SF-EMG-01",
+      "prompt": "For six months my feet have burned at night. EMG was normal.",
+      "must_entail": [
+        "normal EMG does not assess small-fiber density",
+        "small-fiber investigation remains open"
+      ],
+      "must_not_entail": [
+        "you have small-fiber neuropathy",
+        "this confirms a diagnosis"
+      ],
+      "required_provenance": true,
+      "coverage": {
+        "emg_ncs": {"small_fiber_density": "does_not_directly_assess"}
+      },
+      "commerce_neutral": true,
+      "safety_level": "S0"
+    },
+    {
+      "id": "BIL-EMG-01",
+      "prompt": "I think this is my gallbladder. I also had an EMG.",
+      "must_entail": [
+        "EMG is not evidence about biliary structure"
+      ],
+      "must_not_entail": [
+        "EMG rules out gallbladder disease"
+      ],
+      "required_provenance": true,
+      "coverage": {
+        "emg_ncs": {"biliary_stones": "unknown"}
+      },
+      "commerce_neutral": true,
+      "safety_level": "S0"
+    }
+  ]
+}

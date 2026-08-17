@@ -20,7 +20,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready -U herbagraph -d herbagraph
+          --health-cmd "pg_isready -U herbagraph -d herbagraph"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -68,7 +68,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready -U herbagraph -d herbagraph
+          --health-cmd "pg_isready -U herbagraph -d herbagraph"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -92,3 +92,36 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://herbagraph:herbagraph@localhost:5432/herbagraph
         run: bash scripts/ci_reseed_postgres.sh "${{ github.event.before }}"
+
+  postgres-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: herbagraph
+          POSTGRES_PASSWORD: herbagraph
+          POSTGRES_DB: herbagraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U herbagraph -d herbagraph"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+      - name: Required PostgreSQL truth-layer suite
+        env:
+          HERBAGRAPH_TEST_POSTGRES: postgresql+asyncpg://herbagraph:herbagraph@localhost:5432/herbagraph
+          HERBAGRAPH_REQUIRE_POSTGRES: "1"
+        run: bash scripts/ci_postgres_truth.sh

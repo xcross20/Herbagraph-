@@ -293,6 +293,9 @@ def snapshot_to_read(
             accepted_types=list(interaction_raw.get("accepted_types") or []),
         )
     active_findings = _active_findings_for_read(case, snapshot)
+    from app.discovery.tripwires import evaluate_finding_projection
+
+    evaluate_finding_projection(list(case.__dict__.get("findings") or []) or list(active_findings))
     facts = facts_from_findings(active_findings)
     unknowns = list(payload.get("unknowns") or unknowns_from_facts(facts))
     map_payload = build_map_payload(

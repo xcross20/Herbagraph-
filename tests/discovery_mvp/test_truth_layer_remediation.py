@@ -153,6 +153,8 @@ def _postgres_url() -> str | None:
 async def test_two_postgres_sessions_converge_on_one_semantic_finding():
     url = _postgres_url()
     if url is None:
+        if os.environ.get("HERBAGRAPH_REQUIRE_POSTGRES") == "1":
+            pytest.fail("PostgreSQL URL required; skip is not allowed on a truth-layer PR")
         pytest.skip("PostgreSQL URL not provided; two-session race requires a real engine")
 
     engine = create_async_engine(url, future=True)
