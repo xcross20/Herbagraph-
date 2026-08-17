@@ -12,10 +12,13 @@
 | `origin/main` | `a1e82f15b7ef318e77b20c3809343e98497ac2ba` |
 | `origin/integration/agent` | `a1e82f15b7ef318e77b20c3809343e98497ac2ba` |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
-| `origin/discovery/investigation-state-v2` | `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
-| Production (`www.herbagraph.com` last confirmed deploy) | same lineage as `main` through GI-questioning fix; V2 not deployed |
+| `origin/discovery/investigation-state-v2` (forensic only) | `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
+| Production deploy SHA | **unknown** — no deployment evidence recorded |
+| Staging deploy SHA | **unknown** — no deployment evidence recorded |
 
-`integration/agent` currently equals `main`. No autonomous work has been merged into the staging lane yet.
+“Same lineage as main” is not a deploy identity. Do not treat production as `a1e82f1` unless Railway/deploy logs confirm it.
+
+`integration/agent` currently equals `main`. No autonomous work has been merged into the staging lane yet. The V2 branch is forensic/reference material only. Do not merge it wholesale.
 
 ## Migration head
 
@@ -33,13 +36,15 @@ Production is therefore on the legacy snapshot rebuild path.
 
 ## CI
 
-`.github/workflows/ci.yml` runs `bash scripts/ci_gates.sh` on push/PR to `main`/`master`/`claude/**` only. It does **not** trigger on `integration/agent` or `grok/**`.
+`.github/workflows/ci.yml` (after this PR-A revision) runs `bash scripts/ci_gates.sh` on push/PR to `main`, `master`, `claude/**`, and `integration/agent`.
 
-`ci_gates.sh` is catalog/reseed/PMID/scenario audits, not the Discovery persist suite.
+`scripts/ci_gates.sh` is mandatory and ends with `python3 -m pytest tests/` as a blocking step. The later “Upload coverage” job step is the only `continue-on-error` pytest invocation.
 
-Pytest is optional/non-blocking in CI (`continue-on-error: true`).
+Known red tests in `tests/discovery_mvp/` use `pytest.mark.xfail(strict=True)`. An unexpected pass fails CI. Scaffolded contract tests skip. Remove the xfail marker only when the implementation lands.
 
-## Existing test run (unmodified)
+## Existing test run
+
+Initial packet (subset, 2026-08-17):
 
 ```text
 command: .venv/bin/python -m pytest tests/test_discovery tests/test_api/test_discovery_layer.py tests/test_api/test_discovery_cases.py tests/test_frontend/test_portals.py tests/test_alembic_env.py -q --tb=no
@@ -47,9 +52,17 @@ result: 110 passed in 1.45s
 cwd: herbagraph @ a1e82f1
 ```
 
-This suite does **not** prove persist identity, coverage edges, correction links, or concurrency.
+Required command (full suite, this revision):
 
-PostgreSQL uniqueness/concurrency tests were not run in this packet (local default test DB is SQLite). Spec layer B remains unverified.
+```text
+command: .venv/bin/python -m pytest tests/ -q --tb=line
+```
+
+Exact result is recorded in `RED_FIRST_LOG.md` for this revision.
+
+This suite does **not** prove persist identity, coverage edges, correction links, or concurrency until the xfailed red tests are implemented and the markers removed.
+
+PostgreSQL uniqueness/concurrency tests are defined in `tests/discovery_mvp/test_postgres_integrity.py` and skip on SQLite. Spec layer B remains unverified.
 
 ## Entity inventory on `main`
 
@@ -81,9 +94,15 @@ Absent on `main`: timeline events, patient interpretations, investigation branch
 
 Reviewed files (`branch_service.py`, `mutations.py`, `reconciliation.py`, `epistemics.py`, `app/coverage/`) **do not exist on `main`**. Stop condition from Section 16: reviewed files no longer match this branch.
 
-On `origin/discovery/investigation-state-v2` @ `e7ab37a`, persist-invariant tests were added after the review and currently pass there. That is **locally verified on an unmerged branch**, not CI verified, not on `main`, and flags remain off.
+Issues 1–9 from the V2 review are **not reproduced on this branch**. They are labeled:
 
-On `main`, the live defect is the destructive snapshot rebuild, not the five V2 persist bugs (those modules are absent).
+| Claim label | Meaning |
+| --- | --- |
+| `reproduced on main` | A failing (xfail-strict) test against `apply_snapshot` / public certainty surfaces that exist here |
+| `scaffolded` | Contract or persist-path test whose modules are absent; skip, not a reproduction |
+| `reproduced on pinned V2 branch` | Forensic only, SHA `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
+
+On `main`, the live defect is the destructive snapshot rebuild plus public diagnostic-certainty fields. Do not merge `discovery/investigation-state-v2`. After PR-A, port useful V2 work in PR-B through PR-E order from a fresh `integration/agent` branch.
 
 ## External dependencies (no secret values)
 
