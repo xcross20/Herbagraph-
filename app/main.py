@@ -9,6 +9,7 @@ from app import __version__
 from app.api.v1.router import api_router
 from app.config import settings
 from app.core.db_health import check_database
+from app.core.runtime_env import runtime_environment
 from app.database import AsyncSessionLocal
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -31,29 +32,19 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
-def _runtime_environment() -> str:
-    explicit = (settings.app_env or os.environ.get("HERBAGRAPH_ENV") or "").strip().lower()
-    if explicit:
-        return explicit
-    railway = (os.environ.get("RAILWAY_ENVIRONMENT_NAME") or "").strip().lower()
-    if railway:
-        return railway
-    return "local"
-
-
 @app.get("/health")
 async def health_check() -> dict:
     return {
         "status": "ok",
         "version": __version__,
-        "environment": _runtime_environment(),
+        "environment": runtime_environment(),
     }
 
 
 @app.get("/meta")
 async def environment_meta() -> dict:
     """Public, non-secret runtime plane so the UI can label UAT vs production."""
-    env = _runtime_environment()
+    env = runtime_environment()
     return {
         "service": "herbagraph",
         "environment": env,
@@ -67,8 +58,8 @@ async def environment_meta() -> dict:
 
 @app.get("/demo")
 async def demo_entry() -> RedirectResponse:
-    """Human UAT entry: workspace UI on a non-production plane."""
-    return RedirectResponse(url="/app.html", status_code=302)
+    """Human UAT entry: landing page with links into the live UI."""
+    return RedirectResponse(url="/demo.html", status_code=302)
 
 
 @app.get("/ready")

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HerbaGraph UAT demo</title>
+<meta name="robots" content="noindex,nofollow">
+<link rel="stylesheet" href="/css/site.css">
+<script src="/js/herbagraph-auth.js"></script>
+<script src="/js/env-banner.js"></script>
+</head>
+<body class="demo-page">
+  <main class="demo-shell">
+    <p class="demo-kicker" id="demo-env">UAT</p>
+    <h1>Demo this build before production</h1>
+    <p class="demo-lede">
+      This is the persistent HerbaGraph UAT plane. It is not
+      <a href="https://www.herbagraph.com">www.herbagraph.com</a>.
+      Use synthetic data only — no patient records or PHI.
+    </p>
+    <p class="demo-meta" id="demo-meta">Loading environment…</p>
+    <div class="demo-actions">
+      <a class="btn primary" href="/app.html">Open workspace</a>
+      <a class="btn" href="/report.html?demo=1">Sample report</a>
+      <a class="btn" href="/ask.html">Discovery</a>
+      <a class="btn" href="/login.html">Sign in / guest</a>
+    </div>
+    <p class="demo-note">
+      Guest sign-in is enabled on UAT. Production still uses Supabase and stays
+      isolated. After founder approval, promote
+      <code>integration/agent</code> → <code>main</code>.
+    </p>
+  </main>
+<script>
+(async function () {
+  try {
+    const meta = await fetch("/meta", { credentials: "same-origin" }).then(function (r) {
+      return r.ok ? r.json() : null;
+    });
+    if (!meta) return;
+    const env = document.getElementById("demo-env");
+    const line = document.getElementById("demo-meta");
+    env.textContent = meta.environment === "uat" ? "UAT" : (meta.environment || "preview");
+    const bits = [
+      meta.environment || "unknown environment",
+      meta.git_sha ? "sha " + meta.git_sha : "sha unavailable",
+      meta.synthetic_data_only ? "synthetic data only" : ""
+    ].filter(Boolean);
+    line.textContent = bits.join(" · ");
+  } catch (e) { /* keep static copy */ }
+})();
+</script>
+</body>
+</html>

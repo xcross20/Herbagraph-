@@ -28,13 +28,23 @@ Railway tests the **application**. The Codex↔Grok protocol is tested in **GitH
 
 UAT has its own Postgres, Redis, `SECRET_KEY`, and `ENCRYPTION_KEY`. Auth is `local` with guest access for synthetic demos. Do not load patient data or PHI.
 
-Production remains https://www.herbagraph.com (`main` should be the production source).
+A human demos UI changes at `/demo` (also `/demo.html`) before any promotion PR to `main`.
+
+Production remains https://www.herbagraph.com (`main` should be the production source). Do not retarget production until a founder-approved promotion PR lands.
+
+## Isolation checklist
+
+| Plane | Database | Auth | Cookies / URL | Notes |
+|---|---|---|---|---|
+| `uat` | Dedicated Railway Postgres | `AUTH_PROVIDER=local`, guest on | `herbagraph-uat.up.railway.app` | Synthetic catalog only |
+| `production` | Existing production DB | `AUTH_PROVIDER=supabase` | `www.herbagraph.com` | Patient data stays here |
+| PR preview | Fresh copy of UAT services | Inherits UAT | Unique Railway URL | Deleted when the PR closes |
+
+LLM/NCBI/USDA keys currently still match production (quota only). Founder should mint UAT-only keys before any load test. Sentry is not configured on either plane yet — if it is added, set `SENTRY_ENVIRONMENT=uat` vs `production`.
 
 ## PR previews
 
-Enable in Railway: Project Settings → Environments → **PR Environments**.
-
-Turn on **Bot PR Environments** if Grok/GitHub Actions PRs should get previews.
+Railway PR Environments inherit from the persistent `uat` environment (not production). Bot PR Environments are on so Grok-opened `grok/**` PRs get a preview URL.
 
 Each `grok/**` PR gets a unique URL and is removed when the PR closes.
 

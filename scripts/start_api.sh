@@ -43,8 +43,16 @@ for attempt in 1 2 3 4 5; do
   sleep 5
 done
 if [[ "$migration_ok" -ne 1 ]]; then
-  echo "WARNING: alembic upgrade head failed — starting API anyway."
-  echo "Check DATABASE_URL and run: railway run alembic upgrade head"
+  env_name="$(printf '%s' "${APP_ENV:-${HERBAGRAPH_ENV:-${RAILWAY_ENVIRONMENT_NAME:-local}}}" | tr '[:upper:]' '[:lower:]')"
+  if [[ -n "${RAILWAY_ENVIRONMENT:-}" && "$env_name" != "production" ]]; then
+    echo "Alembic failed on non-production Railway. Bootstrapping schema from models."
+    root="$(cd "$(dirname "$0")/.." && pwd)"
+    python3 "$root/scripts/bootstrap_nonprod_schema.py"
+    echo "Schema bootstrap done. Seed catalog separately: python scripts/seed_db.py"
+  else
+    echo "WARNING: alembic upgrade head failed — starting API anyway."
+    echo "Check DATABASE_URL and run: railway run alembic upgrade head"
+  fi
 fi
 
 exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT"

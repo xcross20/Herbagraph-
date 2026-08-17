@@ -11,7 +11,7 @@
       var sha = meta.git_sha ? " · " + meta.git_sha : "";
       bar.innerHTML =
         "<strong>" + label + "</strong> — synthetic demo data only. " +
-        "<a href=\"/demo\">Open workspace</a>" + sha;
+        "<a href=\"/demo.html\">UAT home</a> · <a href=\"/app.html\">workspace</a>" + sha;
       document.body.prepend(bar);
     })
     .catch(function () { /* local pages without the API stay unmarked */ });

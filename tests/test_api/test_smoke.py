@@ -19,7 +19,7 @@ async def test_meta_and_demo_entry(client):
     assert body["is_production"] is False
     demo = await client.get("/demo", follow_redirects=False)
     assert demo.status_code == 302
-    assert demo.headers["location"] == "/app.html"
+    assert demo.headers["location"] == "/demo.html"
 
 
 async def test_system_status_reports_auth_readiness(client):
