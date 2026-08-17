@@ -23,6 +23,9 @@ target-version = "py311"
 # SQLAlchemy 2.0 `Mapped["ClassName"]` forward refs resolve via the shared declarative
 # registry at mapper-configure time, not via module-local name lookup -- ruff can't see that.
 "app/models/*.py" = ["F821"]
+"scripts/agent_protocol/run_architect.py" = ["E402"]
+"scripts/agent_protocol/run_correct.py" = ["E402"]
+"scripts/agent_protocol/dry_run.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.11"

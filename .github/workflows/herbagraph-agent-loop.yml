@@ -1,0 +1,467 @@
+name: HerbaGraph agent loop
+
+# Workflow file always comes from integration/agent (base). Untrusted PR code
+# is checked out separately with persist-credentials: false.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, ready_for_review]
+    branches: [integration/agent]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number
+        required: true
+        type: string
+      dry_run:
+        description: Run the in-process fixture demonstration only
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: herbagraph-agent-loop-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+  actions: read
+  checks: read
+
+jobs:
+  dry-run:
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: integration/agent
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Protocol dry-run and unit tests
+        run: |
+          python -m pytest tests/test_agent_protocol -q --tb=short
+          python scripts/agent_protocol/dry_run.py
+
+  qualify:
+    if: github.event_name != 'workflow_dispatch' || inputs.dry_run == false
+    runs-on: ubuntu-latest
+    outputs:
+      qualified: ${{ steps.gate.outputs.qualified }}
+      reason: ${{ steps.gate.outputs.reason }}
+      pr_number: ${{ steps.gate.outputs.pr_number }}
+      head_sha: ${{ steps.gate.outputs.head_sha }}
+      head_ref: ${{ steps.gate.outputs.head_ref }}
+      base_sha: ${{ steps.gate.outputs.base_sha }}
+      task: ${{ steps.gate.outputs.task }}
+    steps:
+      - name: Reject forks before any checkout of PR code
+        env:
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          BASE_REPO: ${{ github.repository }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "$HEAD_REPO" ] && [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "fork PRs cannot access agent secrets"
+            exit 1
+          fi
+          if [ -n "$HEAD_REF" ] && [[ "$HEAD_REF" != grok/* ]]; then
+            echo "head must be a grok/** branch"
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha || 'integration/agent' }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Qualify from trusted control plane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+          INPUT_PR: ${{ inputs.pr_number }}
+          PYTHONPATH: trusted/scripts
+        run: |
+          set -euo pipefail
+          PR_NUMBER="${EVENT_PR:-$INPUT_PR}"
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
+          python trusted/scripts/agent_protocol/run_architect.py --help >/dev/null
+          python - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, "trusted/scripts")
+          from agent_protocol.parse import parse_handoff
+          from agent_protocol.qualify import qualify_pull_request
+          from agent_protocol.run_architect import comments_from_payload, latest_handoff, pull_request_from_payload
+          pr = json.loads(Path("/tmp/pr.json").read_text())
+          comments = comments_from_payload(json.loads(Path("/tmp/comments.json").read_text()))
+          view = pull_request_from_payload(pr)
+          handoff = latest_handoff(comments, pr.get("body") or "", view.head_sha)
+          result = qualify_pull_request(view, handoff_sha=handoff.commit if handoff else None)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"qualified={'true' if result.allowed else 'false'}\n")
+              handle.write(f"reason={result.reason}\n")
+              handle.write(f"pr_number={view.number}\n")
+              handle.write(f"head_sha={view.head_sha}\n")
+              handle.write(f"head_ref={view.head_ref}\n")
+              handle.write(f"base_sha={(pr.get('base') or {}).get('sha') or ''}\n")
+              handle.write(f"task={handoff.task if handoff else ''}\n")
+          print(result)
+          PY
+        id: gate
+
+  architect:
+    needs: qualify
+    if: needs.qualify.outputs.qualified == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      checks: read
+    outputs:
+      verdict: ${{ steps.plan.outputs.verdict }}
+      run_correction: ${{ steps.plan.outputs.run_correction }}
+      reason: ${{ steps.plan.outputs.reason }}
+      label: ${{ steps.plan.outputs.label }}
+      task: ${{ steps.plan.outputs.task }}
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.base_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: untrusted
+      - name: Fetch PR base and head for the exact diff
+        working-directory: untrusted
+        env:
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          BASE_SHA: ${{ needs.qualify.outputs.base_sha }}
+        run: |
+          git fetch --no-tags origin \
+            "$BASE_SHA" \
+            "+refs/pull/${PR_NUMBER}/head"
+          git diff "${BASE_SHA}...${{ needs.qualify.outputs.head_sha }}" > /tmp/pr.diff
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Re-read live head and required checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr.json
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" > /tmp/checks.json
+          LIVE=$(python -c "import json; print(json.load(open('/tmp/pr.json'))['head']['sha'].lower())")
+          echo "live_head_sha=$LIVE" >> "$GITHUB_ENV"
+          if [ "$LIVE" != "$HEAD_SHA" ]; then
+            echo "stale before review; no writes"
+            echo "stale=true" >> "$GITHUB_ENV"
+          fi
+      - name: Halt if OpenAI secret is missing
+        if: ${{ env.OPENAI_API_KEY == '' && env.stale != 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ needs.qualify.outputs.task }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "HERBAGRAPH_ARCHITECT_REVIEW
+          Task: ${TASK}
+          Reviewed commit: ${HEAD_SHA}
+          Status: FOUNDER_DECISION_REQUIRED
+          Next owner: FOUNDER
+
+          BLOCKING:
+          1. OPENAI_API_KEY is not configured. Automation halted. No secret was created.
+
+          TRAP LINE:
+          1. Approval never merges or deploys."
+          gh pr edit "$PR_NUMBER" --add-label "founder-decision-required" || true
+      - name: Assemble Codex prompt with diff and checks
+        if: ${{ env.OPENAI_API_KEY != '' && env.stale != 'true' }}
+        env:
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          BASE_SHA: ${{ needs.qualify.outputs.base_sha }}
+        run: |
+          {
+            cat trusted/.github/codex/prompts/herbagraph-architect-review.md
+            echo
+            echo "## Exact SHAs"
+            echo "base: ${BASE_SHA}"
+            echo "head / reviewed_commit must equal ${HEAD_SHA}"
+            echo "PR number: ${PR_NUMBER}"
+            echo
+            echo "## Required check conclusions"
+            python -m json.tool /tmp/checks.json | head -c 20000
+            echo
+            echo "## git diff base...head"
+            cat /tmp/pr.diff
+            echo
+            echo "## Pull request body"
+            python -c "import json; print(json.load(open('/tmp/pr.json')).get('body') or '')"
+          } > /tmp/codex-prompt.md
+      - name: Run Codex read-only review
+        if: ${{ env.OPENAI_API_KEY != '' && env.stale != 'true' }}
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":read-only"
+          safety-strategy: drop-sudo
+          allow-bots: false
+          allow-bot-users: github-actions[bot]
+          working-directory: untrusted
+          prompt-file: /tmp/codex-prompt.md
+          output-schema-file: trusted/.github/codex/schemas/architect-review.json
+          output-file: /tmp/codex-review.json
+      - name: Plan upsert from trusted orchestrator
+        if: ${{ env.OPENAI_API_KEY != '' && env.stale != 'true' }}
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          PYTHONPATH: trusted/scripts
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr-live.json
+          LIVE=$(python -c "import json; print(json.load(open('/tmp/pr-live.json'))['head']['sha'].lower())")
+          python trusted/scripts/agent_protocol/run_architect.py \
+            --pr-json /tmp/pr.json \
+            --comments-json /tmp/comments.json \
+            --review-input /tmp/codex-review.json \
+            --live-head-sha "$LIVE" \
+            --checks-json /tmp/checks.json
+      - name: Upsert structured review comment
+        if: ${{ env.OPENAI_API_KEY != '' && env.stale != 'true' && steps.plan.outputs.comment_body != '' && steps.plan.outputs.upsert_action != 'noop' && steps.plan.outputs.reason != 'stale_run_remote_head_changed' }}
+        uses: actions/github-script@v7
+        env:
+          COMMENT_BODY: ${{ steps.plan.outputs.comment_body }}
+          COMMENT_ID: ${{ steps.plan.outputs.comment_id }}
+          UPSERT_ACTION: ${{ steps.plan.outputs.upsert_action }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+        with:
+          script: |
+            const body = process.env.COMMENT_BODY;
+            const pr = Number(process.env.PR_NUMBER);
+            if (process.env.UPSERT_ACTION === 'update' && process.env.COMMENT_ID) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: Number(process.env.COMMENT_ID),
+                body,
+              });
+            } else if (process.env.UPSERT_ACTION === 'create') {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr,
+                body,
+              });
+            }
+      - name: Apply review labels
+        if: ${{ env.OPENAI_API_KEY != '' && env.stale != 'true' && steps.plan.outputs.label && steps.plan.outputs.reason != 'stale_run_remote_head_changed' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          LABEL: ${{ steps.plan.outputs.label }}
+        run: |
+          LIVE=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE,,}" != "${{ needs.qualify.outputs.head_sha }}" ]; then
+            echo "head moved; skip labels"
+            exit 0
+          fi
+          gh label create "$LABEL" --force --description "HerbaGraph agent loop" --color "1D76DB" || true
+          gh pr edit "$PR_NUMBER" --add-label "$LABEL" || true
+
+  correct:
+    needs: [qualify, architect]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect.outputs.run_correction == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+    steps:
+      - name: Refuse non-grok heads
+        if: ${{ !startsWith(needs.qualify.outputs.head_ref, 'grok/') }}
+        run: exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.base_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.qualify.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+          path: untrusted
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Select the one trusted review for this SHA
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ needs.architect.outputs.task || needs.qualify.outputs.task }}
+          PYTHONPATH: trusted/scripts
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" > /tmp/pr-live.json
+          LIVE=$(python -c "import json; print(json.load(open('/tmp/pr-live.json'))['head']['sha'].lower())")
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
+          python trusted/scripts/agent_protocol/run_correct.py \
+            --head-sha "$HEAD_SHA" \
+            --live-head-sha "$LIVE" \
+            --comments-json /tmp/comments.json \
+            --pr-number "$PR_NUMBER" \
+            --task "$TASK"
+      - name: Halt if correction is not allowed
+        if: ${{ steps.plan.outputs.run_correction != 'true' }}
+        run: |
+          echo "correction refused: ${{ steps.plan.outputs.reason }}"
+          exit 0
+      - name: Halt if XAI secret is missing
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+          TASK: ${{ steps.plan.outputs.task }}
+        run: |
+          gh pr comment "$PR_NUMBER" --body "HERBAGRAPH_CORRECTION_REPORT
+          Task: ${TASK}
+          Status: FOUNDER_DECISION_REQUIRED
+          Reviewed commit: ${HEAD_SHA}
+          Correction-cycle: 0
+
+          BLOCKING:
+          1. XAI_API_KEY is not configured. Automation halted. No secret was created."
+          exit 1
+      - name: Build one matched correction prompt
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY != '' }}
+        run: |
+          {
+            cat trusted/.github/prompts/herbagraph-grok-correction.md
+            echo
+            echo "## Architect review artifact (single selected review)"
+            cat <<'EOF'
+          ${{ steps.plan.outputs.review_body }}
+          EOF
+          } > /tmp/grok-prompt.md
+      - name: Run Grok in the untrusted worktree without push credentials
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY != '' }}
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          GITHUB_TOKEN: ""
+          GH_TOKEN: ""
+        run: |
+          env -u GITHUB_TOKEN -u GH_TOKEN \
+            python trusted/scripts/agent_protocol/invoke_grok.py /tmp/grok-prompt.md --repo untrusted
+      - name: Validate patch and refuse control-plane edits
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY != '' }}
+        env:
+          PYTHONPATH: trusted/scripts
+          HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from agent_protocol.control_plane import assert_patch_allowed
+          import os
+          paths = assert_patch_allowed(Path("untrusted"), expected_head=os.environ["HEAD_SHA"])
+          print("changed", paths)
+          PY
+      - name: Run allowlisted tests only
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY != '' }}
+        working-directory: untrusted
+        run: python -m pytest tests/test_agent_protocol -q --tb=short
+      - name: Trusted commit and non-force push
+        if: ${{ steps.plan.outputs.run_correction == 'true' && env.XAI_API_KEY != '' }}
+        env:
+          HEAD_REF: ${{ needs.qualify.outputs.head_ref }}
+          REVIEWED: ${{ needs.qualify.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          TASK: ${{ steps.plan.outputs.task }}
+          GH_TOKEN: ${{ github.token }}
+          PYTHONPATH: trusted/scripts
+        working-directory: untrusted
+        run: |
+          set -euo pipefail
+          LIVE=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE,,}" != "${REVIEWED}" ]; then
+            echo "head moved before push; abort with no write"
+            exit 0
+          fi
+          python - <<'PY'
+          from pathlib import Path
+          from agent_protocol.control_plane import assert_patch_allowed, push_command
+          import os
+          assert_patch_allowed(Path("."), expected_head=os.environ["REVIEWED"])
+          print(" ".join(push_command("origin", os.environ["HEAD_REF"])))
+          PY
+          git config user.name "herbagraph-agent-loop"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "no file changes from correction"
+            exit 0
+          fi
+          git add -A
+          CYCLE=$(python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, "../trusted/scripts")
+          from agent_protocol.cycle import next_cycle_number
+          from agent_protocol.run_architect import comments_from_payload
+          comments = comments_from_payload(json.loads(Path("/tmp/comments.json").read_text()))
+          print(next_cycle_number(comments))
+          PY
+          )
+          git commit -m "fix: address architect review ${REVIEWED}
+
+          HerbaGraph-Correction-Cycle: ${CYCLE}
+          HerbaGraph-Reviewed-SHA: ${REVIEWED}
+          "
+          git push origin "HEAD:refs/heads/${HEAD_REF}"
+          NEW_SHA=$(git rev-parse HEAD)
+          python - <<PY
+          import os, sys
+          from pathlib import Path
+          sys.path.insert(0, "../trusted/scripts")
+          from agent_protocol.format import render_correction_report, render_handoff
+          body = render_correction_report(
+              task=os.environ["TASK"],
+              pr_number=int(os.environ["PR_NUMBER"]),
+              reviewed_commit=os.environ["REVIEWED"],
+              new_commit=os.environ.get("NEW_SHA", "${NEW_SHA}"),
+              cycle=int("${CYCLE}"),
+              tests="pytest tests/test_agent_protocol -q",
+          )
+          handoff = render_handoff(task=os.environ["TASK"], commit="${NEW_SHA}", pr_number=int(os.environ["PR_NUMBER"]))
+          Path("/tmp/correction.md").write_text(body + "\n" + handoff, encoding="utf-8")
+          PY
+          gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"
