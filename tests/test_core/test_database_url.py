@@ -32,6 +32,11 @@ def test_prepare_asyncpg_skips_ssl_for_local():
     assert "ssl" not in args
 
 
+def test_validate_allows_railway_private_postgres():
+    url = "postgresql+asyncpg://postgres:pass@postgres.railway.internal:5432/railway"
+    assert validate_production_database_url(url, railway=True) is None
+
+
 def test_validate_rejects_supabase_direct_on_railway():
     url = "postgresql+asyncpg://postgres:pass@db.abcdef.supabase.co:5432/postgres"
     err = validate_production_database_url(url, railway=True)
