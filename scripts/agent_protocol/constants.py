@@ -103,6 +103,7 @@ PATH_SUITE_PREFIXES: tuple[tuple[str, str], ...] = (
     ("tests/test_core/", "core"),
     ("frontend/", "frontend"),
     ("tests/test_frontend/", "frontend"),
+    ("tests/fixtures/", "protocol"),
 )
 
 REQUIRED_CHECK_CONTEXTS = frozenset({"gates"})
