@@ -6,18 +6,17 @@ They do not need to pass in PR-A. Run against PostgreSQL in PR-C.
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from tests.discovery_mvp.red import SCAFFOLDED
 
 pytestmark = pytest.mark.requires_postgres
 
-_POSTGRES = "postgres" in (os.environ.get("DATABASE_URL") or "").lower()
-_SKIP = pytest.mark.skipif(
-    not _POSTGRES,
-    reason=f"{SCAFFOLDED}: SQLite cannot substantiate DI-06 uniqueness/concurrency",
+_SKIP = pytest.mark.skip(
+    reason=(
+        f"{SCAFFOLDED}: PR-A defines the PostgreSQL claims but has no migration or "
+        "concurrent-writer harness; PR-C must replace this skip with real database evidence"
+    )
 )
 
 
@@ -28,10 +27,7 @@ def test_postgres_unique_active_finding_identity():
     Identity (ADR-MVP-003): case + normalized concept + normalized value + source event/turn.
     Active uniqueness is a separate partial unique index, not part of identity.
     """
-    pytest.fail(
-        f"{SCAFFOLDED}: PostgreSQL partial unique index not present on main; "
-        "definition only until PR-C"
-    )
+    raise AssertionError("unreachable until PR-C provides a real PostgreSQL uniqueness test")
 
 
 @_SKIP
@@ -40,7 +36,4 @@ def test_postgres_concurrent_writers_cannot_duplicate_active_identity():
 
     Read-then-insert is not sufficient. Require ON CONFLICT / unique violation handling.
     """
-    pytest.fail(
-        f"{SCAFFOLDED}: concurrent-writer harness not present on main; "
-        "definition only until PR-C"
-    )
+    raise AssertionError("unreachable until PR-C provides a real concurrent-writer harness")

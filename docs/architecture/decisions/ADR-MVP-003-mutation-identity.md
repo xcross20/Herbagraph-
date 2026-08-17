@@ -18,7 +18,7 @@ Every mutation has a deterministic identity. A replay of the same source event r
 | --- | --- |
 | Finding | case + normalized concept + normalized value + source event/turn |
 | Open branch | case + branch code |
-| Open gap | case + gap code + active state |
+| Gap event identity | case + branch + gap code + source event/turn |
 | Workup | case + canonical test + occurrence/date + normalized result |
 | Evidence edge | case + branch + workup/source + relationship + version |
 | Interpretation | case + normalized statement + provenance + version |
@@ -28,8 +28,14 @@ Every mutation has a deterministic identity. A replay of the same source event r
 ### Identity versus active uniqueness
 
 - **Identity** answers “is this the same mutation/event?” It is immutable once written.
-- **Active uniqueness** answers “is there at most one current representation?” Enforce `UNIQUE (identity columns) WHERE active` (or the PostgreSQL equivalent) separately from identity.
-- Do not put `active` on finding, interpretation, or timeline identity. Gap identity retains `active state` so an open gap and a closed historical gap of the same code can coexist.
+- **Active uniqueness** answers “is there at most one current representation?” Enforce a PostgreSQL partial unique index on `(case_id, branch_id, code)` for open/active rows separately from immutable event identity.
+- Do not put `active` or another mutable lifecycle value into any semantic identity. A closed historical gap and a later reopened gap remain distinct through their source event/turn while the partial index permits only one current open gap for a branch and code.
+
+This branch-scoped rule is the precise form of the master specification's
+section 21.5 invariant. The earlier section 5 candidate identity
+(`case + gap code + active state`) is not implementable as written because it
+omits `branch_id` and treats mutable state as identity. No database constraint
+may be implemented until the Founder accepts this resolution.
 
 ### Concurrency
 

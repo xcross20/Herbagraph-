@@ -1,4 +1,4 @@
-"""DI-01, DI-05, DI-09, DI-10, ADR-MVP-001, ADR-MVP-004.
+"""DI-01, DI-05, partial DI-09, ADR-MVP-001, ADR-MVP-004.
 
 These tests reproduce the live defect on current main: `apply_snapshot`
 deletes findings and inserts a new snapshot. They do not reproduce V2
@@ -8,19 +8,17 @@ Those modules are absent here; see the V2 forensic SHA in `red.py`.
 
 from __future__ import annotations
 
-import json
 import uuid
 
 import pytest
 from sqlalchemy import select
 
 from app.discovery.engine import CaseSnapshot, FindingDraft
-from app.discovery.map import build_map_payload
-from app.discovery.service import apply_snapshot, rebuild_case, snapshot_to_read
+from app.discovery.service import apply_snapshot, rebuild_case
 from app.models.discovery import DiscoveryCase, DiscoveryFinding
 from app.models.enums import DiscoveryCaseStatus, DiscoveryFindingKind
 from app.models.user import User
-from tests.discovery_mvp.red import reproduced_on_main
+from tests.discovery_mvp.red import SCAFFOLDED, reproduced_on_main
 
 
 async def _case(db_session) -> DiscoveryCase:
@@ -56,19 +54,6 @@ def _onset_snapshot(case: DiscoveryCase, value: str) -> CaseSnapshot:
     )
 
 
-def _active_projection_text(case: DiscoveryCase, snapshot: CaseSnapshot) -> str:
-    read = snapshot_to_read(case, snapshot)
-    payload = build_map_payload(snapshot=snapshot, facts={}, unknowns=[])
-    dumped = read.model_dump()
-    parts = [
-        json.dumps(dumped, default=str),
-        json.dumps(payload, default=str),
-        case.snapshot or "",
-        " ".join(f"{item.name}={item.value}" for item in snapshot.findings),
-    ]
-    return "\n".join(parts).lower()
-
-
 @reproduced_on_main(
     invariant="DI-01",
     defect="apply_snapshot deletes the original finding row",
@@ -98,18 +83,16 @@ async def test_finding_identity_survives_rebuild(db_session):
 
 
 @reproduced_on_main(
-    invariant="DI-09/DI-10",
-    defect="apply_snapshot destroys history instead of inactivating and linking a replacement",
+    invariant="DI-09 (history preservation only)",
+    defect="apply_snapshot destroys the original row instead of preserving correction history",
 )
 @pytest.mark.asyncio
-async def test_correction_inactivates_original_and_excludes_it_from_projection(db_session):
-    """Hostile trace: onset corrected from 'after surgery' to 'before surgery'.
+async def test_correction_preserves_original_history(db_session):
+    """A correction must not delete the original historical finding.
 
-    Required after the correction:
-    - original row still exists and is inactive
-    - replacement exists
-    - replacement.supersedes_finding_id == original.id
-    - prompts, map, report/API serializer exclude the inactive value
+    This reproduces only the first live failure. Link direction and active-only
+    projection are separate scaffolded claims because the current model has no
+    correction or active-history fields and execution cannot reach them.
     """
     case = await _case(db_session)
     first = DiscoveryFinding(
@@ -129,25 +112,18 @@ async def test_correction_inactivates_original_and_excludes_it_from_projection(d
     original = await db_session.get(DiscoveryFinding, first_id)
     assert original is not None
     assert original.value == "after surgery"
-    assert hasattr(original, "active")
-    assert original.active is False
 
-    rows = list(
-        (
-            await db_session.execute(
-                select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id)
-            )
-        ).scalars()
+
+@pytest.mark.skip(
+    reason=(
+        f"{SCAFFOLDED}: correction linkage and inactive-history fields are absent on "
+        "integration/agent; PR-D must prove predecessor direction and active-only "
+        "prompt/map/report projection at persistence and API boundaries"
     )
-    replacement = next((row for row in rows if row.id != first_id and row.value == "before surgery"), None)
-    assert replacement is not None
-    assert hasattr(replacement, "supersedes_finding_id")
-    assert replacement.supersedes_finding_id == first_id
-
-    blob = _active_projection_text(case, snapshot)
-    assert "after surgery" not in blob
-    for finding in snapshot_to_read(case, snapshot).findings:
-        assert finding.value != "after surgery"
+)
+def test_correction_links_replacement_and_excludes_inactive_history_from_all_active_projections():
+    """DI-09/DI-10 and ISS-04/05/06 contract; not evidence until PR-D."""
+    raise AssertionError("unreachable until the PR-D correction path exists")
 
 
 @reproduced_on_main(

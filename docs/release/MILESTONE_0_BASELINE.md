@@ -2,38 +2,49 @@
 
 **Recorded:** 2026-08-17  
 **Recorder:** Grok Implementer  
-**Working branch:** `grok/mvp-baseline-red-tests` from `integration/agent`  
+**Working branch:** `agent/mvp-baseline-repair`, carrying PR-A from `integration/agent`
 **Spec:** `docs/architecture/HERBAGRAPH_DISCOVERY_ENGINE_MASTER_SPEC.md`
 
 ## Commits
 
 | Ref | SHA |
 | --- | --- |
-| `origin/main` | `cd42abfa8eb794110e20fe1a7ba1c35b2f8644bd` |
-| `origin/integration/agent` | `843dd55c715b4098b4661ca1acede2f5578674e7` |
-| This PR-A head after rebase | `d62b9b7a53d179ddbcf60ab8a56b5fbea55c9fa5` |
+| `origin/main` | `88c145bf64cea16014a705217597e6efdc962a44` |
+| `origin/integration/agent` | `7132b5121d20cb749b6208419f154374e0c040e6` |
+| Reviewed Grok PR-A predecessor | `d048fe855fe2179ec16f757ba065c07f96d78ec2` |
+| Repaired Codex PR-A head | recorded after the repair commit; never infer from the working tree |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
-| `origin/discovery/investigation-state-v2` (forensic only) | `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
+| `origin/discovery/investigation-state-v2` | `e7ab37aeed5538546fd657a6b0c1a394ad937510`; unexpectedly merged to `main` by PR #4 |
 | Production deploy SHA | **unknown** — Railway production still sourced from `claude/herbagraph-test-suite-mgmrz1`; no confirmed SHA |
 | Persistent UAT deploy SHA | `843dd55c715b` — `https://herbagraph-uat.up.railway.app/meta` after merge to `integration/agent` |
 
 “Same lineage as main” is not a deploy identity. Do not treat production as `cd42abf`.
 
-`integration/agent` is ahead of `main` (UAT app + canary merge). The V2 branch is forensic/reference material only. Do not merge it wholesale.
+PR #4 merged the previously forensic V2 branch into `main` at `88c145b`
+without the PR-A → PR-B–E acceptance sequence. That merge does not convert the
+V2 behavior into an accepted contract. The incident hold remains authoritative:
+do not activate its flags, apply its migration, or build follow-on behavior on
+the merge until containment is resolved. `integration/agent` intentionally does
+not contain PR #4 and advanced independently through PR #18.
 
 ## Migration head
 
-On `main` / `integration/agent`: `t0u1v2w3x4y5` (`safety_json` only).
+On `integration/agent`: `t0u1v2w3x4y5` (`safety_json` only).
 
-On `discovery/investigation-state-v2`: additional unreleased revision `u1v2w3x4y5z6` (investigation graph + coverage tables). **Not applied in production.**
+On current `main` after PR #4: source includes `u1v2w3x4y5z6`
+(investigation graph + coverage tables). Whether it was applied to any runtime
+database remains **unknown**. Source presence is not migration/deployment proof.
 
 ## Feature flags
 
-On `main`: no `discovery_investigation_state_v2` setting exists.
+Current `main` contains the V2 settings from PR #4. Their code defaults are
+**false** (`discovery_investigation_state_v2`,
+`discovery_append_only_findings`, `discovery_coverage_graph_enabled`,
+`discovery_document_reconciliation`, `discovery_voice_enabled`,
+`discovery_intervention_ledger`). Runtime overrides remain **unknown**.
 
-On V2 branch: all Discovery V2 flags default **false** (`discovery_investigation_state_v2`, `discovery_append_only_findings`, `discovery_coverage_graph_enabled`, `discovery_document_reconciliation`, `discovery_voice_enabled`, `discovery_intervention_ledger`).
-
-Production is therefore on the legacy snapshot rebuild path.
+Do not infer that production is on either the legacy or V2 path until its exact
+deploy SHA, flag values, and migration state are independently verified.
 
 ## CI
 
@@ -65,11 +76,13 @@ This suite does **not** prove persist identity, coverage edges, correction links
 
 PostgreSQL uniqueness/concurrency tests are defined in `tests/discovery_mvp/test_postgres_integrity.py` and skip on SQLite. Spec layer B remains unverified.
 
-## Entity inventory on `main`
+## Entity inventory on the approved integration base
 
 Present: `DiscoveryCase`, `DiscoveryFinding`, `DiscoveryHypothesis`, `DiscoveryOutcome`, `DiscoveryTurn`, `DiscoveryMapVersion`, `DiscoveryTestPlanItem`, `DiscoveryLongitudinalSnapshot`.
 
-Absent on `main`: timeline events, patient interpretations, investigation branches, branch evidence, evidence gaps, prior-workup table, evidence events, reasoning claims/corrections, coverage ontology tables.
+Absent on `integration/agent`: timeline events, patient interpretations,
+investigation branches, branch evidence, evidence gaps, prior-workup table,
+evidence events, reasoning claims/corrections, coverage ontology tables.
 
 `apply_snapshot` (`app/discovery/service.py`) deletes all findings and hypotheses for the case, then inserts a rebuilt snapshot. That is incompatible with ADR-MVP-001.
 
@@ -93,7 +106,11 @@ Absent on `main`: timeline events, patient interpretations, investigation branch
 
 ## Reviewed defect reproduction
 
-Reviewed files (`branch_service.py`, `mutations.py`, `reconciliation.py`, `epistemics.py`, `app/coverage/`) **do not exist on `main`**. Stop condition from Section 16: reviewed files no longer match this branch.
+Reviewed files (`branch_service.py`, `mutations.py`, `reconciliation.py`,
+`epistemics.py`, `app/coverage/`) **do not exist on the approved integration
+base**. They now exist on `main` only because of the unaccepted PR #4 merge.
+Stop condition from Section 16 remains active for implementation targeting
+`integration/agent`.
 
 Issues 1–9 from the V2 review are **not reproduced on this branch**. They are labeled:
 

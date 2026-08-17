@@ -22,7 +22,7 @@ No production behavior was changed to obtain these failures.
 
 Note: persist Issues 1–9 from the V2 review cannot be reproduced on this branch because those modules are not on `main`/`integration/agent`. They were reproduced and then repaired on `origin/discovery/investigation-state-v2` @ `e7ab37a` (unmerged, flags off). That repair is **not** part of this PR.
 
-## Revision 2 (this PR-A correction)
+## Revision 2 (preserved Grok PR-A correction)
 
 **Why:** Review of revision 1 — weak replay test, correction test did not prove projection, coverage tests failed at import, certainty test was contradictory, CI would break `integration/agent`.
 
@@ -54,3 +54,47 @@ Baseline subset still green:
 | branch close | scaffolded | skip |
 | map / API / frontend certainty key tests | reproduced on main | xfail |
 | PostgreSQL uniqueness / concurrency | scaffolded | skip on SQLite |
+
+## Revision 3 (Codex repair branch)
+
+**Source SHA reviewed:** `d048fe855fe2179ec16f757ba065c07f96d78ec2`
+**Branch:** `agent/mvp-baseline-repair`
+**Exact repaired head:** recorded after commit; this log does not equate an
+uncommitted working tree with a SHA.
+
+Review repairs:
+
+- split the reproduced correction-history deletion from the unimplemented
+  predecessor-link and active-projection contracts;
+- made PostgreSQL definitions unconditional scaffolds until PR-C supplies a
+  real migration and concurrent-writer harness;
+- aligned branch-scoped gap identity with section 21.5 and kept mutable state
+  out of identity;
+- refreshed repository state after PR #4 merged to `main` and PR #18 merged to
+  `integration/agent`.
+
+Focused packet:
+
+```text
+command: /Users/immanuellewis/herbagraph/.venv/bin/python -m pytest tests/discovery_mvp -q --tb=line
+result: 8 skipped, 6 xfailed in 0.19s
+```
+
+Protocol packet:
+
+```text
+command: PYTHONPATH=scripts /Users/immanuellewis/herbagraph/.venv/bin/python -m pytest tests/test_agent_protocol -q --tb=line
+result: 61 passed in 0.31s
+```
+
+Full suite:
+
+```text
+command: /Users/immanuellewis/herbagraph/.venv/bin/python -m pytest tests/ -q --tb=line
+result: 45 failed, 1575 passed, 12 skipped, 6 xfailed in 298.35s
+```
+
+All 45 failures are outside `tests/discovery_mvp/`: 41 scenario-matrix cases,
+the safety-condition inventory, canonical biomarker reference normalization,
+the aggregate scenario gate, and the trend-pair gate. Required CI remains red
+and merge-blocking. This branch changes no production behavior or catalog data.
