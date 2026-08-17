@@ -1,7 +1,7 @@
 # ADR-MVP-005: Branch lifecycle
 
-**Status:** Proposed (revised 2026-08-17 after PR-A review)  
-**Date:** 2026-08-17  
+**Status:** Proposed (revised 2026-08-17 after PR-A review)
+**Date:** 2026-08-17
 **Owner approval:** required before any close/reopen is user-visible
 
 ## Context

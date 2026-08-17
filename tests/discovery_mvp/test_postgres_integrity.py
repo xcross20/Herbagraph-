@@ -1,7 +1,8 @@
 """DI-06 uniqueness and concurrent-writer definitions.
 
-Claim status: scaffolded. SQLite cannot substantiate these claims.
-They do not need to pass in PR-A. Run against PostgreSQL in PR-C.
+Claim status: scaffolded. PR-A has no migration or concurrent-writer harness.
+These tests skip even when DATABASE_URL points at PostgreSQL. PR-C must
+replace the skip with observed database evidence.
 """
 
 from __future__ import annotations

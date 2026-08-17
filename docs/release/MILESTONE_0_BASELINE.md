@@ -1,8 +1,8 @@
 # Milestone 0 baseline
 
-**Recorded:** 2026-08-17  
-**Recorder:** Grok Implementer  
-**Working branch:** `agent/mvp-baseline-repair`, carrying PR-A from `integration/agent`
+**Recorded:** 2026-08-17
+**Recorder:** Grok Implementer
+**Working branch:** `grok/mvp-pra-closeout` from `integration/agent` after PR #33
 **Spec:** `docs/architecture/HERBAGRAPH_DISCOVERY_ENGINE_MASTER_SPEC.md`
 
 ## Commits
@@ -10,9 +10,12 @@
 | Ref | SHA |
 | --- | --- |
 | `origin/main` | `88c145bf64cea16014a705217597e6efdc962a44` |
-| `origin/integration/agent` | `7132b5121d20cb749b6208419f154374e0c040e6` |
-| Reviewed Grok PR-A predecessor | `d048fe855fe2179ec16f757ba065c07f96d78ec2` |
-| Repaired Codex PR-A evidence commit | `2590b1af20936bd1cec369478fa7d659a8a1a8c0` |
+| `origin/integration/agent` at closeout branch point | `7a815069451bf65f32246b8a711f35063c623d39` |
+| PR-A merge onto `integration/agent` | `6714a08389d8392ef2d4439362cbb4da1e35283a` |
+| Reviewed Grok PR-A predecessor (PR #6) | `d048fe855fe2179ec16f757ba065c07f96d78ec2` |
+| Repaired Codex PR-A evidence commit (PR #33) | `2590b1af20936bd1cec369478fa7d659a8a1a8c0` |
+| PR #33 tip / SHA pin | `bc9d1b4115b5593381643ff697f3699840f03aa8` |
+| This closeout evidence commit | `1b619482a76add4d89384d573d02c55a896e8250` |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
 | `origin/discovery/investigation-state-v2` | `e7ab37aeed5538546fd657a6b0c1a394ad937510`; unexpectedly merged to `main` by PR #4 |
 | Production deploy SHA | **unknown** — Railway production still sourced from `claude/herbagraph-test-suite-mgmrz1`; no confirmed SHA |
@@ -48,7 +51,7 @@ deploy SHA, flag values, and migration state are independently verified.
 
 ## CI
 
-`.github/workflows/ci.yml` (after this PR-A revision) runs `bash scripts/ci_gates.sh` on push/PR to `main`, `master`, `claude/**`, and `integration/agent`.
+`.github/workflows/ci.yml` after PR-A adds `integration/agent` to the **push** trigger. Pull-request triggers already included `integration/agent` on the base before this packet. The workflow runs `bash scripts/ci_gates.sh` on those events.
 
 `scripts/ci_gates.sh` is mandatory and ends with `python3 -m pytest tests/` as a blocking step. The later “Upload coverage” job step is the only `continue-on-error` pytest invocation.
 
@@ -74,7 +77,7 @@ Exact result is recorded in `RED_FIRST_LOG.md` for this revision.
 
 This suite does **not** prove persist identity, coverage edges, correction links, or concurrency until the xfailed red tests are implemented and the markers removed.
 
-PostgreSQL uniqueness/concurrency tests are defined in `tests/discovery_mvp/test_postgres_integrity.py` and skip on SQLite. Spec layer B remains unverified.
+PostgreSQL uniqueness/concurrency tests are defined in `tests/discovery_mvp/test_postgres_integrity.py` and skip unconditionally until PR-C supplies a real migration and concurrent-writer harness. A PostgreSQL `DATABASE_URL` does not make them evidence. Spec layer B remains unverified.
 
 ## Entity inventory on the approved integration base
 
@@ -98,7 +101,7 @@ evidence events, reasoning claims/corrections, coverage ontology tables.
 | Person context / return visit / voice input | reported | Ask UI + recent commits |
 | S0–S4 safety | reported | `tests/test_discovery/test_safety_nuance.py` |
 | Investigation map as coverage-aware persist | not started on `main` | computed from snapshot; includes `certainty` |
-| Append-only investigation graph | broken / off-main | V2 branch exists; flags off; not on `main` |
+| Append-only investigation graph | unaccepted on `main` | PR #4 merged V2 source to `main`; flags default false; not on `integration/agent` |
 | Lab → Case evidence bridge | not started | |
 | Intervention → monitoring loop | not started | |
 | Scientific-output contract | not started | |
@@ -120,7 +123,7 @@ Issues 1–9 from the V2 review are **not reproduced on this branch**. They are 
 | `scaffolded` | Contract or persist-path test whose modules are absent; skip, not a reproduction |
 | `reproduced on pinned V2 branch` | Forensic only, SHA `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
 
-On `main`, the live defect is the destructive snapshot rebuild plus public diagnostic-certainty fields. Do not merge `discovery/investigation-state-v2`. After PR-A, port useful V2 work in PR-B through PR-E order from a fresh `integration/agent` branch.
+On `integration/agent`, the live defect is the destructive snapshot rebuild plus public diagnostic-certainty fields. PR #4 already merged `discovery/investigation-state-v2` into `main`. That merge is not an accepted contract. Do not activate its flags, apply its migration, or treat it as the implementation base. After PR-A acceptance, port useful V2 work in PR-B through PR-E order from a fresh `integration/agent` branch.
 
 ## External dependencies (no secret values)
 

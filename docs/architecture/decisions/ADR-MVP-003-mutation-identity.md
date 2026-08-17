@@ -1,7 +1,7 @@
 # ADR-MVP-003: Mutation identity and idempotency
 
-**Status:** Proposed (revised 2026-08-17 after PR-A review)  
-**Date:** 2026-08-17  
+**Status:** Proposed (revised 2026-08-17 after PR-A review)
+**Date:** 2026-08-17
 **Owner approval:** required before uniqueness constraints in production
 
 ## Context

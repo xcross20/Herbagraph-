@@ -1,7 +1,7 @@
 # ADR-MVP-004: Correction and supersession model
 
-**Status:** Proposed  
-**Date:** 2026-08-17  
+**Status:** Proposed
+**Date:** 2026-08-17
 **Owner approval:** required before canonical-read switch
 
 ## Context
