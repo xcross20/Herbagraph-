@@ -1,7 +1,7 @@
 # ADR-MVP-002: Coverage and evidence semantics
 
-**Status:** Proposed  
-**Date:** 2026-08-17  
+**Status:** Proposed
+**Date:** 2026-08-17
 **Owner approval:** required before production enablement
 
 ## Context

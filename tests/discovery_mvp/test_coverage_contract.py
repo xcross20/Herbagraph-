@@ -9,7 +9,8 @@ path stops attaching unrelated evidence.
 
 V2 Issues 1–2 were reproduced on the pinned forensic branch
 `discovery/investigation-state-v2` @ e7ab37aeed5538546fd657a6b0c1a394ad937510.
-Do not merge that branch wholesale. Port mapping in PR-B only.
+PR #4 later merged that source into `main`. The merge is not an accepted
+contract. Do not activate its flags. Port mapping in PR-B only.
 """
 
 from __future__ import annotations
