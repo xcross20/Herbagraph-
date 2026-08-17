@@ -591,4 +591,47 @@ jobs:
             echo "post-commit head mismatch; skip handoff comment"
             exit 0
           fi
-          gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"
+          GH_REPO="${GITHUB_REPOSITORY}" gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"
+
+  promote-uat:
+    needs: [qualify, architect-write]
+    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.verdict == 'ARCHITECT_APPROVED'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
+          persist-credentials: false
+          path: trusted
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Merge allowlisted canary into integration/agent
+        id: promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PYTHONPATH: trusted/scripts
+        run: |
+          python trusted/scripts/agent_protocol/promote_uat.py \
+            --pr-number "${{ needs.qualify.outputs.pr_number }}" \
+            --reviewed-sha "${{ needs.qualify.outputs.head_sha }}" \
+            --task "${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}"
+      - name: Label promote result
+        if: ${{ steps.promote.outputs.label }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          LABEL: ${{ steps.promote.outputs.label }}
+        run: |
+          gh label create "$LABEL" --force --description "HerbaGraph agent loop" --color "1D76DB" || true
+          gh pr edit "$PR_NUMBER" --add-label "$LABEL" || true
+          if [ "${{ steps.promote.outputs.merged }}" = "true" ]; then
+            gh pr comment "$PR_NUMBER" --body "Guarded merge to \`integration/agent\` completed. Persistent Railway UAT will follow that branch. Production/main was not touched."
+          fi
