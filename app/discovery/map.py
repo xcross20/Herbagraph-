@@ -82,14 +82,22 @@ def build_map_payload(
     facts: dict[str, str],
     unknowns: list[str],
     evidence_by_branch: dict[str, dict[str, list]] | None = None,
+    findings: list[Any] | None = None,
 ) -> dict:
+    source_findings = [
+        item
+        for item in (findings if findings is not None else snapshot.findings)
+        if getattr(item, "active", True)
+    ]
     branches = []
     for hypo in snapshot.hypotheses:
-        support = [
-            f"{item.name}: {item.value}"
-            for item in snapshot.findings
-            if item.kind in {"symptom", "assessment"} and item.name not in {"safety_state"}
-        ][:4]
+        support = []
+        for item in source_findings:
+            kind = item.kind.value if hasattr(item.kind, "value") else item.kind
+            if kind in {"symptom", "assessment"} and getattr(item, "name", None) not in {"safety_state"}:
+                support.append(f"{item.name}: {item.value}")
+            if len(support) == 4:
+                break
         buckets = _empty_evidence_buckets()
         extra = (evidence_by_branch or {}).get(hypo.code) or {}
         for key in buckets:

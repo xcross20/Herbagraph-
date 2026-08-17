@@ -74,6 +74,12 @@ RELATIONS: tuple[CatalogRelation, ...] = (
         "EMG/NCS does not measure intraepidermal small-fiber density.",
     ),
     CatalogRelation(
+        "cbc",
+        "small_fiber_density",
+        "not_applicable",
+        "A CBC has an explicit catalog relation of not applicable to small-fiber density.",
+    ),
+    CatalogRelation(
         "ienfd_biopsy",
         "small_fiber_density",
         "directly_assesses",

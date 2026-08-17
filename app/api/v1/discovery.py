@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
+from app.discovery.monitoring import record_monitoring_event
 from app.discovery.service import (
     add_case_tests_to_plan,
     apply_opening_turn,
@@ -34,7 +35,7 @@ from app.discovery.service import (
     suggested_test_labels,
     snapshot_from_case,
 )
-from app.models.enums import UserRole
+from app.models.enums import MonitoringOutcomeKind, UserRole
 from app.models.lab import LabReport
 from app.models.user import User
 from app.models.discovery import DiscoveryMapVersion, DiscoveryTurn
@@ -47,6 +48,8 @@ from app.schemas.discovery import (
     DiscoveryDocumentRead,
     DiscoveryTestPlanCreate,
     DiscoveryTestPlanItemRead,
+    DiscoveryMonitoringCreate,
+    DiscoveryMonitoringRead,
     DiscoveryTurnCreate,
     DiscoveryTurnRead,
 )
@@ -235,6 +238,47 @@ async def get_investigation_map(
         "not_disease_probability": True,
         **json.loads(latest.payload),
     }
+
+
+@router.post("/{case_id}/monitoring", response_model=DiscoveryMonitoringRead)
+async def add_monitoring_event(
+    case_id: uuid.UUID,
+    payload: DiscoveryMonitoringCreate,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryMonitoringRead:
+    case = await get_owned_case(db, case_id, current_user.id)
+    if case is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    try:
+        kind = MonitoringOutcomeKind(payload.outcome_kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid outcome_kind") from exc
+    try:
+        event = await record_monitoring_event(
+            db,
+            case_id=case.id,
+            target=payload.target,
+            observation_time=payload.observation_time,
+            outcome_kind=kind,
+            source_event_id=payload.source_event_id,
+            exposure=payload.exposure,
+            adherence=payload.adherence,
+            notes=payload.notes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    await db.commit()
+    return DiscoveryMonitoringRead(
+        id=event.id,
+        target=event.target,
+        observation_time=event.observation_time,
+        outcome_kind=event.outcome_kind.value,
+        exposure=event.exposure,
+        adherence=event.adherence,
+        notes=event.notes,
+        causal_claim=event.causal_claim,
+    )
 
 
 @router.get("/{case_id}", response_model=DiscoveryCaseRead)

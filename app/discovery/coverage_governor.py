@@ -30,7 +30,7 @@ def assess_coverage(
     ]
     if not matches:
         return CoverageAssessment(
-            relation=CoverageRelation.NOT_APPLICABLE,
+            relation=CoverageRelation.UNKNOWN,
             explanation="No coverage relation is catalogued for this test and concept.",
             test_code=test_code,
             concept=investigation_concept,

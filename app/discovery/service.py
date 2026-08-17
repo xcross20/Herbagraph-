@@ -154,8 +154,19 @@ def _prior_workup_from_findings(findings: list[FindingDraft]) -> list[dict]:
 
 
 async def persist_map_version(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryMapVersion:
-    facts = facts_from_findings(snapshot.findings)
-    payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns_from_facts(facts))
+    persisted = list(
+        (
+            await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    findings = [row for row in persisted if getattr(row, "active", True)] if persisted else snapshot.findings
+    facts = facts_from_findings(findings)
+    payload = build_map_payload(
+        snapshot=snapshot,
+        facts=facts,
+        unknowns=unknowns_from_facts(facts),
+        findings=findings,
+    )
     fingerprint = payload_fingerprint(payload)
     existing = (
         await db.execute(
@@ -281,9 +292,15 @@ def snapshot_to_read(
             options=list(interaction_raw.get("options") or []),
             accepted_types=list(interaction_raw.get("accepted_types") or []),
         )
-    facts = facts_from_findings(snapshot.findings)
+    active_findings = _active_findings_for_read(case, snapshot)
+    facts = facts_from_findings(active_findings)
     unknowns = list(payload.get("unknowns") or unknowns_from_facts(facts))
-    map_payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns)
+    map_payload = build_map_payload(
+        snapshot=snapshot,
+        facts=facts,
+        unknowns=unknowns,
+        findings=active_findings,
+    )
     map_version = getattr(case, "_map_version", None)
     return DiscoveryCaseRead(
         id=case.id,
@@ -301,7 +318,7 @@ def snapshot_to_read(
                 status=item.status,
                 source=item.source,
             )
-            for item in _active_findings_for_read(case, snapshot)
+            for item in active_findings
         ],
         hypotheses=[
             DiscoveryHypothesisRead(
@@ -392,12 +409,19 @@ def snapshot_to_read(
     )
 
 
-async def apply_snapshot(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> None:
+async def apply_snapshot(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    snapshot: CaseSnapshot,
+    *,
+    source_event_id: str | None = None,
+) -> None:
     case.presenting_concern = snapshot.presenting_concern
     case.investigation_coverage = snapshot.investigation_coverage
     case.snapshot = json.dumps(snapshot.as_dict())
     if case.id is not None:
-        await apply_finding_drafts(db, case.id, snapshot.findings)
+        event_id = source_event_id or str(uuid.uuid4())
+        await apply_finding_drafts(db, case.id, snapshot.findings, source_event_id=event_id)
         await db.execute(delete(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case.id))
         await db.flush()
     for item in snapshot.hypotheses:
@@ -1061,10 +1085,14 @@ async def apply_opening_turn(
 
 
 def _active_findings_for_read(case: DiscoveryCase, snapshot: CaseSnapshot):
-    stored = [item for item in list(getattr(case, "findings", None) or []) if getattr(item, "active", True)]
-    if stored:
-        return stored
-    return snapshot.findings
+    loaded = case.__dict__.get("findings", None)
+    if loaded is not None:
+        return [item for item in list(loaded) if getattr(item, "active", True)]
+    return [
+        item
+        for item in snapshot.findings
+        if getattr(item, "active", True)
+    ]
 
 
 def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:
