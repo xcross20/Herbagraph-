@@ -33,7 +33,44 @@ def decide_after_review(
     head_sha: str,
     completed_cycles: int,
     checks_green: bool | None = None,
+    checks_state: str | None = None,
 ) -> LoopDecision:
+    if checks_state == "pending":
+        return LoopDecision(
+            continue_automation=True,
+            run_correction=False,
+            label=None,
+            reason="checks_pending",
+            next_owner="NONE",
+        )
+    if checks_state == "missing":
+        return LoopDecision(
+            continue_automation=False,
+            run_correction=False,
+            label="founder-decision-required",
+            reason="required_checks_missing",
+            next_owner="FOUNDER",
+        )
+    if checks_state == "failed":
+        if review.status == VERDICT_APPROVED:
+            review_status = VERDICT_CHANGES_REQUIRED
+        else:
+            review_status = review.status
+        if review_status == VERDICT_CHANGES_REQUIRED and completed_cycles < MAX_CORRECTION_CYCLES:
+            return LoopDecision(
+                continue_automation=True,
+                run_correction=True,
+                label="changes-required",
+                reason="required_checks_failed",
+                next_owner="GROK",
+            )
+        return LoopDecision(
+            continue_automation=False,
+            run_correction=False,
+            label="founder-decision-required",
+            reason="required_checks_failed",
+            next_owner="FOUNDER",
+        )
     if review.status == VERDICT_APPROVED and checks_green is False:
         return LoopDecision(
             continue_automation=False,

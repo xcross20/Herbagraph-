@@ -161,9 +161,10 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 - Architect job: `contents: read`, Codex `permission-profile: :read-only`, `OPENAI_API_KEY` only.
 - Correction job: Grok edits the untrusted worktree without push credentials. A trusted post-model step validates the patch, runs allowlisted tests, commits, and pushes without `--force`.
 - Control-plane paths (workflow, protocol helpers, AGENTS.md, prompts/schemas) cannot be edited by a correction.
-- Only `github-actions[bot]` reviews with the exact PR+SHA marker can trigger Grok.
-- `ARCHITECT_APPROVED` is impossible while required checks are pending, failing, or missing.
+- A digest-bound review artifact from the trusted run is required to trigger Grok. `github-actions[bot]` alone is not sufficient.
+- Pending required checks defer with no write. Failed required checks are `CHANGES_REQUIRED`. Missing/untrusted checks escalate to the founder.
 - Approval never merges or deploys.
+- The loop workflow is installed from protected `main`. See `docs/architecture/adr-0007-agent-loop-bootstrap.md`.
 
 ### Labels
 

@@ -53,3 +53,18 @@ def test_stale_review_does_not_correct_newer_head():
     decision = decide_after_review(review, head_sha=OTHER, completed_cycles=0)
     assert decision.run_correction is False
     assert decision.reason == "stale_review_sha"
+
+
+def test_pending_checks_do_not_write_or_correct():
+    review = ArchitectReview(task="HG-7", reviewed_commit=SHA, status="CHANGES_REQUIRED")
+    decision = decide_after_review(review, head_sha=SHA, completed_cycles=0, checks_state="pending")
+    assert decision.run_correction is False
+    assert decision.reason == "checks_pending"
+    assert decision.label is None
+
+
+def test_failed_checks_ask_grok_not_founder():
+    review = ArchitectReview(task="HG-7", reviewed_commit=SHA, status="ARCHITECT_APPROVED")
+    decision = decide_after_review(review, head_sha=SHA, completed_cycles=0, checks_state="failed")
+    assert decision.run_correction is True
+    assert decision.next_owner == "GROK"
