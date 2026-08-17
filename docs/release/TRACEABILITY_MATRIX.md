@@ -32,4 +32,4 @@ V2 forensic SHA: `e7ab37aeed5538546fd657a6b0c1a394ad937510`
 | E2E-07 | Safety escalation persists | `safety_json` on main | `test_safety_nuance` | API | not started | — | locally verified (unit) | a1e82f1 | reproduced on main |
 | RL-01 | Required CI green including persist | CI now targets `integration/agent`; persist tests xfail-strict | — | — | — | — | written, unverified | `.github/workflows/ci.yml` | scaffolded |
 
-No item has been skipped to complete. Nothing is CI verified for the truth layer. Production and staging SHAs are unknown.
+No item has been skipped to complete. Nothing is CI verified for the truth layer. Production SHA is unknown. Persistent UAT SHA at last check: `843dd55c715b`. This PR-A head after rebase onto `integration/agent`: `d62b9b7a53d179ddbcf60ab8a56b5fbea55c9fa5`.
