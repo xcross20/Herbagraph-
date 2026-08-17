@@ -15,13 +15,14 @@ if str(_TRUSTED_SCRIPTS) not in sys.path:
 from agent_protocol.commit_api import create_fast_forward_commit
 from agent_protocol.cycle import next_cycle_number
 from agent_protocol.format import render_correction_report, render_handoff
-from agent_protocol.manifest import load_manifest
+from agent_protocol.manifest import assert_manifest_safe, digest_file, load_manifest
 from agent_protocol.trusted_path import assert_no_untrusted_modules, prepare_sys_path
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True)
+    parser.add_argument("--expected-digest", default=os.environ.get("MANIFEST_DIGEST", ""))
     parser.add_argument("--trusted-scripts", default=str(_TRUSTED_SCRIPTS))
     parser.add_argument("--forbidden-root", action="append", default=[])
     args = parser.parse_args(argv)
@@ -29,7 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     forbidden = [Path(item).resolve() for item in args.forbidden_root]
     prepare_sys_path(trusted, forbidden_roots=forbidden)
     assert_no_untrusted_modules(forbidden)
-    manifest = load_manifest(Path(args.manifest))
+    manifest_path = Path(args.manifest)
+    if args.expected_digest and digest_file(manifest_path) != args.expected_digest:
+        raise SystemExit("manifest_digest_mismatch")
+    manifest = load_manifest(manifest_path)
+    assert_manifest_safe(manifest)
     if manifest.parent_sha != os.environ["REVIEWED"].lower():
         raise SystemExit("manifest_parent_mismatch")
     files = {item.path: (item.mode, item.content) for item in manifest.files}

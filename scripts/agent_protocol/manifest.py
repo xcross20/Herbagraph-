@@ -60,6 +60,31 @@ def dump_manifest(manifest: ValidatedManifest) -> dict:
     }
 
 
+def digest_bytes(raw: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(raw).hexdigest()
+
+
+def digest_file(path: Path) -> str:
+    return digest_bytes(path.read_bytes())
+
+
+def assert_manifest_safe(manifest: ValidatedManifest) -> None:
+    from .control_plane import is_control_plane_path, normalize_repo_path
+
+    seen: set[str] = set()
+    for rel in [item.path for item in manifest.files] + list(manifest.deletions):
+        if not rel or rel.startswith("/") or ".." in Path(rel).parts:
+            raise ValueError(f"unsafe_path:{rel}")
+        normalized = normalize_repo_path(rel)
+        if not normalized or normalized in seen:
+            raise ValueError(f"duplicate_or_empty_path:{rel}")
+        if is_control_plane_path(normalized):
+            raise ValueError(f"control_plane_edit:{normalized}")
+        seen.add(normalized)
+
+
 def load_manifest(path: Path) -> ValidatedManifest:
     raw = json.loads(path.read_text(encoding="utf-8"))
     files = []

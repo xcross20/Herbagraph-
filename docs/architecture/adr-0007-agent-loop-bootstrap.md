@@ -6,7 +6,7 @@ Proposed. Not activated. `agent-loop` stays off until founder-approved installat
 
 ## Decision
 
-`pull_request_target` loads workflow YAML from the repository default branch (`main`), not from `integration/agent` or the PR head. A no-secret qualify job resolves the default-branch SHA once, verifies `.github/agent-loop.lock`, and every trusted job checks out that exact SHA. The review artifact is bound to that SHA. Mutable branch names and event `github.sha` are not the pin.
+`pull_request_target` loads workflow YAML from the repository default branch (`main`), not from `integration/agent` or the PR head. A no-secret qualify job resolves the default-branch SHA once and verifies `.github/agent-loop.lock`. An empty lock is not approval. A populated lock must match the resolved SHA or a GitHub-compare descendant. Every trusted job checks out that exact resolved SHA. The review artifact is bound to it.
 
 A canary may start only after:
 

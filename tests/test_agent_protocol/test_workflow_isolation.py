@@ -8,7 +8,13 @@ from pathlib import Path
 from agent_protocol.bootstrap import read_approved_bootstrap_sha, verify_trusted_sha
 from agent_protocol.checks import apply_check_gate, parse_check_runs
 from agent_protocol.commit_api import create_fast_forward_commit
-from agent_protocol.manifest import collect_manifest, dump_manifest, load_manifest
+from agent_protocol.manifest import (
+    assert_manifest_safe,
+    collect_manifest,
+    digest_file,
+    dump_manifest,
+    load_manifest,
+)
 from agent_protocol.trusted_path import assert_no_untrusted_modules, prepare_sys_path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -57,21 +63,35 @@ def test_workflow_run_concurrency_is_pr_keyed():
     assert "github.event.workflow_run.id" not in text.split("concurrency:", 1)[1][:400]
 
 
-def test_lock_empty_accepts_resolved_default_branch_sha(tmp_path: Path):
+def test_lock_empty_is_rejected(tmp_path: Path):
     (tmp_path / ".github").mkdir()
     (tmp_path / ".github" / "agent-loop.lock").write_text("approved_bootstrap_sha=\n", encoding="utf-8")
     assert read_approved_bootstrap_sha(tmp_path) == ""
-    assert verify_trusted_sha("abc", "") == "abc"
+    try:
+        verify_trusted_sha(SHA, "")
+        raise AssertionError("empty lock must fail closed")
+    except ValueError as exc:
+        assert "empty_or_invalid_bootstrap_lock" in str(exc)
 
 
 def test_lock_rejects_unrelated_sha(tmp_path: Path):
     (tmp_path / ".github").mkdir()
     (tmp_path / ".github" / "agent-loop.lock").write_text(f"approved_bootstrap_sha={SHA}\n", encoding="utf-8")
     try:
-        verify_trusted_sha(OTHER, read_approved_bootstrap_sha(tmp_path))
+        verify_trusted_sha(OTHER, read_approved_bootstrap_sha(tmp_path), is_ancestor=lambda a, r: False)
         raise AssertionError("unrelated sha must fail")
     except ValueError as exc:
         assert "unapproved_orchestrator_sha" in str(exc)
+
+
+def test_lock_accepts_exact_and_descendant_sha():
+    assert verify_trusted_sha(SHA, SHA) == SHA
+    assert verify_trusted_sha(OTHER, SHA, is_ancestor=lambda a, r: a == SHA and r == OTHER) == OTHER
+    try:
+        verify_trusted_sha(OTHER, SHA)
+        raise AssertionError("descendant without ancestry callback must fail")
+    except ValueError as exc:
+        assert "ancestry_check_required" in str(exc)
 
 
 def test_write_job_ignores_shadow_modules_in_untrusted_tree(tmp_path: Path):
@@ -90,6 +110,58 @@ def test_write_job_ignores_shadow_modules_in_untrusted_tree(tmp_path: Path):
     from agent_protocol.commit_api import assert_grok_ref
 
     assert assert_grok_ref("grok/x") == "grok/x"
+
+
+def test_poisoned_tmp_manifest_is_not_the_sealed_artifact(tmp_path: Path):
+    repo = tmp_path / "tree"
+    (repo / "tests").mkdir(parents=True)
+    (repo / "tests" / "ok.txt").write_text("safe", encoding="utf-8")
+    original = collect_manifest(repo, ["tests/ok.txt"], parent_sha=SHA)
+    sealed = tmp_path / "sealed" / "validated-manifest.json"
+    sealed.parent.mkdir()
+    sealed.write_text(json.dumps(dump_manifest(original)), encoding="utf-8")
+    digest = digest_file(sealed)
+    live = tmp_path / "validated-manifest.json"
+    live.write_text(json.dumps(dump_manifest(original)), encoding="utf-8")
+    poisoned = collect_manifest(repo, ["tests/ok.txt"], parent_sha=SHA)
+    # Simulate PR tests rewriting /tmp after seal.
+    live.write_text(
+        json.dumps(
+            {
+                "parent_sha": SHA,
+                "files": [
+                    {
+                        "path": ".github/workflows/pwn.yml",
+                        "mode": "100644",
+                        "content_base64": "YXR0YWNr",
+                    }
+                ],
+                "deletions": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert digest_file(live) != digest
+    assert digest_file(sealed) == digest
+    loaded = load_manifest(sealed)
+    try:
+        assert_manifest_safe(loaded)
+    except ValueError:
+        raise AssertionError("sealed original must remain valid")
+    poisoned_loaded = load_manifest(live)
+    try:
+        assert_manifest_safe(poisoned_loaded)
+        raise AssertionError("poisoned control-plane path must be rejected")
+    except ValueError as exc:
+        assert "control_plane_edit" in str(exc)
+
+
+def test_validate_uploads_manifest_before_pr_tests():
+    section = _workflow_section("validate")
+    upload_at = section.find("name: validated-patch-")
+    tests_at = section.find("Run mapped suites with no secrets")
+    assert upload_at != -1 and tests_at != -1
+    assert upload_at < tests_at
 
 
 def test_e2e_pending_then_manifest_then_api_commit(tmp_path: Path):

@@ -102,13 +102,40 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted/scripts
           RESOLVED_SHA: ${{ steps.pin.outputs.trusted_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
-          import os
+          import json, os, urllib.request
           from pathlib import Path
-          from agent_protocol.bootstrap import read_approved_bootstrap_sha, verify_trusted_sha
+          from agent_protocol.bootstrap import (
+              github_is_descendant,
+              read_approved_bootstrap_sha,
+              verify_trusted_sha,
+          )
+
+          def request(method, url, token, payload=None):
+              req = urllib.request.Request(
+                  url,
+                  method=method,
+                  headers={
+                      "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                      "Accept": "application/vnd.github+json",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.loads(resp.read().decode("utf-8"))
+
           approved = read_approved_bootstrap_sha(Path("trusted"))
-          print(verify_trusted_sha(os.environ["RESOLVED_SHA"], approved))
+          api = f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}"
+          print(
+              verify_trusted_sha(
+                  os.environ["RESOLVED_SHA"],
+                  approved,
+                  is_ancestor=lambda a, r: github_is_descendant(
+                      api_root=api, approved_sha=a, resolved_sha=r, request=request
+                  ),
+              )
+          )
           PY
       - name: Qualify from trusted default-branch control plane
         env:
@@ -437,6 +464,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      manifest_digest: ${{ steps.seal.outputs.digest }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -456,7 +485,8 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-      - name: Apply patch and refuse control-plane or unsafe files
+      - name: Apply patch and seal the manifest before PR tests
+        id: seal
         env:
           PYTHONPATH: ${{ github.workspace }}/trusted/scripts
           HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
@@ -472,15 +502,24 @@ jobs:
           trusted = Path(os.environ["PYTHONPATH"]).resolve()
           sys.path[:] = [str(trusted)] + [p for p in sys.path if p not in ("", ".")]
           from agent_protocol.control_plane import assert_patch_allowed
-          from agent_protocol.manifest import collect_manifest, dump_manifest
+          from agent_protocol.manifest import collect_manifest, digest_file, dump_manifest
           from agent_protocol.testsuites import suites_for_changed_paths
           root = Path(os.environ["GITHUB_WORKSPACE"]) / "untrusted"
           paths = assert_patch_allowed(root, expected_head=os.environ["HEAD_SHA"])
           manifest = collect_manifest(root, paths, parent_sha=os.environ["HEAD_SHA"])
-          Path("/tmp/validated-manifest.json").write_text(json.dumps(dump_manifest(manifest)), encoding="utf-8")
+          sealed = Path("/tmp/validated-manifest.json")
+          sealed.write_text(json.dumps(dump_manifest(manifest)), encoding="utf-8")
+          digest = digest_file(sealed)
           Path("/tmp/suites.json").write_text(json.dumps(suites_for_changed_paths(paths)), encoding="utf-8")
-          print("changed", paths)
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"digest={digest}\n")
+          print("changed", paths, "digest", digest)
           PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: validated-patch-${{ steps.seal.outputs.digest }}
+          path: /tmp/validated-manifest.json
+          if-no-files-found: error
       - name: Run mapped suites with no secrets
         working-directory: untrusted
         run: |
@@ -494,11 +533,6 @@ jobs:
               print("running", command)
               subprocess.check_call(command)
           PY
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: validated-patch
-          path: |
-            /tmp/validated-manifest.json
 
   commit:
     needs: [qualify, architect-write, validate]
@@ -516,7 +550,7 @@ jobs:
           path: trusted
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: validated-patch
+          name: validated-patch-${{ needs.validate.outputs.manifest_digest }}
           path: /tmp/ok
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
@@ -529,6 +563,7 @@ jobs:
           PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
           TASK: ${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}
           PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          MANIFEST_DIGEST: ${{ needs.validate.outputs.manifest_digest }}
         working-directory: ${{ github.workspace }}/trusted
         run: |
           set -euo pipefail
@@ -543,5 +578,12 @@ jobs:
           fi
           python "${GITHUB_WORKSPACE}/trusted/scripts/agent_protocol/apply_commit.py" \
             --manifest /tmp/ok/validated-manifest.json \
+            --expected-digest "${MANIFEST_DIGEST}" \
             --trusted-scripts "${GITHUB_WORKSPACE}/trusted/scripts"
+          NEW=$(python -c "import pathlib; print(pathlib.Path('/tmp/correction.md').read_text().split('Commit: ',1)[-1].splitlines()[0])")
+          LIVE_AFTER=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          if [ "${LIVE_AFTER,,}" != "${NEW,,}" ]; then
+            echo "post-commit head mismatch; skip handoff comment"
+            exit 0
+          fi
           gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"

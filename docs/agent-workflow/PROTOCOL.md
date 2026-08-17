@@ -129,7 +129,7 @@ GitHub Actions workflow: `.github/workflows/herbagraph-agent-loop.yml`.
 
 ### Triggers
 
-The workflow uses `pull_request_target` so the running YAML and orchestrator always come from `integration/agent`. Untrusted PR code is checked out into a separate `untrusted/` worktree with `persist-credentials: false`. Model steps never receive `GITHUB_TOKEN`.
+The workflow uses `pull_request_target` so the running YAML and orchestrator come from protected `main` (see ADR-0007). Implementation PRs still target `integration/agent`. Untrusted PR code is checked out into a separate `untrusted/` worktree with `persist-credentials: false`. Model steps never receive `GITHUB_TOKEN`.
 
 A PR event (`opened`, `synchronize`, `reopened`, `labeled`, `ready_for_review`) or `workflow_dispatch` may start the loop only when **all** of these are true:
 
