@@ -13,7 +13,8 @@ _SCRIPTS = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from agent_protocol.checks import coerce_verdict_for_checks, parse_check_runs
+from agent_protocol.artifact import ReviewArtifact, artifact_from_dict
+from agent_protocol.checks import apply_check_gate, parse_check_runs
 from agent_protocol.comment import plan_comment_upsert
 from agent_protocol.cycle import completed_correction_cycles
 from agent_protocol.format import render_architect_review
@@ -92,6 +93,7 @@ def plan_architect_action(
     *,
     live_head_sha: str | None = None,
     checks_raw: dict | list | None = None,
+    artifact: ReviewArtifact | None = None,
 ) -> dict:
     comments = comments_from_payload(comments_raw)
     pr = pull_request_from_payload(pr_raw)
@@ -153,21 +155,24 @@ def plan_architect_action(
         return result
 
     checks = parse_check_runs(checks_raw or [])
-    checks_green = coerce_verdict_for_checks("ARCHITECT_APPROVED", checks) == "ARCHITECT_APPROVED"
-    coerced = coerce_verdict_for_checks(review.status, checks)
+    gate = apply_check_gate(review.status, checks)
+    if gate["state"] == "pending":
+        result.update({"reason": "checks_pending", "verdict": review.status, "upsert_action": "noop"})
+        return result
+    coerced = gate["status"]
     if coerced != review.status:
         review = ArchitectReview(
             task=review.task,
             reviewed_commit=review.reviewed_commit,
             status=coerced,
-            blocking=review.blocking + ("required checks are not green",),
+            blocking=review.blocking + (gate["reason"],),
             should_fix=review.should_fix,
             noted=review.noted,
             hostile_trace=review.hostile_trace,
             required_checks=review.required_checks,
             allowed_next_scope=review.allowed_next_scope,
-            next_owner="FOUNDER",
-            trap_line=review.trap_line or "Approval is impossible while required checks are pending or failing.",
+            next_owner="GROK" if coerced == "CHANGES_REQUIRED" else "FOUNDER",
+            trap_line=review.trap_line or "Approval is impossible while required checks are missing or failing.",
             raw=review.raw,
         )
 
@@ -177,19 +182,22 @@ def plan_architect_action(
         review,
         head_sha=pr.head_sha,
         completed_cycles=completed_correction_cycles(comments),
-        checks_green=checks_green,
+        checks_green=gate["state"] == "success",
+        checks_state=gate["state"],
     )
     result.update(
         {
             "verdict": review.status,
             "run_correction": "true" if decision.run_correction else "false",
             "label": decision.label,
-            "upsert_action": plan.action,
-            "comment_body": plan.body,
+            "upsert_action": "noop" if gate["write"] == "false" else plan.action,
+            "comment_body": None if gate["write"] == "false" else plan.body,
             "comment_id": plan.comment_id,
             "reason": decision.reason,
             "next_owner": decision.next_owner,
             "task": review.task,
+            "checks_state": gate["state"],
+            "artifact_digest": artifact.digest if artifact else "",
         }
     )
     return result
@@ -216,12 +224,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     args = parser.parse_args(argv)
     checks = load_json(args.checks_json) if args.checks_json else []
+    raw_input = Path(args.review_input).read_text(encoding="utf-8")
+    artifact = None
+    try:
+        wrapped = json.loads(raw_input)
+    except json.JSONDecodeError:
+        wrapped = None
+    if isinstance(wrapped, dict) and "review_payload" in wrapped:
+        artifact = artifact_from_dict(wrapped)
+        raw_input = artifact.review_payload
     result = plan_architect_action(
         load_json(args.pr_json),
         load_json(args.comments_json),
-        Path(args.review_input).read_text(encoding="utf-8"),
+        raw_input,
         live_head_sha=args.live_head_sha or None,
         checks_raw=checks,
+        artifact=artifact,
     )
     write_github_output(args.github_output, result)
     print(json.dumps({k: v for k, v in result.items() if k != "comment_body"}, indent=2))

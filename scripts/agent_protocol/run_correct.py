@@ -13,6 +13,7 @@ _SCRIPTS = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from agent_protocol.artifact import ReviewArtifact, artifact_from_dict
 from agent_protocol.auth import select_trusted_review
 from agent_protocol.cycle import completed_correction_cycles, next_cycle_number
 from agent_protocol.freshness import refuse_stale_write
@@ -32,6 +33,9 @@ def plan_correction(
     pr_number: int,
     task: str,
     live_head_sha: str | None = None,
+    artifact: ReviewArtifact | None = None,
+    workflow_run_id: str | None = None,
+    trusted_workflow_sha: str | None = None,
 ) -> dict:
     comments = comments_from_payload(comments_raw)
     cycles = completed_correction_cycles(comments)
@@ -51,7 +55,15 @@ def plan_correction(
         result["reason"] = "forbidden_action"
         result["label"] = "founder-decision-required"
         return result
-    latest = select_trusted_review(comments, pr_number=pr_number, head_sha=head_sha, task=task)
+    latest = select_trusted_review(
+        comments,
+        pr_number=pr_number,
+        head_sha=head_sha,
+        task=task,
+        artifact=artifact,
+        workflow_run_id=workflow_run_id,
+        trusted_workflow_sha=trusted_workflow_sha,
+    )
     if latest is None:
         result["reason"] = "no_trusted_review"
         return result
@@ -77,14 +89,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pr-number", required=True, type=int)
     parser.add_argument("--task", required=True)
     parser.add_argument("--live-head-sha", default="")
+    parser.add_argument("--artifact-json", default="")
+    parser.add_argument("--workflow-run-id", default=os.environ.get("GITHUB_RUN_ID", ""))
+    parser.add_argument("--trusted-workflow-sha", default=os.environ.get("TRUSTED_WORKFLOW_SHA", ""))
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     args = parser.parse_args(argv)
+    artifact = artifact_from_dict(load_json(args.artifact_json)) if args.artifact_json else None
     result = plan_correction(
         head_sha=args.head_sha.lower(),
         comments_raw=load_json(args.comments_json),
         pr_number=args.pr_number,
         task=args.task,
         live_head_sha=args.live_head_sha or None,
+        artifact=artifact,
+        workflow_run_id=args.workflow_run_id or None,
+        trusted_workflow_sha=args.trusted_workflow_sha or None,
     )
     if args.github_output:
         with open(args.github_output, "a", encoding="utf-8") as handle:
