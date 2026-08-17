@@ -58,7 +58,6 @@ def test_trusted_checkouts_use_qualify_exact_sha():
 
 
 def test_agent_branches_are_reviewable_but_never_auto_corrected_or_promoted():
-    text = WORKFLOW.read_text(encoding="utf-8")
     qualify = _workflow_section("qualify")
     assert '"$HEAD_REF" != grok/* && "$HEAD_REF" != agent/*' in qualify
     for job in ("correct-model", "validate", "commit", "promote-uat"):
