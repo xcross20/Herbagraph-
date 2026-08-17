@@ -65,11 +65,23 @@ def confidence_increasers(
     return items[:8]
 
 
+def _empty_evidence_buckets() -> dict[str, list]:
+    return {
+        "supports": [],
+        "weakens": [],
+        "does_not_address": [],
+        "inconclusive": [],
+        "unresolved": [],
+        "contradictions": [],
+    }
+
+
 def build_map_payload(
     *,
     snapshot: Any,
     facts: dict[str, str],
     unknowns: list[str],
+    evidence_by_branch: dict[str, dict[str, list]] | None = None,
 ) -> dict:
     branches = []
     for hypo in snapshot.hypotheses:
@@ -78,6 +90,10 @@ def build_map_payload(
             for item in snapshot.findings
             if item.kind in {"symptom", "assessment"} and item.name not in {"safety_state"}
         ][:4]
+        buckets = _empty_evidence_buckets()
+        extra = (evidence_by_branch or {}).get(hypo.code) or {}
+        for key in buckets:
+            buckets[key] = list(extra.get(key) or [])
         branches.append(
             {
                 "code": hypo.code,
@@ -88,9 +104,10 @@ def build_map_payload(
                 "missing_markers": list(hypo.missing_markers or []),
                 "not_a_diagnosis": hypo.not_a_diagnosis,
                 "support": support,
-                "against": [],
+                "against": list(buckets["weakens"]),
                 "unknown": list(hypo.missing_markers or [])[:4],
                 "why_here": (hypo.why_limited[0] if getattr(hypo, "why_limited", None) else hypo.not_a_diagnosis),
+                **buckets,
             }
         )
     increasers = confidence_increasers(
