@@ -155,7 +155,9 @@ async def register(
     if payload.access_code:
         verify_access_code(payload.access_code)
         approve_email_for_signup(payload.email)
-    require_approved_email(payload.email)
+    # Guest demo accounts are ephemeral and do not consume the founder access code.
+    if not _is_guest_email(payload.email):
+        require_approved_email(payload.email)
     existing = await db.execute(select(User).where(User.email == payload.email))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
