@@ -1,24 +1,19 @@
-"""DI-01, DI-05, partial DI-09, ADR-MVP-001, ADR-MVP-004.
-
-These tests reproduce the live defect on current main: `apply_snapshot`
-deletes findings and inserts a new snapshot. They do not reproduce V2
-Issues 4–7 (inverted FKs, inactive leak through a graph persist path).
-Those modules are absent here; see the V2 forensic SHA in `red.py`.
-"""
+"""DI-01, DI-05, DI-09, DI-10, ADR-MVP-001, ADR-MVP-004."""
 
 from __future__ import annotations
 
+import json
 import uuid
 
 import pytest
 from sqlalchemy import select
 
 from app.discovery.engine import CaseSnapshot, FindingDraft
-from app.discovery.service import apply_snapshot, rebuild_case
+from app.discovery.map import build_map_payload
+from app.discovery.service import apply_snapshot, case_to_read, rebuild_case, snapshot_to_read
 from app.models.discovery import DiscoveryCase, DiscoveryFinding
 from app.models.enums import DiscoveryCaseStatus, DiscoveryFindingKind
 from app.models.user import User
-from tests.discovery_mvp.red import SCAFFOLDED, reproduced_on_main
 
 
 async def _case(db_session) -> DiscoveryCase:
@@ -54,10 +49,6 @@ def _onset_snapshot(case: DiscoveryCase, value: str) -> CaseSnapshot:
     )
 
 
-@reproduced_on_main(
-    invariant="DI-01",
-    defect="apply_snapshot deletes the original finding row",
-)
 @pytest.mark.asyncio
 async def test_finding_identity_survives_rebuild(db_session):
     """Rebuild is a projection and must not replace finding identity."""
@@ -82,18 +73,8 @@ async def test_finding_identity_survives_rebuild(db_session):
     assert held.created_at == original_created
 
 
-@reproduced_on_main(
-    invariant="DI-09 (history preservation only)",
-    defect="apply_snapshot destroys the original row instead of preserving correction history",
-)
 @pytest.mark.asyncio
 async def test_correction_preserves_original_history(db_session):
-    """A correction must not delete the original historical finding.
-
-    This reproduces only the first live failure. Link direction and active-only
-    projection are separate scaffolded claims because the current model has no
-    correction or active-history fields and execution cannot reach them.
-    """
     case = await _case(db_session)
     first = DiscoveryFinding(
         case_id=case.id,
@@ -112,31 +93,62 @@ async def test_correction_preserves_original_history(db_session):
     original = await db_session.get(DiscoveryFinding, first_id)
     assert original is not None
     assert original.value == "after surgery"
+    assert original.active is False
 
 
-@pytest.mark.skip(
-    reason=(
-        f"{SCAFFOLDED}: correction linkage and inactive-history fields are absent on "
-        "integration/agent; PR-D must prove predecessor direction and active-only "
-        "prompt/map/report projection at persistence and API boundaries"
+@pytest.mark.asyncio
+async def test_correction_links_replacement_and_excludes_inactive_history_from_all_active_projections(
+    db_session,
+):
+    case = await _case(db_session)
+    first = DiscoveryFinding(
+        case_id=case.id,
+        kind=DiscoveryFindingKind.CONTEXT,
+        name="onset",
+        value="after surgery",
+        source="user",
     )
-)
-def test_correction_links_replacement_and_excludes_inactive_history_from_all_active_projections():
-    """DI-09/DI-10 and ISS-04/05/06 contract; not evidence until PR-D."""
-    raise AssertionError("unreachable until the PR-D correction path exists")
+    db_session.add(first)
+    await db_session.flush()
+    first_id = first.id
+    snapshot = _onset_snapshot(case, "before surgery")
+    await apply_snapshot(db_session, case, snapshot)
+    await db_session.flush()
+
+    original = await db_session.get(DiscoveryFinding, first_id)
+    rows = list(
+        (
+            await db_session.execute(
+                select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id)
+            )
+        ).scalars()
+    )
+    replacement = next((row for row in rows if row.id != first_id and row.value == "before surgery"), None)
+    assert original is not None
+    assert original.active is False
+    assert replacement is not None
+    assert replacement.supersedes_finding_id == first_id
+
+    from sqlalchemy.orm import attributes
+
+    attributes.set_committed_value(case, "findings", rows)
+    read = snapshot_to_read(case, snapshot)
+    dumped = json.dumps(read.model_dump(), default=str).lower()
+    payload = json.dumps(
+        build_map_payload(snapshot=snapshot, facts={"onset": "before surgery"}, unknowns=[]),
+        default=str,
+    ).lower()
+    assert "after surgery" not in dumped
+    assert "after surgery" not in payload
+    for finding in read.findings:
+        assert finding.value != "after surgery"
+
+    api_read = await case_to_read(db_session, case)
+    assert all(item.value != "after surgery" for item in api_read.findings)
 
 
-@reproduced_on_main(
-    invariant="DI-05",
-    defect="rebuild deletes and inserts; row count 1 can hide identity churn",
-)
 @pytest.mark.asyncio
 async def test_second_rebuild_is_not_a_new_truth(db_session):
-    """Hostile trace: rebuild 1 deletes A/inserts B; rebuild 2 deletes B/inserts C.
-
-    Final count 1 is not enough. IDs, semantic identity, and audit timestamps
-    must be stable. Projection must not mutate canonical rows.
-    """
     case = await _case(db_session)
     row = DiscoveryFinding(
         case_id=case.id,

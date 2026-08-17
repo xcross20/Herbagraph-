@@ -19,8 +19,6 @@ from app.discovery.service import snapshot_to_read
 from app.models.discovery import DiscoveryCase
 from app.models.enums import DiscoveryCaseStatus
 from app.schemas.discovery import DiscoveryHypothesisRead
-from tests.discovery_mvp.red import reproduced_on_main
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CERTAINTY_KEYS = frozenset(
     {
@@ -42,10 +40,6 @@ def _assert_no_certainty_keys(node) -> None:
             _assert_no_certainty_keys(item)
 
 
-@reproduced_on_main(
-    invariant="SO-02",
-    defect="build_map_payload still emits branch key 'certainty'",
-)
 def test_map_payload_must_not_carry_diagnostic_certainty_keys():
     snapshot = rebuild_case_state("For six months my feet have burned at night.", [], {})
     payload = build_map_payload(snapshot=snapshot, facts={"burning sensation": "reported"}, unknowns=[])
@@ -57,10 +51,6 @@ def test_map_payload_must_not_carry_diagnostic_certainty_keys():
         assert "diagnostic_certainty_percent" not in branch
 
 
-@reproduced_on_main(
-    invariant="SO-02",
-    defect="DiscoveryHypothesisRead / snapshot_to_read expose diagnostic_certainty fields",
-)
 def test_api_serializer_must_not_expose_diagnostic_certainty_fields():
     schema_fields = set(DiscoveryHypothesisRead.model_fields)
     assert "diagnostic_certainty" not in schema_fields
@@ -83,10 +73,6 @@ def test_api_serializer_must_not_expose_diagnostic_certainty_fields():
         assert "diagnostic_certainty_percent" not in hypothesis
 
 
-@reproduced_on_main(
-    invariant="SO-02",
-    defect="Ask frontend renders Diagnostic certainty from API percent fields",
-)
 def test_frontend_must_not_render_diagnostic_certainty():
     workspace = (REPO_ROOT / "frontend" / "js" / "workspace-app.js").read_text(encoding="utf-8")
     assert "Diagnostic certainty" not in workspace

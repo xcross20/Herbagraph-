@@ -83,6 +83,73 @@ class DiscoveryHypothesisStatus(str, enum.Enum):
     DEFERRED = "deferred"
 
 
+class CoverageRelation(str, enum.Enum):
+    """What a test is capable of assessing. Not an evidence relationship."""
+
+    DIRECTLY_ASSESSES = "directly_assesses"
+    PARTIALLY_ASSESSES = "partially_assesses"
+    DOES_NOT_DIRECTLY_ASSESS = "does_not_directly_assess"
+    NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
+
+
+class EvidenceRelationship(str, enum.Enum):
+    """What a result does on a branch. Separate type from CoverageRelation."""
+
+    SUPPORTS = "supports"
+    WEAKENS = "weakens"
+    DOES_NOT_ADDRESS = "does_not_address"
+    RESOLVES_GAP = "resolves_gap"
+    INCONCLUSIVE = "inconclusive"
+
+
+class ResultState(str, enum.Enum):
+    POSITIVE = "positive"
+    NEGATIVE = "negative"
+    INDETERMINATE = "indeterminate"
+
+
+class ResolverStatus(str, enum.Enum):
+    MATCHED = "matched"
+    AMBIGUOUS = "ambiguous"
+    UNRESOLVED = "unresolved"
+
+
+class BranchLifecycleStatus(str, enum.Enum):
+    """Exact persisted vocabulary from ADR-MVP-005."""
+
+    NOT_EVALUATED = "not_evaluated"
+    PARTIALLY_EVALUATED = "partially_evaluated"
+    EVALUATED_OPEN = "evaluated_open"
+    CLOSED = "closed"
+    REOPENED = "reopened"
+
+
+class DocumentOutcome(str, enum.Enum):
+    SUCCEEDED = "succeeded"
+    VALID_EMPTY = "valid_empty"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+    FAILED = "failed"
+
+
+class MonitoringOutcomeKind(str, enum.Enum):
+    IMPROVED = "improved"
+    NO_CHANGE = "no_change"
+    ADVERSE_EFFECT = "adverse_effect"
+    STOPPED = "stopped"
+
+
+class ScientificItemType(str, enum.Enum):
+    OBSERVATION = "observation"
+    PATIENT_REPORT = "patient_report"
+    SYSTEM_INFERENCE = "system_inference"
+    LITERATURE_CLAIM = "literature_claim"
+    GAP = "gap"
+    POSSIBILITY = "possibility"
+    INTERVENTION_OPTION = "intervention_option"
+
+
 class PatientContextSource(str, enum.Enum):
     USER = "user"
     IMPORT = "import"

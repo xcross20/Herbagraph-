@@ -17,6 +17,11 @@ from app.models.discovery import (
     DiscoveryMapVersion,
     DiscoveryTestPlanItem,
     DiscoveryLongitudinalSnapshot,
+    DiscoveryInvestigationBranch,
+    DiscoveryEvidenceGap,
+    DiscoveryWorkupItem,
+    DiscoveryEvidenceEdge,
+    DiscoveryMonitoringEvent,
 )
 from app.models.compound import Compound, InterventionCompound
 from app.models.evidence import Citation, EvidenceClaim
@@ -53,6 +58,11 @@ __all__ = [
     "DiscoveryMapVersion",
     "DiscoveryTestPlanItem",
     "DiscoveryLongitudinalSnapshot",
+    "DiscoveryInvestigationBranch",
+    "DiscoveryEvidenceGap",
+    "DiscoveryWorkupItem",
+    "DiscoveryEvidenceEdge",
+    "DiscoveryMonitoringEvent",
     "Compound",
     "InterventionCompound",
     "Citation",
