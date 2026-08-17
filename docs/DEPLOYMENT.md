@@ -61,6 +61,16 @@ docker compose exec api python scripts/reseed_db.py
 
 6. Set `CORS` — with `DEBUG=false`, update `app/main.py` `allow_origins` to your domain (or add `CORS_ORIGINS` env support before launch).
 
+## Railway planes
+
+| Plane | Git source | Railway environment | URL |
+|---|---|---|---|
+| Production | `main` | `production` | https://www.herbagraph.com |
+| Persistent UAT | `integration/agent` | `uat` | https://herbagraph-uat.up.railway.app/demo |
+| PR preview | `grok/**` PR | ephemeral | Railway PR URL |
+
+See [UAT.md](./UAT.md). Do not create a long-lived `uat` git branch.
+
 ## Option B — Railway / Render (managed)
 
 **Services to create:**

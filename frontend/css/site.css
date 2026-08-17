@@ -27,6 +27,18 @@ body {
 a { color: var(--hg-blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+#hg-env-banner {
+  position: sticky;
+  top: 0;
+  z-index: 4000;
+  background: #7a4b00;
+  color: #fff8e8;
+  font-size: 13px;
+  padding: 0.45rem 1rem;
+  text-align: center;
+}
+#hg-env-banner a { color: #fff; text-decoration: underline; }
+
 /* Logo */
 .logo {
   display: inline-flex;
