@@ -59,16 +59,13 @@ def stamp_head() -> None:
     command.stamp(_alembic_config(), "head")
 
 
-async def main(*, force: bool) -> None:
+async def prepare(*, force: bool) -> None:
     assert_not_production()
     if await schema_ready() and not force:
-        print("Schema already has users.auth_provider; stamping Alembic head.")
-        stamp_head()
+        print("Schema already has users.auth_provider.")
         return
     print("Rebuilding non-production schema from SQLAlchemy models.")
     await rebuild_schema()
-    stamp_head()
-    print("Schema created and Alembic stamped at head.")
 
 
 if __name__ == "__main__":
@@ -79,4 +76,7 @@ if __name__ == "__main__":
         help="Drop and recreate even if users.auth_provider already exists.",
     )
     args = parser.parse_args()
-    asyncio.run(main(force=args.force))
+    # Stamp after the event loop closes — alembic/env.py uses asyncio.run().
+    asyncio.run(prepare(force=args.force))
+    stamp_head()
+    print("Alembic stamped at head.")
