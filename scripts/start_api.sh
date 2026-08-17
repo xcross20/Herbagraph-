@@ -32,22 +32,33 @@ if err := validate_production_database_url(os.environ["DATABASE_URL"], railway=r
     sys.exit(1)
 PY
 echo "Applying database migrations (alembic upgrade head)..."
+env_name="$(printf '%s' "${APP_ENV:-${HERBAGRAPH_ENV:-${RAILWAY_ENVIRONMENT_NAME:-local}}}" | tr '[:upper:]' '[:lower:]')"
+nonprod_railway=0
+if [[ -n "${RAILWAY_ENVIRONMENT:-}" && "$env_name" != "production" ]]; then
+  nonprod_railway=1
+fi
 migration_ok=0
-for attempt in 1 2 3 4 5; do
+attempts=1
+if [[ "$nonprod_railway" -ne 1 ]]; then
+  attempts=5
+fi
+for attempt in $(seq 1 "$attempts"); do
   if alembic upgrade head; then
     echo "Migrations applied."
     migration_ok=1
     break
   fi
-  echo "Migration attempt $attempt failed; retrying in 5s..."
-  sleep 5
+  echo "Migration attempt $attempt failed."
+  if [[ "$attempt" -lt "$attempts" ]]; then
+    echo "Retrying in 5s..."
+    sleep 5
+  fi
 done
 if [[ "$migration_ok" -ne 1 ]]; then
-  env_name="$(printf '%s' "${APP_ENV:-${HERBAGRAPH_ENV:-${RAILWAY_ENVIRONMENT_NAME:-local}}}" | tr '[:upper:]' '[:lower:]')"
-  if [[ -n "${RAILWAY_ENVIRONMENT:-}" && "$env_name" != "production" ]]; then
+  if [[ "$nonprod_railway" -eq 1 ]]; then
     echo "Alembic failed on non-production Railway. Bootstrapping schema from models."
     root="$(cd "$(dirname "$0")/.." && pwd)"
-    python3 "$root/scripts/bootstrap_nonprod_schema.py"
+    python3 "$root/scripts/bootstrap_nonprod_schema.py" --force
     echo "Schema bootstrap done. Seed catalog separately: python scripts/seed_db.py"
   else
     echo "WARNING: alembic upgrade head failed — starting API anyway."
