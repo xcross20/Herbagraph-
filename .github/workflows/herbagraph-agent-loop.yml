@@ -585,10 +585,17 @@ jobs:
             --manifest /tmp/ok/validated-manifest.json \
             --expected-digest "${MANIFEST_DIGEST}" \
             --trusted-scripts "${GITHUB_WORKSPACE}/trusted/scripts"
-          NEW=$(python -c "import pathlib; print(pathlib.Path('/tmp/correction.md').read_text().split('Commit: ',1)[-1].splitlines()[0])")
-          LIVE_AFTER=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+          NEW=$(python -c "import pathlib,re; t=pathlib.Path('/tmp/correction.md').read_text(); print(re.findall(r'^Commit: ([0-9a-f]{40})$', t, flags=re.I|re.M)[-1])")
+          LIVE_AFTER=""
+          for _ in 1 2 3 4 5 6; do
+            LIVE_AFTER=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
+            if [ "${LIVE_AFTER,,}" = "${NEW,,}" ]; then
+              break
+            fi
+            sleep 2
+          done
           if [ "${LIVE_AFTER,,}" != "${NEW,,}" ]; then
-            echo "post-commit head mismatch; skip handoff comment"
+            echo "post-commit head mismatch live=${LIVE_AFTER} new=${NEW}; skip handoff comment"
             exit 0
           fi
           GH_REPO="${GITHUB_REPOSITORY}" gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"
