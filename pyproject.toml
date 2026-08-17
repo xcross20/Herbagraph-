@@ -7,6 +7,9 @@ markers = [
     "integration: tests exercising the API/DB with mocked external services",
     "live: optional smoke against a running Docker stack (HERBAGRAPH_LIVE_E2E=1)",
     "playwright: optional browser UI smoke (HERBAGRAPH_PLAYWRIGHT=1)",
+    "mvp_red: expected-failure Discovery integrity tests; unexpected pass fails CI",
+    "mvp_scaffold: contract scaffolding; not a reproduced defect",
+    "requires_postgres: uniqueness/concurrency; skipped on SQLite",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
