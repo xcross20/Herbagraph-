@@ -156,6 +156,16 @@ def test_poisoned_tmp_manifest_is_not_the_sealed_artifact(tmp_path: Path):
         assert "control_plane_edit" in str(exc)
 
 
+def test_promote_uat_job_never_targets_main():
+    section = _workflow_section("promote-uat")
+    assert "promote_uat.py" in section
+    assert "contents: write" in section
+    assert "ARCHITECT_APPROVED" in section
+    assert "base_is_production_or_main" not in section
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "merge(uat):" in text or "promote_uat.py" in text
+
+
 def test_architect_write_sets_gh_repo_for_labels():
     section = _workflow_section("architect-write")
     assert "GH_REPO: ${{ github.repository }}" in section

@@ -54,7 +54,7 @@ Guided Discovery is additive. It sits above the existing laboratory analysis eng
 - `architect/<issue>-<slug>`: architecture or specification branches.
 - `agent/<slug>`: automation-created foundation or maintenance branches.
 
-Agents must not push directly to `main`. Implementation PRs target `integration/agent`. Promotion PRs from `integration/agent` to `main` require Founder approval.
+Agents must not push directly to `main`. Implementation PRs target `integration/agent`. Promotion PRs from `integration/agent` to `main` require Founder approval. After exact-SHA Architect approval and green `gates`, the loop may merge an allowlisted autonomous-uat path (`tests/fixtures/agent_loop_canary.txt` only) into `integration/agent` so persistent Railway UAT updates. It must not merge to `main` or retarget production.
 
 Each PR must identify the exact issue/specification, current commit SHA, changed behavior, tests run, known limitations, migrations, security implications, and rollback approach.
 
