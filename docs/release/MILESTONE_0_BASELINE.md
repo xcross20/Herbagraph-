@@ -9,16 +9,17 @@
 
 | Ref | SHA |
 | --- | --- |
-| `origin/main` | `a1e82f15b7ef318e77b20c3809343e98497ac2ba` |
-| `origin/integration/agent` | `a1e82f15b7ef318e77b20c3809343e98497ac2ba` |
+| `origin/main` | `cd42abfa8eb794110e20fe1a7ba1c35b2f8644bd` |
+| `origin/integration/agent` | `843dd55c715b4098b4661ca1acede2f5578674e7` |
+| This PR-A head after rebase | `d62b9b7a53d179ddbcf60ab8a56b5fbea55c9fa5` |
 | `origin/agent/architecture-foundation` (PR #5) | `681a24f504c7fea7aafbef9822d3a0c88e3b9cf1` |
 | `origin/discovery/investigation-state-v2` (forensic only) | `e7ab37aeed5538546fd657a6b0c1a394ad937510` |
-| Production deploy SHA | **unknown** — no deployment evidence recorded |
-| Staging deploy SHA | **unknown** — no deployment evidence recorded |
+| Production deploy SHA | **unknown** — Railway production still sourced from `claude/herbagraph-test-suite-mgmrz1`; no confirmed SHA |
+| Persistent UAT deploy SHA | `843dd55c715b` — `https://herbagraph-uat.up.railway.app/meta` after merge to `integration/agent` |
 
-“Same lineage as main” is not a deploy identity. Do not treat production as `a1e82f1` unless Railway/deploy logs confirm it.
+“Same lineage as main” is not a deploy identity. Do not treat production as `cd42abf`.
 
-`integration/agent` currently equals `main`. No autonomous work has been merged into the staging lane yet. The V2 branch is forensic/reference material only. Do not merge it wholesale.
+`integration/agent` is ahead of `main` (UAT app + canary merge). The V2 branch is forensic/reference material only. Do not merge it wholesale.
 
 ## Migration head
 
