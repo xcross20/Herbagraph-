@@ -22,3 +22,11 @@ def test_applies_only_safe_relative_edits(tmp_path: Path):
     written = apply_file_edits(tmp_path, [{"path": "docs/note.md", "content": "ok\n"}])
     assert written == ["docs/note.md"]
     assert (tmp_path / "docs/note.md").read_text(encoding="utf-8") == "ok\n"
+
+
+def test_applies_edits_when_repo_root_is_relative(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "untrusted").mkdir()
+    written = apply_file_edits(Path("untrusted"), [{"path": "tests/fixtures/agent_loop_canary.txt", "content": "canary-ready\n"}])
+    assert written == ["tests/fixtures/agent_loop_canary.txt"]
+    assert (tmp_path / "untrusted" / "tests" / "fixtures" / "agent_loop_canary.txt").read_text(encoding="utf-8") == "canary-ready\n"
