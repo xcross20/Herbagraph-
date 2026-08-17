@@ -1,4 +1,3 @@
 # Founder-approved trusted orchestrator SHA on protected main.
-# Empty is fail-closed: the loop will not activate until a founder sets a
-# 40-character SHA here. Descendants of that SHA are accepted via GitHub compare.
-approved_bootstrap_sha=
+# Descendants of this SHA are accepted via GitHub compare.
+approved_bootstrap_sha=1187291acc8bc5b316d6f3c5cf618278a33b4cc5
