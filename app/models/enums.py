@@ -474,3 +474,140 @@ class SafetyWarningEvidenceLevel(str, enum.Enum):
     MECHANISTIC = "mechanistic"
     ANIMAL = "animal"
     TRADITIONAL = "traditional"
+
+
+class DiscoveryProvenance(str, enum.Enum):
+    PATIENT_REPORTED = "patient_reported"
+    CLINICIAN_REPORTED = "clinician_reported"
+    DOCUMENT_EXTRACTED = "document_extracted"
+    DOCUMENT_VERIFIED = "document_verified"
+    LAB_VERIFIED = "lab_verified"
+    SYSTEM_INFERRED = "system_inferred"
+    CLINICIAN_CONFIRMED = "clinician_confirmed"
+
+
+class DiscoveryVerificationState(str, enum.Enum):
+    UNVERIFIED = "unverified"
+    REPORTED = "reported"
+    EXTRACTED = "extracted"
+    VERIFIED = "verified"
+    CORRECTED = "corrected"
+    RETRACTED = "retracted"
+
+
+class DiscoveryTemporality(str, enum.Enum):
+    CURRENT = "current"
+    RECENT = "recent"
+    HISTORICAL = "historical"
+    RECURRING = "recurring"
+    RESOLVED = "resolved"
+    UNKNOWN = "unknown"
+
+
+class DiscoveryLaterality(str, enum.Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    BILATERAL = "bilateral"
+    MIDLINE = "midline"
+    UNKNOWN = "unknown"
+
+
+class DiscoveryBranchStatus(str, enum.Enum):
+    NOT_EVALUATED = "not_evaluated"
+    PARTIALLY_EVALUATED = "partially_evaluated"
+    SUPPORTED_FOR_FURTHER_INVESTIGATION = "supported_for_further_investigation"
+    ADEQUATELY_EVALUATED_NO_SUPPORT = "adequately_evaluated_no_support"
+    CONDITIONALLY_RESOLVED = "conditionally_resolved"
+    EXTERNALLY_CONFIRMED = "externally_confirmed"
+    REOPENED = "reopened"
+
+
+class DiscoveryEvidenceRelationship(str, enum.Enum):
+    SUPPORTS = "supports"
+    WEAKENS = "weakens"
+    CONTRADICTS = "contradicts"
+    DOES_NOT_ADDRESS = "does_not_address"
+    RESOLVES_GAP = "resolves_gap"
+    INCONCLUSIVE = "inconclusive"
+
+
+class DiscoveryGapStatus(str, enum.Enum):
+    OPEN = "open"
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    NO_LONGER_RELEVANT = "no_longer_relevant"
+    DECLINED = "declined"
+
+
+class DiscoveryGapResolutionType(str, enum.Enum):
+    QUESTION = "question"
+    DOCUMENT = "document"
+    LAB = "lab"
+    IMAGING = "imaging"
+    PROCEDURE = "procedure"
+    SPECIALIST_EVALUATION = "specialist_evaluation"
+    OBSERVATION = "observation"
+    MONITORING = "monitoring"
+    OTHER = "other"
+
+
+class DiscoveryWorkupCompletion(str, enum.Enum):
+    NOT_REPORTED = "not_reported"
+    PATIENT_REPORTED_COMPLETED = "patient_reported_completed"
+    DOCUMENT_VERIFIED_COMPLETED = "document_verified_completed"
+    CLINICIAN_VERIFIED = "clinician_verified"
+
+
+class DiscoveryWorkupResult(str, enum.Enum):
+    PATIENT_REPORTED_NORMAL = "patient_reported_normal"
+    VERIFIED_NORMAL = "verified_normal"
+    PATIENT_REPORTED_ABNORMAL = "patient_reported_abnormal"
+    VERIFIED_ABNORMAL = "verified_abnormal"
+    INCONCLUSIVE = "inconclusive"
+    UNKNOWN_RESULT = "unknown_result"
+
+
+class DiscoveryEvidenceType(str, enum.Enum):
+    LAB_RESULT = "lab_result"
+    LAB_PANEL = "lab_panel"
+    DOCUMENT = "document"
+    IMAGING_REPORT = "imaging_report"
+    EMG_REPORT = "emg_report"
+    PATHOLOGY_REPORT = "pathology_report"
+    SPECIALIST_NOTE = "specialist_note"
+    USER_OBSERVATION = "user_observation"
+    INTERVENTION_OUTCOME = "intervention_outcome"
+    MONITORING_TREND = "monitoring_trend"
+
+
+class DiscoveryClaimStatus(str, enum.Enum):
+    ACTIVE = "active"
+    WEAKENED = "weakened"
+    RETRACTED = "retracted"
+    SUPERSEDED = "superseded"
+
+
+class DiscoveryTestAccessClass(str, enum.Enum):
+    CONSUMER_ACCESSIBLE = "consumer_accessible"
+    PARTNER_AUTHORIZED = "partner_authorized"
+    CLINICAL_REVIEW_REQUIRED = "clinical_review_required"
+    SPECIALTY_REFERRAL = "specialty_referral"
+
+
+class DiscoveryTestPlanStatus(str, enum.Enum):
+    SUGGESTED = "suggested"
+    ADDED = "added"
+    CLINICAL_REVIEW = "clinical_review"
+    ORDERED = "ordered"
+    COLLECTED = "collected"
+    RESULTED = "resulted"
+    DECLINED = "declined"
+    CANCELLED = "cancelled"
+
+
+class CoverageRelation(str, enum.Enum):
+    DIRECTLY_ASSESSES = "directly_assesses"
+    PARTIALLY_ASSESSES = "partially_assesses"
+    INDIRECTLY_INFORMS = "indirectly_informs"
+    DOES_NOT_DIRECTLY_ASSESS = "does_not_directly_assess"
+    NOT_APPLICABLE = "not_applicable"

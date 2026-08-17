@@ -76,6 +76,14 @@ class Settings(BaseSettings):
     google_oauth_enabled: bool = False
     # Public site URL for OAuth redirect documentation (e.g. https://www.herbagraph.com).
     app_public_url: str = ""
+    # Discovery investigation graph. Additive; legacy rebuild remains as cache.
+    discovery_guide_enabled: bool = True
+    discovery_investigation_state_v2: bool = False
+    discovery_coverage_graph_enabled: bool = False
+    discovery_append_only_findings: bool = False
+    discovery_document_reconciliation: bool = False
+    discovery_voice_enabled: bool = False
+    discovery_intervention_ledger: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:
