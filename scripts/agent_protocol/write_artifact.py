@@ -12,7 +12,7 @@ _SCRIPTS = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
-from agent_protocol.artifact import build_artifact, dump_artifact
+from agent_protocol.artifact import build_artifact, dump_artifact, stamp_trusted_task
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,7 +25,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--review-input", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args(argv)
-    payload = Path(args.review_input).read_text(encoding="utf-8")
+    payload = stamp_trusted_task(Path(args.review_input).read_text(encoding="utf-8"), args.task)
     artifact = build_artifact(
         pr_number=args.pr_number,
         head_sha=args.head_sha,
