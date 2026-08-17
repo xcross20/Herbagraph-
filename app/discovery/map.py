@@ -100,7 +100,6 @@ def build_map_payload(
                 "label": hypo.label,
                 "relevance": hypo.investigation_relevance,
                 "coverage": hypo.investigation_coverage,
-                "certainty": hypo.diagnostic_certainty,
                 "missing_markers": list(hypo.missing_markers or []),
                 "not_a_diagnosis": hypo.not_a_diagnosis,
                 "support": support,

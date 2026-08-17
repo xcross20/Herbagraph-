@@ -91,10 +91,8 @@ class DiscoveryHypothesisRead(BaseModel):
     branch: str
     status: str
     investigation_relevance: float
-    diagnostic_certainty: float
     investigation_coverage: float
     investigation_relevance_percent: int
-    diagnostic_certainty_percent: int
     investigation_coverage_percent: int
     why_limited: list[str] = []
     missing_markers: list[str] = []

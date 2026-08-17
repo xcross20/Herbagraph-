@@ -9,12 +9,13 @@ from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import attributes, selectinload
 
 from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
+from app.discovery.mutations import apply_finding_drafts
 from app.discovery.orchestrator import facts_from_findings
 from app.models.discovery import (
     DiscoveryCase,
@@ -300,7 +301,7 @@ def snapshot_to_read(
                 status=item.status,
                 source=item.source,
             )
-            for item in snapshot.findings
+            for item in _active_findings_for_read(case, snapshot)
         ],
         hypotheses=[
             DiscoveryHypothesisRead(
@@ -309,10 +310,8 @@ def snapshot_to_read(
                 branch=item.branch,
                 status=item.status,
                 investigation_relevance=item.investigation_relevance,
-                diagnostic_certainty=item.diagnostic_certainty,
                 investigation_coverage=item.investigation_coverage,
                 investigation_relevance_percent=_percent(item.investigation_relevance),
-                diagnostic_certainty_percent=_percent(item.diagnostic_certainty),
                 investigation_coverage_percent=_percent(item.investigation_coverage),
                 why_limited=item.why_limited,
                 missing_markers=item.missing_markers,
@@ -398,21 +397,9 @@ async def apply_snapshot(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSn
     case.investigation_coverage = snapshot.investigation_coverage
     case.snapshot = json.dumps(snapshot.as_dict())
     if case.id is not None:
-        await db.execute(delete(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        await apply_finding_drafts(db, case.id, snapshot.findings)
         await db.execute(delete(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case.id))
         await db.flush()
-    for item in snapshot.findings:
-        db.add(
-            DiscoveryFinding(
-                case_id=case.id,
-                kind=DiscoveryFindingKind(item.kind),
-                name=item.name,
-                value=item.value,
-                status=item.status,
-                branch=item.branch,
-                source=item.source,
-            )
-        )
     for item in snapshot.hypotheses:
         db.add(
             DiscoveryHypothesis(
@@ -1073,6 +1060,13 @@ async def apply_opening_turn(
     return snapshot
 
 
+def _active_findings_for_read(case: DiscoveryCase, snapshot: CaseSnapshot):
+    stored = [item for item in list(getattr(case, "findings", None) or []) if getattr(item, "active", True)]
+    if stored:
+        return stored
+    return snapshot.findings
+
+
 def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:
     if case.snapshot:
         return CaseSnapshot.from_dict(json.loads(case.snapshot))
@@ -1080,6 +1074,10 @@ def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:
 
 
 async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRead:
+    findings = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    attributes.set_committed_value(case, "findings", list(findings))
     outcomes = (
         await db.execute(select(DiscoveryOutcome).where(DiscoveryOutcome.case_id == case.id))
     ).scalars().all()

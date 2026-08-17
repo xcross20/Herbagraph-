@@ -6,8 +6,6 @@ ISS-08 (branch close) stays scaffolded until PR-E.
 
 from __future__ import annotations
 
-import pytest
-
 from app.discovery.coverage_governor import assess_coverage
 from app.discovery.engine import rebuild_case_state
 from app.discovery.evidence_interpreter import interpret_workup
@@ -16,7 +14,7 @@ from app.discovery.epistemics import coverage_to_evidence_relationship as episte
 from app.discovery.map import build_map_payload
 from app.discovery.resolver import resolve_test
 from app.models.enums import CoverageRelation, EvidenceRelationship, ResolverStatus
-from tests.discovery_mvp.red import SCAFFOLDED, V2_FORENSIC_SHA
+
 
 
 def test_not_applicable_creates_no_evidence_relationship():
@@ -102,9 +100,23 @@ def test_map_payload_represents_non_addressing_and_unresolved():
     assert found
 
 
-@pytest.mark.skip(
-    reason=f"{SCAFFOLDED}: branch close governor lands in PR-E; V2 forensic {V2_FORENSIC_SHA}"
-)
 def test_non_addressing_evidence_cannot_close_branch():
     """ISS-08: EMG that does not directly assess small-fiber cannot set closed/resolved_at."""
-    raise AssertionError("unreachable until PR-E governor exists")
+    from app.discovery.lifecycle import propose_transition
+    from app.models.enums import BranchLifecycleStatus
+
+    interpreted = interpret_workup(
+        raw_label="EMG",
+        branch_codes=["small_fiber_density"],
+        result_state="negative",
+    )
+    edge = interpreted.edges[0]
+    decision = propose_transition(
+        BranchLifecycleStatus.NOT_EVALUATED,
+        BranchLifecycleStatus.CLOSED,
+        coverage=edge.coverage,
+        relationship=edge.relationship,
+    )
+    assert decision.accepted is False
+    assert decision.resolved_at is None
+    assert decision.status is BranchLifecycleStatus.NOT_EVALUATED
