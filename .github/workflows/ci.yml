@@ -10,6 +10,20 @@ jobs:
   gates:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: herbagraph
+          POSTGRES_PASSWORD: herbagraph
+          POSTGRES_DB: herbagraph
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready -U herbagraph -d herbagraph
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +39,8 @@ jobs:
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Run mandatory gates
+        env:
+          HERBAGRAPH_TEST_POSTGRES: postgresql+asyncpg://herbagraph:herbagraph@localhost:5432/herbagraph
         run: bash scripts/ci_gates.sh
 
       - name: Reseed hint when catalog files change

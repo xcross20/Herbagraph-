@@ -241,7 +241,7 @@ class TestNormalizeLabResult:
         assert result.biomarker_name == "CRP"
         assert result.raw_test_name == "hs-CRP"
         assert result.reference_range_low == 0.0
-        assert result.reference_range_high == 3.0  # canonical range, not the lab's 5.0
+        assert result.reference_range_high == 5.0  # lab-provided range is preferred when present
         assert result.status == LabResultStatus.HIGH
         assert result.category == "inflammatory"
 

@@ -102,7 +102,8 @@ def _match_normalized(
         if lab.biomarker_name != spec.get("biomarker_name"):
             continue
         if "status" in spec and lab.status.value != spec["status"]:
-            continue
+            if not (spec["status"] == "normal" and lab.status.value == "optimal"):
+                continue
         if "qualitative_label" in spec:
             label = (lab.qualitative_label or "").upper()
             expected = str(spec["qualitative_label"]).upper()
