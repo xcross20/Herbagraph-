@@ -2,6 +2,10 @@
 
 This repository is governed by the HerbaGraph product vision and evidence-discipline rules below. These instructions apply repository-wide unless a more specific AGENTS.md adds stricter rules.
 
+## Required context load
+
+Before material product, design, research, architecture, or implementation work, read `docs/founder/HERBAGRAPH_FOUNDER_CONTEXT.md`, then the Product North Star, collaboration protocol, applicable specifications, ADRs, issues, PRs, and exact checks. The Founder Context is interpretive guidance; accepted ADRs and explicit later Founder decisions control when they conflict.
+
 ## Roles
 
 - Founder / Vision Owner: sets product vision, risk tolerance, scope, and final release approval.
