@@ -4,6 +4,10 @@ from __future__ import annotations
 
 MAX_CORRECTION_CYCLES = 3
 REQUIRED_BASE_BRANCH = "integration/agent"
+# Both implementer roles may receive read-only exact-SHA architecture review.
+# Only Grok branches remain eligible for automated correction writes and the
+# tightly allowlisted UAT merge path.
+REVIEWABLE_HEAD_PREFIXES = ("grok/", "agent/")
 REQUIRED_HEAD_PREFIX = "grok/"
 REQUIRED_LABEL = "agent-loop"
 
