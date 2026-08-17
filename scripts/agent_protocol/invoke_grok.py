@@ -53,7 +53,7 @@ def apply_file_edits(repo_root: Path, edits: list[dict]) -> list[str]:
             raise ValueError(f"forbidden_path:{edit.get('path')}")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(str(edit.get("content") or ""), encoding="utf-8")
-        written.append(str(target.relative_to(repo_root)))
+        written.append(str(target.relative_to(repo_root.resolve())))
     return written
 
 
