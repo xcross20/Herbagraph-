@@ -71,6 +71,8 @@ class CommentRecord:
     id: int | None
     body: str
     marker: str | None = None
+    author_login: str = ""
+    author_type: str = ""
 
 
 def extract_full_sha(text: str | None) -> str | None:
@@ -114,22 +116,35 @@ def _section_text(body: str, heading: str) -> str:
     return " ".join(items).strip()
 
 
-def parse_architect_review(body: str) -> ArchitectReview | None:
+def parse_architect_review(
+    body: str,
+    *,
+    expected_marker: str | None = None,
+    expected_sha: str | None = None,
+    expected_task: str | None = None,
+) -> ArchitectReview | None:
     if REVIEW_HEADING not in (body or ""):
         return None
+    if expected_marker and expected_marker not in body:
+        return None
     status = parse_verdict(body)
-    reviewed = None
-    reviewed_match = _REVIEWED_RE.search(body)
-    if reviewed_match:
-        reviewed = extract_full_sha(reviewed_match.group(1))
-    if not reviewed:
-        reviewed = extract_full_sha(body)
+    reviewed_match = _REVIEWED_RE.search(body or "")
+    if not reviewed_match:
+        return None
+    reviewed = extract_full_sha(reviewed_match.group(1))
     if not status or not reviewed:
         return None
+    if expected_sha and reviewed != expected_sha.lower():
+        return None
     task_match = _TASK_RE.search(body)
+    task = task_match.group(1) if task_match else ""
+    if expected_task and task != expected_task:
+        return None
+    if not task:
+        return None
     owner_match = _OWNER_RE.search(body)
     return ArchitectReview(
-        task=(task_match.group(1) if task_match else "UNKNOWN"),
+        task=task,
         reviewed_commit=reviewed,
         status=status,
         blocking=_section_items(body, "BLOCKING"),
@@ -148,7 +163,9 @@ def parse_handoff(body: str) -> ImplementationHandoff | None:
     if HANDOFF_HEADING not in (body or ""):
         return None
     commit_match = _COMMIT_RE.search(body)
-    commit = extract_full_sha(commit_match.group(1) if commit_match else body)
+    if not commit_match:
+        return None
+    commit = extract_full_sha(commit_match.group(1))
     if not commit:
         return None
     task_match = _TASK_RE.search(body)

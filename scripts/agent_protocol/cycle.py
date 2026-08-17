@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .auth import is_trusted_author
 from .constants import MAX_CORRECTION_CYCLES, VERDICT_CHANGES_REQUIRED
 from .parse import ArchitectReview, CommentRecord, CorrectionReport, parse_architect_review, parse_correction_report
 
@@ -9,6 +10,8 @@ from .parse import ArchitectReview, CommentRecord, CorrectionReport, parse_archi
 def reviews_from_comments(comments: list[CommentRecord]) -> list[ArchitectReview]:
     found: list[ArchitectReview] = []
     for comment in comments:
+        if not is_trusted_author(comment):
+            continue
         parsed = parse_architect_review(comment.body)
         if parsed is not None:
             found.append(parsed)
@@ -18,6 +21,8 @@ def reviews_from_comments(comments: list[CommentRecord]) -> list[ArchitectReview
 def corrections_from_comments(comments: list[CommentRecord]) -> list[CorrectionReport]:
     found: list[CorrectionReport] = []
     for comment in comments:
+        if not is_trusted_author(comment):
+            continue
         parsed = parse_correction_report(comment.body)
         if parsed is not None:
             found.append(parsed)

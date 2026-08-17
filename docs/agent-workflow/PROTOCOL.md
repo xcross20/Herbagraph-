@@ -129,6 +129,8 @@ GitHub Actions workflow: `.github/workflows/herbagraph-agent-loop.yml`.
 
 ### Triggers
 
+The workflow uses `pull_request_target` so the running YAML and orchestrator always come from `integration/agent`. Untrusted PR code is checked out into a separate `untrusted/` worktree with `persist-credentials: false`. Model steps never receive `GITHUB_TOKEN`.
+
 A PR event (`opened`, `synchronize`, `reopened`, `labeled`, `ready_for_review`) or `workflow_dispatch` may start the loop only when **all** of these are true:
 
 - base branch is `integration/agent`;
@@ -142,9 +144,10 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 
 ### Idempotency
 
-- Concurrency group: `herbagraph-agent-loop-<pr>-<head-sha>`.
+- Concurrency group: `herbagraph-agent-loop-<pr>` (cancels older SHA runs).
 - Review comments are upserted with `<!-- herbagraph-architect-review idempotency=<pr>-<sha> -->`.
 - Duplicate deliveries for the same SHA update or no-op the same comment.
+- Live PR head is re-read before every comment, label, or push. A mismatch exits with no write.
 
 ### Cycle limit and recovery
 
@@ -156,7 +159,10 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 ### Job isolation
 
 - Architect job: `contents: read`, Codex `permission-profile: :read-only`, `OPENAI_API_KEY` only.
-- Correction job: write access only to the same `grok/**` head, `XAI_API_KEY` only.
+- Correction job: Grok edits the untrusted worktree without push credentials. A trusted post-model step validates the patch, runs allowlisted tests, commits, and pushes without `--force`.
+- Control-plane paths (workflow, protocol helpers, AGENTS.md, prompts/schemas) cannot be edited by a correction.
+- Only `github-actions[bot]` reviews with the exact PR+SHA marker can trigger Grok.
+- `ARCHITECT_APPROVED` is impossible while required checks are pending, failing, or missing.
 - Approval never merges or deploys.
 
 ### Labels

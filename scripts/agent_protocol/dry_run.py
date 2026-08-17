@@ -36,7 +36,11 @@ def run_dry_run() -> dict:
         is_fork=False,
     )
     comments: list[CommentRecord] = [
-        CommentRecord(id=1, body=render_handoff(task="HG-7", commit=SHA1, pr_number=7))
+        CommentRecord(
+            id=1,
+            body=render_handoff(task="HG-7", commit=SHA1, pr_number=7),
+            author_login="github-actions[bot]",
+        )
     ]
     qualify = qualify_pull_request(pr, handoff_sha=SHA1)
     if not qualify.allowed:
@@ -57,7 +61,9 @@ def run_dry_run() -> dict:
     first_plan = plan_comment_upsert(
         comments, marker=marker_for_review(7, SHA1), body=first_body
     )
-    comments.append(CommentRecord(id=2, body=first_plan.body))
+    comments.append(
+        CommentRecord(id=2, body=first_plan.body, author_login="github-actions[bot]")
+    )
     first_decision = decide_after_review(first, head_sha=SHA1, completed_cycles=0)
     if not first_decision.run_correction:
         raise AssertionError(first_decision.reason)
@@ -71,6 +77,7 @@ def run_dry_run() -> dict:
     comments.append(
         CommentRecord(
             id=3,
+            author_login="github-actions[bot]",
             body=render_correction_report(
                 task="HG-7",
                 pr_number=7,

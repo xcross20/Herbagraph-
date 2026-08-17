@@ -13,12 +13,14 @@ _SCRIPTS = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+from agent_protocol.checks import coerce_verdict_for_checks, parse_check_runs
 from agent_protocol.comment import plan_comment_upsert
 from agent_protocol.cycle import completed_correction_cycles
 from agent_protocol.format import render_architect_review
+from agent_protocol.freshness import refuse_stale_write
 from agent_protocol.parse import (
+    ArchitectReview,
     CommentRecord,
-    parse_architect_review,
     parse_handoff,
     parse_review_json,
     marker_for_review,
@@ -32,7 +34,18 @@ def load_json(path: str):
 
 
 def comments_from_payload(raw: list[dict]) -> list[CommentRecord]:
-    return [CommentRecord(id=item.get("id"), body=item.get("body") or "") for item in raw]
+    records: list[CommentRecord] = []
+    for item in raw or []:
+        user = item.get("user") or {}
+        records.append(
+            CommentRecord(
+                id=item.get("id"),
+                body=item.get("body") or "",
+                author_login=str(user.get("login") or item.get("author_login") or ""),
+                author_type=str(user.get("type") or item.get("author_type") or ""),
+            )
+        )
+    return records
 
 
 def labels_from_payload(raw) -> frozenset[str]:
@@ -72,11 +85,19 @@ def latest_handoff(comments: list[CommentRecord], pr_body: str, head_sha: str):
     return None
 
 
-def plan_architect_action(pr_raw: dict, comments_raw: list[dict], review_text: str) -> dict:
+def plan_architect_action(
+    pr_raw: dict,
+    comments_raw: list[dict],
+    review_text: str,
+    *,
+    live_head_sha: str | None = None,
+    checks_raw: dict | list | None = None,
+) -> dict:
     comments = comments_from_payload(comments_raw)
     pr = pull_request_from_payload(pr_raw)
     handoff = latest_handoff(comments, pr_raw.get("body") or "", pr.head_sha)
     qualify = qualify_pull_request(pr, handoff_sha=handoff.commit if handoff else None)
+    task = handoff.task if handoff else ""
     result = {
         "qualified": qualify.allowed,
         "qualify_reason": qualify.reason,
@@ -89,12 +110,20 @@ def plan_architect_action(pr_raw: dict, comments_raw: list[dict], review_text: s
         "reason": qualify.reason,
         "head_sha": pr.head_sha,
         "pr_number": pr.number,
-        "task": handoff.task if handoff else "HG-7",
+        "task": task,
     }
+    stale = refuse_stale_write(pr.head_sha, live_head_sha or pr.head_sha)
+    if stale:
+        result["reason"] = stale
+        return result
     if not qualify.allowed:
         return result
+    if not task:
+        result["reason"] = "handoff_task_missing"
+        result["label"] = "founder-decision-required"
+        return result
 
-    review = parse_review_json(review_text) or parse_architect_review(review_text)
+    review = parse_review_json(review_text)
     if review is None:
         result["reason"] = "review_unparseable"
         result["label"] = "founder-decision-required"
@@ -103,6 +132,44 @@ def plan_architect_action(pr_raw: dict, comments_raw: list[dict], review_text: s
         result["reason"] = "review_sha_mismatch"
         result["label"] = "founder-decision-required"
         return result
+    if review.task in {"", "UNKNOWN"}:
+        review = ArchitectReview(
+            task=task,
+            reviewed_commit=review.reviewed_commit,
+            status=review.status,
+            blocking=review.blocking,
+            should_fix=review.should_fix,
+            noted=review.noted,
+            hostile_trace=review.hostile_trace,
+            required_checks=review.required_checks,
+            allowed_next_scope=review.allowed_next_scope,
+            next_owner=review.next_owner,
+            trap_line=review.trap_line,
+            raw=review.raw,
+        )
+    elif review.task != task:
+        result["reason"] = "review_task_mismatch"
+        result["label"] = "founder-decision-required"
+        return result
+
+    checks = parse_check_runs(checks_raw or [])
+    checks_green = coerce_verdict_for_checks("ARCHITECT_APPROVED", checks) == "ARCHITECT_APPROVED"
+    coerced = coerce_verdict_for_checks(review.status, checks)
+    if coerced != review.status:
+        review = ArchitectReview(
+            task=review.task,
+            reviewed_commit=review.reviewed_commit,
+            status=coerced,
+            blocking=review.blocking + ("required checks are not green",),
+            should_fix=review.should_fix,
+            noted=review.noted,
+            hostile_trace=review.hostile_trace,
+            required_checks=review.required_checks,
+            allowed_next_scope=review.allowed_next_scope,
+            next_owner="FOUNDER",
+            trap_line=review.trap_line or "Approval is impossible while required checks are pending or failing.",
+            raw=review.raw,
+        )
 
     rendered = render_architect_review(review, pr_number=pr.number)
     plan = plan_comment_upsert(comments, marker=marker_for_review(pr.number, pr.head_sha), body=rendered)
@@ -110,6 +177,7 @@ def plan_architect_action(pr_raw: dict, comments_raw: list[dict], review_text: s
         review,
         head_sha=pr.head_sha,
         completed_cycles=completed_correction_cycles(comments),
+        checks_green=checks_green,
     )
     result.update(
         {
@@ -121,6 +189,7 @@ def plan_architect_action(pr_raw: dict, comments_raw: list[dict], review_text: s
             "comment_id": plan.comment_id,
             "reason": decision.reason,
             "next_owner": decision.next_owner,
+            "task": review.task,
         }
     )
     return result
@@ -142,12 +211,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--pr-json", required=True)
     parser.add_argument("--comments-json", required=True)
     parser.add_argument("--review-input", required=True)
+    parser.add_argument("--live-head-sha", default="")
+    parser.add_argument("--checks-json", default="")
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     args = parser.parse_args(argv)
+    checks = load_json(args.checks_json) if args.checks_json else []
     result = plan_architect_action(
         load_json(args.pr_json),
         load_json(args.comments_json),
         Path(args.review_input).read_text(encoding="utf-8"),
+        live_head_sha=args.live_head_sha or None,
+        checks_raw=checks,
     )
     write_github_output(args.github_output, result)
     print(json.dumps({k: v for k, v in result.items() if k != "comment_body"}, indent=2))

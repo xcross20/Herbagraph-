@@ -32,7 +32,16 @@ def decide_after_review(
     *,
     head_sha: str,
     completed_cycles: int,
+    checks_green: bool | None = None,
 ) -> LoopDecision:
+    if review.status == VERDICT_APPROVED and checks_green is False:
+        return LoopDecision(
+            continue_automation=False,
+            run_correction=False,
+            label="founder-decision-required",
+            reason="required_checks_not_green",
+            next_owner="FOUNDER",
+        )
     if review.status == VERDICT_FOUNDER:
         return LoopDecision(
             continue_automation=False,

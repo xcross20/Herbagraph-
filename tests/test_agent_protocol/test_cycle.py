@@ -13,7 +13,7 @@ def _review(sha: str) -> CommentRecord:
         ArchitectReview(task="HG-7", reviewed_commit=sha, status="CHANGES_REQUIRED", blocking=("x",)),
         pr_number=7,
     )
-    return CommentRecord(id=None, body=body)
+    return CommentRecord(id=None, body=body, author_login="github-actions[bot]", author_type="Bot")
 
 
 def _correction(reviewed: str, new: str, cycle: int) -> CommentRecord:
@@ -27,6 +27,8 @@ def _correction(reviewed: str, new: str, cycle: int) -> CommentRecord:
             cycle=cycle,
             tests="ok",
         ),
+        author_login="github-actions[bot]",
+        author_type="Bot",
     )
 
 

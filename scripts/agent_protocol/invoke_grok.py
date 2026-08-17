@@ -12,11 +12,28 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+_SCRIPTS = Path(__file__).resolve().parents[1]
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
 FORBIDDEN_PATH_PARTS = (".git", ".env", "id_rsa", "credentials")
 
 
+def scrub_model_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    from agent_protocol.constants import PUSH_CREDENTIAL_KEYS
+
+    source = dict(env if env is not None else os.environ)
+    for key in PUSH_CREDENTIAL_KEYS:
+        source.pop(key, None)
+    return source
+
+
 def path_is_allowed(repo_root: Path, raw: str) -> Path | None:
+    from agent_protocol.control_plane import is_control_plane_path
+
     if not raw or raw.startswith("/") or ".." in Path(raw).parts:
+        return None
+    if is_control_plane_path(raw):
         return None
     target = (repo_root / raw).resolve()
     try:
@@ -54,7 +71,8 @@ def invoke_grok_cli(prompt_file: Path, repo_root: Path) -> int:
             str(prompt_file),
             "--cwd",
             str(repo_root),
-        ]
+        ],
+        env=scrub_model_env(),
     )
 
 
@@ -102,10 +120,12 @@ def invoke_xai_file_edits(prompt: str, repo_root: Path) -> list[str]:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("usage: invoke_grok.py PROMPT_FILE", file=sys.stderr)
+        print("usage: invoke_grok.py PROMPT_FILE [--repo DIR]", file=sys.stderr)
         return 2
     prompt_file = Path(sys.argv[1])
     repo_root = Path.cwd()
+    if "--repo" in sys.argv:
+        repo_root = Path(sys.argv[sys.argv.index("--repo") + 1])
     prompt = prompt_file.read_text(encoding="utf-8")
     code = invoke_grok_cli(prompt_file, repo_root)
     if code == 0:

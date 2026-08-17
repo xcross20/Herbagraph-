@@ -52,3 +52,36 @@ FORBIDDEN_ACTIONS = frozenset(
         "migrate_production",
     }
 )
+
+TRUSTED_REVIEW_AUTHORS = frozenset({"github-actions[bot]"})
+
+CONTROL_PLANE_PREFIXES = (
+    ".github/workflows/",
+    ".github/codex/",
+    ".github/prompts/",
+    "scripts/agent_protocol/",
+)
+
+CONTROL_PLANE_FILES = frozenset(
+    {
+        "AGENTS.md",
+        "docs/agent-workflow/PROTOCOL.md",
+        "docs/architecture/PRODUCT_NORTH_STAR.md",
+    }
+)
+
+PUSH_CREDENTIAL_KEYS = frozenset(
+    {
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "INPUT_GITHUB_TOKEN",
+        "GIT_ASKPASS",
+        "GIT_CONFIG_COUNT",
+    }
+)
+
+APPROVED_TEST_SUITES: dict[str, tuple[str, ...]] = {
+    "protocol": ("python", "-m", "pytest", "tests/test_agent_protocol", "-q"),
+}
+
+REQUIRED_CHECK_CONTEXTS = frozenset({"gates"})

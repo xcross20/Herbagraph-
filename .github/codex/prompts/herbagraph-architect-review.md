@@ -12,8 +12,8 @@ Read and obey, in this order:
 4. Linked issue/spec and any ADRs in the PR
 5. Previous `HERBAGRAPH_ARCHITECT_REVIEW` comments on this PR
 6. The PR title, body, and implementation handoff
-7. The diff from the base `integration/agent` SHA to the head SHA
-8. Current CI status if provided
+7. The materialized `git diff base...head` included below
+8. Required check conclusions included below. You must not return `ARCHITECT_APPROVED` if any required check is pending, failing, cancelled, skipped, or missing.
 
 ## Trigger rules
 
@@ -24,7 +24,7 @@ Do not review or enroll `grok/mvp-baseline-red-tests` (PR #6 exclusion).
 ## Verdicts
 
 - `CHANGES_REQUIRED` — blocking findings remain. Next owner: GROK.
-- `ARCHITECT_APPROVED` — no unresolved blockers on this exact SHA. Next owner: FOUNDER. Approval does not merge or deploy.
+- `ARCHITECT_APPROVED` — no unresolved blockers on this exact SHA **and** required checks are green. Next owner: FOUNDER. Approval does not merge or deploy.
 - `FOUNDER_DECISION_REQUIRED` — product scope, medical/compliance posture, public contract, production migration, promotion, residual risk, cycle limit, or unparseable evidence.
 
 ## Output
