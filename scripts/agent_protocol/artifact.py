@@ -72,6 +72,22 @@ class ReviewArtifact:
         return expected == self.digest
 
 
+def stamp_trusted_task(payload: str, task: str) -> str:
+    """Overwrite Codex's task field with the qualify-time handoff task.
+
+    The ticket id is a control-plane binding, not a model output. Codex
+    inventing "PR #15 agent-loop canary" must not fail-close a valid SHA.
+    """
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        return payload
+    if not isinstance(data, dict):
+        return payload
+    data["task"] = task
+    return json.dumps(data, separators=(",", ":"), ensure_ascii=False)
+
+
 def build_artifact(
     *,
     pr_number: int,

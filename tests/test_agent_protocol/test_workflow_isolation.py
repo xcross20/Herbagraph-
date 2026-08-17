@@ -156,6 +156,20 @@ def test_poisoned_tmp_manifest_is_not_the_sealed_artifact(tmp_path: Path):
         assert "control_plane_edit" in str(exc)
 
 
+def test_architect_write_sets_gh_repo_for_labels():
+    section = _workflow_section("architect-write")
+    assert "GH_REPO: ${{ github.repository }}" in section
+    assert "gh label create" in section
+    assert "gh pr edit" in section
+
+
+def test_codex_prompt_binds_exact_task_and_filters_to_gates():
+    section = _workflow_section("architect-model")
+    assert "task must equal: ${TASK}" in section
+    assert 'r.get("name")=="gates"' in section
+    assert "TASK: ${{ needs.qualify.outputs.task }}" in section
+
+
 def test_validate_uploads_manifest_before_pr_tests():
     section = _workflow_section("validate")
     upload_at = section.find("name: validated-patch-")
