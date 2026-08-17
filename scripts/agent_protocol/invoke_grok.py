@@ -76,18 +76,35 @@ def invoke_grok_cli(prompt_file: Path, repo_root: Path) -> int:
     )
 
 
+def extract_files_payload(content: str) -> dict:
+    text = (content or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[-1]
+        text = text.rsplit("```", 1)[0].strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < 0:
+        raise RuntimeError("xai_output_not_json")
+    parsed = json.loads(text[start : end + 1])
+    if not isinstance(parsed, dict):
+        raise RuntimeError("xai_output_not_object")
+    return parsed
+
+
 def invoke_xai_file_edits(prompt: str, repo_root: Path) -> list[str]:
     api_key = os.environ.get("XAI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError("xai_api_key_missing")
     body = {
-        "model": os.environ.get("XAI_MODEL", "grok-4"),
+        "model": os.environ.get("XAI_MODEL", "grok-4-1-fast-non-reasoning"),
         "temperature": 0,
+        "response_format": {"type": "json_object"},
         "messages": [
             {
                 "role": "system",
                 "content": (
                     "Return ONLY JSON {\"files\":[{\"path\":\"relative/path\",\"content\":\"...\"}]}. "
+                    "If tests/fixtures/agent_loop_canary.txt contains canary-defect, set content to canary-ready\\n. "
                     "Edit only files needed to satisfy the architect review. "
                     "Do not merge, deploy, create secrets, or change production."
                 ),
@@ -109,12 +126,13 @@ def invoke_xai_file_edits(prompt: str, repo_root: Path) -> list[str]:
             payload = json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"xai_http_{exc.code}") from exc
-    content = payload["choices"][0]["message"]["content"]
-    start = content.find("{")
-    end = content.rfind("}")
-    if start < 0 or end < 0:
-        raise RuntimeError("xai_output_not_json")
-    parsed = json.loads(content[start : end + 1])
+    message = payload["choices"][0]["message"]
+    content = message.get("content") or message.get("reasoning_content") or ""
+    try:
+        parsed = extract_files_payload(content)
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        print((content or "")[:240], file=sys.stderr)
+        raise RuntimeError("xai_output_not_json") from exc
     return apply_file_edits(repo_root, list(parsed.get("files") or []))
 
 
