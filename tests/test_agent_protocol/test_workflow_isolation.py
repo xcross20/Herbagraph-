@@ -123,7 +123,6 @@ def test_poisoned_tmp_manifest_is_not_the_sealed_artifact(tmp_path: Path):
     digest = digest_file(sealed)
     live = tmp_path / "validated-manifest.json"
     live.write_text(json.dumps(dump_manifest(original)), encoding="utf-8")
-    poisoned = collect_manifest(repo, ["tests/ok.txt"], parent_sha=SHA)
     # Simulate PR tests rewriting /tmp after seal.
     live.write_text(
         json.dumps(
