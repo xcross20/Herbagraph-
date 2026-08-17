@@ -53,7 +53,8 @@ def prepare_asyncpg_url(url: str) -> tuple[str, dict]:
 def validate_production_database_url(url: str, *, railway: bool) -> str | None:
     """Return an error message if the URL is unsuitable for production, else None."""
     host = urlparse(url).hostname or ""
-    if railway and _is_local_host(host):
+    # Railway private DNS (*.railway.internal) is valid UAT/prod mesh, not loopback.
+    if railway and host in {"localhost", "127.0.0.1"}:
         return "DATABASE_URL points at localhost. Use Supabase Session pooler or Railway Postgres."
     if railway and is_supabase_direct_host(host):
         return (

@@ -76,6 +76,8 @@ class Settings(BaseSettings):
     google_oauth_enabled: bool = False
     # Public site URL for OAuth redirect documentation (e.g. https://www.herbagraph.com).
     app_public_url: str = ""
+    # Runtime plane: local | uat | preview | production. Never treat uat as production.
+    app_env: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

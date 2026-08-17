@@ -27,6 +27,42 @@ body {
 a { color: var(--hg-blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+#hg-env-banner {
+  position: sticky;
+  top: 0;
+  z-index: 4000;
+  background: #7a4b00;
+  color: #fff8e8;
+  font-size: 13px;
+  padding: 0.45rem 1rem;
+  text-align: center;
+}
+#hg-env-banner a { color: #fff; text-decoration: underline; }
+
+.demo-page { background: #f4fbf7; }
+.demo-shell {
+  max-width: 42rem;
+  margin: 4rem auto;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.demo-kicker {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hg-clinical);
+}
+.demo-lede { color: var(--muted); }
+.demo-meta { font-size: 0.9rem; color: var(--muted); }
+.demo-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 1.25rem 0; }
+.demo-note { font-size: 0.9rem; color: var(--muted); }
+.demo-note code { font-size: 0.85em; }
+
 /* Logo */
 .logo {
   display: inline-flex;

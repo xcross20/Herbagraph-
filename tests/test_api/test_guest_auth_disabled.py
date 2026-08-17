@@ -53,3 +53,21 @@ async def test_guest_registration_allowed_when_enabled(client, monkeypatch):
     )
     assert resp.status_code == 201
     get_settings.cache_clear()
+
+
+async def test_guest_registration_skips_signup_access_code(client, monkeypatch):
+    monkeypatch.setenv("ALLOW_GUEST_AUTH", "true")
+    monkeypatch.setenv("AUTH_PROVIDER", "local")
+    monkeypatch.setenv("SIGNUP_ACCESS_CODE", "19922026")
+    get_settings.cache_clear()
+
+    resp = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "guest-uat@guest.herbagraph-app.io",
+            "password": "GuestPass1!",
+            "full_name": "Guest",
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    get_settings.cache_clear()
