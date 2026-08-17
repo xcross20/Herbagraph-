@@ -11,6 +11,8 @@ LABEL_CHANGES_REQUIRED = "changes-required"
 LABEL_ARCHITECT_APPROVED = "architect-approved"
 LABEL_FOUNDER_DECISION = "founder-decision-required"
 LABEL_READY_FOR_ARCHITECT = "ready-for-architect"
+LABEL_AGENT_BLOCKED = "agent-blocked"
+LABEL_UAT_READY = "uat-ready"
 
 MANAGED_LABELS = (
     REQUIRED_LABEL,
@@ -18,6 +20,8 @@ MANAGED_LABELS = (
     LABEL_CHANGES_REQUIRED,
     LABEL_ARCHITECT_APPROVED,
     LABEL_FOUNDER_DECISION,
+    LABEL_AGENT_BLOCKED,
+    LABEL_UAT_READY,
 )
 
 # PR #6 is the baseline red-test draft and is excluded from automation rollout.

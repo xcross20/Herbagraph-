@@ -38,9 +38,9 @@ def decide_after_review(
         return LoopDecision(
             continue_automation=False,
             run_correction=False,
-            label="founder-decision-required",
+            label="agent-blocked",
             reason="required_checks_not_green",
-            next_owner="FOUNDER",
+            next_owner="ENGINEERING",
         )
     if review.status == VERDICT_FOUNDER:
         return LoopDecision(
@@ -62,9 +62,9 @@ def decide_after_review(
         return LoopDecision(
             continue_automation=False,
             run_correction=False,
-            label="architect-approved",
-            reason="architect_approved_no_merge",
-            next_owner="FOUNDER",
+            label="uat-ready",
+            reason="architect_approved_uat_ready",
+            next_owner="ENGINEERING",
         )
     if review.status != VERDICT_CHANGES_REQUIRED:
         return LoopDecision(
@@ -78,9 +78,9 @@ def decide_after_review(
         return LoopDecision(
             continue_automation=False,
             run_correction=False,
-            label="founder-decision-required",
+            label="agent-blocked",
             reason="correction_cycle_limit",
-            next_owner="FOUNDER",
+            next_owner="ENGINEERING",
         )
     return LoopDecision(
         continue_automation=True,

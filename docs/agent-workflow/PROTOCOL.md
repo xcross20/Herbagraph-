@@ -152,7 +152,7 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 ### Cycle limit and recovery
 
 - A correction cycle is a `CHANGES_REQUIRED` review plus a matching `HERBAGRAPH_CORRECTION_REPORT`.
-- After three completed cycles, a further `CHANGES_REQUIRED` stops automation and applies `founder-decision-required`.
+- After three completed cycles, a further `CHANGES_REQUIRED` is `agent-blocked` engineering triage, not a Founder interruption, unless the change itself is a Founder-gate one-way door.
 - A review whose `Reviewed commit` is not the current head SHA never triggers Grok edits.
 - Missing `OPENAI_API_KEY` or `XAI_API_KEY` halt automation with a visible founder-decision comment. The workflow does not create secrets.
 
@@ -163,11 +163,12 @@ Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_t
 - Control-plane paths (workflow, protocol helpers, AGENTS.md, prompts/schemas) cannot be edited by a correction.
 - Only `github-actions[bot]` reviews with the exact PR+SHA marker can trigger Grok.
 - `ARCHITECT_APPROVED` is impossible while required checks are pending, failing, or missing.
-- Approval never merges or deploys.
+- Approval never merges or deploys `main`/production. Green exact-SHA review + CI + rollback is `uat-ready` for reversible UAT work.
+- Risk policy: `docs/agent-workflow/risk-tiers.yml`. Classifier: `scripts/agent_protocol/risk.py`. Batched digest: `scripts/agent_protocol/digest.py`.
 
 ### Labels
 
-`agent-loop`, `ready-for-architect`, `changes-required`, `architect-approved`, `founder-decision-required`.
+`agent-loop`, `ready-for-architect`, `changes-required`, `architect-approved`, `founder-decision-required`, `agent-blocked`, `uat-ready`.
 
 ### Dry-run
 

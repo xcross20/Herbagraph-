@@ -4,7 +4,7 @@ This repository is governed by the HerbaGraph product vision and evidence-discip
 
 ## Roles
 
-- Founder / Vision Owner: sets product vision, risk tolerance, scope, and final release approval.
+- Founder / Vision Owner: sets product vision, risk tolerance, scope, and final `main`/production approval. The Founder is not interrupted for ordinary reversible UAT work.
 - Architect: converts the vision into specifications, evaluates system-wide consequences, reviews implementation, and may block changes that violate the product model.
 - Implementer (including Grok): writes code, tests it, reports limitations, and responds to review findings. The Implementer does not redefine product intent silently.
 - GitHub: the durable source of truth for tasks, decisions, diffs, reviews, and approvals.
@@ -44,7 +44,7 @@ Guided Discovery is additive. It sits above the existing laboratory analysis eng
 - Do not weaken disclaimers or evidence limitations.
 - Do not expose protected health information in logs, prompts, fixtures, commits, issues, or PRs.
 - Never commit secrets, credentials, access tokens, production exports, or real patient records.
-- Changes involving authentication, authorization, encryption, PHI handling, medical safety logic, or production migrations require Founder approval.
+- Founder-gate one-way doors (production/`main` promotion, destructive production data, breaking contracts, weakened auth/privacy/safety, medical posture, reasoning-integrity semantics, autonomous-permission expansion, lock-in, unknown blast radius) halt immediately. Ordinary CI/review/UAT failures are `agent-blocked`, not Founder interruptions.
 
 ## Branch and PR model
 
@@ -54,7 +54,7 @@ Guided Discovery is additive. It sits above the existing laboratory analysis eng
 - `architect/<issue>-<slug>`: architecture or specification branches.
 - `agent/<slug>`: automation-created foundation or maintenance branches.
 
-Agents must not push directly to `main`. Implementation PRs target `integration/agent`. Promotion PRs from `integration/agent` to `main` require Founder approval.
+Agents must not push directly to `main`. Implementation PRs target `integration/agent`. After exact-SHA Architect review, required CI, and a documented rollback, reversible UAT work is `uat-ready` without Founder confirmation. Promotion from `integration/agent` to `main` always requires Founder approval. The agent loop stays off until its control-plane findings are closed.
 
 Each PR must identify the exact issue/specification, current commit SHA, changed behavior, tests run, known limitations, migrations, security implications, and rollback approach.
 
