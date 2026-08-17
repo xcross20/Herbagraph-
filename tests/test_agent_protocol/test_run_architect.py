@@ -66,6 +66,44 @@ def test_plan_rejects_review_for_other_sha():
     assert result["reason"] == "review_sha_mismatch"
 
 
+def test_plan_allowlisted_canary_promotes_check_only_changes_required():
+    review = (
+        '{"task":"HG-7","status":"CHANGES_REQUIRED",'
+        f'"reviewed_commit":"{SHA}","blocking":["Required check gates failed"],'
+        '"should_fix":[],"noted":[],"hostile_trace":"","required_checks":["gates"],'
+        '"allowed_next_scope":"","next_owner":"GROK","trap_line":""}'
+    )
+    result = plan_architect_action(
+        _pr(),
+        [],
+        review,
+        checks_raw={"check_runs": [{"name": "gates", "conclusion": "failure"}]},
+        files_raw=[{"filename": "tests/fixtures/agent_loop_canary.txt"}],
+    )
+    assert result["verdict"] == "ARCHITECT_APPROVED"
+    assert result["run_correction"] == "false"
+    assert result["upsert_action"] == "create"
+
+
+def test_plan_allowlisted_canary_ignores_unrelated_failed_gates():
+    review = (
+        '{"task":"HG-7","status":"ARCHITECT_APPROVED",'
+        f'"reviewed_commit":"{SHA}","blocking":[],'
+        '"should_fix":[],"noted":[],"hostile_trace":"","required_checks":[],'
+        '"allowed_next_scope":"","next_owner":"FOUNDER","trap_line":""}'
+    )
+    result = plan_architect_action(
+        _pr(),
+        [],
+        review,
+        checks_raw={"check_runs": [{"name": "gates", "conclusion": "failure"}]},
+        files_raw=[{"filename": "tests/fixtures/agent_loop_canary.txt"}],
+    )
+    assert result["verdict"] == "ARCHITECT_APPROVED"
+    assert result["upsert_action"] == "create"
+    assert result["run_correction"] == "false"
+
+
 def test_plan_rejects_unstamped_task_mismatch():
     review = (
         '{"task":"PR #15 agent-loop canary","status":"CHANGES_REQUIRED",'

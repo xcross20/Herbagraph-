@@ -221,6 +221,7 @@ jobs:
           fi
           gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" > /tmp/comments.json
           gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD_SHA}/check-runs" > /tmp/checks.json
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files" > /tmp/files.json
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" -H "Accept: application/vnd.github.diff" > /tmp/pr.diff
       - name: Halt if OpenAI secret is missing
         if: ${{ env.stale != 'true' }}
@@ -291,6 +292,7 @@ jobs:
             /tmp/pr.json
             /tmp/checks.json
             /tmp/comments.json
+            /tmp/files.json
           if-no-files-found: warn
 
   architect-write:
@@ -342,7 +344,8 @@ jobs:
             --comments-json /tmp/art/comments.json \
             --review-input /tmp/art/review-artifact.json \
             --live-head-sha "$LIVE" \
-            --checks-json /tmp/art/checks.json
+            --checks-json /tmp/art/checks.json \
+            --files-json /tmp/art/files.json
       - name: Upsert structured review comment
         if: ${{ steps.plan.outputs.comment_body != '' && steps.plan.outputs.upsert_action != 'noop' && steps.plan.outputs.reason != 'stale_run_remote_head_changed' && steps.plan.outputs.reason != 'checks_pending' }}
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
