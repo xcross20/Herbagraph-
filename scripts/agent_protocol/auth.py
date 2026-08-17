@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-from .constants import TRUSTED_REVIEW_AUTHORS
-from .parse import (
-    ArchitectReview,
-    CommentRecord,
-    marker_for_review,
-    parse_architect_review,
-)
+from .parse import ArchitectReview, CommentRecord, parse_architect_review
 
 
 def is_trusted_author(comment: CommentRecord) -> bool:
-    login = (comment.author_login or "").lower()
-    return login in {name.lower() for name in TRUSTED_REVIEW_AUTHORS}
+    """Bot login is shared across workflows and is never sufficient alone."""
+    del comment
+    return False
 
 
 def select_trusted_review(
@@ -22,18 +17,31 @@ def select_trusted_review(
     pr_number: int,
     head_sha: str,
     task: str,
+    artifact=None,
+    workflow_run_id: str | None = None,
+    trusted_workflow_sha: str | None = None,
 ) -> ArchitectReview | None:
-    marker = marker_for_review(pr_number, head_sha)
-    selected: ArchitectReview | None = None
-    for comment in comments:
-        if not is_trusted_author(comment):
-            continue
-        parsed = parse_architect_review(
-            comment.body,
-            expected_marker=marker,
-            expected_sha=head_sha,
-            expected_task=task,
-        )
-        if parsed is not None:
-            selected = parsed
-    return selected
+    if artifact is None:
+        return None
+    if not artifact.matches(
+        pr_number=pr_number,
+        head_sha=head_sha,
+        task=task,
+        workflow_run_id=workflow_run_id,
+        trusted_workflow_sha=trusted_workflow_sha,
+    ):
+        return None
+    return parse_review_from_payload(artifact.review_payload, head_sha=head_sha, task=task)
+
+
+def parse_review_from_payload(payload: str, *, head_sha: str, task: str) -> ArchitectReview | None:
+    from .parse import parse_review_json
+
+    parsed = parse_review_json(payload)
+    if parsed is None:
+        return parse_architect_review(payload, expected_sha=head_sha, expected_task=task)
+    if parsed.reviewed_commit.lower() != head_sha.lower():
+        return None
+    if parsed.task not in {"", "UNKNOWN", task}:
+        return None
+    return parsed

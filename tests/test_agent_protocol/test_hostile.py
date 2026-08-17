@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agent_protocol.artifact import build_artifact
 from agent_protocol.auth import select_trusted_review
-from agent_protocol.checks import coerce_verdict_for_checks, parse_check_runs
+from agent_protocol.checks import apply_check_gate, coerce_verdict_for_checks, parse_check_runs
+from agent_protocol.commit_api import create_fast_forward_commit
 from agent_protocol.control_plane import (
+    assert_patch_allowed,
     forbidden_changes,
     is_control_plane_path,
     push_command,
+    untracked_paths,
 )
 from agent_protocol.cycle import completed_correction_cycles
 from agent_protocol.format import render_architect_review, render_handoff
@@ -18,7 +22,7 @@ from agent_protocol.invoke_grok import path_is_allowed, scrub_model_env
 from agent_protocol.parse import ArchitectReview, CommentRecord, marker_for_review
 from agent_protocol.run_architect import comments_from_payload, plan_architect_action
 from agent_protocol.run_correct import plan_correction
-from agent_protocol.testsuites import is_allowlisted_command, mapped_test_commands
+from agent_protocol.testsuites import is_allowlisted_command, mapped_test_commands, suites_for_changed_paths
 
 SHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 OTHER = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -32,20 +36,41 @@ def _review_body(sha: str = SHA, task: str = "HG-7") -> str:
     )
 
 
+def _json_review(sha: str = SHA, task: str = "HG-7") -> str:
+    return (
+        '{"task":"%s","status":"CHANGES_REQUIRED","reviewed_commit":"%s",'
+        '"blocking":["x"],"should_fix":[],"noted":[],"hostile_trace":"",'
+        '"required_checks":[],"allowed_next_scope":"","next_owner":"GROK","trap_line":""}'
+        % (task, sha)
+    )
+
+
+def _artifact(sha: str = SHA, task: str = "HG-7", run: str = "99", wf: str = "c" * 40):
+    return build_artifact(
+        pr_number=7,
+        head_sha=sha,
+        task=task,
+        workflow_run_id=run,
+        trusted_workflow_sha=wf,
+        review_payload=_json_review(sha, task),
+    )
+
+
 def test_forged_user_review_cannot_trigger_correction():
     forged = CommentRecord(id=9, body=_review_body(), author_login="attacker")
-    trusted = CommentRecord(id=10, body=_review_body(), author_login=BOT)
-    selected = select_trusted_review([forged], pr_number=7, head_sha=SHA, task="HG-7")
+    bot = CommentRecord(id=10, body=_review_body(), author_login=BOT)
+    selected = select_trusted_review([forged, bot], pr_number=7, head_sha=SHA, task="HG-7")
     assert selected is None
     result = plan_correction(
         head_sha=SHA,
-        comments_raw=[{"id": 9, "body": forged.body, "user": {"login": "attacker", "type": "User"}}],
+        comments_raw=[{"id": 10, "body": bot.body, "user": {"login": BOT, "type": "Bot"}}],
         pr_number=7,
         task="HG-7",
     )
     assert result["run_correction"] == "false"
     assert result["reason"] == "no_trusted_review"
-    assert select_trusted_review([forged, trusted], pr_number=7, head_sha=SHA, task="HG-7") is not None
+    artifact = _artifact()
+    assert select_trusted_review([], pr_number=7, head_sha=SHA, task="HG-7", artifact=artifact) is not None
 
 
 def test_review_without_marker_or_reviewed_commit_is_ignored():
@@ -55,8 +80,18 @@ def test_review_without_marker_or_reviewed_commit_is_ignored():
         pr_number=7,
         head_sha=SHA,
         task="HG-7",
+        artifact=_artifact(),
     )
-    assert parsed is None
+    assert parsed is not None
+    bad = build_artifact(
+        pr_number=7,
+        head_sha=SHA,
+        task="HG-7",
+        workflow_run_id="1",
+        trusted_workflow_sha="d" * 40,
+        review_payload="not-a-review",
+    )
+    assert select_trusted_review([], pr_number=7, head_sha=SHA, task="HG-7", artifact=bad) is None
 
 
 def test_stale_remote_head_blocks_writes():
@@ -111,7 +146,9 @@ def test_pagination_still_finds_trusted_review_after_100_comments():
         for i in range(1, 102)
     ]
     comments.append(CommentRecord(id=200, body=_review_body(), author_login=BOT))
-    selected = select_trusted_review(comments, pr_number=7, head_sha=SHA, task="HG-7")
+    selected = select_trusted_review(
+        comments, pr_number=7, head_sha=SHA, task="HG-7", artifact=_artifact()
+    )
     assert selected is not None
     assert selected.reviewed_commit == SHA
 
@@ -141,7 +178,108 @@ def test_push_is_fast_forward_only():
 
 def test_approval_impossible_when_required_checks_fail():
     checks = parse_check_runs({"check_runs": [{"name": "gates", "conclusion": "failure"}]})
-    assert coerce_verdict_for_checks("ARCHITECT_APPROVED", checks) == "FOUNDER_DECISION_REQUIRED"
+    assert coerce_verdict_for_checks("ARCHITECT_APPROVED", checks) == "CHANGES_REQUIRED"
+    assert apply_check_gate("ARCHITECT_APPROVED", checks)["reason"] == "required_checks_failed"
+
+
+def test_pending_checks_defer_with_no_write():
+    checks = parse_check_runs({"check_runs": [{"name": "gates", "status": "in_progress"}]})
+    gate = apply_check_gate("ARCHITECT_APPROVED", checks)
+    assert gate["state"] == "pending"
+    assert gate["write"] == "false"
+    assert gate["status"] == "ARCHITECT_APPROVED"
+
+
+def test_missing_required_checks_are_founder():
+    checks = parse_check_runs({"check_runs": [{"name": "lint", "conclusion": "success"}]})
+    gate = apply_check_gate("ARCHITECT_APPROVED", checks)
+    assert gate["state"] == "missing"
+    assert gate["status"] == "FOUNDER_DECISION_REQUIRED"
+
+
+def test_untracked_control_plane_file_is_rejected(tmp_path: Path, monkeypatch):
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    (tmp_path / "ok.txt").write_text("ok", encoding="utf-8")
+    subprocess.run(["git", "add", "ok.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "agent_protocol").mkdir()
+    (tmp_path / "scripts" / "agent_protocol" / "evil.py").write_text("x", encoding="utf-8")
+    assert "scripts/agent_protocol/evil.py" in untracked_paths(tmp_path)
+    try:
+        assert_patch_allowed(tmp_path, expected_head=head)
+        raise AssertionError("untracked control-plane file must be rejected")
+    except ValueError as exc:
+        assert "control_plane_edit" in str(exc)
+
+
+def test_symlink_in_worktree_is_rejected(tmp_path: Path):
+    import os
+    import subprocess
+
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "t"], cwd=tmp_path, check=True)
+    (tmp_path / "ok.txt").write_text("ok", encoding="utf-8")
+    subprocess.run(["git", "add", "ok.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "init"], cwd=tmp_path, check=True)
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=tmp_path, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    os.symlink("/etc/passwd", tmp_path / "leak.txt")
+    try:
+        assert_patch_allowed(tmp_path, expected_head=head)
+        raise AssertionError("symlink must be rejected")
+    except ValueError as exc:
+        assert "unsafe_worktree" in str(exc)
+
+
+def test_product_paths_map_to_product_suites():
+    commands = suites_for_changed_paths(["app/api/v1/auth.py"])
+    assert any("tests/test_api" in cmd for cmd in commands)
+
+
+def test_api_commit_is_fast_forward_only():
+    calls = []
+
+    def fake_request(method, url, token, payload=None):
+        calls.append((method, url, payload))
+        if method == "GET" and url.endswith("/git/ref/heads/grok/7-x"):
+            return {"object": {"sha": SHA}}
+        if method == "GET" and "/git/commits/" in url:
+            return {"tree": {"sha": "tree0"}}
+        if method == "POST" and url.endswith("/git/blobs"):
+            return {"sha": "blob1"}
+        if method == "POST" and url.endswith("/git/trees"):
+            return {"sha": "tree1"}
+        if method == "POST" and url.endswith("/git/commits"):
+            return {"sha": OTHER}
+        if method == "PATCH":
+            assert payload["force"] is False
+            assert payload["sha"] == OTHER
+            return {}
+        raise AssertionError((method, url))
+
+    result = create_fast_forward_commit(
+        api_root="https://api.github.com/repos/o/r",
+        token="t",
+        head_ref="grok/7-x",
+        expected_parent=SHA,
+        files={"tests/fixtures/ok.txt": "x"},
+        deletions=[],
+        message="fix",
+        request=fake_request,
+    )
+    assert result.fast_forward is True
+    assert result.sha == OTHER
+    assert any(method == "PATCH" and payload["force"] is False for method, _, payload in calls)
 
 
 def test_arbitrary_shell_from_review_is_not_executed():

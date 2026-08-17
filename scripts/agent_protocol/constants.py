@@ -53,7 +53,10 @@ FORBIDDEN_ACTIONS = frozenset(
     }
 )
 
-TRUSTED_REVIEW_AUTHORS = frozenset({"github-actions[bot]"})
+# Shared bot login is not sufficient. In-run jobs pass a digest-bound artifact.
+TRUSTED_REVIEW_AUTHORS = frozenset()
+DEFAULT_BRANCH = "main"
+TRUSTED_ORCHESTRATOR_REF = "main"
 
 CONTROL_PLANE_PREFIXES = (
     ".github/workflows/",
@@ -67,6 +70,8 @@ CONTROL_PLANE_FILES = frozenset(
         "AGENTS.md",
         "docs/agent-workflow/PROTOCOL.md",
         "docs/architecture/PRODUCT_NORTH_STAR.md",
+        ".github/agent-loop.lock",
+        "docs/architecture/adr-0007-agent-loop-bootstrap.md",
     }
 )
 
@@ -82,6 +87,22 @@ PUSH_CREDENTIAL_KEYS = frozenset(
 
 APPROVED_TEST_SUITES: dict[str, tuple[str, ...]] = {
     "protocol": ("python", "-m", "pytest", "tests/test_agent_protocol", "-q"),
+    "api": ("python", "-m", "pytest", "tests/test_api", "-q"),
+    "core": ("python", "-m", "pytest", "tests/test_core", "-q"),
+    "app": ("python", "-m", "pytest", "tests/test_api", "tests/test_core", "-q"),
+    "frontend": ("python", "-m", "pytest", "tests/test_frontend", "-q"),
+    "gates": ("bash", "scripts/ci_gates.sh"),
 }
+
+PATH_SUITE_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("scripts/agent_protocol/", "protocol"),
+    ("tests/test_agent_protocol/", "protocol"),
+    (".github/workflows/", "protocol"),
+    ("app/", "app"),
+    ("tests/test_api/", "api"),
+    ("tests/test_core/", "core"),
+    ("frontend/", "frontend"),
+    ("tests/test_frontend/", "frontend"),
+)
 
 REQUIRED_CHECK_CONTEXTS = frozenset({"gates"})

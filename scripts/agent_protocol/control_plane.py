@@ -23,6 +23,19 @@ def is_control_plane_path(path: str) -> bool:
     return any(rel == prefix.rstrip("/") or rel.startswith(prefix) for prefix in CONTROL_PLANE_PREFIXES)
 
 
+def untracked_paths(repo_root: Path) -> list[str]:
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
 def changed_paths(repo_root: Path, *, base_sha: str | None = None) -> list[str]:
     import subprocess
 
@@ -39,7 +52,31 @@ def changed_paths(repo_root: Path, *, base_sha: str | None = None) -> list[str]:
         text=True,
     )
     names.extend(line.strip() for line in cached.stdout.splitlines() if line.strip())
+    names.extend(untracked_paths(repo_root))
     return sorted(set(names))
+
+
+_ALLOWED_FILE_TYPES = frozenset({"file", "missing"})
+
+
+def unsafe_worktree_entries(repo_root: Path, paths: list[str]) -> list[str]:
+    """Reject symlinks and unexpected types before git add -A."""
+    root = repo_root.resolve()
+    unsafe: list[str] = []
+    for raw in paths:
+        rel = normalize_repo_path(raw)
+        target = (root / rel).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError:
+            unsafe.append(f"escape:{rel}")
+            continue
+        if target.is_symlink() or (root / rel).is_symlink():
+            unsafe.append(f"symlink:{rel}")
+            continue
+        if target.exists() and not target.is_file() and not target.is_dir():
+            unsafe.append(f"special:{rel}")
+    return unsafe
 
 
 def forbidden_changes(paths: list[str]) -> list[str]:
@@ -59,10 +96,14 @@ def assert_patch_allowed(repo_root: Path, *, expected_head: str) -> list[str]:
     ).stdout.strip()
     if head.lower() != expected_head.lower():
         raise ValueError("untrusted_process_moved_head")
-    forbidden = forbidden_changes(changed_paths(repo_root, base_sha=expected_head))
+    paths = changed_paths(repo_root, base_sha=expected_head)
+    forbidden = forbidden_changes(paths)
     if forbidden:
         raise ValueError("control_plane_edit:" + ",".join(forbidden))
-    return changed_paths(repo_root, base_sha=expected_head)
+    unsafe = unsafe_worktree_entries(repo_root, paths)
+    if unsafe:
+        raise ValueError("unsafe_worktree:" + ",".join(unsafe))
+    return paths
 
 
 def push_command(remote: str, head_ref: str) -> list[str]:
