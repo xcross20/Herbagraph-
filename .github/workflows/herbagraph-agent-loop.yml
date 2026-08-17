@@ -23,7 +23,7 @@ on:
         default: false
 
 concurrency:
-  group: herbagraph-agent-loop-${{ github.event.pull_request.number || github.event.workflow_run.id || inputs.pr_number }}
+  group: herbagraph-agent-loop-pr-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr_number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -32,9 +32,6 @@ permissions:
   issues: read
   actions: read
   checks: read
-
-env:
-  TRUSTED_WORKFLOW_SHA: ${{ github.sha }}
 
 jobs:
   dry-run:
@@ -66,7 +63,18 @@ jobs:
       head_ref: ${{ steps.gate.outputs.head_ref }}
       base_sha: ${{ steps.gate.outputs.base_sha }}
       task: ${{ steps.gate.outputs.task }}
+      trusted_sha: ${{ steps.pin.outputs.trusted_sha }}
     steps:
+      - name: Resolve default-branch SHA once
+        id: pin
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.repository.default_branch }}"
+          SHA=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/${BRANCH}" --jq .object.sha)
+          echo "trusted_sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "pinned default-branch $BRANCH at $SHA"
       - name: Reject forks before any checkout of PR code
         env:
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name || '' }}
@@ -84,19 +92,31 @@ jobs:
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ steps.pin.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
+      - name: Verify founder-approved bootstrap SHA
+        env:
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+          RESOLVED_SHA: ${{ steps.pin.outputs.trusted_sha }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from agent_protocol.bootstrap import read_approved_bootstrap_sha, verify_trusted_sha
+          approved = read_approved_bootstrap_sha(Path("trusted"))
+          print(verify_trusted_sha(os.environ["RESOLVED_SHA"], approved))
+          PY
       - name: Qualify from trusted default-branch control plane
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_PR: ${{ github.event.pull_request.number }}
           INPUT_PR: ${{ inputs.pr_number }}
           WORKFLOW_RUN_PRS: ${{ toJson(github.event.workflow_run.pull_requests) }}
-          PYTHONPATH: trusted/scripts
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
         run: |
           set -euo pipefail
           PR_NUMBER="${EVENT_PR:-$INPUT_PR}"
@@ -150,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
@@ -192,7 +212,7 @@ jobs:
             cat trusted/.github/codex/prompts/herbagraph-architect-review.md
             echo
             echo "## Exact SHAs"
-            echo "trusted_workflow_sha: ${TRUSTED_WORKFLOW_SHA}"
+            echo "trusted_workflow_sha: ${{ needs.qualify.outputs.trusted_sha }}"
             echo "head / reviewed_commit must equal ${HEAD_SHA}"
             echo "PR number: ${PR_NUMBER}"
             echo
@@ -227,7 +247,7 @@ jobs:
             --head-sha "$HEAD_SHA" \
             --task "$TASK" \
             --workflow-run-id "${GITHUB_RUN_ID}" \
-            --trusted-workflow-sha "${TRUSTED_WORKFLOW_SHA}" \
+            --trusted-workflow-sha "${{ needs.qualify.outputs.trusted_sha }}" \
             --review-input /tmp/codex-review.json \
             --output /tmp/review-artifact.json
           cp /tmp/pr.json /tmp/checks.json /tmp/comments.json /tmp/ || true
@@ -260,7 +280,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -343,7 +363,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -361,13 +381,14 @@ jobs:
           python-version: "3.11"
       - name: Verify digest-bound artifact without write tokens
         env:
-          PYTHONPATH: trusted/scripts
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
           HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
           TASK: ${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}
           PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
+          TRUSTED_WORKFLOW_SHA: ${{ needs.qualify.outputs.trusted_sha }}
         run: |
           python - <<'PY'
-          import os, sys
+          import os
           from agent_protocol.artifact import load_artifact
           art = load_artifact("/tmp/art/review-artifact.json")
           ok = art.matches(
@@ -402,7 +423,7 @@ jobs:
           git -C untrusted diff --cached --binary > /tmp/correction.patch || true
           git -C untrusted ls-files --others --exclude-standard >> /tmp/untracked.txt || true
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: ${{ steps.plan.outputs.run_correction == 'true' }}
+        if: success()
         with:
           name: correction-patch
           path: |
@@ -419,7 +440,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -437,30 +458,35 @@ jobs:
           python-version: "3.11"
       - name: Apply patch and refuse control-plane or unsafe files
         env:
-          PYTHONPATH: trusted/scripts
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
           HEAD_SHA: ${{ needs.qualify.outputs.head_sha }}
-        working-directory: untrusted
         run: |
           set -euo pipefail
           if [ -s /tmp/patch/correction.patch ]; then
-            git apply --index /tmp/patch/correction.patch || git apply /tmp/patch/correction.patch
+            git -C "${GITHUB_WORKSPACE}/untrusted" apply --index /tmp/patch/correction.patch \
+              || git -C "${GITHUB_WORKSPACE}/untrusted" apply /tmp/patch/correction.patch
           fi
           python - <<'PY'
+          import json, os, sys
           from pathlib import Path
-          import os, json
+          trusted = Path(os.environ["PYTHONPATH"]).resolve()
+          sys.path[:] = [str(trusted)] + [p for p in sys.path if p not in ("", ".")]
           from agent_protocol.control_plane import assert_patch_allowed
+          from agent_protocol.manifest import collect_manifest, dump_manifest
           from agent_protocol.testsuites import suites_for_changed_paths
-          paths = assert_patch_allowed(Path("."), expected_head=os.environ["HEAD_SHA"])
-          print("changed", paths)
-          Path("/tmp/changed.json").write_text(json.dumps(paths), encoding="utf-8")
+          root = Path(os.environ["GITHUB_WORKSPACE"]) / "untrusted"
+          paths = assert_patch_allowed(root, expected_head=os.environ["HEAD_SHA"])
+          manifest = collect_manifest(root, paths, parent_sha=os.environ["HEAD_SHA"])
+          Path("/tmp/validated-manifest.json").write_text(json.dumps(dump_manifest(manifest)), encoding="utf-8")
           Path("/tmp/suites.json").write_text(json.dumps(suites_for_changed_paths(paths)), encoding="utf-8")
+          print("changed", paths)
           PY
       - name: Run mapped suites with no secrets
         working-directory: untrusted
         run: |
           python -m pip install -q -r requirements.txt -r requirements-dev.txt
           python - <<'PY'
-          import json, subprocess, sys
+          import json, subprocess
           suites = json.loads(open("/tmp/suites.json", encoding="utf-8").read())
           if not suites:
               suites = [["python", "-m", "pytest", "tests/test_agent_protocol", "-q"]]
@@ -472,8 +498,7 @@ jobs:
         with:
           name: validated-patch
           path: |
-            /tmp/patch/correction.patch
-            /tmp/changed.json
+            /tmp/validated-manifest.json
 
   commit:
     needs: [qualify, architect-write, validate]
@@ -486,15 +511,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ needs.qualify.outputs.trusted_sha }}
           persist-credentials: false
           path: trusted
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ needs.qualify.outputs.head_sha }}
-          persist-credentials: false
-          fetch-depth: 0
-          path: untrusted
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: validated-patch
@@ -509,8 +528,8 @@ jobs:
           REVIEWED: ${{ needs.qualify.outputs.head_sha }}
           PR_NUMBER: ${{ needs.qualify.outputs.pr_number }}
           TASK: ${{ needs.architect-write.outputs.task || needs.qualify.outputs.task }}
-          PYTHONPATH: trusted/scripts
-        working-directory: untrusted
+          PYTHONPATH: ${{ github.workspace }}/trusted/scripts
+        working-directory: ${{ github.workspace }}/trusted
         run: |
           set -euo pipefail
           LIVE=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq .head.sha)
@@ -518,54 +537,11 @@ jobs:
             echo "head moved before commit; abort with no write"
             exit 0
           fi
-          if [ ! -s /tmp/ok/correction.patch ]; then
-            echo "no validated patch"
+          if [ ! -s /tmp/ok/validated-manifest.json ]; then
+            echo "no validated manifest"
             exit 0
           fi
-          git apply /tmp/ok/correction.patch
-          python - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          from agent_protocol.commit_api import create_fast_forward_commit
-          from agent_protocol.control_plane import assert_patch_allowed
-          from agent_protocol.cycle import next_cycle_number
-          from agent_protocol.format import render_correction_report, render_handoff
-          from agent_protocol.run_architect import comments_from_payload
-          root = Path(".")
-          paths = assert_patch_allowed(root, expected_head=os.environ["REVIEWED"])
-          files = {}
-          deletions = []
-          for rel in paths:
-              target = root / rel
-              if target.is_file():
-                  files[rel] = target.read_text(encoding="utf-8")
-              else:
-                  deletions.append(rel)
-          comments = comments_from_payload([])
-          cycle = next_cycle_number(comments)
-          result = create_fast_forward_commit(
-              api_root=f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}",
-              token=os.environ["GH_TOKEN"],
-              head_ref=os.environ["HEAD_REF"],
-              expected_parent=os.environ["REVIEWED"],
-              files=files,
-              deletions=deletions,
-              message=(
-                  f"fix: address architect review {os.environ['REVIEWED']}\n\n"
-                  f"HerbaGraph-Correction-Cycle: {cycle}\n"
-                  f"HerbaGraph-Reviewed-SHA: {os.environ['REVIEWED']}\n"
-              ),
-          )
-          body = render_correction_report(
-              task=os.environ["TASK"],
-              pr_number=int(os.environ["PR_NUMBER"]),
-              reviewed_commit=os.environ["REVIEWED"],
-              new_commit=result.sha,
-              cycle=cycle,
-              tests="mapped no-secrets validation",
-          )
-          handoff = render_handoff(task=os.environ["TASK"], commit=result.sha, pr_number=int(os.environ["PR_NUMBER"]))
-          Path("/tmp/correction.md").write_text(body + "\n" + handoff, encoding="utf-8")
-          print(result.sha)
-          PY
+          python "${GITHUB_WORKSPACE}/trusted/scripts/agent_protocol/apply_commit.py" \
+            --manifest /tmp/ok/validated-manifest.json \
+            --trusted-scripts "${GITHUB_WORKSPACE}/trusted/scripts"
           gh pr comment "$PR_NUMBER" --body "$(cat /tmp/correction.md)"

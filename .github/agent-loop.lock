@@ -1,0 +1,4 @@
+# Founder-approved trusted orchestrator SHA on protected main.
+# Empty until the first founder-approved install; qualify then accepts the
+# resolved default-branch SHA that contains this file.
+approved_bootstrap_sha=

@@ -51,7 +51,7 @@ def create_fast_forward_commit(
     token: str,
     head_ref: str,
     expected_parent: str,
-    files: dict[str, str],
+    files: dict[str, str] | dict[str, bytes] | dict[str, tuple[str, bytes]],
     deletions: list[str],
     message: str,
     request=_request,
@@ -66,14 +66,21 @@ def create_fast_forward_commit(
     parent_commit = request("GET", f"{api_root}/git/commits/{parent}", token)
     base_tree = str((parent_commit.get("tree") or {}).get("sha") or "")
     tree_items = []
-    for path, content in files.items():
+    for path, payload in files.items():
+        if isinstance(payload, tuple):
+            mode, content = payload
+        else:
+            mode, content = "100644", payload
+        if mode not in {"100644", "100755"}:
+            raise ValueError(f"unsupported_mode:{path}:{mode}")
+        raw = content.encode("utf-8") if isinstance(content, str) else content
         blob = request(
             "POST",
             f"{api_root}/git/blobs",
             token,
-            {"content": base64.b64encode(content.encode("utf-8")).decode("ascii"), "encoding": "base64"},
+            {"content": base64.b64encode(raw).decode("ascii"), "encoding": "base64"},
         )
-        tree_items.append({"path": path, "mode": "100644", "type": "blob", "sha": blob["sha"]})
+        tree_items.append({"path": path, "mode": mode, "type": "blob", "sha": blob["sha"]})
     for path in deletions:
         tree_items.append({"path": path, "mode": "100644", "type": "blob", "sha": None})
     tree = request(

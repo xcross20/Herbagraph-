@@ -70,6 +70,8 @@ CONTROL_PLANE_FILES = frozenset(
         "AGENTS.md",
         "docs/agent-workflow/PROTOCOL.md",
         "docs/architecture/PRODUCT_NORTH_STAR.md",
+        ".github/agent-loop.lock",
+        "docs/architecture/adr-0007-agent-loop-bootstrap.md",
     }
 )
 
