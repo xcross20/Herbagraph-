@@ -13,7 +13,7 @@ Read and obey, in this order:
 5. Previous `HERBAGRAPH_ARCHITECT_REVIEW` comments on this PR
 6. The PR title, body, and implementation handoff
 7. The materialized `git diff base...head` included below
-8. Required check conclusions included below. You must not return `ARCHITECT_APPROVED` if any required check is pending, failing, cancelled, skipped, or missing.
+8. Required check conclusions included below. The only required check context is `gates`. Agent-loop jobs (`qualify`, `architect-model`, `architect-write`, `correct-model`, `validate`, `commit`, `dry-run`) are not required and must not block `ARCHITECT_APPROVED`. You must not return `ARCHITECT_APPROVED` if `gates` is pending, failing, cancelled, skipped, or missing.
 
 ## Trigger rules
 
@@ -29,6 +29,6 @@ Do not review or enroll `grok/mvp-baseline-red-tests` (PR #6 exclusion).
 
 ## Output
 
-Return JSON that matches the supplied output schema. `reviewed_commit` must be the 40-character head SHA you were given. Classify findings as blocking, should_fix, and noted. Include a hostile trace, required checks, allowed next scope, next owner, and a trap line.
+Return JSON that matches the supplied output schema. `task` must be exactly the Task value from the Exact SHAs section. `reviewed_commit` must be the 40-character head SHA you were given. Classify findings as blocking, should_fix, and noted. Include a hostile trace, required checks, allowed next scope, next owner, and a trap line.
 
 Never request or echo secrets. Never recommend auto-merge.
