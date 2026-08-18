@@ -105,6 +105,14 @@
   color: #2c332f;
 }
 .ask-chip:hover { border-color: #117744; }
+.ask-chip-danger { color: #8a2b22; border-color: #e4c4bf; }
+.ask-chip-danger:hover { border-color: #c45c4a; }
+.ask-continue-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
 
 .ask-thread {
   display: grid;

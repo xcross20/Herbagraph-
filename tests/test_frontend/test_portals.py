@@ -56,6 +56,7 @@ def test_workspace_app_enforces_portal_path():
     assert "data-discovery-control" in js
     assert "data-explanation-drawer" in js
     assert "data-family-id" in js
+    assert "data-why-family" in js
     assert "paused concern" in js
     assert "/api/v1/cases/" in js and "/turns" in js
     assert "Clinic portal" in js
@@ -105,8 +106,12 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "data-ask-control" in js
     assert "data-explanation-drawer" in js
     assert "data-family-id" in js
-    assert "Prepare for clinician" in js
+    assert "data-why-family" in js
     assert "claim_cards" in js
+    assert "openFamilyDialog" in (ROOT / "js" / "workspace-home.js").read_text(encoding="utf-8")
+    assert "Delete this conversation" in js
+    assert "Start over" in js
+    assert "DELETE" in js
     assert "Missing literature stays a limitation" in js
     assert "data-evidence-id" in js
     assert "Paused:" in js

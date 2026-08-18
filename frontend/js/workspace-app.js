@@ -9,6 +9,7 @@ const API = window.location.origin;
 const Auth = window.HerbaGraphAuth;
 let currentUser = null;
 let lastDashboard = null;
+let lastWhyFamilies = {};
 
 function isMobileNav() {
   return window.matchMedia("(max-width: 900px)").matches;
@@ -701,22 +702,15 @@ function renderAtlasInvestigation(body) {
   const hypos = families.length ? families : (body.hypotheses || []);
   const increasers = (explanation.ranked_actions && explanation.ranked_actions.length) ? explanation.ranked_actions : (body.confidence_increasers || []);
   const action = body.turn_state && body.turn_state.selected_action;
+  lastWhyFamilies = {};
   const hypoRows = hypos.map((h) => {
     const id = h.id || h.code || "";
-    const evals = (h.evaluations || []).slice(0, 6).map((item) =>
-      `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.coverage_relation || "")}. ${esc(item.can_tell || "")} Cannot tell: ${esc(item.cannot_tell || "")}</span></li>`
-    ).join("");
+    lastWhyFamilies[id] = Object.assign({}, h, {
+      rationale: h.rationale || (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis,
+    });
     return `<li data-family-id="${esc(id)}"><strong>${esc(h.label)}</strong><br>
       <span class="muted">${h.relationship ? esc(h.relationship) + " · " : ""}Coverage is completeness, not probability — not a diagnosis</span>
-      <details class="ask-why-drawer" data-explanation-drawer="1">
-        <summary>Why is this here?</summary>
-        <p>${esc(h.rationale || (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis || "Open because related findings are present.")}</p>
-        ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc(h.unknowns.slice(0, 4).join(", "))}</p>` : ""}
-        <p><strong>Ways to evaluate</strong></p><ul>${evals || '<li class="muted">No ranked options yet.</li>'}</ul>
-        <p><strong>Research</strong></p>
-        <ul>${(h.claim_card_ids || []).map((id) => `<li data-evidence-id="${esc(id)}">${esc(id)}</li>`).join("") || '<li class="muted">No stored citation supports this statement. Missing literature stays a limitation.</li>'}</ul>
-        <p>${esc(h.next_action || "Prepare for clinician")}</p>
-      </details></li>`;
+      <button type="button" class="ask-why-open" data-why-family="${esc(id)}" data-explanation-drawer="1">Why is this here?</button></li>`;
   }).join("") || "<li class=\"muted\">No investigation family activated.</li>";
   const gapRows = increasers.map((item) =>
     `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.why || item.reason || "")}</span></li>`
@@ -792,6 +786,7 @@ async function renderDiscovery(caseId, requestedPatientId) {
           <textarea id="discovery-concern" rows="2" required placeholder="${esc(chatPlaceholder)}"></textarea>
           <button class="app-btn app-btn-primary" type="submit" id="discovery-open-btn">Send</button>
         </form>
+        ${current && current.id ? `<p class="muted"><button type="button" class="ask-mini" id="discovery-start-over" data-ask-start-over="1">Start over</button> removes this conversation. Labs stay.</p>` : ""}
       </section>
       ${renderAtlasInvestigation(current)}
     </div>`}
@@ -804,6 +799,27 @@ async function renderDiscovery(caseId, requestedPatientId) {
   wirePatientScopeSelect("discovery");
   wireDiscoveryAnswers();
   wireAtlasTabs();
+  document.querySelectorAll("[data-why-family]").forEach((btn) => {
+    btn.onclick = () => {
+      const family = lastWhyFamilies[btn.getAttribute("data-why-family")];
+      if (window.HerbaGraphWorkspace && window.HerbaGraphWorkspace.openFamilyDialog) {
+        window.HerbaGraphWorkspace.openFamilyDialog(family);
+      }
+    };
+  });
+  const startOver = document.getElementById("discovery-start-over");
+  if (startOver && current && current.id) {
+    startOver.onclick = async () => {
+      if (!window.confirm("Delete this conversation and start over? Labs and reports stay.")) return;
+      try {
+        await api(`/api/v1/cases/${current.id}`, "DELETE");
+        history.replaceState({}, document.title, "#discovery");
+        await renderDiscovery(null, scopeId);
+      } catch (err) {
+        startOver.textContent = err.message || "Could not start over";
+      }
+    };
+  }
   const ack = document.getElementById("ack-discovery-disclaimer");
   if (ack) {
     ack.onclick = () => {

@@ -88,6 +88,7 @@
   let patients = [];
   let patientId = null;
   let sending = false;
+  let lastFamilies = {};
 
   function renderHome() {
     const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
@@ -132,7 +133,10 @@
       mount.innerHTML = `<div class="ask-continue">
         <p><strong>Continue from last time</strong></p>
         <p class="ask-note">${esc(String(summary).slice(0, 180))}</p>
-        <button type="button" class="ask-chip" id="ask-resume">Pick up where we left off</button>
+        <div class="ask-continue-actions">
+          <button type="button" class="ask-chip" id="ask-resume">Pick up where we left off</button>
+          <button type="button" class="ask-chip ask-chip-danger" id="ask-forget-last">Delete this conversation</button>
+        </div>
       </div>`;
       const btn = document.getElementById("ask-resume");
       if (btn) {
@@ -145,6 +149,8 @@
           renderThread();
         };
       }
+      const forget = document.getElementById("ask-forget-last");
+      if (forget) forget.onclick = () => confirmStartOver(latest.id);
     } catch (_) { /* no prior case */ }
   }
 
@@ -273,21 +279,12 @@
     const gaps = (ranked.length ? ranked : (body.confidence_increasers || [])).slice(0, 6).map((i) =>
       `<li data-candidate-id="${esc(i.id || "")}"><strong>${esc(i.label)}</strong> <span class="muted">${esc(i.why || i.reason || "This would change the picture.")}</span></li>`
     ).join("") || "<li>No ranked gaps yet</li>";
+    lastFamilies = {};
     const hypos = (families.length ? families : (body.hypotheses || []).map((h) => ({id: h.code, label: h.label, rationale: (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis, unknowns: h.missing_markers, evaluations: [], relationship: "", next_action: "Prepare for clinician"}))).slice(0, 6).map((h) => {
-      const evals = (h.evaluations || []).slice(0, 5).map((item) =>
-        `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.coverage_relation || "")}: ${esc(item.can_tell || "")} Cannot tell: ${esc(item.cannot_tell || "")}</span></li>`
-      ).join("");
-      return `<li data-family-id="${esc(h.id || h.code || "")}"><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span>
-        <details class="ask-why-drawer" data-explanation-drawer="1">
-          <summary>Why is this here?</summary>
-          <p>${esc(h.rationale || "Open because related findings are present. Coverage is completeness, not probability.")}</p>
-          <p class="muted">Relationship: ${esc(h.relationship || "contributor_evaluation")}</p>
-          ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc((h.unknowns || []).slice(0, 4).join(", "))}</p>` : ""}
-          <p><strong>Ways to evaluate</strong></p><ul>${evals || '<li class="muted">No ranked options yet.</li>'}</ul>
-          <p><strong>Research</strong></p>
-          <ul>${(h.claim_card_ids || []).map((id) => `<li data-evidence-id="${esc(id)}">${esc(id)}</li>`).join("") || '<li class="muted">No stored citation supports this statement. Missing literature stays a limitation.</li>'}</ul>
-          <p>${esc(h.next_action || "Prepare for clinician")}</p>
-        </details></li>`;
+      const familyId = h.id || h.code || "";
+      lastFamilies[familyId] = h;
+      return `<li data-family-id="${esc(familyId)}"><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span>
+        <button type="button" class="ask-why-open" data-why-family="${esc(familyId)}" data-explanation-drawer="1">Why is this here?</button></li>`;
     }).join("") || "<li>No open families</li>";
     const cards = (explanation.claim_cards || []).filter((c) => c.accepted);
     const citeSource = cards.length ? cards : (body.literature || []);
@@ -305,7 +302,7 @@
               <button type="button" class="ask-voice" id="ask-voice" ${paused || sending ? "disabled" : ""}>Talk</button>
               <button type="submit" ${sending || paused ? "disabled" : ""}>${paused ? "Paused" : sending ? "Sending…" : "Ask"}</button>
             </form>
-            <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged.</p>
+            <p class="ask-note"><a href="${home}">Back to workspace</a> · Labs and reports are unchanged. <button type="button" class="ask-mini" id="ask-start-over" data-ask-start-over="1">Start over</button></p>
           </div>
         </div>
         <aside class="ask-rail">
@@ -340,6 +337,14 @@
       </div>`;
     bindComposer();
     bindVoice();
+    document.querySelectorAll("[data-why-family]").forEach((btn) => {
+      btn.onclick = () => {
+        const family = lastFamilies[btn.getAttribute("data-why-family")];
+        if (WS && WS.openFamilyDialog) WS.openFamilyDialog(family);
+      };
+    });
+    const startOver = document.getElementById("ask-start-over");
+    if (startOver) startOver.onclick = () => confirmStartOver(currentCase && currentCase.id);
     document.querySelectorAll("[data-why]").forEach((btn) => {
       btn.onclick = () => {
         const el = document.getElementById("why-" + btn.getAttribute("data-why"));
@@ -421,6 +426,58 @@
     return "";
   }
 
+  function resetAskHome() {
+    currentCase = null;
+    lastFamilies = {};
+    const next = new URL(location.href);
+    next.searchParams.delete("case");
+    history.replaceState({}, "", next);
+    renderHome();
+  }
+
+  function confirmStartOver(caseId) {
+    if (!caseId) {
+      resetAskHome();
+      return;
+    }
+    if (document.querySelector("[data-start-over-overlay]")) return;
+    const overlay = document.createElement("div");
+    overlay.className = "hg-why-overlay";
+    overlay.setAttribute("data-start-over-overlay", "1");
+    overlay.innerHTML = `
+      <div class="hg-why-dialog hg-why-dialog-confirm" role="dialog" aria-modal="true" aria-labelledby="ask-start-over-title">
+        <header class="hg-why-head">
+          <div>
+            <p class="hg-why-kicker">Start over</p>
+            <h2 id="ask-start-over-title">Delete this conversation?</h2>
+          </div>
+          <button type="button" class="hg-why-close" data-start-over-cancel aria-label="Cancel">Close</button>
+        </header>
+        <div class="hg-why-body">
+          <p>This removes this chat and its investigation notes from Ask. Labs and reports stay in your workspace.</p>
+          <div class="ask-continue-actions">
+            <button type="button" class="ask-chip" data-start-over-cancel>Keep conversation</button>
+            <button type="button" class="ask-chip ask-chip-danger" data-start-over-confirm>Delete and start over</button>
+          </div>
+          <p class="ask-note" data-start-over-status></p>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+    overlay.querySelectorAll("[data-start-over-cancel]").forEach((btn) => { btn.onclick = close; });
+    overlay.querySelector("[data-start-over-confirm]").onclick = async () => {
+      const status = overlay.querySelector("[data-start-over-status]");
+      try {
+        await api(`/api/v1/cases/${caseId}`, "DELETE");
+        close();
+        resetAskHome();
+      } catch (err) {
+        if (status) status.textContent = err.message || "Could not delete that conversation.";
+      }
+    };
+  }
+
   async function startOrContinue(text) {
     if (!text || sending) return;
     const liveState = (currentCase && currentCase.turn_state && currentCase.turn_state.safety_status) || (currentCase && currentCase.safety && currentCase.safety.state);
@@ -485,6 +542,10 @@
     if (params().get("case")) {
       try {
         currentCase = await api(`/api/v1/cases/${params().get("case")}`);
+        if (currentCase && currentCase.status === "closed") {
+          resetAskHome();
+          return;
+        }
         if (currentCase.patient_id) patientId = currentCase.patient_id;
         renderThread();
         return;
