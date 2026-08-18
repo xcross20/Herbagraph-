@@ -212,10 +212,13 @@ class ControlState:
     cannot_provide_count: int = 0
     frustration_count: int = 0
     version: int = 1
+    case_version: int = 0
 
     def as_dict(self) -> dict:
         return {
             "version": self.version,
+            "case_version": self.case_version,
+            "snapshot_id": f"cv{self.case_version}",
             "focus": dict(self.focus),
             "paused_families": dict(self.paused_families),
             "slots": dict(self.slots),
@@ -241,6 +244,7 @@ class ControlState:
             cannot_provide_count=int(data.get("cannot_provide_count") or 0),
             frustration_count=int(data.get("frustration_count") or 0),
             version=int(data.get("version") or 1),
+            case_version=int(data.get("case_version") or 0),
         )
 
     def paused_family_ids(self) -> set[str]:
@@ -378,6 +382,7 @@ def apply_control(
         _set_slot(state, "patient_interpretation", facts.get("patient_interpretation") or "inflammatory foods")
     if "do not change" in (text or "").lower() or "don't change" in (text or "").lower() or "position and activity" in (text or "").lower():
         _set_slot(state, "burning_feet.position_activity_effect", "none_reported")
+    state.case_version = int(state.case_version or 0) + 1
     state.last_intents = intents
     return state
 

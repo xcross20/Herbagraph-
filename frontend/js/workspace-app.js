@@ -717,7 +717,7 @@ function renderAtlasInvestigation(body) {
   ).join("") || "<li class=\"muted\">No ranked confidence gaps yet.</li>";
   return `<aside class="atlas-panel atlas-investigate" data-atlas-panel="investigate">
     <h2>What we're investigating</h2>
-    <p class="muted">Map v${body.map_version || 1}. Coverage is how thoroughly a branch was assessed.</p>
+    <p class="muted" data-snapshot-id="${esc(body.snapshot_id || "")}">Map v${body.map_version || 1}${body.snapshot_id ? ` · ${esc(body.snapshot_id)}` : ""}. Coverage is how thoroughly a branch was assessed.</p>
     ${action ? `<div class="next-action-card"><strong>Next</strong> ${esc(action.objective || action.type)}</div>` : ""}
     <h3>Branches</h3><ul>${hypoRows}</ul>
     <h3>What would increase confidence</h3><ul>${gapRows}</ul>

@@ -159,6 +159,8 @@ class DiscoveryTurnStateRead(BaseModel):
     response_mode: str | None = None
     paused_concerns: list[str] = []
     active_concerns: list[str] = []
+    snapshot_id: str | None = None
+    case_version: int | None = None
 
 
 class DiscoveryOutcomeRead(BaseModel):

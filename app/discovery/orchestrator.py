@@ -494,7 +494,10 @@ def orchestrate(
                 increment("paused_concern_held")
             if control.paused_family_ids():
                 increment("paused_family_held")
-            snapshot_id = hashed_source(f"{mode}|{sorted(view.get('family_ids') or [])}|{len(control.observations)}")
+            snapshot_id = f"cv{control.case_version}"
+            extra_control["snapshot_id"] = snapshot_id
+            extra_control["case_version"] = control.case_version
+            view["snapshot_id"] = snapshot_id
             action_plan = None
             prompt = render_explanation_text(
                 view,

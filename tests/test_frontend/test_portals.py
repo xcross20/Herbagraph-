@@ -106,6 +106,7 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "data-ask-control" in js
     assert "data-supportive-actions" in js
     assert "data-action-plan" in js
+    assert "data-snapshot-id" in js
     assert "data-explanation-drawer" in js
     assert "data-family-id" in js
     assert "data-why-family" in js

@@ -313,6 +313,8 @@ def snapshot_to_read(
             response_mode=action_extras.get("response_mode"),
             paused_concerns=paused_concerns(control_payload),
             active_concerns=active_concerns(control_payload),
+            snapshot_id=(control_payload or {}).get("snapshot_id") if isinstance(control_payload, dict) else None,
+            case_version=(control_payload or {}).get("case_version") if isinstance(control_payload, dict) else None,
         )
     interaction = None
     if isinstance(interaction_raw, dict) and interaction_raw.get("type"):
@@ -338,6 +340,16 @@ def snapshot_to_read(
         safety_level=safety_level,
     )
     map_version = getattr(case, "_map_version", None)
+    snapshot_id = None
+    case_version = None
+    if isinstance(control_payload, dict):
+        snapshot_id = control_payload.get("snapshot_id")
+        case_version = control_payload.get("case_version")
+    if snapshot_id is None and isinstance(action_extras, dict):
+        snapshot_id = action_extras.get("snapshot_id")
+        case_version = action_extras.get("case_version") if case_version is None else case_version
+    if snapshot_id is None and map_version is not None:
+        snapshot_id = f"cv{map_version}"
     from app.discovery.explanation import build_explanation_view
 
     explanation = None
@@ -352,6 +364,10 @@ def snapshot_to_read(
             control=control_payload,
             response_mode=action_extras.get("response_mode") if isinstance(action_extras, dict) else None,
         )
+    if isinstance(explanation, dict) and snapshot_id:
+        explanation["snapshot_id"] = snapshot_id
+    if isinstance(map_payload, dict) and snapshot_id:
+        map_payload["snapshot_id"] = snapshot_id
     from app.discovery.claim_cards import is_seed_literature
 
     literature = [
@@ -472,13 +488,7 @@ def snapshot_to_read(
         explanation=explanation,
         action_plan=(control_payload or {}).get("action_plan") if isinstance(control_payload, dict) else None
         or (action_extras.get("action_plan") if isinstance(action_extras, dict) else None),
-        snapshot_id=(
-            (control_payload or {}).get("snapshot_id")
-            if isinstance(control_payload, dict)
-            else None
-        )
-        or (action_extras.get("snapshot_id") if isinstance(action_extras, dict) else None)
-        or (str(map_version) if map_version is not None else None),
+        snapshot_id=snapshot_id,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,

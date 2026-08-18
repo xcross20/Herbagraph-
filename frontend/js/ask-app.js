@@ -217,8 +217,9 @@
     const mode = turn.response_mode || ((turn.selected_action && turn.selected_action.extras && turn.selected_action.extras.response_mode) || "");
     if (!paused.length && !mode && !active.length && !control.focus) return "";
     const pausedLabel = paused.length ? paused.join(", ").split("_").join(" ") : "";
+    const snapshot = body.snapshot_id || control.snapshot_id || turn.snapshot_id || "";
     return `<h2>Conversation control</h2>
-      <p class="ask-note" data-ask-control="1">${mode ? `Response mode: ${esc(mode)}. ` : ""}${pausedLabel ? `Paused: ${esc(pausedLabel)}. Ask will not return to a paused concern unless you resume it or safety requires it.` : "No concern is paused."}</p>`;
+      <p class="ask-note" data-ask-control="1" data-snapshot-id="${esc(snapshot)}">${mode ? `Response mode: ${esc(mode)}. ` : ""}${pausedLabel ? `Paused: ${esc(pausedLabel)}. Ask will not return to a paused concern unless you resume it or safety requires it.` : "No concern is paused."}${snapshot ? ` Snapshot ${esc(snapshot)}.` : ""}</p>`;
   }
 
   function renderActionPlan(body) {
