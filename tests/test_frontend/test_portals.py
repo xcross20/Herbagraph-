@@ -1,6 +1,14 @@
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2] / "frontend"
+
+
+def test_workspace_and_ask_scripts_parse():
+    for name in ("workspace-app.js", "ask-app.js", "workspace-home.js", "herbagraph-auth.js"):
+        path = ROOT / "js" / name
+        result = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
+        assert result.returncode == 0, f"{name} failed to parse:\n{result.stderr}"
 
 
 def test_clinic_and_personal_portals_exist():
