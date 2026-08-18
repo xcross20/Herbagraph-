@@ -1,0 +1,12 @@
+{
+  "id": "USE-58-02",
+  "version": "discovery-usefulness-v1-repeat",
+  "source": "issue 58 founder UAT, synthetic no PHI",
+  "turns": [
+    {"role": "user", "text": "There is mild discomfort under my right ribs after fatty meals."},
+    {"role": "user", "text": "Juice fasting seems to improve it. Popcorn causes stomach discomfort and sometimes shoulder pain."},
+    {"role": "user", "text": "I also get an intermittent itchy crawling sensation in the reproductive area, and itching under the right ribs. No swelling, redness, or warmth."},
+    {"role": "user", "text": "why? show evidence"},
+    {"role": "user", "text": "you've asked the same thing multiple times."}
+  ]
+}
