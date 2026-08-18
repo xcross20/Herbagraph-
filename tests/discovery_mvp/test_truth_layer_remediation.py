@@ -280,6 +280,46 @@ async def test_dark_launch_off_does_not_write_findings(db_session, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_exact_source_event_replay_keeps_identity_and_created_at(db_session):
+    from app.discovery.commands import MutationCommand, apply_command
+
+    case = await _case(db_session)
+    command = MutationCommand(
+        case_id=case.id,
+        source_event_id="client-replay-1",
+        actor="user",
+        mutation_type="assert",
+        name="onset",
+        value="after surgery",
+        kind="context",
+        source="user",
+    )
+    await apply_command(db_session, command)
+    await db_session.flush()
+    first = list(
+        (
+            await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    assert len(first) == 1
+    created = first[0].created_at
+    identity = first[0].identity_key
+    row_id = first[0].id
+    await apply_command(db_session, command)
+    await db_session.flush()
+    second = list(
+        (
+            await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    assert len(second) == 1
+    assert second[0].id == row_id
+    assert second[0].identity_key == identity
+    assert second[0].created_at == created
+    assert second[0].active is True
+
+
+@pytest.mark.asyncio
 async def test_note_and_removal_use_mutation_seam(db_session):
     from app.discovery.service import record_user_note, remove_named_finding
 

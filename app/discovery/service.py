@@ -15,7 +15,8 @@ from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
-from app.discovery.mutations import apply_finding_drafts, inactivate_findings_by_name
+from app.discovery.commands import MutationCommand, apply_command
+from app.discovery.mutations import apply_finding_drafts
 from app.discovery.orchestrator import facts_from_findings
 from app.models.discovery import (
     DiscoveryCase,
@@ -713,8 +714,20 @@ async def _persist_turn_findings(db: AsyncSession, case_id, new_findings, *, sou
                 source=getattr(item, "source", None) or "user",
             )
         )
-    if drafts:
-        await apply_finding_drafts(db, case_id, drafts, source_event_id=source_event_id)
+    for item in drafts:
+        await apply_command(
+            db,
+            MutationCommand(
+                case_id=case_id,
+                source_event_id=source_event_id,
+                actor="user",
+                mutation_type="assert",
+                name=item.name,
+                value=item.value,
+                kind=item.kind,
+                source=item.source,
+            ),
+        )
 
 
 async def add_turn(
@@ -1291,27 +1304,37 @@ async def ingest_case_document(
 
 
 async def remove_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
-    changed = await inactivate_findings_by_name(db, case.id, name)
-    if not changed:
-        raise ValueError("Finding not found")
+    await apply_command(
+        db,
+        MutationCommand(
+            case_id=case.id,
+            source_event_id=f"inactivate:{name}",
+            actor="user",
+            mutation_type="inactivate",
+            name=name,
+            value=None,
+            kind="context",
+            source="user",
+        ),
+    )
     await db.flush()
     await rebuild_case(db, case)
 
 
 async def verify_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
-    rows = (
-        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
-    ).scalars().all()
-    target = name.strip().lower()
-    found = False
-    for item in rows:
-        if item.name.lower() == target:
-            item.status = "verified"
-            if item.value and "patient_reported" in item.value:
-                item.value = item.value.replace("patient_reported", "verified")
-            found = True
-    if not found:
-        raise ValueError("Finding not found")
+    await apply_command(
+        db,
+        MutationCommand(
+            case_id=case.id,
+            source_event_id=f"verify:{name}",
+            actor="user",
+            mutation_type="verify",
+            name=name,
+            value=None,
+            kind="assessment",
+            source="user",
+        ),
+    )
     await db.flush()
     await rebuild_case(db, case)
 
