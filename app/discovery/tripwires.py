@@ -79,3 +79,7 @@ def record_ambiguous_resolver() -> None:
 
 def record_replay_converged() -> None:
     increment("duplicate_replay_converged")
+
+
+def record_document_classified(kind: str) -> None:
+    increment(f"document_classified_{kind}")
