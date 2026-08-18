@@ -142,8 +142,13 @@ class DiscoveryTurn(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     action_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
     stage: Mapped[str | None] = mapped_column(String(40), nullable=True)
     payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
     case: Mapped[DiscoveryCase] = relationship(back_populates="turns")
+
+    __table_args__ = (
+        Index("uq_discovery_turns_idempotency", "case_id", "idempotency_key", unique=True),
+    )
 
 
 class DiscoveryMapVersion(Base, UUIDPrimaryKeyMixin, TimestampMixin):
