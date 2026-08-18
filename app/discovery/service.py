@@ -352,18 +352,21 @@ def snapshot_to_read(
             control=control_payload,
             response_mode=action_extras.get("response_mode") if isinstance(action_extras, dict) else None,
         )
-    literature = _literature_from_case(case)
+    from app.discovery.claim_cards import is_seed_literature
+
+    literature = [
+        {
+            "title": item.get("title") or item.get("source_id"),
+            "url": item.get("url"),
+            "pmid": None,
+            "source_id": item.get("source_id"),
+            "claim_id": item.get("claim_id"),
+        }
+        for item in (explanation.get("claim_cards") or [])
+        if item.get("accepted") and item.get("eligible_for_case") is not False and not is_seed_literature(item)
+    ]
     if not literature:
-        literature = [
-            {
-                "title": item.get("title") or item.get("source_id"),
-                "url": item.get("url"),
-                "pmid": None,
-                "source_id": item.get("source_id"),
-            }
-            for item in (explanation.get("claim_cards") or [])
-            if item.get("accepted")
-        ]
+        literature = [item for item in _literature_from_case(case) if not is_seed_literature(item)]
     return DiscoveryCaseRead(
         id=case.id,
         presenting_concern=case.presenting_concern,

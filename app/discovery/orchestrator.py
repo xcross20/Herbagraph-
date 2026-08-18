@@ -383,6 +383,14 @@ def orchestrate(
             control=control,
             unanswered_high_value=unanswered_high_value,
         )
+        slot_preview = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
+        if mode == "ASK_ONE_QUESTION" and (
+            "request_next_steps" in control.last_intents
+            or "request_synthesis" in control.last_intents
+            or control.frustration_count >= 1
+            or bool(slot_preview.get("facial_heat.meal_delay") or merged.get("meal_relation"))
+        ):
+            mode = "NEXT_STEPS"
         if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
             from app.discovery.decision_events import (
@@ -400,10 +408,16 @@ def orchestrate(
                 planner_enabled() or True
             ) else []
             family_ids = [getattr(item, "code", None) or (item.get("code") if isinstance(item, dict) else None) for item in snapshot.hypotheses]
-            cards = [item for item in cards_for_next_steps([code for code in family_ids if code]) if item.get("accepted")] if (
-                claim_cards_enabled() or True
-            ) else []
             slot_facts = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
+            cards = [
+                item
+                for item in cards_for_next_steps(
+                    [code for code in family_ids if code],
+                    facts={**merged, **slot_facts},
+                    text=text,
+                )
+                if item.get("accepted") and item.get("eligible_for_case") is not False
+            ] if (claim_cards_enabled() or True) else []
             view = build_explanation_view(
                 hypotheses=snapshot.hypotheses,
                 facts={**merged, **slot_facts},

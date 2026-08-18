@@ -8,11 +8,16 @@ from app.discovery.claim_cards import build_claim_card, cards_for_next_steps
 from app.discovery.composition import (
     assay_does_not_close_parent,
     claim_transfers,
+    elemental_amount,
+    forms_not_ranked_on_generic_effectiveness,
+    illegal_identity,
     load_composition_graph,
     load_extensibility_overlay,
     merge_overlay,
     overlay_uses_existing_layers,
+    synonym_to_code,
     unknown_form_stays_unknown,
+    variant_may_enter_case,
 )
 from app.discovery.decision_events import (
     DecisionLog,
@@ -67,10 +72,15 @@ def test_issue_58_planner_skips_paused_and_non_addressing():
 def test_issue_58_claim_cards_fail_closed_without_inventing_pmids():
     bad = build_claim_card(statement="A paper exists.", source_id="pmid:99999999")
     assert bad["accepted"] is False
-    good = cards_for_next_steps()
-    assert good
-    assert all(item["accepted"] for item in good)
-    assert all(not str(item["source_id"]).startswith("pmid:") or str(item["source_id"]).split(":")[-1].isdigit() for item in good)
+    empty = cards_for_next_steps()
+    assert all(not item.get("accepted") for item in empty)
+    grape = cards_for_next_steps(
+        ["grape"],
+        facts={"grape_exposure": "reported"},
+        active_claim_ids=["claim-grape-composition", "grape"],
+        text="I eat grapes every day",
+    )
+    assert grape == []
 
 
 def test_issue_62_decision_events_are_idempotent_and_do_not_change_rank():
@@ -106,7 +116,7 @@ def test_issue_58_fixture_surfaces_ranked_next_evidence(monkeypatch):
     assert "not a diagnosis" in blob
     assert "may or may not share a cause" in blob
     if not cards:
-        assert "limitation" in blob
+        assert "literature" in blob or "limitation" in blob
 
 
 def test_issue_60_fifth_domain_is_configuration_only():
@@ -125,6 +135,50 @@ def test_issue_60_fifth_domain_is_configuration_only():
     except ValueError:
         raised = True
     assert raised is True
+
+
+def test_issue_58_ruq_case_does_not_render_grape_or_salt_seeds(monkeypatch):
+    monkeypatch.setattr("app.discovery.usefulness.usefulness_governor_enabled", lambda: True)
+    last = None
+    prior = {}
+    control = None
+    for text in (
+        "I've been dealing with this weird pain under my right ribs for eight months.",
+        "It happens after burgers and fries.",
+        "What should I do?",
+    ):
+        last = orchestrate(text, prior_facts=prior, asked=[], answered=set(), control_state=control)
+        for item in last.new_findings:
+            prior[item.name] = item.value or ""
+        control = last.control
+    extras = last.action.extras or {}
+    cards = extras.get("claim_cards") or []
+    titles = " ".join(str(item.get("title") or item.get("source_id") or "") for item in cards).lower()
+    blob = (last.message + " " + (last.action.prompt or "")).lower()
+    assert "grape" not in titles
+    assert "pink-salt" not in titles
+    assert "grape bioactive" not in blob
+    assert extras.get("response_mode") in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}
+    assert "ultrasound" in blob or "episode" in blob or "ranked next evidence" in blob
+
+
+def test_issue_60_identity_contracts_and_magnesium_forms():
+    load_composition_graph.cache_clear()
+    assert synonym_to_code("mg") == "magnesium"
+    assert synonym_to_code("methylcobalamin") == "methylcobalamin"
+    assert synonym_to_code("methylcobalamin") != "vitamin_b12"
+    oxide = elemental_amount(form_code="magnesium_oxide", compound_mass_mg=400)
+    assert oxide["unknown"] is False
+    assert oxide["elemental_mg"] != 400
+    unknown = elemental_amount(form_code="unknown_magnesium_product", compound_mass_mg=400)
+    assert unknown["unknown"] is True
+    assert claim_transfers("magnesium_oxide", "magnesium", "supports_outcome_in_population") is False
+    assert claim_transfers("magnesium", "magnesium_glycinate", "supports_outcome_in_population") is False
+    assert forms_not_ranked_on_generic_effectiveness("magnesium_oxide", "magnesium_glycinate") is True
+    assert illegal_identity({"layer": "form", "code": "x"}) == "form_requires_parent"
+    assert illegal_identity({"parent": "magnesium", "commerce": True}) == "commerce_not_identity"
+    assert variant_may_enter_case("magnesium_glycinate", {"biliary_colic_pattern"}) is False
+    assert variant_may_enter_case("magnesium_glycinate", {"magnesium_glycinate"}) is True
 
 
 def concept_layer_set_unchanged(base: dict, merged: dict) -> bool:

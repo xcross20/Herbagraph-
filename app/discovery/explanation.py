@@ -83,8 +83,12 @@ def build_explanation_view(
             family_ids.append(str(code))
     cards = [
         item
-        for item in (cards if cards is not None else cards_for_next_steps(family_ids))
-        if item.get("accepted")
+        for item in (
+            cards
+            if cards is not None
+            else cards_for_next_steps(family_ids, facts=facts)
+        )
+        if item.get("accepted") and item.get("eligible_for_case") is not False
     ]
     paused = state.paused_family_ids()
     families = []
@@ -166,13 +170,23 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
     facts = facts or {}
     families = view.get("families") or []
     labels = ", ".join(item.get("label") or item.get("id") or "a family" for item in families[:3]) or "the open families"
+    family_ids = {str(item.get("id") or "") for item in families}
+    ruq = bool(family_ids & {"biliary_colic_pattern", "gastric_dyspeptic_pattern", "reflux_pattern"})
+    sensory = bool(family_ids & {"small_fiber_dysfunction", "b12_functional_gap", "glucose_dysregulation"})
     b12 = facts.get("prior_labs.b12_last_check") or ""
     b12_line = (
         " I recorded a patient-reported B12 check from last year; I will not ask that again, and a recalled total B12 does not close the branch."
-        if b12
+        if b12 and sensory
         else ""
     )
-    labs_line = " Prior routine bloodwork does not itself assess small-fiber function."
+    labs_line = ""
+    if sensory:
+        labs_line = " Prior routine bloodwork does not itself assess small-fiber function."
+    if ruq:
+        labs_line += (
+            " I am organizing the reported post-meal right-upper discomfort and fat-meal association as investigation targets, "
+            "not as a gallbladder diagnosis."
+        )
     attribution = facts.get("patient_interpretation") or (
         "inflammatory foods" if any("inflamm" in str(value).lower() for value in facts.values()) else ""
     )
@@ -192,7 +206,11 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
     paused_labels = [item.get("label") or item.get("id") for item in families if item.get("status") == "paused_by_user"]
     pause_line = f" I paused {', '.join(str(item) for item in paused_labels)} and will not keep asking about it." if paused_labels else ""
     cards = [item.get("title") or item.get("source_id") for item in (view.get("claim_cards") or []) if item.get("accepted")]
-    cite_line = f" Stored research: {'; '.join(str(item) for item in cards[:2])}." if cards else " Missing literature stays a limitation, not an invented citation."
+    cite_line = (
+        f" Stored research: {'; '.join(str(item) for item in cards[:2])}."
+        if cards
+        else " Relevant literature is not yet available for the selected claim. Missing literature stays a limitation, not an invented citation."
+    )
     return (
         f"Here is a bounded interim view of {labels}.{b12_line}{labs_line}{attr_line}{pause_line} "
         "These remain possibilities because coverage is incomplete, not because a diagnosis is established. "
