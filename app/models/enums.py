@@ -88,6 +88,7 @@ class CoverageRelation(str, enum.Enum):
 
     DIRECTLY_ASSESSES = "directly_assesses"
     PARTIALLY_ASSESSES = "partially_assesses"
+    INDIRECTLY_INFORMS = "indirectly_informs"
     DOES_NOT_DIRECTLY_ASSESS = "does_not_directly_assess"
     NOT_APPLICABLE = "not_applicable"
     UNKNOWN = "unknown"
@@ -670,11 +671,3 @@ class DiscoveryTestPlanStatus(str, enum.Enum):
     RESULTED = "resulted"
     DECLINED = "declined"
     CANCELLED = "cancelled"
-
-
-class CoverageRelation(str, enum.Enum):
-    DIRECTLY_ASSESSES = "directly_assesses"
-    PARTIALLY_ASSESSES = "partially_assesses"
-    INDIRECTLY_INFORMS = "indirectly_informs"
-    DOES_NOT_DIRECTLY_ASSESS = "does_not_directly_assess"
-    NOT_APPLICABLE = "not_applicable"
