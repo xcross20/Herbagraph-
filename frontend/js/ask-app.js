@@ -89,6 +89,8 @@
   let patientId = null;
   let sending = false;
   let lastFamilies = {};
+  let conversations = [];
+  let hiddenConversationIds = {};
 
   function renderHome() {
     const clinician = WS && WS.isClinicianRole(currentUser && currentUser.role);
@@ -104,11 +106,9 @@
         <div class="ask-chips">
           ${EXAMPLES.map((ex, i) => `<button type="button" class="ask-chip" data-ex="${i}">${esc(i === 1 ? "I already have labs" : ex.slice(0, 42) + (ex.length > 42 ? "…" : ""))}</button>`).join("")}
         </div>
-        <div id="ask-continue"></div>
         <p class="ask-note">Not a diagnosis. The Case is the source of truth — this page is only a conversation surface.</p>
       </section>`;
     bindComposer();
-    fillContinueCard();
     document.querySelectorAll("[data-ex]").forEach((btn) => {
       btn.onclick = async () => {
         const ex = EXAMPLES[Number(btn.getAttribute("data-ex"))];
@@ -121,37 +121,92 @@
     if (sel) sel.onchange = () => { patientId = sel.value || null; };
   }
 
-  async function fillContinueCard() {
-    const mount = document.getElementById("ask-continue");
+  function conversationTitle(row) {
+    const raw = (row && (row.presenting_concern || row.problem_representation)) || "New conversation";
+    return String(raw).replace(/\s+/g, " ").trim().slice(0, 52);
+  }
+
+  function visibleConversations() {
+    return conversations.filter((row) => row && row.id && !hiddenConversationIds[row.id] && row.status !== "closed");
+  }
+
+  function renderHistory() {
+    const mount = document.getElementById("ask-history");
     if (!mount) return;
+    const activeId = currentCase && currentCase.id;
+    const rows = visibleConversations();
+    mount.innerHTML = `
+      <div class="ask-history-head">
+        <p class="ask-history-kicker">Conversations</p>
+        <button type="button" class="ask-chip" id="ask-new-chat" data-ask-new-chat="1">New chat</button>
+      </div>
+      <ul class="ask-history-list">
+        ${rows.map((row) => `
+          <li class="ask-history-item ${row.id === activeId ? "is-active" : ""}" data-conversation-id="${esc(row.id)}">
+            <button type="button" class="ask-history-open" data-open-conversation="${esc(row.id)}">${esc(conversationTitle(row))}</button>
+            <button type="button" class="ask-history-delete" data-delete-conversation="${esc(row.id)}" aria-label="Delete conversation">Delete</button>
+          </li>`).join("") || `<li class="ask-history-empty">No saved conversations</li>`}
+      </ul>`;
+    const newer = document.getElementById("ask-new-chat");
+    if (newer) newer.onclick = () => startNewChat();
+    mount.querySelectorAll("[data-open-conversation]").forEach((btn) => {
+      btn.onclick = () => openConversation(btn.getAttribute("data-open-conversation"));
+    });
+    mount.querySelectorAll("[data-delete-conversation]").forEach((btn) => {
+      btn.onclick = (event) => {
+        event.stopPropagation();
+        confirmStartOver(btn.getAttribute("data-delete-conversation"));
+      };
+    });
+  }
+
+  async function loadConversations() {
+    const qs = patientId ? `?patient_id=${patientId}` : "";
+    const rows = await api("/api/v1/cases/summaries" + qs);
+    conversations = Array.isArray(rows) ? rows.filter((row) => row.status !== "closed" && !hiddenConversationIds[row.id]) : [];
+    renderHistory();
+  }
+
+  function rememberConversation(row) {
+    if (!row || !row.id || row.status === "closed") return;
+    conversations = [row, ...conversations.filter((item) => item.id !== row.id)];
+    renderHistory();
+  }
+
+  async function openConversation(caseId) {
+    if (!caseId) return;
     try {
-      const qs = patientId ? `?patient_id=${patientId}` : "";
-      const cases = await api("/api/v1/cases" + qs);
-      const latest = cases && cases[0];
-      if (!latest) return;
-      const summary = latest.problem_representation || latest.presenting_concern || "your last investigation";
-      mount.innerHTML = `<div class="ask-continue">
-        <p><strong>Continue from last time</strong></p>
-        <p class="ask-note">${esc(String(summary).slice(0, 180))}</p>
-        <div class="ask-continue-actions">
-          <button type="button" class="ask-chip" id="ask-resume">Pick up where we left off</button>
-          <button type="button" class="ask-chip ask-chip-danger" id="ask-forget-last">Delete this conversation</button>
-        </div>
-      </div>`;
-      const btn = document.getElementById("ask-resume");
-      if (btn) {
-        btn.onclick = () => {
-          currentCase = latest;
-          const next = new URL(location.href);
-          next.searchParams.set("case", latest.id);
-          if (latest.patient_id) next.searchParams.set("patient", latest.patient_id);
-          history.replaceState({}, "", next);
-          renderThread();
-        };
+      currentCase = await api(`/api/v1/cases/${caseId}`);
+      if (!currentCase || currentCase.status === "closed") {
+        hiddenConversationIds[caseId] = true;
+        conversations = conversations.filter((item) => item.id !== caseId);
+        startNewChat();
+        return;
       }
-      const forget = document.getElementById("ask-forget-last");
-      if (forget) forget.onclick = () => confirmStartOver(latest.id);
-    } catch (_) { /* no prior case */ }
+      if (currentCase.patient_id) patientId = currentCase.patient_id;
+      const next = new URL(location.href);
+      next.searchParams.set("case", currentCase.id);
+      if (patientId) next.searchParams.set("patient", patientId);
+      history.replaceState({}, "", next);
+      document.body.classList.remove("ask-history-open");
+      renderHistory();
+      renderThread();
+    } catch (_) {
+      hiddenConversationIds[caseId] = true;
+      conversations = conversations.filter((item) => item.id !== caseId);
+      renderHistory();
+    }
+  }
+
+  function startNewChat() {
+    currentCase = null;
+    lastFamilies = {};
+    const next = new URL(location.href);
+    next.searchParams.delete("case");
+    history.replaceState({}, "", next);
+    renderHistory();
+    renderHome();
+    document.body.classList.remove("ask-history-open");
   }
 
   function renderAskControl(body) {
@@ -428,12 +483,7 @@
   }
 
   function resetAskHome() {
-    currentCase = null;
-    lastFamilies = {};
-    const next = new URL(location.href);
-    next.searchParams.delete("case");
-    history.replaceState({}, "", next);
-    renderHome();
+    startNewChat();
   }
 
   function confirmStartOver(caseId) {
@@ -470,9 +520,13 @@
     overlay.querySelector("[data-start-over-confirm]").onclick = async () => {
       const status = overlay.querySelector("[data-start-over-status]");
       try {
+        hiddenConversationIds[caseId] = true;
+        conversations = conversations.filter((item) => item.id !== caseId);
+        renderHistory();
         await api(`/api/v1/cases/${caseId}`, "DELETE");
         close();
-        resetAskHome();
+        if (currentCase && currentCase.id === caseId) startNewChat();
+        else renderHistory();
       } catch (err) {
         if (status) status.textContent = err.message || "Could not delete that conversation.";
       }
@@ -516,6 +570,14 @@
       if (patientId) next.searchParams.set("patient", patientId);
       history.replaceState({}, "", next);
       sending = false;
+      rememberConversation({
+        id: currentCase.id,
+        presenting_concern: currentCase.presenting_concern,
+        problem_representation: currentCase.problem_representation,
+        status: currentCase.status,
+        patient_id: currentCase.patient_id,
+        updated_at: currentCase.updated_at,
+      });
       renderThread();
     } catch (err) {
       sending = false;
@@ -540,6 +602,16 @@
       else if (patients[0]) patientId = patients[0].id;
     }
     if (params().get("patient")) patientId = params().get("patient");
+    const toggle = document.getElementById("ask-history-toggle");
+    if (toggle) {
+      toggle.onclick = () => document.body.classList.toggle("ask-history-open");
+    }
+    try {
+      await loadConversations();
+    } catch (_) {
+      conversations = [];
+      renderHistory();
+    }
     if (params().get("case")) {
       try {
         currentCase = await api(`/api/v1/cases/${params().get("case")}`);

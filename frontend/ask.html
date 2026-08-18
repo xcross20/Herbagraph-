@@ -12,7 +12,11 @@
 <link rel="stylesheet" href="/css/ask.css">
 </head>
 <body class="ask-body">
+<div class="ask-shell">
+<aside class="ask-history" id="ask-history" aria-label="Conversations"></aside>
+<div class="ask-stage">
 <header class="ask-topbar">
+  <button type="button" class="ask-history-toggle" id="ask-history-toggle" aria-label="Open conversations">Conversations</button>
   <div class="ask-topbar-brand" id="ask-logo"></div>
   <nav class="ask-topbar-nav">
     <a href="/me.html#dashboard" id="ask-workspace-link">Workspace</a>
@@ -23,6 +27,8 @@
 <main class="ask-main" id="ask-main">
   <p class="ask-loading">Opening Ask…</p>
 </main>
+</div>
+</div>
 <script src="/js/brand-logo.js"></script>
 <script src="/js/herbagraph-auth.js"></script>
 <script src="/js/env-banner.js"></script>

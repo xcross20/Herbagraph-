@@ -111,6 +111,10 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "openFamilyDialog" in (ROOT / "js" / "workspace-home.js").read_text(encoding="utf-8")
     assert "Delete this conversation" in js
     assert "Start over" in js
+    assert "ask-history" in ask
+    assert "/api/v1/cases/summaries" in js
+    assert "New chat" in js
+    assert "data-delete-conversation" in js
     assert "DELETE" in js
     assert "Relevant literature is not yet available for the selected claim" in js
     assert "grape bioactive" in js
