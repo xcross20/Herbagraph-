@@ -61,6 +61,21 @@ SLOT_PHRASES = (
     (re.compile(r"b12.{0,40}last year|last year.{0,40}b12|b12.{0,40}a year ago", re.I), "prior_labs.b12_last_check", "last_year"),
 )
 
+FAMILY_PAUSE_PATTERNS = (
+    ("b12_functional_gap", re.compile(r"\bb12\b|cobalamin|one-carbon")),
+    ("glucose_dysregulation", re.compile(r"\bglucose\b|a1c|blood sugar")),
+)
+
+FAMILY_CANDIDATE_IDS = {
+    "b12_functional_gap": frozenset({"bf-b12", "bf-mma"}),
+    "glucose_dysregulation": frozenset({"bf-glucose"}),
+}
+
+FAMILY_TARGETS = {
+    "b12_functional_gap": "b12_status",
+    "glucose_dysregulation": "glucose_regulation",
+}
+
 
 def usefulness_governor_enabled() -> bool:
     from app.config import get_settings
@@ -80,11 +95,20 @@ def load_usefulness_fixture(path: Path | None = None) -> dict:
 def classify_control_intent(text: str) -> list[str]:
     blob = (text or "").lower()
     intents: list[str] = []
+    if re.search(
+        r"pause .{0,40}b12|never mind about b12|skip (?:the )?b12|don'?t (?:want to )?(?:deal with|talk about) .{0,20}b12",
+        blob,
+    ):
+        intents.append("pause_family")
     if re.search(r"let'?s not deal with|don'?t (?:want to |wanna )?talk about|pause .{0,20}feet|skip the feet", blob):
-        intents.append("pause_topic")
+        if "pause_family" not in intents:
+            intents.append("pause_topic")
     if re.search(r"resume .{0,20}feet|back to (?:the )?feet|burning feet again", blob):
         intents.append("resume_topic")
-    if re.search(r"what (?:do you think|should i do)|next step|what now|plan|answers now|other insight|any other insight", blob):
+    if re.search(
+        r"what (?:do you think|should i do)|next step|what now|what else|plan|answers now|other insight|any other insight",
+        blob,
+    ):
         intents.append("request_next_steps")
     if re.search(r"what do you think|summar|assessment|so what is (?:this|going on)|answers now|other insight", blob):
         intents.append("request_synthesis")
@@ -100,6 +124,14 @@ def classify_control_intent(text: str) -> list[str]:
 def concern_from_text(text: str) -> str | None:
     blob = (text or "").lower()
     for code, pattern in CONCERN_PATTERNS:
+        if pattern.search(blob):
+            return code
+    return None
+
+
+def family_from_text(text: str) -> str | None:
+    blob = (text or "").lower()
+    for code, pattern in FAMILY_PAUSE_PATTERNS:
         if pattern.search(blob):
             return code
     return None
@@ -151,6 +183,7 @@ def active_concerns(payload: dict | None) -> list[str]:
 @dataclass
 class ControlState:
     focus: dict[str, str] = field(default_factory=dict)
+    paused_families: dict[str, str] = field(default_factory=dict)
     slots: dict[str, dict] = field(default_factory=dict)
     last_intents: list[str] = field(default_factory=list)
     focus_history: list[dict] = field(default_factory=list)
@@ -163,6 +196,7 @@ class ControlState:
         return {
             "version": self.version,
             "focus": dict(self.focus),
+            "paused_families": dict(self.paused_families),
             "slots": dict(self.slots),
             "last_intents": list(self.last_intents),
             "focus_history": [dict(item) for item in self.focus_history],
@@ -176,6 +210,7 @@ class ControlState:
         data = payload or {}
         return cls(
             focus=dict(data.get("focus") or {}),
+            paused_families=dict(data.get("paused_families") or {}),
             slots=dict(data.get("slots") or {}),
             last_intents=list(data.get("last_intents") or []),
             focus_history=[dict(item) for item in (data.get("focus_history") or []) if isinstance(item, dict)],
@@ -184,6 +219,9 @@ class ControlState:
             frustration_count=int(data.get("frustration_count") or 0),
             version=int(data.get("version") or 1),
         )
+
+    def paused_family_ids(self) -> set[str]:
+        return {code for code, status in self.paused_families.items() if status == "paused_by_user"}
 
 
 def _record_focus(
@@ -239,7 +277,21 @@ def apply_control(
     if any(token in blob for token in ("burn", "feet", "foot")):
         if "burning_feet" not in state.focus:
             _record_focus(state, "burning_feet", "active", reason="mentioned", source_event_id=source_event_id)
-    if "pause_topic" in intents:
+    if "pause_family" in intents:
+        family = family_from_text(text) or "b12_functional_gap"
+        if state.paused_families.get(family) != "paused_by_user":
+            state.paused_families[family] = "paused_by_user"
+            state.focus_history.append(
+                {
+                    "concern": family,
+                    "state": "paused_by_user",
+                    "prior_state": None,
+                    "reason": "user_pause_family",
+                    "actor": "user",
+                    "source_event_id": source_event_id,
+                }
+            )
+    elif "pause_topic" in intents:
         _record_focus(
             state,
             mentioned or "burning_feet",

@@ -76,7 +76,17 @@ def build_explanation_view(
 ) -> dict:
     state = control if isinstance(control, ControlState) else ControlState.from_dict(control)
     planned = list(planned or plan_next_evidence(state))
-    cards = [item for item in (cards if cards is not None else cards_for_next_steps()) if item.get("accepted")]
+    family_ids = []
+    for hypo in hypotheses or []:
+        code = getattr(hypo, "code", None) or (hypo.get("code") if isinstance(hypo, dict) else None)
+        if code:
+            family_ids.append(str(code))
+    cards = [
+        item
+        for item in (cards if cards is not None else cards_for_next_steps(family_ids))
+        if item.get("accepted")
+    ]
+    paused = state.paused_family_ids()
     families = []
     for hypo in hypotheses or []:
         family_id = getattr(hypo, "code", None) or (hypo.get("code") if isinstance(hypo, dict) else None)
@@ -109,20 +119,22 @@ def build_explanation_view(
                     "why": item.get("why"),
                 }
             )
+        family_paused = str(family_id) in paused
         families.append(
             {
                 "id": family_id,
                 "label": label,
                 "relationship": FAMILY_RELATION.get(str(family_id), "contributor_evaluation"),
+                "status": "paused_by_user" if family_paused else "active",
                 "supporting_facts": _fact_rows(facts),
                 "contradictions": [],
                 "unknowns": list(getattr(hypo, "missing_markers", None) or (hypo.get("missing_markers") if isinstance(hypo, dict) else []) or [])[:6],
                 "rationale": getattr(hypo, "not_a_diagnosis", None)
                 or "Open because related findings are present. This is not a diagnosis.",
-                "evaluations": evaluations,
+                "evaluations": [] if family_paused else evaluations,
                 "claim_card_ids": [item["source_id"] for item in cards],
                 "limitations": ["Investigation relevance is not a diagnosis."],
-                "next_action": "Prepare for clinician",
+                "next_action": "Paused by you" if family_paused else "Prepare for clinician",
             }
         )
     ranked = [
@@ -177,10 +189,12 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
             why = item.get("why_first") or item.get("why") or "may help assess an open gap"
             bits.append(f"{item.get('label')} ({why})")
         action_line = " Ranked next evidence, not a diagnosis: " + "; ".join(bits) + "."
+    paused_labels = [item.get("label") or item.get("id") for item in families if item.get("status") == "paused_by_user"]
+    pause_line = f" I paused {', '.join(str(item) for item in paused_labels)} and will not keep asking about it." if paused_labels else ""
     cards = [item.get("title") or item.get("source_id") for item in (view.get("claim_cards") or []) if item.get("accepted")]
     cite_line = f" Stored research: {'; '.join(str(item) for item in cards[:2])}." if cards else " Missing literature stays a limitation, not an invented citation."
     return (
-        f"Here is a bounded interim view of {labels}.{b12_line}{labs_line}{attr_line} "
+        f"Here is a bounded interim view of {labels}.{b12_line}{labs_line}{attr_line}{pause_line} "
         "These remain possibilities because coverage is incomplete, not because a diagnosis is established. "
         "They may or may not share a cause; timing together is not proof. "
         "Tests that assess a dysfunction are not the same as tests that evaluate a contributor."

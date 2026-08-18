@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from app.discovery.modalities import map_for, modalities
 from app.discovery.ranker import rank_next_actions
-from app.discovery.usefulness import ControlState
+from app.discovery.usefulness import FAMILY_CANDIDATE_IDS, FAMILY_TARGETS, ControlState
 
 NON_ADDRESSING = frozenset({"does_not_directly_assess", "does_not_address", "unknown"})
 
@@ -19,14 +19,29 @@ def _modality_meta(code: str) -> dict:
     return next((item for item in modalities() if item["code"] == code), {})
 
 
+def _paused_candidate_ids(control: ControlState) -> set[str]:
+    blocked: set[str] = set()
+    for family_id in control.paused_family_ids():
+        blocked.update(FAMILY_CANDIDATE_IDS.get(family_id) or ())
+    return blocked
+
+
+def _paused_targets(control: ControlState) -> set[str]:
+    return {FAMILY_TARGETS[code] for code in control.paused_family_ids() if code in FAMILY_TARGETS}
+
+
 def candidates_for_control(control: ControlState, *, records_available: bool = False) -> list[dict]:
     rows: list[dict] = []
+    blocked_ids = _paused_candidate_ids(control)
+    blocked_targets = _paused_targets(control)
     for concern, status in control.focus.items():
         if status == "paused_by_user":
             continue
         if status not in {"active", "background"}:
             continue
         for item in map_for(concern):
+            if item.get("id") in blocked_ids or item.get("target") in blocked_targets:
+                continue
             coverage = item.get("coverage") or "unknown"
             if coverage in NON_ADDRESSING and item.get("modality") not in {
                 "patient_generated",
