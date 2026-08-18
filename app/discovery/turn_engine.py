@@ -182,19 +182,39 @@ async def run_turn(
     _stage("detect_conflicts")
     _stage("propose_mutations")
 
+    from app.discovery.coverage_catalog import concepts_for_branch, test_code_for_finding
+
     resolved = []
+    mentioned_tests: list[str] = []
     for item in result.new_findings:
-        if "emg" in (item.name or "").lower() or "mri" in (item.name or "").lower():
-            resolved.append(resolve_test(item.name))
+        match = resolve_test(item.name)
+        resolved.append(match)
+        coded = test_code_for_finding(item.name)
+        if coded:
+            mentioned_tests.append(coded)
+        elif match.match is not None:
+            mentioned_tests.append(match.match.code)
     _stage("resolve_tests")
 
-    branch_codes = [str(code) for code in (result.hypotheses or [])][:8]
+    hypo_codes = []
+    for item in result.hypotheses or []:
+        code = getattr(item, "code", None) or str(item)
+        hypo_codes.append(code)
+        hypo_codes.extend(concepts_for_branch(code))
+        branch = getattr(item, "branch", None)
+        if branch:
+            hypo_codes.extend(concepts_for_branch(branch))
+    branch_codes = list(dict.fromkeys(str(code) for code in hypo_codes if code))[:12]
     coverage_notes = []
-    if any("emg" in (item.name or "").lower() for item in result.new_findings):
-        coverage_notes.append(assess_coverage("emg_ncs", "small_fiber_density"))
+    for test_code in dict.fromkeys(mentioned_tests):
+        for concept in branch_codes:
+            coverage_notes.append(assess_coverage(test_code, concept))
     _stage("assess_coverage")
 
-    interpreted = interpret_workup(raw_label="EMG", branch_codes=branch_codes) if branch_codes else None
+    first_test = mentioned_tests[0] if mentioned_tests else None
+    interpreted = (
+        interpret_workup(raw_label=first_test, branch_codes=branch_codes) if first_test and branch_codes else None
+    )
     _stage("interpret_evidence")
 
     lifecycle = propose_transition(

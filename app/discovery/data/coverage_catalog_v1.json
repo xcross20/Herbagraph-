@@ -1,0 +1,181 @@
+{
+  "version": "coverage-catalog-v1",
+  "provenance": {
+    "source": "mvp-coverage-ontology",
+    "author": "herbagraph-catalog",
+    "reviewed": "2026-08-18"
+  },
+  "body_sites": [
+    {"code": "peripheral_nerve", "label": "peripheral nerve"},
+    {"code": "epidermis", "label": "epidermis"},
+    {"code": "brain", "label": "brain"},
+    {"code": "cervical_spine", "label": "cervical spine"},
+    {"code": "lumbar_spine", "label": "lumbar spine"},
+    {"code": "biliary_tree", "label": "biliary tree"},
+    {"code": "blood", "label": "blood"}
+  ],
+  "modalities": [
+    {"code": "electrodiagnostic", "label": "electrodiagnostic"},
+    {"code": "histology", "label": "histology"},
+    {"code": "mri", "label": "magnetic resonance imaging"},
+    {"code": "ultrasound", "label": "ultrasound"},
+    {"code": "nuclear", "label": "nuclear medicine"},
+    {"code": "laboratory", "label": "laboratory assay"}
+  ],
+  "concepts": [
+    {"code": "large_fiber_function", "label": "large-fiber function", "body_site": "peripheral_nerve"},
+    {"code": "small_fiber_density", "label": "small-fiber density", "body_site": "epidermis"},
+    {"code": "structural_brain_lesion", "label": "structural brain lesion", "body_site": "brain"},
+    {"code": "biliary_stones", "label": "biliary stones", "body_site": "biliary_tree"},
+    {"code": "biliary_ejection", "label": "biliary ejection", "body_site": "biliary_tree"},
+    {"code": "blood_counts", "label": "blood counts", "body_site": "blood"},
+    {"code": "b12_status", "label": "B12 status", "body_site": "blood"}
+  ],
+  "tests": [
+    {
+      "code": "emg_ncs",
+      "name": "EMG / nerve conduction study",
+      "aliases": ["emg", "ncs", "nerve conduction", "nerve conduction study"],
+      "finding_names": ["emg testing", "emg_report"],
+      "body_sites": ["peripheral_nerve"],
+      "modalities": ["electrodiagnostic"]
+    },
+    {
+      "code": "mri_brain",
+      "name": "MRI brain",
+      "aliases": ["brain mri", "mri head", "mri brain"],
+      "finding_names": ["mri brain"],
+      "body_sites": ["brain"],
+      "modalities": ["mri"]
+    },
+    {
+      "code": "mri_cervical",
+      "name": "MRI cervical spine",
+      "aliases": ["cervical mri", "c spine mri"],
+      "finding_names": [],
+      "body_sites": ["cervical_spine"],
+      "modalities": ["mri"]
+    },
+    {
+      "code": "mri_lumbar",
+      "name": "MRI lumbar spine",
+      "aliases": ["lumbar mri", "l spine mri"],
+      "finding_names": [],
+      "body_sites": ["lumbar_spine"],
+      "modalities": ["mri"]
+    },
+    {
+      "code": "ienfd_biopsy",
+      "name": "Skin punch biopsy / IENFD",
+      "aliases": ["skin biopsy", "ienfd", "epidermal nerve fiber"],
+      "finding_names": ["skin biopsy", "ienfd"],
+      "body_sites": ["epidermis"],
+      "modalities": ["histology"]
+    },
+    {
+      "code": "ruq_us",
+      "name": "RUQ ultrasound",
+      "aliases": ["right upper ultrasound", "gallbladder ultrasound", "abdominal ultrasound"],
+      "finding_names": ["ruq ultrasound"],
+      "body_sites": ["biliary_tree"],
+      "modalities": ["ultrasound"]
+    },
+    {
+      "code": "hida",
+      "name": "HIDA scan",
+      "aliases": ["hida"],
+      "finding_names": ["hida"],
+      "body_sites": ["biliary_tree"],
+      "modalities": ["nuclear"]
+    },
+    {
+      "code": "cbc",
+      "name": "CBC",
+      "aliases": ["complete blood count"],
+      "finding_names": ["cbc"],
+      "body_sites": ["blood"],
+      "modalities": ["laboratory"]
+    },
+    {
+      "code": "b12",
+      "name": "Vitamin B12",
+      "aliases": ["cobalamin", "vit b12", "vitamin b12"],
+      "finding_names": ["b12"],
+      "body_sites": ["blood"],
+      "modalities": ["laboratory"]
+    }
+  ],
+  "branch_concepts": {
+    "small_fiber_dysfunction": ["small_fiber_density", "large_fiber_function"],
+    "small_fiber_function": ["small_fiber_density"],
+    "peripheral_nerve": ["small_fiber_density", "large_fiber_function"],
+    "biliary_colic_pattern": ["biliary_stones", "biliary_ejection"],
+    "biliary": ["biliary_stones"],
+    "b12_functional_gap": ["b12_status"]
+  },
+  "rules": [
+    {
+      "test_code": "emg_ncs",
+      "concept": "large_fiber_function",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "emg_ncs",
+      "concept": "small_fiber_density",
+      "relation": "does_not_directly_assess",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "cbc",
+      "concept": "small_fiber_density",
+      "relation": "not_applicable",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "ienfd_biopsy",
+      "concept": "small_fiber_density",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "mri_brain",
+      "concept": "structural_brain_lesion",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "ruq_us",
+      "concept": "biliary_stones",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "hida",
+      "concept": "biliary_ejection",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "cbc",
+      "concept": "blood_counts",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    },
+    {
+      "test_code": "b12",
+      "concept": "b12_status",
+      "relation": "directly_assesses",
+      "protocol": null,
+      "provenance": "coverage-catalog-v1"
+    }
+  ]
+}

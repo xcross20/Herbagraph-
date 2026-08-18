@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.discovery.coverage_catalog import RELATIONS
+from app.discovery.coverage_catalog import (
+    catalog_version,
+    explain_relation,
+    load_catalog,
+    test_name,
+    concept_label,
+)
 from app.models.enums import CoverageRelation
 
 
@@ -15,7 +21,8 @@ class CoverageAssessment:
     test_code: str
     concept: str
     protocol_code: str | None
-    rule_version: str = "coverage-governor-v1"
+    rule_version: str = "coverage-catalog-v1"
+    provenance: str = ""
 
 
 def assess_coverage(
@@ -23,9 +30,10 @@ def assess_coverage(
     investigation_concept: str,
     protocol_id: str | None = None,
 ) -> CoverageAssessment:
+    catalog = load_catalog()
     matches = [
         row
-        for row in RELATIONS
+        for row in catalog.relations
         if row.test_code == test_code and row.concept == investigation_concept
     ]
     if not matches:
@@ -34,10 +42,15 @@ def assess_coverage(
         record_unknown_coverage()
         return CoverageAssessment(
             relation=CoverageRelation.UNKNOWN,
-            explanation="No coverage relation is catalogued for this test and concept.",
+            explanation=explain_relation(
+                test_name=test_name(test_code),
+                concept_label=concept_label(investigation_concept),
+                relation=CoverageRelation.UNKNOWN.value,
+            ),
             test_code=test_code,
             concept=investigation_concept,
             protocol_code=protocol_id,
+            rule_version=catalog_version(),
         )
     if protocol_id:
         exact = [row for row in matches if row.protocol == protocol_id]
@@ -49,6 +62,8 @@ def assess_coverage(
                 test_code,
                 investigation_concept,
                 protocol_id,
+                row.version,
+                row.provenance,
             )
     generic = [row for row in matches if row.protocol is None]
     row = generic[0] if generic else matches[0]
@@ -58,4 +73,6 @@ def assess_coverage(
         test_code,
         investigation_concept,
         protocol_id,
+        row.version,
+        row.provenance,
     )

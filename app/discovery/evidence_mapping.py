@@ -126,5 +126,15 @@ def decide_evidence_mapping(
             False,
             "partial_default_inconclusive",
         )
+    if coverage is CoverageRelation.DIRECTLY_ASSESSES:
+        if result is ResultState.POSITIVE:
+            _count("mapped")
+            return MappingDecision(EvidenceRelationship.SUPPORTS, coverage, False, "direct_positive")
+        if result is ResultState.NEGATIVE:
+            _count("mapped")
+            return MappingDecision(EvidenceRelationship.WEAKENS, coverage, False, "direct_negative")
+        if result is ResultState.INDETERMINATE:
+            _count("mapped")
+            return MappingDecision(EvidenceRelationship.INCONCLUSIVE, coverage, False, "direct_indeterminate")
     _count("directly_assesses_without_rule")
     return MappingDecision(None, coverage, True, "directly_assesses_requires_branch_rule")

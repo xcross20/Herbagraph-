@@ -168,11 +168,14 @@ def _prior_workup_from_findings(findings: list[FindingDraft]) -> list[dict]:
 
 
 async def persist_map_version(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryMapVersion:
+    from app.discovery.evidence_graph import persist_evidence_graph
+
     persisted = list(
         (
             await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
         ).scalars()
     )
+    await persist_evidence_graph(db, case_id=case.id, source_event_id=f"map:{case.id}")
     findings = [row for row in persisted if getattr(row, "active", True)] if persisted else snapshot.findings
     facts = facts_from_findings(findings)
     payload = build_map_payload(

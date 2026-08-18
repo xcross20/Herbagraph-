@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.enums import (
     BranchLifecycleStatus,
+    CoverageRelation,
     DiscoveryCaseStatus,
     DiscoveryFindingKind,
     DiscoveryHypothesisStatus,
@@ -204,6 +205,8 @@ class DiscoveryInvestigationBranch(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     resolved_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
     source_event_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     close_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    prior_resolved_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    prior_close_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (Index("uq_discovery_branches_case_code", "case_id", "code", unique=True),)
 
@@ -260,6 +263,12 @@ class DiscoveryEvidenceEdge(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     identity_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    coverage_relation: Mapped[CoverageRelation | None] = mapped_column(
+        Enum(CoverageRelation, native_enum=False, length=32), nullable=True
+    )
+    rule_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evaluated_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
     __table_args__ = (Index("uq_discovery_evidence_identity", "case_id", "identity_key", unique=True),)
 

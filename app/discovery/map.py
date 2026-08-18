@@ -78,24 +78,39 @@ def _empty_evidence_buckets() -> dict[str, list]:
     }
 
 
-_TEST_FROM_FACT = {
-    "emg testing": "emg_ncs",
-}
+def _mentioned_tests(facts: dict[str, str], canonical_findings: list[Any] | None = None) -> set[str]:
+    from app.discovery.coverage_catalog import test_code_for_finding
+    from app.discovery.resolver import resolve_test
+    from app.models.enums import ResolverStatus
 
-_COVERAGE_PAIRS = {
-    "small_fiber_dysfunction": (("emg_ncs", "small_fiber_density"),),
-    "peripheral_nerve": (("emg_ncs", "small_fiber_density"),),
-    "biliary_colic_pattern": (("emg_ncs", "biliary_stones"),),
-    "biliary": (("emg_ncs", "biliary_stones"),),
-}
+    mentioned: set[str] = set()
+    names = set(facts)
+    for item in canonical_findings or []:
+        if getattr(item, "active", True) is False:
+            continue
+        name = getattr(item, "name", None)
+        if name:
+            names.add(str(name))
+    for name in names:
+        coded = test_code_for_finding(name)
+        if coded:
+            mentioned.add(coded)
+            continue
+        resolved = resolve_test(name)
+        if resolved.status is ResolverStatus.MATCHED and resolved.match is not None:
+            mentioned.add(resolved.match.code)
+    return mentioned
 
-_COVERAGE_USER_NOTES = {
-    ("emg_ncs", "small_fiber_density"): (
-        "A normal EMG does not assess small-fiber density.",
-        "Small-fiber investigation remains open.",
-    ),
-    ("emg_ncs", "biliary_stones"): ("EMG is not evidence about biliary structure.",),
-}
+
+def notes_from_assessment(assessment: Any) -> list[str]:
+    notes = [assessment.explanation]
+    if getattr(assessment, "relation", None) is not None:
+        value = assessment.relation.value if hasattr(assessment.relation, "value") else str(assessment.relation)
+        if value == "does_not_directly_assess":
+            notes.append(f"{assessment.concept} remains open.")
+        elif value == "unknown":
+            notes.append(f"{assessment.test_code} creates no evidence edge for {assessment.concept}.")
+    return notes
 
 
 def _apply_scientific_output_gate(payload: dict[str, Any]) -> dict[str, Any]:
@@ -143,14 +158,6 @@ def _apply_scientific_output_gate(payload: dict[str, Any]) -> dict[str, Any]:
     return gated
 
 
-def _mentioned_tests(facts: dict[str, str]) -> set[str]:
-    mentioned: set[str] = set()
-    for name, test_code in _TEST_FROM_FACT.items():
-        if facts.get(name) in {"mentioned", "reported_normal", "reported_abnormal"}:
-            mentioned.add(test_code)
-    return mentioned
-
-
 def coverage_projection(
     *,
     facts: dict[str, str],
@@ -159,25 +166,31 @@ def coverage_projection(
     safety_level: str = "S0",
 ) -> dict[str, Any]:
     """Structured coverage and user-facing notes from the governor + ranker."""
+    from app.discovery.coverage_catalog import catalog_version, concepts_for_branch
     from app.discovery.coverage_governor import assess_coverage
     from app.discovery.ranker import rank_next_actions
 
-    mentioned = _mentioned_tests(facts)
+    mentioned = _mentioned_tests(facts, canonical_findings)
     coverage: dict[str, dict[str, str]] = {}
     notes: list[str] = []
-    provenance: list[str] = []
+    provenance: list[str] = [catalog_version()]
     seen_pairs: set[tuple[str, str]] = set()
     for hypo in hypotheses or []:
         keys = (getattr(hypo, "code", None), getattr(hypo, "branch", None))
+        concepts: list[str] = []
         for key in keys:
-            for test_code, concept in _COVERAGE_PAIRS.get(key or "", ()):
-                if test_code not in mentioned or (test_code, concept) in seen_pairs:
+            concepts.extend(concepts_for_branch(key or ""))
+        if not concepts:
+            concepts.extend(str(key) for key in keys if key)
+        for test_code in mentioned:
+            for concept in dict.fromkeys(concepts):
+                pair = (test_code, concept)
+                if pair in seen_pairs:
                     continue
-                seen_pairs.add((test_code, concept))
+                seen_pairs.add(pair)
                 assessment = assess_coverage(test_code, concept)
                 coverage.setdefault(test_code, {})[concept] = assessment.relation.value
-                notes.extend(_COVERAGE_USER_NOTES.get((test_code, concept), ()))
-                notes.append(assessment.explanation)
+                notes.extend(notes_from_assessment(assessment))
                 provenance.append(assessment.rule_version)
 
     active = [item for item in (canonical_findings or []) if getattr(item, "active", True)]

@@ -22,6 +22,9 @@ class EvidenceEdgeDraft:
     coverage: CoverageRelation
     explanation: str
     raw_label: str
+    rule_version: str = ""
+    rationale: str = ""
+    result_state: str | None = None
 
 
 @dataclass
@@ -64,6 +67,9 @@ def interpret_workup(
                 coverage=assessment.relation,
                 explanation=assessment.explanation,
                 raw_label=raw_label,
+                rule_version=assessment.rule_version,
+                rationale=assessment.explanation,
+                result_state=str(result_state) if result_state is not None else None,
             )
         )
     return result
