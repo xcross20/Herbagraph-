@@ -75,12 +75,14 @@ def main() -> int:
                     conn.execute(text(f'ALTER TABLE discovery_findings DROP CONSTRAINT IF EXISTS "{fk["name"]}"'))
             conn.execute(text("DROP INDEX IF EXISTS uq_discovery_gaps_active_code"))
         command.stamp(_cfg(), "u1v2w3x4y5z7")
-        command.upgrade(_cfg(), "head")
+        # Pin the truth-layer revision. `head` is ambiguous while the inherited
+        # V2 investigation-state revision remains a sibling branch.
+        command.upgrade(_cfg(), "u2v3w4x5y6z8")
         if not _has_fk(engine):
-            print("upgrade head did not restore self-FK", file=sys.stderr)
+            print("upgrade u2 did not restore self-FK", file=sys.stderr)
             return 1
         command.downgrade(_cfg(), "u1v2w3x4y5z7")
-        command.upgrade(_cfg(), "head")
+        command.upgrade(_cfg(), "u2v3w4x5y6z8")
         if not _has_fk(engine):
             print("forward-recovery did not restore self-FK", file=sys.stderr)
             return 1

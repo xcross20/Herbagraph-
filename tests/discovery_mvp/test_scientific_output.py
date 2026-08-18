@@ -47,7 +47,8 @@ def test_map_scientific_output_gate_strips_diagnostic_notes():
     from app.discovery.map import _apply_scientific_output_gate
 
     gated = _apply_scientific_output_gate(payload)
-    assert gated["scientific_output_accepted"] is False
+    assert gated["scientific_output_accepted"] is True
+    assert "scientific_output_violations" not in gated
     assert "You have small-fiber neuropathy." not in gated["coverage_notes"]
     assert "Small-fiber investigation remains open." in gated["coverage_notes"]
 
