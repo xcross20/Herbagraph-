@@ -43,7 +43,11 @@ class TransitionDecision:
 def can_close(*, coverage: CoverageRelation, relationship: EvidenceRelationship | None) -> bool:
     if coverage is not CoverageRelation.DIRECTLY_ASSESSES:
         return False
-    return relationship is EvidenceRelationship.RESOLVES_GAP
+    return relationship in {
+        EvidenceRelationship.RESOLVES_GAP,
+        EvidenceRelationship.SUPPORTS,
+        EvidenceRelationship.WEAKENS,
+    }
 
 
 def propose_transition(
@@ -66,3 +70,59 @@ def propose_transition(
     if proposed is BranchLifecycleStatus.REOPENED and not explicit_reopen:
         return TransitionDecision(False, current, None, "reopen_requires_explicit_rule")
     return TransitionDecision(True, proposed, None, "accepted")
+
+
+@dataclass(frozen=True)
+class AppliedTransition:
+    accepted: bool
+    status: BranchLifecycleStatus
+    resolved_at: str | None
+    close_reason: str | None
+    prior_resolved_at: str | None
+    prior_close_reason: str | None
+    reason: str
+
+
+def apply_transition(
+    current: BranchLifecycleStatus,
+    proposed: BranchLifecycleStatus,
+    *,
+    coverage: CoverageRelation | None = None,
+    relationship: EvidenceRelationship | None = None,
+    explicit_reopen: bool = False,
+    resolved_at: str | None = None,
+    close_reason: str | None = None,
+) -> AppliedTransition:
+    """Apply a legal transition. Reopen keeps the prior closure event and reason."""
+    decision = propose_transition(
+        current,
+        proposed,
+        coverage=coverage,
+        relationship=relationship,
+        explicit_reopen=explicit_reopen,
+    )
+    if not decision.accepted:
+        return AppliedTransition(
+            False, current, resolved_at, close_reason, None, None, decision.reason
+        )
+    if proposed is BranchLifecycleStatus.REOPENED:
+        return AppliedTransition(
+            True,
+            proposed,
+            None,
+            None,
+            resolved_at,
+            close_reason,
+            "reopened_preserving_prior_closure",
+        )
+    if proposed is BranchLifecycleStatus.CLOSED:
+        return AppliedTransition(
+            True,
+            proposed,
+            decision.resolved_at,
+            decision.reason,
+            None,
+            None,
+            decision.reason,
+        )
+    return AppliedTransition(True, proposed, resolved_at, close_reason, None, None, decision.reason)

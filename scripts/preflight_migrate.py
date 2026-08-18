@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ACCEPTED_HEADS = {"u4b5c6d7e8f9"}
+ACCEPTED_HEADS = {"u5c6d7e8f9g0"}
 
 
 def _heads() -> set[str]:
