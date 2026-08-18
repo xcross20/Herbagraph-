@@ -213,9 +213,21 @@ def coverage_projection(
             notes.append(f"current onset is {current.value}")
             notes.append("prior onset values remain in history")
 
+    from app.discovery.evidence_graph import gaps_from_hypotheses
+
+    open_gaps = gaps_from_hypotheses(hypotheses, mentioned_tests=mentioned)
+    ranked_actions = rank_next_actions(gaps=open_gaps, safety_level=safety_level)
     next_actions = [
-        {"label": item.label, "explanation": item.explanation, "action_type": item.action_type}
-        for item in rank_next_actions(gaps=[], safety_level=safety_level)
+        {
+            "label": item.label,
+            "explanation": item.explanation,
+            "action_type": item.action_type,
+            "score": item.score,
+            "components": item.components,
+            "alternatives": list(item.alternatives),
+            "ranker": item.version,
+        }
+        for item in ranked_actions
     ]
     return {
         "coverage": coverage,

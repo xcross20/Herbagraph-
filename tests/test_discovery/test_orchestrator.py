@@ -33,7 +33,7 @@ def test_fixture_extracts_symptoms_not_a_diagnosis():
 
 def test_ordinary_discovery_uses_ranker_not_only_emergencies():
     result = orchestrate(FIXTURE, prior_facts={}, asked=[], answered=set())
-    assert result.action.extras.get("ranker") == "ranker-v1"
+    assert result.action.extras.get("ranker") == "ranker-v2"
     assert "information_value" in (result.action.extras or {})
     assert "coverage_gain" in (result.action.extras or {})
     assert result.action.extras.get("information_value") != 0.75 or result.action.type != "ask_question"
@@ -48,7 +48,7 @@ def test_safety_override_uses_live_ranker():
     )
     assert result.safety_status in {"S3", "S4"}
     assert result.action.type in {"show_safety_message", "advise_prompt_evaluation"}
-    assert result.action.extras.get("ranker") == "ranker-v1"
+    assert result.action.extras.get("ranker") == "ranker-v2"
     blob = " ".join([result.action.prompt or "", result.action.objective or "", result.message]).lower()
     assert "urgent professional review" in blob or "urgent" in blob
 
