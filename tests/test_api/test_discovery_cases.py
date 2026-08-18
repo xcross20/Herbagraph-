@@ -284,3 +284,6 @@ async def test_delete_case_hides_conversation_and_blocks_turns(authed_client):
     fetched = await authed_client.get(f"/api/v1/cases/{case_id}")
     assert fetched.status_code == 200
     assert fetched.json()["status"] == "closed"
+    summaries = await authed_client.get("/api/v1/cases/summaries")
+    assert summaries.status_code == 200
+    assert all(row["id"] != case_id for row in summaries.json())

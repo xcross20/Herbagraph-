@@ -33,6 +33,7 @@ from app.discovery.service import (
     labs_from_results,
     latest_lab_report,
     list_owned_cases,
+    list_owned_case_summaries,
     list_test_plan,
     rebuild_case,
     suggested_test_labels,
@@ -46,6 +47,7 @@ from app.schemas.discovery import (
     DiscoveryAnswerCreate,
     DiscoveryCaseCreate,
     DiscoveryCaseRead,
+    DiscoveryCaseSummaryRead,
     DiscoveryCaseRebuild,
     DiscoveryDocumentCreate,
     DiscoveryDocumentRead,
@@ -96,6 +98,27 @@ async def list_cases(
 ) -> list[DiscoveryCaseRead]:
     cases = await list_owned_cases(db, current_user.id, patient_id=patient_id)
     return [await case_to_read(db, case) for case in cases]
+
+
+@router.get("/summaries", response_model=list[DiscoveryCaseSummaryRead])
+async def list_case_summaries(
+    patient_id: uuid.UUID | None = None,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[DiscoveryCaseSummaryRead]:
+    rows = await list_owned_case_summaries(db, current_user.id, patient_id=patient_id)
+    return [
+        DiscoveryCaseSummaryRead(
+            id=row.id,
+            presenting_concern=row.presenting_concern,
+            problem_representation=row.problem_representation,
+            status=row.status,
+            patient_id=row.patient_id,
+            updated_at=row.updated_at,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
 
 
 @router.get("/plan", response_model=list[DiscoveryTestPlanItemRead])

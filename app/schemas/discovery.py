@@ -179,6 +179,16 @@ class DiscoveryTurnRead(BaseModel):
     created_at: datetime
 
 
+class DiscoveryCaseSummaryRead(BaseModel):
+    id: uuid.UUID
+    presenting_concern: str
+    problem_representation: str | None = None
+    status: DiscoveryCaseStatus
+    patient_id: uuid.UUID | None = None
+    updated_at: datetime
+    created_at: datetime
+
+
 class DiscoveryCaseRead(BaseModel):
     id: uuid.UUID
     presenting_concern: str
