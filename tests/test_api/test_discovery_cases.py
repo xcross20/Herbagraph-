@@ -259,3 +259,28 @@ async def test_discovery_adds_tests_to_existing_workspace_plan(authed_client):
 async def test_case_requires_auth(client):
     resp = await client.post("/api/v1/cases", json={"presenting_concern": "fatigue"})
     assert resp.status_code == 401
+
+
+async def test_delete_case_hides_conversation_and_blocks_turns(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "My feet burn at night for six months."},
+    )
+    assert created.status_code == 201, created.text
+    case_id = created.json()["id"]
+    deleted = await authed_client.delete(f"/api/v1/cases/{case_id}")
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["status"] == "closed"
+    listed = await authed_client.get("/api/v1/cases")
+    assert listed.status_code == 200
+    assert all(row["id"] != case_id for row in listed.json())
+    again = await authed_client.delete(f"/api/v1/cases/{case_id}")
+    assert again.status_code == 200
+    blocked = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "Can we keep going?"},
+    )
+    assert blocked.status_code == 409
+    fetched = await authed_client.get(f"/api/v1/cases/{case_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["status"] == "closed"

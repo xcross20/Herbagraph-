@@ -54,6 +54,7 @@ async def test_user_cannot_read_or_mutate_another_users_case(client, db_session)
             },
         ),
         ("DELETE", f"/api/v1/cases/{case_id}/findings/onset", None),
+        ("DELETE", f"/api/v1/cases/{case_id}", None),
     ):
         response = await client.request(method, path, json=body, headers=other_headers)
         assert response.status_code == 404, (path, response.status_code, response.text)

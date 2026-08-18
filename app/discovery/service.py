@@ -650,14 +650,27 @@ async def list_owned_cases(
     user_id: uuid.UUID,
     *,
     patient_id: uuid.UUID | None = None,
+    include_closed: bool = False,
 ) -> list[DiscoveryCase]:
     query = select(DiscoveryCase).where(DiscoveryCase.user_id == user_id)
     if patient_id is not None:
         query = query.where(DiscoveryCase.patient_id == patient_id)
+    if not include_closed:
+        query = query.where(DiscoveryCase.status != DiscoveryCaseStatus.CLOSED)
     result = await db.execute(
         query.options(*_case_load_options()).order_by(DiscoveryCase.updated_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def close_owned_case(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCase:
+    """Hide a conversation from Ask. Append-only: rows stay, status becomes closed."""
+    if case.status == DiscoveryCaseStatus.CLOSED:
+        return case
+    case.status = DiscoveryCaseStatus.CLOSED
+    attributes.flag_modified(case, "status")
+    await db.flush()
+    return case
 
 
 def _parse_lab_value(raw: str | None) -> tuple[float, str | None]:

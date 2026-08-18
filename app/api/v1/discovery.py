@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
-from app.discovery.authorization import require_owned_case
+from app.discovery.authorization import require_open_case, require_owned_case
 from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
 from app.discovery.service import (
@@ -24,6 +24,7 @@ from app.discovery.service import (
     apply_user_turn,
     answer_question,
     case_to_read,
+    close_owned_case,
     create_case,
     ingest_case_document,
     remove_named_finding,
@@ -298,6 +299,27 @@ async def get_case(
     return await case_to_read(db, case)
 
 
+@router.delete("/{case_id}", response_model=DiscoveryCaseRead)
+async def delete_owned_case(
+    case_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> DiscoveryCaseRead:
+    case = await require_owned_case(db, case_id, current_user.id)
+    await close_owned_case(db, case)
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_DELETED,
+        summary="Conversation closed so the user can start over",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case.id),
+        detail={"result": "closed"},
+    )
+    await db.commit()
+    return await case_to_read(db, case)
+
+
 @router.post("/{case_id}/rebuild", response_model=DiscoveryCaseRead)
 async def rebuild_owned_case(
     case_id: uuid.UUID,
@@ -305,7 +327,7 @@ async def rebuild_owned_case(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await require_owned_case(db, case_id, current_user.id)
+    case = require_open_case(await require_owned_case(db, case_id, current_user.id))
 
     labs = labs_from_ingest(payload.labs) if payload.labs else None
     lab_report_id = payload.lab_report_id
@@ -367,7 +389,7 @@ async def add_case_turn(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await require_owned_case(db, case_id, current_user.id)
+    case = require_open_case(await require_owned_case(db, case_id, current_user.id))
     audience = "clinician" if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN} else "consumer"
     await apply_user_turn(
         db, case, payload.text, audience=audience, idempotency_key=payload.idempotency_key
@@ -386,9 +408,9 @@ async def stream_case_turn(
     async def work(put, on_phase) -> None:
         await put({"event": "accepted", "text": payload.text})
         try:
-            case = await require_owned_case(db, case_id, current_user.id)
-        except HTTPException:
-            await put({"event": "error", "detail": "Case not found"})
+            case = require_open_case(await require_owned_case(db, case_id, current_user.id))
+        except HTTPException as exc:
+            await put({"event": "error", "detail": exc.detail if isinstance(exc.detail, str) else "Case not found"})
             return
         audience = (
             "clinician"
@@ -447,7 +469,7 @@ async def attach_case_document(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryDocumentRead:
-    case = await require_owned_case(db, case_id, current_user.id)
+    case = require_open_case(await require_owned_case(db, case_id, current_user.id))
     result = await ingest_case_document(db, case, filename=payload.filename, text=payload.text)
     if not result["accepted"]:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result["detail"])
