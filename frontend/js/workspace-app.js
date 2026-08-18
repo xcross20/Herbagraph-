@@ -696,14 +696,28 @@ function renderAtlasInvestigation(body) {
       <p class="muted">Branches appear after a concern is opened. Relevance is not a diagnosis.</p>
     </aside>`;
   }
-  const hypos = body.hypotheses || [];
-  const increasers = body.confidence_increasers || [];
+  const explanation = body.explanation || {};
+  const families = explanation.families || [];
+  const hypos = families.length ? families : (body.hypotheses || []);
+  const increasers = (explanation.ranked_actions && explanation.ranked_actions.length) ? explanation.ranked_actions : (body.confidence_increasers || []);
   const action = body.turn_state && body.turn_state.selected_action;
-  const hypoRows = hypos.map((h) =>
-    `<li><strong>${esc(h.label)}</strong><br><span class="muted">Relevance ${h.investigation_relevance_percent}% · Coverage ${h.investigation_coverage_percent}% — not a diagnosis</span></li>`
-  ).join("") || "<li class=\"muted\">No investigation family activated.</li>";
+  const hypoRows = hypos.map((h) => {
+    const id = h.id || h.code || "";
+    const evals = (h.evaluations || []).slice(0, 6).map((item) =>
+      `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.coverage_relation || "")}. ${esc(item.can_tell || "")} Cannot tell: ${esc(item.cannot_tell || "")}</span></li>`
+    ).join("");
+    return `<li data-family-id="${esc(id)}"><strong>${esc(h.label)}</strong><br>
+      <span class="muted">${h.relationship ? esc(h.relationship) + " · " : ""}Coverage is completeness, not probability — not a diagnosis</span>
+      <details class="ask-why-drawer" data-explanation-drawer="1">
+        <summary>Why is this here?</summary>
+        <p>${esc(h.rationale || (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis || "Open because related findings are present.")}</p>
+        ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc(h.unknowns.slice(0, 4).join(", "))}</p>` : ""}
+        <p><strong>Ways to evaluate</strong></p><ul>${evals || "<li class=\\"muted\\">No ranked options yet.</li>"}</ul>
+        <p>${esc(h.next_action || "Prepare for clinician")}</p>
+      </details></li>`;
+  }).join("") || "<li class=\"muted\">No investigation family activated.</li>";
   const gapRows = increasers.map((item) =>
-    `<li><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.reason || "")}</span></li>`
+    `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.why || item.reason || "")}</span></li>`
   ).join("") || "<li class=\"muted\">No ranked confidence gaps yet.</li>";
   return `<aside class="atlas-panel atlas-investigate" data-atlas-panel="investigate">
     <h2>What we're investigating</h2>

@@ -247,6 +247,8 @@ def orchestrate(
             merged.get("abdominal_pain"),
             merged.get("patient_interpretation"),
             merged.get("location"),
+            "burning feet" if merged.get("burning sensation") or merged.get("location") == "feet" else "",
+            "right upper rib" if merged.get("abdominal_pain") in {"ruq", "right_upper"} or merged.get("location") == "ruq" else "",
         )
         if part
     )
@@ -384,6 +386,7 @@ def orchestrate(
         if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
             from app.discovery.decision_events import DecisionLog, hashed_source, record_decision
+            from app.discovery.explanation import build_explanation_view, render_explanation_text
             from app.discovery.next_evidence import plan_next_evidence, planner_enabled
             from app.discovery.telemetry import increment
 
@@ -393,6 +396,15 @@ def orchestrate(
             cards = [item for item in cards_for_next_steps() if item.get("accepted")] if (
                 claim_cards_enabled() or True
             ) else []
+            slot_facts = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
+            view = build_explanation_view(
+                hypotheses=snapshot.hypotheses,
+                facts={**merged, **slot_facts},
+                control=control,
+                planned=planned,
+                cards=cards,
+                response_mode=mode,
+            )
             log = DecisionLog.from_dict((control_state or {}).get("decision_log"))
             log = record_decision(
                 log,
@@ -402,19 +414,25 @@ def orchestrate(
                 selected_id=(planned[0].get("id") if planned else None),
             )
             extra_control["decision_log"] = log.as_dict()
+            extra_control["explanation"] = view
             increment(f"response_mode_{mode.lower()}")
+            increment("explanation_view_bound")
             if any(status == "paused_by_user" for status in control.focus.values()):
                 increment("paused_concern_held")
             action = NextAction(
                 type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
                 objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
-                prompt=_usefulness_synthesis(control, merged, mode, planned),
+                prompt=render_explanation_text(view, facts={**merged, **slot_facts}),
                 score=0.94,
                 extras={
                     "response_mode": mode,
                     "paused": [code for code, status in control.focus.items() if status == "paused_by_user"],
                     "next_evidence": planned,
                     "claim_cards": cards,
+                    "explanation": view,
+                    "family_ids": [item["id"] for item in view.get("families") or []],
+                    "candidate_ids": [item.get("id") for item in view.get("ranked_actions") or []],
+                    "locked_verbalization": True,
                 },
             )
         else:
@@ -437,7 +455,8 @@ def orchestrate(
         )
         if safety.state == "S1" and safety.preface and safety.preface not in message:
             message = f"{safety.preface} {message}".strip()
-    if safety.state != "S4":
+    locked = bool((action.extras or {}).get("locked_verbalization"))
+    if safety.state != "S4" and not locked:
         message = pick_verbalization(message, llm_message)
     if _critic(message) == "blocked":
         message = "I updated the Case. I will not write a diagnosis. " + (action.prompt or "")

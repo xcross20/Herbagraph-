@@ -58,13 +58,18 @@ SLOT_PHRASES = (
     (re.compile(r"hour or more after|an hour or more after|>=\s*1 hour after"), "facial_heat.meal_delay", ">= 1 hour"),
     (re.compile(r"hour or two|60.?120 minutes|1.?2 hours"), "facial_heat.duration", "1-2 hours"),
     (re.compile(r"do not have the records|don'?t have (?:any )?(?:more )?(?:labs|records|those)"), "prior_labs.records_available", "false"),
+    (re.compile(r"b12.{0,40}last year|last year.{0,40}b12|b12.{0,40}a year ago", re.I), "prior_labs.b12_last_check", "last_year"),
 )
 
 
 def usefulness_governor_enabled() -> bool:
     from app.config import get_settings
 
-    return bool(getattr(get_settings(), "discovery_usefulness_governor_v1", False))
+    settings = get_settings()
+    env = (getattr(settings, "app_env", "") or "").lower()
+    if env in {"uat", "preview"}:
+        return True
+    return bool(getattr(settings, "discovery_usefulness_governor_v1", False))
 
 
 def load_usefulness_fixture(path: Path | None = None) -> dict:
@@ -79,9 +84,9 @@ def classify_control_intent(text: str) -> list[str]:
         intents.append("pause_topic")
     if re.search(r"resume .{0,20}feet|back to (?:the )?feet|burning feet again", blob):
         intents.append("resume_topic")
-    if re.search(r"what (?:do you think|should i do)|next step|what now|plan", blob):
+    if re.search(r"what (?:do you think|should i do)|next step|what now|plan|answers now|other insight|any other insight", blob):
         intents.append("request_next_steps")
-    if re.search(r"what do you think|summar|assessment|so what is (?:this|going on)", blob):
+    if re.search(r"what do you think|summar|assessment|so what is (?:this|going on)|answers now|other insight", blob):
         intents.append("request_synthesis")
     if re.search(r"why|evidence|pubmed|paper|research|citation", blob):
         intents.append("request_research")
@@ -279,6 +284,8 @@ def apply_control(
     for pattern, key, value in SLOT_PHRASES:
         if pattern.search(text or ""):
             _set_slot(state, key, value)
+    if re.search(r"inflamm", text or "", re.I):
+        _set_slot(state, "patient_interpretation", facts.get("patient_interpretation") or "inflammatory foods")
     if "do not change" in (text or "").lower() or "don't change" in (text or "").lower() or "position and activity" in (text or "").lower():
         _set_slot(state, "burning_feet.position_activity_effect", "none_reported")
     state.last_intents = intents

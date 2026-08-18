@@ -267,15 +267,29 @@
     const workup = (body.prior_workup || []).map((i) =>
       `<li>${esc(i.name)}: ${esc(i.value || "")} <span class="ask-pmid">${esc(i.verification || "patient_reported")}</span>${String(i.value || "").includes("patient_reported") || i.verification === "patient_reported" ? ' <button type="button" class="ask-mini" data-verify="${esc(i.name)}">Mark verified</button>' : ""}</li>`
     ).join("") || "<li>No prior reports yet</li>";
-    const gaps = (body.confidence_increasers || []).slice(0, 6).map((i) =>
-      `<li><strong>${esc(i.label)}</strong> <span class="muted">${esc(i.reason || "This would change the picture.")}</span></li>`
+    const explanation = body.explanation || {};
+    const families = explanation.families || [];
+    const ranked = explanation.ranked_actions || [];
+    const gaps = (ranked.length ? ranked : (body.confidence_increasers || [])).slice(0, 6).map((i) =>
+      `<li data-candidate-id="${esc(i.id || "")}"><strong>${esc(i.label)}</strong> <span class="muted">${esc(i.why || i.reason || "This would change the picture.")}</span></li>`
     ).join("") || "<li>No ranked gaps yet</li>";
-    const hypos = (body.hypotheses || []).slice(0, 6).map((h) =>
-      `<li><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span><br><button type="button" class="ask-mini" data-why="${esc(h.code)}">Why is this here?</button><div class="ask-why" id="why-${esc(h.code)}" hidden>${esc((h.why_limited && h.why_limited[0]) || h.not_a_diagnosis || "Open because related findings are present. Coverage is completeness, not probability.")}${h.missing_markers && h.missing_markers.length ? `<br>Still unknown: ${esc(h.missing_markers.slice(0, 4).join(", "))}` : ""}</div></li>`
-    ).join("") || "<li>No open families</li>";
+    const hypos = (families.length ? families : (body.hypotheses || []).map((h) => ({id: h.code, label: h.label, rationale: (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis, unknowns: h.missing_markers, evaluations: [], relationship: "", next_action: "Prepare for clinician"}))).slice(0, 6).map((h) => {
+      const evals = (h.evaluations || []).slice(0, 5).map((item) =>
+        `<li data-candidate-id="${esc(item.id || "")}"><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.coverage_relation || "")}: ${esc(item.can_tell || "")} Cannot tell: ${esc(item.cannot_tell || "")}</span></li>`
+      ).join("");
+      return `<li data-family-id="${esc(h.id || h.code || "")}"><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span>
+        <details class="ask-why-drawer" data-explanation-drawer="1">
+          <summary>Why is this here?</summary>
+          <p>${esc(h.rationale || "Open because related findings are present. Coverage is completeness, not probability.")}</p>
+          <p class="muted">Relationship: ${esc(h.relationship || "contributor_evaluation")}</p>
+          ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc((h.unknowns || []).slice(0, 4).join(", "))}</p>` : ""}
+          <p><strong>Ways to evaluate</strong></p><ul>${evals || "<li class=\\"muted\\">No ranked options yet.</li>"}</ul>
+          <p>${esc(h.next_action || "Prepare for clinician")}</p>
+        </details></li>`;
+    }).join("") || "<li>No open families</li>";
     const cites = (body.literature || []).map((c) =>
-      `<li><a href="${esc(c.url || ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/"))}" target="_blank" rel="noopener">${esc(c.title || ("PMID " + c.pmid))}</a> <span class="ask-pmid">PMID ${esc(c.pmid)}</span></li>`
-    ).join("") || "<li>No PubMed citations on this Case yet</li>";
+      `<li data-evidence-id="${esc(c.source_id || c.pmid || "")}"><a href="${esc(c.url || (c.pmid ? ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/") : "#"))}"${c.url || c.pmid ? " target=\"_blank\" rel=\"noopener\"" : ""}>${esc(c.title || ("PMID " + c.pmid))}</a> ${c.pmid ? `<span class="ask-pmid">PMID ${esc(c.pmid)}</span>` : ""}</li>`
+    ).join("") || "<li>No stored citations on this Case yet</li>";
     const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: "#dashboard" })) || "/me.html#dashboard";
     document.getElementById("ask-main").innerHTML = `
       <div class="ask-thread">

@@ -338,6 +338,32 @@ def snapshot_to_read(
         safety_level=safety_level,
     )
     map_version = getattr(case, "_map_version", None)
+    from app.discovery.explanation import build_explanation_view
+
+    explanation = None
+    if isinstance(control_payload, dict):
+        explanation = control_payload.get("explanation")
+    if not isinstance(explanation, dict) and isinstance(action_extras, dict):
+        explanation = action_extras.get("explanation")
+    if not isinstance(explanation, dict):
+        explanation = build_explanation_view(
+            hypotheses=snapshot.hypotheses,
+            facts=facts,
+            control=control_payload,
+            response_mode=action_extras.get("response_mode") if isinstance(action_extras, dict) else None,
+        )
+    literature = _literature_from_case(case)
+    if not literature:
+        literature = [
+            {
+                "title": item.get("title") or item.get("source_id"),
+                "url": item.get("url"),
+                "pmid": None,
+                "source_id": item.get("source_id"),
+            }
+            for item in (explanation.get("claim_cards") or [])
+            if item.get("accepted")
+        ]
     return DiscoveryCaseRead(
         id=case.id,
         presenting_concern=case.presenting_concern,
@@ -436,10 +462,11 @@ def snapshot_to_read(
         timeline=_timeline_from_findings(snapshot.findings),
         prior_workup=_prior_workup_from_findings(snapshot.findings),
         memory_items=_memory_items_from_findings(snapshot.findings),
-        literature=_literature_from_case(case),
+        literature=literature,
         safety=payload.get("safety") if isinstance(payload.get("safety"), dict) else None,
         last_visit=None,
         control=control_payload,
+        explanation=explanation,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,

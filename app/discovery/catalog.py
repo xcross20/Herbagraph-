@@ -36,13 +36,17 @@ HYPOTHESIS_FAMILIES: tuple[HypothesisFamily, ...] = (
         keywords=("burn", "burning", "tingl", "numb", "neuropath", "feet at night", "pins and needles"),
         resolution_markers=("Glucose", "HbA1c", "Vitamin B12", "MMA", "TSH"),
         supporting_markers=("Vitamin B12", "MCV", "Glucose", "HbA1c"),
-        core=("Focused neurologic / sensory exam", "Fasting glucose", "Vitamin B12"),
-        directed=("MMA", "HbA1c", "EMG/NCS status", "TSH"),
+        core=("Focused neurologic / sensory exam",),
+        directed=("Vitamin B12", "Fasting glucose", "MMA if B12 is low or discordant", "HbA1c", "EMG/NCS status", "TSH"),
         conditional=("Skin biopsy if exam and labs remain unexplained", "Autonomic testing", "Autoimmune neuropathy panel"),
+        why_not_a_diagnosis=(
+            "Routine labs evaluate possible contributors. They do not confirm small-fiber function. "
+            "This family deserves looking into; it is not a claim that the person has it."
+        ),
     ),
     HypothesisFamily(
         code="b12_functional_gap",
-        label="B12 / one-carbon functional gap",
+        label="B12/one-carbon status not fully evaluated",
         branch="nutritional",
         keywords=("burn", "tingl", "numb", "neuropath", "fatigue", "vegan", "b12", "macrocyt"),
         resolution_markers=("Vitamin B12", "MMA", "Homocysteine", "MCV", "Folate"),
@@ -53,7 +57,7 @@ HYPOTHESIS_FAMILIES: tuple[HypothesisFamily, ...] = (
     ),
     HypothesisFamily(
         code="glucose_dysregulation",
-        label="Glucose / metabolic dysregulation",
+        label="Glucose regulation not yet evaluated",
         branch="metabolic",
         keywords=("burn", "neuropath", "thirst", "polyuria", "weight", "fatigue"),
         resolution_markers=("Glucose", "HbA1c", "Insulin"),

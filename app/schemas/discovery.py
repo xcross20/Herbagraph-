@@ -210,6 +210,7 @@ class DiscoveryCaseRead(BaseModel):
     safety: dict | None = None
     last_visit: dict | None = None
     control: dict | None = None
+    explanation: dict | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime

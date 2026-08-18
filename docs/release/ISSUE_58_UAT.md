@@ -11,7 +11,8 @@ Flags stay off unless the Founder turns `DISCOVERY_USEFULNESS_GOVERNOR_V1` on fo
 2. Continue through meal-delayed facial heat and right-upper discomfort.
 3. Say “Let's not deal with the burning feet.” Confirm the Case still holds that concern as paused, not closed.
 4. Say “There is a delay like I said. What do you think I should do? I don't have any more labs.”
-5. Confirm the reply is synthesis or next steps, not another laterality/duration/lab-upload question.
+4b. On a burning-feet Case, say “My last B12 check was last year. I want answers now. Is there any other insight?”
+5. Confirm the reply is synthesis or next steps, not another laterality/B12/lab-upload question. Open `Why is this here?` and confirm the same family/candidate IDs as the chat extras.
 6. Confirm three distinct concerns remain. No shared-cause or diagnosis language.
 7. Confirm “inflammatory” stays patient attribution.
 8. Confirm one to three ranked next-evidence options appear. EMG must not be offered as addressing small-fiber density.

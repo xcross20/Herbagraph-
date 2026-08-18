@@ -38,11 +38,12 @@ def confidence_increasers(
     seen: set[str] = set()
 
     def _add(label: str, reason: str) -> None:
-        key = label.lower()
-        if key in seen:
+        key = " ".join(label.lower().replace("assess ", "").split())
+        if key in seen or key.rstrip("s") in seen:
             return
         seen.add(key)
-        items.append({"label": label, "reason": reason})
+        seen.add(key.rstrip("s"))
+        items.append({"id": key.replace(" ", "_")[:40], "label": label, "reason": reason})
 
     if facts.get("claimed normal labs") == "unverified":
         _add("Upload the labs described as normal", "Recalled-normal results are unverified.")

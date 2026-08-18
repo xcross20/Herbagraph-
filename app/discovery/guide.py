@@ -595,7 +595,8 @@ class DiscoveryGuide:
             citations=citations,
             last_user_turn=text,
         )
-        if result.safety_status != "S4":
+        locked = bool((result.action.extras or {}).get("locked_verbalization"))
+        if result.safety_status != "S4" and not locked:
             result.message = pick_verbalization(result.message, spoken)
         if used_plan and used_plan.problem_representation and critic_allows(used_plan.problem_representation):
             result.problem_representation = used_plan.problem_representation
