@@ -8,6 +8,7 @@ from app.discovery.usefulness import (
     apply_control,
     classify_control_intent,
     decide_response_mode,
+    filter_paused_questions,
     load_usefulness_fixture,
     slot_is_answered,
 )
@@ -28,6 +29,30 @@ def test_pause_does_not_close_and_slots_dedupe():
     state = apply_control(state, "both feet again", {"laterality": "both"})
     assert state.slots["burning_feet.laterality"]["value"] == "bilateral"
     assert slot_is_answered(state, "laterality") is True
+
+
+def test_resume_is_auditable_and_replay_is_idempotent():
+    state = ControlState()
+    state = apply_control(state, "For six months both of my feet have burned at night.", {"laterality": "bilateral"}, "evt-1")
+    state = apply_control(state, "Let's not deal with the burning feet.", {}, "evt-pause")
+    replay = apply_control(state, "Let's not deal with the burning feet.", {}, "evt-pause")
+    assert replay.focus["burning_feet"] == "paused_by_user"
+    assert sum(1 for item in replay.focus_history if item["reason"] == "user_pause") == 1
+    resumed = apply_control(replay, "Please resume the feet issue.", {}, "evt-resume")
+    assert resumed.focus["burning_feet"] == "active"
+    assert any(item["reason"] == "user_resume" and item["prior_state"] == "paused_by_user" for item in resumed.focus_history)
+    again = apply_control(resumed, "Please resume the feet issue.", {}, "evt-resume")
+    assert sum(1 for item in again.focus_history if item["reason"] == "user_resume") == 1
+
+
+def test_paused_concern_stays_out_of_ordinary_selection():
+    state = ControlState(focus={"burning_feet": "paused_by_user", "facial_heat": "active"})
+    for _ in range(100):
+        assert filter_paused_questions("ask_question", "q_laterality", "Is the burning happening in both feet?", state)
+        assert filter_paused_questions("ask_question", "q_emg", "Have you ever had an EMG?", state) is True
+        assert filter_paused_questions("ask_question", "q_gi_meal", "Is it tied to eating?", state) is False
+        assert filter_paused_questions("show_safety_message", "q_weakness_safety", "new weakness in a foot", state) is False
+        assert filter_paused_questions("ask_question", "q_weakness_safety", "Have you noticed new weakness?", state) is False
 
 
 def test_explicit_next_steps_selects_synthesis_mode():
@@ -69,6 +94,8 @@ def test_fixture_transcript_does_not_reask_when_governor_enabled(monkeypatch):
     assert last.control["focus"].get("burning_feet") == "paused_by_user"
     assert last.control["focus"].get("facial_heat") == "active"
     assert last.control["focus"].get("ruq_discomfort") == "active"
+    for key in fixture["expected"]["slots_answered"]:
+        assert last.control["slots"].get(key, {}).get("status") == "answered"
     mode = (last.action.extras or {}).get("response_mode")
     assert mode in fixture["expected"]["response_mode"]
     assert last.action.type != "ask_question"

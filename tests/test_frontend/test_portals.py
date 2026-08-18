@@ -45,6 +45,8 @@ def test_workspace_app_enforces_portal_path():
     assert "renderClinicDashboard" in js
     assert "renderPersonalDashboard" in js
     assert "data-answer" in js
+    assert "data-discovery-control" in js
+    assert "paused concern" in js
     assert "/api/v1/cases/" in js and "/turns" in js
     assert "Clinic portal" in js
     assert "Personal portal" in js
@@ -90,6 +92,9 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "/turns/stream" in js
     assert "hg_active_patient_id" in js
     assert "Discovery is paused" in js
+    assert "data-ask-control" in js
+    assert "Paused:" in js
+    assert "Response mode:" in js
     assert "Last time" in js
     assert "Why is this here" in js
     assert "/findings/" in js

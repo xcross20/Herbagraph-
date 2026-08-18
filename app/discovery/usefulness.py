@@ -25,6 +25,19 @@ RESPONSE_MODES = (
 
 FOCUS_STATES = ("active", "background", "paused_by_user", "completed")
 
+SAFETY_ACTIONS = frozenset({"show_safety_message", "advise_prompt_evaluation"})
+SAFETY_QUESTION_IDS = frozenset({"q_weakness_safety"})
+QUESTION_CONCERNS = {
+    "q_laterality": "burning_feet",
+    "q_distribution": "burning_feet",
+    "q_temperature": "burning_feet",
+    "q_emg": "burning_feet",
+    "q_prior_workup": "burning_feet",
+    "q_gi_location": "ruq_discomfort",
+    "q_gi_episode": "ruq_discomfort",
+    "q_gi_meal": "ruq_discomfort",
+}
+
 SLOT_ALIASES = {
     "laterality": "laterality",
     "duration": "duration",
@@ -39,6 +52,12 @@ CONCERN_PATTERNS = (
     ("burning_feet", re.compile(r"burn|feet|foot|tingl|neuropath")),
     ("facial_heat", re.compile(r"face|facial|flush|heat in (?:my )?face")),
     ("ruq_discomfort", re.compile(r"gallbladder|right (?:upper |rib)|under (?:my )?right|ruq|rib")),
+)
+
+SLOT_PHRASES = (
+    (re.compile(r"hour or more after|an hour or more after|>=\s*1 hour after"), "facial_heat.meal_delay", ">= 1 hour"),
+    (re.compile(r"hour or two|60.?120 minutes|1.?2 hours"), "facial_heat.duration", "1-2 hours"),
+    (re.compile(r"do not have the records|don'?t have (?:any )?(?:more )?(?:labs|records|those)"), "prior_labs.records_available", "false"),
 )
 
 
@@ -81,9 +100,18 @@ def concern_from_text(text: str) -> str | None:
     return None
 
 
+def _set_slot(state: ControlState, key: str, value: str) -> None:
+    existing = state.slots.get(key)
+    if existing and existing.get("status") == "answered":
+        return
+    state.slots[key] = {"status": "answered", "value": value}
+
+
 def slot_key(concern: str | None, fact_name: str) -> str | None:
     alias = SLOT_ALIASES.get(fact_name) or SLOT_ALIASES.get(normalize_label(fact_name))
     if not alias:
+        return None
+    if fact_name == "duration" and concern == "facial_heat":
         return None
     scope = concern or "case"
     if fact_name in {"claimed normal labs", "emg testing"}:
@@ -95,11 +123,33 @@ def slot_key(concern: str | None, fact_name: str) -> str | None:
     return f"{scope}.{alias}"
 
 
+def parse_control_payload(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def paused_concerns(payload: dict | None) -> list[str]:
+    focus = (payload or {}).get("focus") or {}
+    return [code for code, status in focus.items() if status == "paused_by_user"]
+
+
+def active_concerns(payload: dict | None) -> list[str]:
+    focus = (payload or {}).get("focus") or {}
+    return [code for code, status in focus.items() if status == "active"]
+
+
 @dataclass
 class ControlState:
     focus: dict[str, str] = field(default_factory=dict)
     slots: dict[str, dict] = field(default_factory=dict)
     last_intents: list[str] = field(default_factory=list)
+    focus_history: list[dict] = field(default_factory=list)
+    applied_events: list[str] = field(default_factory=list)
     cannot_provide_count: int = 0
     frustration_count: int = 0
     version: int = 1
@@ -110,6 +160,8 @@ class ControlState:
             "focus": dict(self.focus),
             "slots": dict(self.slots),
             "last_intents": list(self.last_intents),
+            "focus_history": [dict(item) for item in self.focus_history],
+            "applied_events": list(self.applied_events),
             "cannot_provide_count": self.cannot_provide_count,
             "frustration_count": self.frustration_count,
         }
@@ -121,38 +173,90 @@ class ControlState:
             focus=dict(data.get("focus") or {}),
             slots=dict(data.get("slots") or {}),
             last_intents=list(data.get("last_intents") or []),
+            focus_history=[dict(item) for item in (data.get("focus_history") or []) if isinstance(item, dict)],
+            applied_events=[str(item) for item in (data.get("applied_events") or [])],
             cannot_provide_count=int(data.get("cannot_provide_count") or 0),
             frustration_count=int(data.get("frustration_count") or 0),
             version=int(data.get("version") or 1),
         )
 
 
-def apply_control(state: ControlState, text: str, facts: dict[str, str]) -> ControlState:
+def _record_focus(
+    state: ControlState,
+    concern: str,
+    new_state: str,
+    *,
+    reason: str,
+    source_event_id: str | None,
+) -> None:
+    if source_event_id and any(
+        item.get("source_event_id") == source_event_id
+        and item.get("concern") == concern
+        and item.get("state") == new_state
+        for item in state.focus_history
+    ):
+        return
+    prior = state.focus.get(concern)
+    if prior == new_state:
+        return
+    state.focus[concern] = new_state
+    state.focus_history.append(
+        {
+            "concern": concern,
+            "state": new_state,
+            "prior_state": prior,
+            "reason": reason,
+            "actor": "user",
+            "source_event_id": source_event_id,
+        }
+    )
+
+
+def apply_control(
+    state: ControlState,
+    text: str,
+    facts: dict[str, str],
+    source_event_id: str | None = None,
+) -> ControlState:
+    if source_event_id and source_event_id in state.applied_events:
+        return state
     intents = classify_control_intent(text)
     mentioned = concern_from_text(text)
     if mentioned and mentioned not in state.focus:
-        state.focus[mentioned] = "active"
-    if "facial" in (text or "").lower() or "heat" in (text or "").lower():
-        state.focus.setdefault("facial_heat", "active")
-    if any(token in (text or "").lower() for token in ("rib", "gallbladder", "ruq")):
-        state.focus.setdefault("ruq_discomfort", "active")
-    if any(token in (text or "").lower() for token in ("burn", "feet", "foot")):
-        state.focus.setdefault("burning_feet", "active")
+        _record_focus(state, mentioned, "active", reason="mentioned", source_event_id=source_event_id)
+    blob = (text or "").lower()
+    if "facial" in blob or "heat" in blob:
+        if "facial_heat" not in state.focus:
+            _record_focus(state, "facial_heat", "active", reason="mentioned", source_event_id=source_event_id)
+    if any(token in blob for token in ("rib", "gallbladder", "ruq")):
+        if "ruq_discomfort" not in state.focus:
+            _record_focus(state, "ruq_discomfort", "active", reason="mentioned", source_event_id=source_event_id)
+    if any(token in blob for token in ("burn", "feet", "foot")):
+        if "burning_feet" not in state.focus:
+            _record_focus(state, "burning_feet", "active", reason="mentioned", source_event_id=source_event_id)
     if "pause_topic" in intents:
-        target = mentioned or "burning_feet"
-        if state.focus.get(target) != "paused_by_user":
-            state.focus[target] = "paused_by_user"
+        _record_focus(
+            state,
+            mentioned or "burning_feet",
+            "paused_by_user",
+            reason="user_pause",
+            source_event_id=source_event_id,
+        )
     if "resume_topic" in intents:
-        target = mentioned or "burning_feet"
-        state.focus[target] = "active"
+        _record_focus(
+            state,
+            mentioned or "burning_feet",
+            "active",
+            reason="user_resume",
+            source_event_id=source_event_id,
+        )
     if "cannot_provide_evidence" in intents:
         state.cannot_provide_count += 1
-        state.slots["prior_labs.records_available"] = {
-            "status": "answered",
-            "value": "false",
-        }
+        _set_slot(state, "prior_labs.records_available", "false")
     if "repetition_frustration" in intents:
         state.frustration_count += 1
+    if source_event_id:
+        state.applied_events.append(source_event_id)
     active_concern = next((code for code, status in state.focus.items() if status == "active"), mentioned)
     for name, value in facts.items():
         key = slot_key(active_concern, name)
@@ -163,20 +267,20 @@ def apply_control(state: ControlState, text: str, facts: dict[str, str]) -> Cont
             mapped = "bilateral"
         if name == "claimed normal labs":
             mapped = "false"
-        state.slots[key] = {"status": "answered", "value": mapped}
+        _set_slot(state, key, mapped)
     if facts.get("laterality") in {"bilateral", "both"} and "burning_feet" in state.focus:
-        state.slots.setdefault("burning_feet.laterality", {"status": "answered", "value": "bilateral"})
+        _set_slot(state, "burning_feet.laterality", "bilateral")
     if facts.get("laterality") in {"bilateral", "both"} and "facial_heat" in state.focus:
-        state.slots.setdefault("facial_heat.laterality", {"status": "answered", "value": "bilateral"})
+        _set_slot(state, "facial_heat.laterality", "bilateral")
     if facts.get("meal_relation"):
-        state.slots["facial_heat.meal_delay"] = {"status": "answered", "value": facts["meal_relation"]}
-    if facts.get("episode_duration") or facts.get("duration"):
-        state.slots["facial_heat.duration"] = {
-            "status": "answered",
-            "value": facts.get("episode_duration") or facts.get("duration"),
-        }
+        _set_slot(state, "facial_heat.meal_delay", facts["meal_relation"])
+    if facts.get("episode_duration"):
+        _set_slot(state, "facial_heat.duration", facts["episode_duration"])
+    for pattern, key, value in SLOT_PHRASES:
+        if pattern.search(text or ""):
+            _set_slot(state, key, value)
     if "do not change" in (text or "").lower() or "don't change" in (text or "").lower() or "position and activity" in (text or "").lower():
-        state.slots["burning_feet.position_activity_effect"] = {"status": "answered", "value": "none_reported"}
+        _set_slot(state, "burning_feet.position_activity_effect", "none_reported")
     state.last_intents = intents
     return state
 
@@ -215,10 +319,20 @@ def decide_response_mode(
     return "NO_ELIGIBLE_ACTION"
 
 
+def concern_for_question(question_id: str | None, prompt: str | None) -> str | None:
+    if question_id and question_id in QUESTION_CONCERNS:
+        return QUESTION_CONCERNS[question_id]
+    return concern_from_text(f"{question_id or ''} {prompt or ''}")
+
+
 def filter_paused_questions(action_type: str, question_id: str | None, prompt: str | None, control: ControlState) -> bool:
     """Return True if the action is ineligible because it targets a paused concern."""
-    paused = {code for code, status in control.focus.items() if status == "paused_by_user"}
-    if "burning_feet" not in paused:
+    if action_type in SAFETY_ACTIONS or question_id in SAFETY_QUESTION_IDS:
         return False
-    blob = f"{question_id or ''} {prompt or ''}".lower()
-    return bool(re.search(r"feet|foot|burn|laterality|emg", blob)) and action_type == "ask_question"
+    if action_type != "ask_question":
+        return False
+    paused = {code for code, status in control.focus.items() if status == "paused_by_user"}
+    if not paused:
+        return False
+    target = concern_for_question(question_id, prompt)
+    return target in paused

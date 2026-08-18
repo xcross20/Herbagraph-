@@ -1334,7 +1334,8 @@
   gap: 0.75rem;
   align-items: start;
 }
-.safety-banner {
+.safety-banner,
+.discovery-control-banner {
   border: 1px solid var(--app-border, #d8ddd6);
   background: #fff;
   border-radius: 12px;

@@ -228,7 +228,8 @@
   cursor: pointer;
 }
 
-.safety-banner {
+.safety-banner,
+.discovery-control-banner {
   border: 1px solid #d8ddd6;
   background: #fff;
   border-radius: 12px;

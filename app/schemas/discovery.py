@@ -156,6 +156,9 @@ class DiscoveryTurnStateRead(BaseModel):
     discovery_can_continue: bool = True
     clinical_followup_needed: bool = False
     safety_net: dict | None = None
+    response_mode: str | None = None
+    paused_concerns: list[str] = []
+    active_concerns: list[str] = []
 
 
 class DiscoveryOutcomeRead(BaseModel):
@@ -206,6 +209,7 @@ class DiscoveryCaseRead(BaseModel):
     literature: list[dict] = []
     safety: dict | None = None
     last_visit: dict | None = None
+    control: dict | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime

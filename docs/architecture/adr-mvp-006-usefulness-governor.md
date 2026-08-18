@@ -26,4 +26,4 @@ Disable `DISCOVERY_USEFULNESS_GOVERNOR_V1`. `control_json` remains unused. Downg
 
 ## Production
 
-Not authorized by this issue. PR targets `integration/agent` only.
+Flag `DISCOVERY_USEFULNESS_GOVERNOR_V1` stays off. Additive `control_json` is inert to old readers. Founder standing order 2026-08-18 authorizes merge to `main` and production deploy of this dormant Slice A controller.

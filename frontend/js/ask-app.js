@@ -148,6 +148,18 @@
     } catch (_) { /* no prior case */ }
   }
 
+  function renderAskControl(body) {
+    const turn = body.turn_state || {};
+    const control = body.control || {};
+    const paused = turn.paused_concerns || [];
+    const active = turn.active_concerns || [];
+    const mode = turn.response_mode || ((turn.selected_action && turn.selected_action.extras && turn.selected_action.extras.response_mode) || "");
+    if (!paused.length && !mode && !active.length && !control.focus) return "";
+    const pausedLabel = paused.length ? paused.join(", ").split("_").join(" ") : "";
+    return `<h2>Conversation control</h2>
+      <p class="ask-note" data-ask-control="1">${mode ? `Response mode: ${esc(mode)}. ` : ""}${pausedLabel ? `Paused: ${esc(pausedLabel)}. Ask will not return to a paused concern unless you resume it or safety requires it.` : "No concern is paused."}</p>`;
+  }
+
   function renderAskSafety(body) {
     const state = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state);
     if (!state || state === "S0") return "";
@@ -290,6 +302,7 @@
           <p class="ask-note">Reported is not the same as verified. Upload the report to confirm.</p>
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
+          ${renderAskControl(body)}
           ${renderAskSafety(body)}
           <h2>Literature</h2>
           <ul>${cites}</ul>

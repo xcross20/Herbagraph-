@@ -628,6 +628,18 @@ function provenanceBadge(level) {
   return `<span class="prov-badge ${esc(level || "reported")}">${label}</span>`;
 }
 
+function renderControlBanner(body) {
+  const turn = (body && body.turn_state) || {};
+  const paused = turn.paused_concerns || [];
+  const mode = turn.response_mode || "";
+  if (!paused.length && !mode) return "";
+  const pausedLabel = paused.join(", ").split("_").join(" ");
+  return `<div class="discovery-control-banner" data-discovery-control="1">
+    ${mode ? `<p><strong>Response mode</strong> ${esc(mode)}</p>` : ""}
+    ${paused.length ? `<p>Paused: ${esc(pausedLabel)}. Ask will not return to a paused concern unless you resume it or safety requires it.</p>` : ""}
+  </div>`;
+}
+
 function renderSafetyBanner(body) {
   const state = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state);
   if (!state || state === "S0") return "";
@@ -669,6 +681,7 @@ function renderAtlasMemory(body) {
   return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
     <h2>What HerbaGraph knows</h2>
     ${body.problem_representation ? `<p class="discovery-problem">${esc(body.problem_representation)}</p>` : ""}
+    ${renderControlBanner(body)}
     ${renderSafetyBanner(body)}
     <h3>Facts</h3><ul>${memRows}</ul>
     <h3>Timeline</h3><ul>${timeRows}</ul>

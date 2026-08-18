@@ -276,6 +276,12 @@ def snapshot_to_read(
             utility=float(action_raw.get("score") or 0.0),
             options=list((interaction_raw or {}).get("options") or []),
         )
+    from app.discovery.usefulness import active_concerns, parse_control_payload, paused_concerns
+
+    control_payload = parse_control_payload(getattr(case, "control_json", None))
+    if control_payload is None and isinstance(payload.get("control"), dict):
+        control_payload = payload.get("control")
+    action_extras = action_raw.get("extras") if isinstance(action_raw.get("extras"), dict) else {}
     turn_state = None
     if payload.get("stage") and action_raw.get("type"):
         from app.discovery.safety import normalize_state
@@ -304,6 +310,9 @@ def snapshot_to_read(
                 payload.get("clinical_followup_needed") or safety_raw.get("clinical_followup_needed")
             ),
             safety_net=safety_raw.get("safety_net"),
+            response_mode=action_extras.get("response_mode"),
+            paused_concerns=paused_concerns(control_payload),
+            active_concerns=active_concerns(control_payload),
         )
     interaction = None
     if isinstance(interaction_raw, dict) and interaction_raw.get("type"):
@@ -430,6 +439,7 @@ def snapshot_to_read(
         literature=_literature_from_case(case),
         safety=payload.get("safety") if isinstance(payload.get("safety"), dict) else None,
         last_visit=None,
+        control=control_payload,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
