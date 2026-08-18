@@ -713,6 +713,8 @@ function renderAtlasInvestigation(body) {
         <p>${esc(h.rationale || (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis || "Open because related findings are present.")}</p>
         ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc(h.unknowns.slice(0, 4).join(", "))}</p>` : ""}
         <p><strong>Ways to evaluate</strong></p><ul>${evals || "<li class=\\"muted\\">No ranked options yet.</li>"}</ul>
+        <p><strong>Research</strong></p>
+        <ul>${(h.claim_card_ids || []).map((id) => `<li data-evidence-id="${esc(id)}">${esc(id)}</li>`).join("") || "<li class=\\"muted\\">No stored citation supports this statement. Missing literature stays a limitation.</li>"}</ul>
         <p>${esc(h.next_action || "Prepare for clinician")}</p>
       </details></li>`;
   }).join("") || "<li class=\"muted\">No investigation family activated.</li>";

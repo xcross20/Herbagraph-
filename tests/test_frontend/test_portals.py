@@ -98,6 +98,9 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "data-explanation-drawer" in js
     assert "data-family-id" in js
     assert "Prepare for clinician" in js
+    assert "claim_cards" in js
+    assert "Missing literature stays a limitation" in js
+    assert "data-evidence-id" in js
     assert "Paused:" in js
     assert "Response mode:" in js
     assert "Last time" in js

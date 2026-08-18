@@ -284,12 +284,16 @@
           <p class="muted">Relationship: ${esc(h.relationship || "contributor_evaluation")}</p>
           ${h.unknowns && h.unknowns.length ? `<p>Still unknown: ${esc((h.unknowns || []).slice(0, 4).join(", "))}</p>` : ""}
           <p><strong>Ways to evaluate</strong></p><ul>${evals || "<li class=\\"muted\\">No ranked options yet.</li>"}</ul>
+          <p><strong>Research</strong></p>
+          <ul>${(h.claim_card_ids || []).map((id) => `<li data-evidence-id="${esc(id)}">${esc(id)}</li>`).join("") || "<li class=\\"muted\\">No stored citation supports this statement. Missing literature stays a limitation.</li>"}</ul>
           <p>${esc(h.next_action || "Prepare for clinician")}</p>
         </details></li>`;
     }).join("") || "<li>No open families</li>";
-    const cites = (body.literature || []).map((c) =>
-      `<li data-evidence-id="${esc(c.source_id || c.pmid || "")}"><a href="${esc(c.url || (c.pmid ? ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/") : "#"))}"${c.url || c.pmid ? " target=\"_blank\" rel=\"noopener\"" : ""}>${esc(c.title || ("PMID " + c.pmid))}</a> ${c.pmid ? `<span class="ask-pmid">PMID ${esc(c.pmid)}</span>` : ""}</li>`
-    ).join("") || "<li>No stored citations on this Case yet</li>";
+    const cards = (explanation.claim_cards || []).filter((c) => c.accepted);
+    const citeSource = cards.length ? cards : (body.literature || []);
+    const cites = citeSource.map((c) =>
+      `<li data-evidence-id="${esc(c.source_id || c.pmid || "")}"><a href="${esc(c.url || (c.pmid ? ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/") : "#"))}"${c.url || c.pmid ? " target=\"_blank\" rel=\"noopener\"" : ""}>${esc(c.title || c.source_id || ("PMID " + c.pmid))}</a> ${c.pmid ? `<span class="ask-pmid">PMID ${esc(c.pmid)}</span>` : (c.source_id ? `<span class="ask-pmid">${esc(c.source_id)}</span>` : "")}</li>`
+    ).join("") || "<li>No stored citation supports these statements. Missing literature stays a limitation, not an invented PMID.</li>";
     const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: "#dashboard" })) || "/me.html#dashboard";
     document.getElementById("ask-main").innerHTML = `
       <div class="ask-thread">
@@ -320,7 +324,7 @@
           ${renderAskSafety(body)}
           <h2>Literature</h2>
           <ul>${cites}</ul>
-          <p class="ask-note">Citations come from PubMed. They are not a diagnosis.</p>
+          <p class="ask-note">Citations are stored claim cards only. Missing literature is a limitation, not an invented PMID. They are not a diagnosis.</p>
           <button type="button" class="ask-chip" data-select-value="why? show evidence">Why / show evidence</button>
           <h2>Attach a report</h2>
           <form class="ask-attach" id="ask-attach">

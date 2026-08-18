@@ -52,17 +52,36 @@ def build_claim_card(*, statement: str, source_id: str, claim_type: str = "limit
     }
 
 
-def cards_for_next_steps() -> list[dict]:
-    """Only stored fixture sources. No live LLM titles."""
-    return [
-        build_claim_card(
-            statement="Grape phenolic composition varies by variety, tissue, and processing; color is not a dose.",
-            source_id="pmc:8567006",
-            claim_type="limitation",
-        ),
-        build_claim_card(
-            statement="A measured pink-salt batch cannot be generalized to every product sharing that marketing label.",
-            source_id="pmc:7603209",
-            claim_type="limitation",
-        ),
-    ]
+STORED_CARDS = (
+    {
+        "families": frozenset({"grape", "food_composition"}),
+        "statement": "Grape phenolic composition varies by variety, tissue, and processing; color is not a dose.",
+        "source_id": "pmc:8567006",
+        "claim_type": "limitation",
+    },
+    {
+        "families": frozenset({"salt", "food_composition"}),
+        "statement": "A measured pink-salt batch cannot be generalized to every product sharing that marketing label.",
+        "source_id": "pmc:7603209",
+        "claim_type": "limitation",
+    },
+)
+
+
+def cards_for_next_steps(family_ids: list[str] | None = None) -> list[dict]:
+    """Only stored fixture sources that support the displayed families. No live LLM titles."""
+    wanted = {str(item) for item in (family_ids or []) if item}
+    cards = []
+    for item in STORED_CARDS:
+        if wanted and item["families"].isdisjoint(wanted):
+            continue
+        card = build_claim_card(
+            statement=item["statement"],
+            source_id=item["source_id"],
+            claim_type=item["claim_type"],
+        )
+        card["families"] = sorted(item["families"])
+        cards.append(card)
+    if family_ids is None:
+        return cards
+    return cards
