@@ -10,6 +10,7 @@ echo "=== HerbaGraph CI Gates ==="
 
 echo "[1/10] ruff check..."
 ruff check app tests
+python3 scripts/check_ungoverned_writes.py
 
 echo "[2/10] pathway coverage (all catalog biomarkers)..."
 python3 scripts/validate_pathway_coverage.py
