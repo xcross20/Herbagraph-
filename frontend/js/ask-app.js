@@ -286,11 +286,12 @@
       return `<li data-family-id="${esc(familyId)}"><strong>${esc(h.label)}</strong> <span class="ask-pmid">not a diagnosis</span>
         <button type="button" class="ask-why-open" data-why-family="${esc(familyId)}" data-explanation-drawer="1">Why is this here?</button></li>`;
     }).join("") || "<li>No open families</li>";
-    const cards = (explanation.claim_cards || []).filter((c) => c.accepted);
-    const citeSource = cards.length ? cards : (body.literature || []);
+    const cards = (explanation.claim_cards || []).filter((c) => c.accepted && c.eligible_for_case !== false);
+    const seedTitle = /grape bioactive|pink-salt composition|pink salt composition/i;
+    const citeSource = cards.length ? cards : (body.literature || []).filter((c) => !seedTitle.test(c.title || "") && !String(c.source_id || "").startsWith("pmc:8567006") && !String(c.source_id || "").startsWith("pmc:7603209"));
     const cites = citeSource.map((c) =>
       `<li data-evidence-id="${esc(c.source_id || c.pmid || "")}"><a href="${esc(c.url || (c.pmid ? ("https://pubmed.ncbi.nlm.nih.gov/" + c.pmid + "/") : "#"))}"${c.url || c.pmid ? " target=\"_blank\" rel=\"noopener\"" : ""}>${esc(c.title || c.source_id || ("PMID " + c.pmid))}</a> ${c.pmid ? `<span class="ask-pmid">PMID ${esc(c.pmid)}</span>` : (c.source_id ? `<span class="ask-pmid">${esc(c.source_id)}</span>` : "")}</li>`
-    ).join("") || "<li>No stored citation supports these statements. Missing literature stays a limitation, not an invented PMID.</li>";
+    ).join("") || "<li>Relevant literature is not yet available for the selected claim.</li>";
     const home = (WS && currentUser && WS.workspaceHome(currentUser.role, { hash: "#dashboard" })) || "/me.html#dashboard";
     document.getElementById("ask-main").innerHTML = `
       <div class="ask-thread">

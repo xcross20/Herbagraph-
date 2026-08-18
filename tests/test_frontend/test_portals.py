@@ -112,7 +112,9 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "Delete this conversation" in js
     assert "Start over" in js
     assert "DELETE" in js
-    assert "Missing literature stays a limitation" in js
+    assert "Relevant literature is not yet available for the selected claim" in js
+    assert "grape bioactive" in js
+    assert "pink-salt" in js
     assert "data-evidence-id" in js
     assert "Paused:" in js
     assert "Response mode:" in js

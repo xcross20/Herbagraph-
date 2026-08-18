@@ -26,7 +26,11 @@
     {"code": "homocysteine", "layer": "assay", "label": "homocysteine", "parent": "vitamin_b12"},
     {"code": "biotin", "layer": "concept", "label": "biotin", "kind": "nutrient"},
     {"code": "d_biotin", "layer": "form", "label": "D-biotin", "parent": "biotin"},
-    {"code": "unknown_biotin_product", "layer": "product_batch", "label": "unspecified biotin product", "parent": "biotin"}
+    {"code": "unknown_biotin_product", "layer": "product_batch", "label": "unspecified biotin product", "parent": "biotin"},
+    {"code": "magnesium", "layer": "concept", "label": "magnesium", "kind": "nutrient", "synonyms": ["mg"], "identity": {"parent": null, "chemical_identity": "magnesium", "elemental_distinct_from_compound_mass": true}},
+    {"code": "magnesium_oxide", "layer": "form", "label": "magnesium oxide", "parent": "magnesium", "synonyms": ["mg oxide"], "identity": {"parent": "magnesium", "form": "oxide", "elemental_fraction": 0.603}},
+    {"code": "magnesium_glycinate", "layer": "form", "label": "magnesium glycinate", "parent": "magnesium", "identity": {"parent": "magnesium", "form": "glycinate", "elemental_fraction": 0.141}},
+    {"code": "unknown_magnesium_product", "layer": "product_batch", "label": "unspecified magnesium product", "parent": "magnesium", "identity": {"parent": "magnesium", "form": null}}
   ],
   "relations": [
     {"from": "grape_skin_extract", "to": "grape_green_phenotype", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "extract evidence does not transfer to whole green grapes"},
@@ -39,11 +43,14 @@
     {"from": "homocysteine", "to": "vitamin_b12", "relation": "partially_assesses", "provenance": "composition-graph-v1", "limitation": "homocysteine is nonspecific"},
     {"from": "methylcobalamin", "to": "cyanocobalamin", "relation": "has_form", "provenance": "composition-graph-v1", "limitation": "activity is not clinical superiority"},
     {"from": "d_biotin", "to": "unknown_biotin_product", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "unknown product form stays unknown"},
-    {"from": "biotin", "to": "serum_b12", "relation": "interferes_with_assay", "provenance": "composition-graph-v1", "limitation": "high-dose biotin can interfere with some immunoassays"}
+    {"from": "biotin", "to": "serum_b12", "relation": "interferes_with_assay", "provenance": "composition-graph-v1", "limitation": "high-dose biotin can interfere with some immunoassays"},
+    {"from": "magnesium_oxide", "to": "magnesium_glycinate", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "different endpoints cannot share a generic effectiveness score"},
+    {"from": "magnesium_glycinate", "to": "magnesium", "relation": "has_form", "provenance": "composition-graph-v1", "limitation": "a child form does not inherit parent clinical claims"},
+    {"from": "magnesium_oxide", "to": "magnesium", "relation": "has_form", "provenance": "composition-graph-v1", "limitation": "oxide evidence does not transfer to every magnesium form"}
   ],
   "sources": [
-    {"id": "pmc:8567006", "title": "Grape bioactive composition review", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8567006/"},
-    {"id": "pmc:7603209", "title": "Pink-salt composition analysis", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7603209/"},
-    {"id": "fda-iodized-salt", "title": "FDA iodized-salt policy", "url": "https://www.fda.gov/media/94563/download"}
+    {"id": "pmc:8567006", "title": "Grape bioactive composition review", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8567006/", "role": "example_seed"},
+    {"id": "pmc:7603209", "title": "Pink-salt composition analysis", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7603209/", "role": "example_seed"},
+    {"id": "fda-iodized-salt", "title": "FDA iodized-salt policy", "url": "https://www.fda.gov/media/94563/download", "role": "example_seed"}
   ]
 }

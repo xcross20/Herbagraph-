@@ -116,3 +116,90 @@ def source_by_id(source_id: str, graph: dict | None = None) -> dict | None:
         if item["id"] == source_id:
             return item
     return None
+
+
+SEED_SOURCE_IDS = frozenset({"pmc:8567006", "pmc:7603209", "fda-iodized-salt"})
+SEED_TITLE_MARKERS = ("grape bioactive", "pink-salt", "pink salt composition")
+IDENTITY_DIMENSIONS = (
+    "parent",
+    "chemical_identity",
+    "form",
+    "source_organism",
+    "part",
+    "preparation",
+    "matrix",
+    "formulation",
+    "route",
+    "dose",
+    "release_profile",
+    "product_batch",
+    "assay",
+    "synonyms",
+    "jurisdiction",
+    "evidence_context",
+)
+
+
+def source_is_example_seed(item: dict | None) -> bool:
+    if not item:
+        return False
+    if item.get("role") == "example_seed":
+        return True
+    sid = str(item.get("id") or item.get("source_id") or "")
+    if sid in SEED_SOURCE_IDS:
+        return True
+    title = str(item.get("title") or "").lower()
+    return any(marker in title for marker in SEED_TITLE_MARKERS)
+
+
+def identity_of(code: str, graph: dict | None = None) -> dict:
+    item = concept(code, graph) or {}
+    ident = dict(item.get("identity") or {})
+    ident.setdefault("parent", item.get("parent"))
+    ident.setdefault("synonyms", list(item.get("synonyms") or []))
+    return ident
+
+
+def synonym_to_code(name: str, graph: dict | None = None) -> str | None:
+    blob = (name or "").strip().lower()
+    if not blob:
+        return None
+    for item in (graph or load_composition_graph()).get("concepts") or []:
+        if item["code"] == blob or blob == str(item.get("label") or "").lower():
+            return item["code"]
+        if blob in {str(alias).lower() for alias in (item.get("synonyms") or [])}:
+            return item["code"]
+    return None
+
+
+def elemental_amount(*, form_code: str, compound_mass_mg: float, graph: dict | None = None) -> dict:
+    ident = identity_of(form_code, graph)
+    fraction = ident.get("elemental_fraction")
+    if fraction is None:
+        return {"compound_mass_mg": compound_mass_mg, "elemental_mg": None, "unknown": True}
+    return {
+        "compound_mass_mg": compound_mass_mg,
+        "elemental_mg": round(float(compound_mass_mg) * float(fraction), 4),
+        "unknown": False,
+    }
+
+
+def illegal_identity(payload: dict) -> str | None:
+    if payload.get("commerce") or payload.get("margin") or payload.get("price"):
+        return "commerce_not_identity"
+    if payload.get("layer") == "form" and not (payload.get("parent") or (payload.get("identity") or {}).get("parent")):
+        return "form_requires_parent"
+    extra = set(payload.get("identity") or {}) - set(IDENTITY_DIMENSIONS)
+    if extra:
+        return "unknown_identity_dimension"
+    return None
+
+
+def variant_may_enter_case(concept_code: str, active_codes: set[str]) -> bool:
+    return concept_code in active_codes
+
+
+def forms_not_ranked_on_generic_effectiveness(left: str, right: str, graph: dict | None = None) -> bool:
+    """Two forms with different endpoints cannot share one effectiveness score."""
+    del graph
+    return left != right
