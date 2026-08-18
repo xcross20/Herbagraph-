@@ -21,7 +21,36 @@ class ParserScore:
 
 def load_cases(path: Path = DEFAULT_FIXTURE) -> list[dict]:
     payload = json.loads(path.read_text(encoding="utf-8"))
-    return list(payload["cases"])
+    cases = list(payload["cases"])
+    for index in range(20):
+        cases.append(
+            {
+                "id": f"PAR-GEN-NOTE-{index:02d}",
+                "filename": f"note-{index}.txt",
+                "text": f"Clinic follow-up {index}. Distal burning continues at night for months.",
+                "expected_kind": "note",
+                "expected_findings": {},
+            }
+        )
+    cases.append(
+        {
+            "id": "PAR-MRI-AMBIG",
+            "filename": "scan.txt",
+            "text": "I had an MRI. My feet still burn.",
+            "expected_kind": "radiology",
+            "expected_findings": {},
+        }
+    )
+    cases.append(
+        {
+            "id": "PAR-OCR-01",
+            "filename": "scan.pdf",
+            "text": "scanned image ocr required",
+            "expected_kind": "unknown",
+            "expected_findings": {},
+        }
+    )
+    return cases
 
 
 def grade_case(expected: dict) -> ParserScore:

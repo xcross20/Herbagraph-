@@ -1131,22 +1131,27 @@ async def ingest_case_document(
     filename: str,
     text: str,
 ) -> dict:
-    from app.discovery.records import classify_document, extract_record_findings
+    from app.discovery.records import classify_document_outcome, extract_record_findings
 
-    kind = classify_document(filename, text)
-    if kind == "lab":
+    classified = classify_document_outcome(filename, text)
+    kind = classified.kind
+    if classified.outcome == "routed_to_lab_engine":
         return {
             "kind": "lab",
             "accepted": False,
+            "outcome": classified.outcome,
+            "checksum": classified.checksum,
             "detail": "Use the existing lab upload in the workspace. Discovery does not replace the lab parser.",
         }
-    if kind == "unsupported":
+    if classified.outcome in {"unsupported", "failed", "needs_ocr", "ambiguous"}:
         return {
-            "kind": "unsupported",
+            "kind": kind,
             "accepted": False,
-            "detail": "Document could not be parsed. This is a failed or unsupported input, not a successful empty report.",
+            "outcome": classified.outcome,
+            "checksum": classified.checksum,
+            "detail": f"Document outcome is {classified.outcome}, not a successful empty report.",
         }
-    doc_turn = await add_turn(
+    await add_turn(
         db,
         case,
         role=DiscoveryTurnRole.SYSTEM,
@@ -1166,7 +1171,7 @@ async def ingest_case_document(
                 source="document",
             )
         )
-    await _persist_turn_findings(db, case.id, drafts, source_event_id=str(doc_turn.id))
+    await _persist_turn_findings(db, case.id, drafts, source_event_id=classified.checksum)
     await db.flush()
     await rebuild_case(db, case)
     if case.patient_id:
@@ -1176,7 +1181,13 @@ async def ingest_case_document(
             await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
         except ValueError:
             pass
-    return {"kind": kind, "accepted": True, "detail": "Attached to the Case as a report finding, not a diagnosis."}
+    return {
+        "kind": kind,
+        "accepted": True,
+        "outcome": classified.outcome,
+        "checksum": classified.checksum,
+        "detail": "Attached to the Case as a report finding, not a diagnosis.",
+    }
 
 
 async def remove_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
