@@ -697,6 +697,24 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
     return assessed, answered, extras
 
 
+async def _persist_turn_findings(db: AsyncSession, case_id, new_findings, *, source_event_id: str) -> None:
+    drafts = []
+    for item in new_findings or []:
+        kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
+        drafts.append(
+            FindingDraft(
+                kind=kind,
+                name=item.name,
+                value=item.value,
+                status=getattr(item, "status", None),
+                branch=getattr(item, "branch", None),
+                source=getattr(item, "source", None) or "user",
+            )
+        )
+    if drafts:
+        await apply_finding_drafts(db, case_id, drafts, source_event_id=source_event_id)
+
+
 async def add_turn(
     db: AsyncSession,
     case: DiscoveryCase,
@@ -986,7 +1004,7 @@ async def apply_user_turn(
         person=person,
     )
     await _attach_literature(case, text, result)
-    await add_turn(
+    user_turn = await add_turn(
         db,
         case,
         role=DiscoveryTurnRole.USER,
@@ -995,19 +1013,9 @@ async def apply_user_turn(
         intent=",".join(result.intents),
         stage=result.stage,
     )
-    for item in result.new_findings:
-        kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
-        db.add(
-            DiscoveryFinding(
-                case_id=case.id,
-                kind=DiscoveryFindingKind(kind),
-                name=item.name,
-                value=item.value,
-                status=item.status,
-                branch=item.branch,
-                source=item.source,
-            )
-        )
+    await _persist_turn_findings(
+        db, case.id, result.new_findings, source_event_id=str(user_turn.id)
+    )
     await db.flush()
     snapshot = await rebuild_case(db, case)
     await add_turn(
@@ -1051,7 +1059,7 @@ async def apply_opening_turn(
     from app.discovery.snapshot import prior_facts_from_snapshot
 
     snapshot = await rebuild_case(db, case)
-    await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
+    opening = await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
     prior: dict[str, str] = {}
     snap_payload = await _snapshot_payload(db, case.patient_id) if case.patient_id else None
     if snap_payload:
@@ -1077,19 +1085,9 @@ async def apply_opening_turn(
         ),
     )
     await _attach_literature(case, text, result)
-    for item in result.new_findings:
-        kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "symptom"
-        db.add(
-            DiscoveryFinding(
-                case_id=case.id,
-                kind=DiscoveryFindingKind(kind),
-                name=item.name,
-                value=item.value,
-                status=item.status,
-                branch=item.branch,
-                source=item.source,
-            )
-        )
+    await _persist_turn_findings(
+        db, case.id, result.new_findings, source_event_id=str(opening.id)
+    )
     await db.flush()
     snapshot = await rebuild_case(db, case)
     await add_turn(

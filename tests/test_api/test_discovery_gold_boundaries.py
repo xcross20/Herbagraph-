@@ -104,6 +104,8 @@ async def test_api_duplicate_turn_does_not_invent_diagnosis(authed_client):
     assert first.status_code == 200
     assert second.status_code == 200
     assert "you have small-fiber" not in second.text.lower()
+    names = [item["name"] for item in second.json()["findings"]]
+    assert names.count("burning sensation") <= 1
 
 
 async def test_api_safety_escalation_survives_followup(authed_client):
