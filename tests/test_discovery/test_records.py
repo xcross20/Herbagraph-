@@ -35,3 +35,21 @@ def test_classifies_clinical_note():
 
 def test_lab_kind_does_not_extract_findings():
     assert extract_record_findings("lab", "B12 210 pg/mL Reference Range 200-900") == []
+
+
+def test_document_outcomes_are_explicit():
+    from app.discovery.records import classify_document_outcome
+
+    lab = classify_document_outcome("quest.txt", "Quest Diagnostics final report")
+    assert lab.outcome == "routed_to_lab_engine"
+    mri = classify_document_outcome("scan.txt", "I had an MRI. My feet still burn.")
+    assert mri.outcome == "ambiguous"
+    ocr = classify_document_outcome("page.pdf", "scanned image ocr required")
+    assert ocr.outcome == "needs_ocr"
+    valid = classify_document_outcome(
+        "emg.pdf",
+        "%PDF-1.7 Needle EMG and nerve conduction studies were normal.",
+    )
+    assert valid.kind == "emg"
+    assert valid.outcome == "accepted"
+    assert valid.checksum
