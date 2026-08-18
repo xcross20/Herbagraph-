@@ -17,6 +17,13 @@ ZERO_TRIPWIRES = (
     "sourceless_scientific_output",
     "safety_escalation_lost",
     "partial_presented_as_success",
+    "paused_concern_selected",
+    "duplicate_canonical_slot",
+    "claim_without_provenance",
+    "commerce_changed_scientific_rank",
+    "phi_in_telemetry",
+    "semantic_repeat",
+    "synthesis_request_ignored",
 )
 
 

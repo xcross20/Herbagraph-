@@ -52,6 +52,8 @@ def test_orm_constraints_exist_in_live_postgres():
         assert "uq_discovery_gaps_active_code" in names or "uq_discovery_gaps_identity" in names
         assert DiscoveryFinding.__table__.c.supersedes_finding_id.foreign_keys
         assert any(index.name == "uq_discovery_gaps_active_code" for index in DiscoveryEvidenceGap.__table__.indexes)
+        case_cols = {item["name"] for item in inspector.get_columns("discovery_cases", schema=schema)}
+        assert "control_json" in case_cols
     finally:
         with engine.begin() as conn:
             conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))

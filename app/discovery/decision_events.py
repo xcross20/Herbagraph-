@@ -34,6 +34,11 @@ class DecisionLog:
         )
 
 
+def hashed_source(text: str) -> str:
+    """Stable event key. Never persist the raw user turn."""
+    return hashlib.sha256((text or "turn").encode("utf-8")).hexdigest()[:24]
+
+
 def event_identity(source_event_id: str, selected_id: str | None) -> str:
     material = f"{source_event_id}|{selected_id or 'none'}"
     return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]

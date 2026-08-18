@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 REQUIRED_COLUMNS = {
+    "discovery_cases": ("control_json",),
     "discovery_findings": ("active", "source_event_id", "identity_key", "supersedes_finding_id"),
     "discovery_turns": ("idempotency_key",),
     "discovery_investigation_branches": ("prior_resolved_at", "prior_close_reason"),

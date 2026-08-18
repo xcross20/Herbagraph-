@@ -383,8 +383,9 @@ def orchestrate(
         )
         if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
-            from app.discovery.decision_events import DecisionLog, record_decision
+            from app.discovery.decision_events import DecisionLog, hashed_source, record_decision
             from app.discovery.next_evidence import plan_next_evidence, planner_enabled
+            from app.discovery.telemetry import increment
 
             planned = plan_next_evidence(control, records_available=False, safety_level=safety.state) if (
                 planner_enabled() or True
@@ -395,12 +396,15 @@ def orchestrate(
             log = DecisionLog.from_dict((control_state or {}).get("decision_log"))
             log = record_decision(
                 log,
-                source_event_id=(text or "turn").strip()[:80] or "turn",
+                source_event_id=hashed_source(text),
                 response_mode=mode,
                 candidates=planned,
                 selected_id=(planned[0].get("id") if planned else None),
             )
             extra_control["decision_log"] = log.as_dict()
+            increment(f"response_mode_{mode.lower()}")
+            if any(status == "paused_by_user" for status in control.focus.values()):
+                increment("paused_concern_held")
             action = NextAction(
                 type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
                 objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
