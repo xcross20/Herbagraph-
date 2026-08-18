@@ -92,7 +92,7 @@ HYPOTHESIS_FAMILIES: tuple[HypothesisFamily, ...] = (
         code="inflammatory_signal",
         label="Systemic inflammatory signal",
         branch="inflammatory",
-        keywords=("pain", "stiff", "swell", "fever", "inflamm"),
+        keywords=("stiff", "swell", "fever", "inflamm", "crp"),
         resolution_markers=("CRP", "hs-CRP", "ESR"),
         supporting_markers=("CRP", "hs-CRP", "Ferritin"),
         core=("hs-CRP or CRP",),
@@ -155,6 +155,21 @@ HYPOTHESIS_FAMILIES: tuple[HypothesisFamily, ...] = (
         conditional=("Endoscopy only if red-flag or persistent unexplained pattern"),
     ),
     HypothesisFamily(
+        code="cutaneous_or_sensory_itch",
+        label="Cutaneous or sensory itch / crawling not fully characterized",
+        branch="cutaneous_sensory",
+        keywords=("itch", "itchy", "crawling", "genital", "reproductive"),
+        resolution_markers=(),
+        supporting_markers=(),
+        core=("Surface versus depth", "Visible skin change history"),
+        directed=("Clinician skin or pelvic exam if indicated",),
+        conditional=("Specialist review only if lesions or red flags appear"),
+        why_not_a_diagnosis=(
+            "Itch or crawling alone does not establish inflammation, infection, a pathogen, "
+            "bacterial overgrowth, or biliary disease."
+        ),
+    ),
+    HypothesisFamily(
         code="reflux_pattern",
         label="Reflux-related pattern",
         branch="foregut",
@@ -180,6 +195,7 @@ BRANCH_LABELS: dict[str, str] = {
     "biliary": "Biliary",
     "gastric": "Gastric",
     "foregut": "Foregut",
+    "cutaneous_sensory": "Cutaneous / sensory",
 }
 
 

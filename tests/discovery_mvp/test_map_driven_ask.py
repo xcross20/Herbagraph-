@@ -87,6 +87,52 @@ def test_explanation_view_ids_match_panel_and_distinguish_coverage():
     assert b12["coverage_relation"] == "evaluates_contributor"
 
 
+def test_ruq_novel_observations_and_repeat_complaint(monkeypatch):
+    monkeypatch.setattr("app.discovery.usefulness.usefulness_governor_enabled", lambda: True)
+    prior = {}
+    control = None
+    last = None
+    for text in (
+        "I've been dealing with this weird pain under my right ribs for eight months.",
+        "It happens after burgers and fries.",
+        "Juice fasting seems to make that right-side discomfort better.",
+        "Popcorn gives me stomach discomfort and sometimes shoulder pain.",
+        "I also get an intermittent itchy crawling sensation in my reproductive area, and itching under the right ribs too. No swelling, no redness, no warmth.",
+        "why? show evidence",
+        "you've asked the same thing multiple times.",
+    ):
+        last = orchestrate(text, prior_facts=prior, asked=[], answered=set(), control_state=control)
+        for item in last.new_findings:
+            prior[item.name] = item.value or ""
+        control = last.control
+    extras = last.action.extras or {}
+    blob = (last.message + " " + (last.action.prompt or "")).lower()
+    facts = prior
+    assert facts.get("location") == "ruq"
+    assert facts.get("location") != "epigastric"
+    assert facts.get("itch") == "reported"
+    assert facts.get("crawling_sensation") == "reported"
+    assert facts.get("itch_site") == "reproductive_or_genital_area"
+    assert facts.get("visible_swelling") == "absent"
+    assert extras.get("response_mode") in {"INTERIM_SYNTHESIS", "NEXT_STEPS", "RESEARCH_EXPLANATION"}
+    assert last.action.type != "ask_question"
+    assert "epigastric" not in blob
+    assert "asked the same question" in blob or "will not ask" in blob
+    assert "does not establish inflammation" in blob
+    assert "swelling" not in blob or "will not ask" in blob
+    assert any(item.get("phenomenon") == "itch" or item.get("sensation") == "itch" for item in (last.control.get("observations") or []))
+    assert extras.get("explanation")
+    assert extras.get("family_ids")
+    assert "cutaneous_or_sensory_itch" in extras.get("family_ids")
+
+
+def test_closed_visible_slots_and_evidence_request():
+    from app.discovery.usefulness import classify_control_intent
+
+    assert "repetition_frustration" in classify_control_intent("you've asked the same thing multiple times.")
+    assert "request_research" in classify_control_intent("why? show evidence")
+
+
 def test_pause_b12_then_other_insight_does_not_reask_b12(monkeypatch):
     monkeypatch.setattr("app.discovery.usefulness.usefulness_governor_enabled", lambda: True)
     prior = {"laterality": "bilateral"}

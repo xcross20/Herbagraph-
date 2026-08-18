@@ -166,7 +166,12 @@ def build_explanation_view(
     }
 
 
-def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) -> str:
+def render_explanation_text(
+    view: dict,
+    *,
+    facts: dict[str, str] | None = None,
+    observations: list[dict] | None = None,
+) -> str:
     facts = facts or {}
     families = view.get("families") or []
     labels = ", ".join(item.get("label") or item.get("id") or "a family" for item in families[:3]) or "the open families"
@@ -187,9 +192,17 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
             " I am organizing the reported post-meal right-upper discomfort and fat-meal association as investigation targets, "
             "not as a gallbladder diagnosis."
         )
-    attribution = facts.get("patient_interpretation") or (
-        "inflammatory foods" if any("inflamm" in str(value).lower() for value in facts.values()) else ""
-    )
+    itch_line = ""
+    if facts.get("itch") or facts.get("crawling_sensation") or facts.get("itch_site"):
+        itch_line = (
+            " I recorded an itchy or crawling sensation as a separate observation; site and surface stay as you stated, "
+            "including any reproductive-area wording, and I will not rewrite that site. "
+            "Itch or crawling alone does not establish inflammation, infection, a pathogen, bacterial overgrowth, or biliary disease."
+        )
+    repeat_line = ""
+    if facts.get("_repeat_complaint"):
+        repeat_line = " I asked the same question more than once. I will not ask food pattern, swelling, redness, or warmth again."
+    attribution = facts.get("patient_interpretation") or ""
     attr_line = (
         f" “{attribution}” stays your description, not a confirmed mechanism."
         if attribution
@@ -205,6 +218,21 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
         action_line = " Ranked next evidence, not a diagnosis: " + "; ".join(bits) + "."
     paused_labels = [item.get("label") or item.get("id") for item in families if item.get("status") == "paused_by_user"]
     pause_line = f" I paused {', '.join(str(item) for item in paused_labels)} and will not keep asking about it." if paused_labels else ""
+    repeat_line = ""
+    if facts.get("_repeat_complaint"):
+        repeat_line = (
+            " I asked a closed question more than once and I will not ask about swelling, redness, warmth, or food timing again."
+        )
+    obs_line = ""
+    if observations:
+        from app.discovery.observations import observation_summary
+
+        obs_line = f" I recorded these distinct observations without collapsing sites: {observation_summary(observations)}."
+    mech_line = (
+        " Itch or crawling alone does not establish inflammation, infection, a pathogen, bacterial overgrowth, or biliary disease."
+        if observations
+        else ""
+    )
     cards = [item.get("title") or item.get("source_id") for item in (view.get("claim_cards") or []) if item.get("accepted")]
     cite_line = (
         f" Stored research: {'; '.join(str(item) for item in cards[:2])}."
@@ -212,7 +240,7 @@ def render_explanation_text(view: dict, *, facts: dict[str, str] | None = None) 
         else " Relevant literature is not yet available for the selected claim. Missing literature stays a limitation, not an invented citation."
     )
     return (
-        f"Here is a bounded interim view of {labels}.{b12_line}{labs_line}{attr_line}{pause_line} "
+        f"Here is a bounded interim view of {labels}.{repeat_line}{obs_line}{b12_line}{labs_line}{itch_line}{attr_line}{pause_line}{mech_line} "
         "These remain possibilities because coverage is incomplete, not because a diagnosis is established. "
         "They may or may not share a cause; timing together is not proof. "
         "Tests that assess a dysfunction are not the same as tests that evaluate a contributor."

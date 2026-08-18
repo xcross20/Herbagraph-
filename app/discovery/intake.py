@@ -39,8 +39,18 @@ _RULES: tuple[tuple[str, str, str], ...] = (
     (r"can eat fat|eat fat but|fatty food (?:is )?(?:fine|ok|okay)", "fatty_food", "tolerated"),
     (r"fatty food makes|worse after (?:fatty|greasy)|can't (?:eat|tolerate) fat", "fatty_food", "triggers"),
     (r"\bintermittent\b|comes and goes", "trajectory", "intermittent"),
-    (r"under (?:my )?(?:right )?ribs|right upper|\bruq\b", "location", "ruq"),
-    (r"\bstomach\b|pit of (?:the )?stomach|epigastric", "location", "epigastric"),
+    (r"under (?:the |my )?(?:right )?ribs|right upper|\bruq\b", "location", "ruq"),
+    (r"pit of (?:the )?stomach|epigastric", "location", "epigastric"),
+    (r"\bitch|\bitches\b|itchy", "itch", "reported"),
+    (r"crawl|creepy.?crawly", "crawling_sensation", "reported"),
+    (r"reproduct|genital|groin", "itch_site", "reproductive_or_genital_area"),
+    (r"\bpopcorn\b", "popcorn_association", "reported"),
+    (r"juice fast|fasting.{0,20}juice|juice.{0,20}fast", "juice_fasting_association", "improves"),
+    (r"shoulder", "shoulder_pain", "reported"),
+    (r"no (?:visible )?swell|without swell|not swell", "visible_swelling", "absent"),
+    (r"no redness|without redness|not red", "visible_redness", "absent"),
+    (r"no warmth|not warm|without warmth", "visible_warmth", "absent"),
+    (r"after (?:burgers|fries|a meal|eating)|tied to eating|after meals", "meal_relation", "after_eating"),
 )
 
 
@@ -68,8 +78,25 @@ def extract_facts(text: str, *, current_question_closes: str | None = None) -> l
 
     for pattern, name, value in _RULES:
         if re.search(pattern, lowered):
-            kind = "assessment" if name in {"emg testing", "claimed normal labs"} else "symptom"
+            if name == "location" and value == "epigastric" and re.search(r"rib|ruq|right upper", lowered):
+                continue
+            kind = "assessment" if name in {"emg testing", "claimed normal labs", "swelling", "redness", "warmth"} else "symptom"
             _add(name, value, kind)
+    if re.search(r"no (?:visible )?swell", lowered):
+        _add("visible_swelling", "absent", "assessment")
+        if "redness" in lowered:
+            _add("visible_redness", "absent", "assessment")
+        if "warmth" in lowered:
+            _add("visible_warmth", "absent", "assessment")
+    if re.search(r"no (?:visible )?(?:swell|redness|warmth)", lowered):
+        if "swell" in lowered:
+            _add("visible_swelling", "absent")
+        if "redness" in lowered or "red" in lowered:
+            _add("visible_redness", "absent")
+        if "warmth" in lowered or "warm" in lowered:
+            _add("visible_warmth", "absent")
+    if any(item.name == "location" and item.value == "ruq" for item in facts):
+        facts[:] = [item for item in facts if not (item.name == "location" and item.value == "epigastric")]
 
     option = _LATERALITY_OPTIONS.get(lowered.strip().rstrip(".!"))
     if option and (current_question_closes == "laterality" or option):
@@ -117,8 +144,12 @@ def is_abdominal_case(facts: dict[str, str]) -> bool:
 def fact_map(findings: list[FindingDraft]) -> dict[str, str]:
     mapped: dict[str, str] = {}
     for item in findings:
-        if item.name:
-            mapped[item.name] = item.value or "reported"
+        if not item.name:
+            continue
+        if item.name == "location" and mapped.get("location") == "ruq" and item.value == "epigastric":
+            mapped["location_secondary"] = item.value or "epigastric"
+            continue
+        mapped[item.name] = item.value or "reported"
     return mapped
 
 

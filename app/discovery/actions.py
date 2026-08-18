@@ -138,6 +138,12 @@ def _asked_or_answered(question: CatalogQuestion, asked: set[str], facts: dict[s
         return True
     if question.closes in facts or question.closes in answered:
         return True
+    if question.closes == "pain_location" and facts.get("location") in {"ruq", "epigastric", "abdomen"}:
+        return True
+    if question.closes == "meal_relation" and (facts.get("meal_relation") or facts.get("fatty_food")):
+        return True
+    if question.closes in {"visible_swelling", "visible_redness", "visible_warmth"} and facts.get(question.closes) == "absent":
+        return True
     return False
 
 

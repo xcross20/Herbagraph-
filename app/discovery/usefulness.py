@@ -46,6 +46,11 @@ SLOT_ALIASES = {
     "claimed normal labs": "records_available",
     "emg testing": "emg_status",
     "weakness": "weakness",
+    "pain_location": "location",
+    "visible_swelling": "visible_swelling",
+    "visible_redness": "visible_redness",
+    "visible_warmth": "visible_warmth",
+    "systemic_red_flags": "systemic_red_flags",
 }
 
 CONCERN_PATTERNS = (
@@ -59,6 +64,10 @@ SLOT_PHRASES = (
     (re.compile(r"hour or two|60.?120 minutes|1.?2 hours"), "facial_heat.duration", "1-2 hours"),
     (re.compile(r"do not have the records|don'?t have (?:any )?(?:more )?(?:labs|records|those)"), "prior_labs.records_available", "false"),
     (re.compile(r"b12.{0,40}last year|last year.{0,40}b12|b12.{0,40}a year ago", re.I), "prior_labs.b12_last_check", "last_year"),
+    (re.compile(r"no (?:visible )?swell|without swell|not swell"), "visible.visible_swelling", "absent"),
+    (re.compile(r"no redness|without redness|not red"), "visible.visible_redness", "absent"),
+    (re.compile(r"no warmth|not warm|without warmth"), "visible.visible_warmth", "absent"),
+    (re.compile(r"after (?:burgers|fries|a meal|eating)|tied to eating"), "ruq_discomfort.meal_delay", "after_eating"),
 )
 
 FAMILY_PAUSE_PATTERNS = (
@@ -112,11 +121,16 @@ def classify_control_intent(text: str) -> list[str]:
         intents.append("request_next_steps")
     if re.search(r"what do you think|summar|assessment|so what is (?:this|going on)|answers now|other insight", blob):
         intents.append("request_synthesis")
-    if re.search(r"why|evidence|pubmed|paper|research|citation", blob):
+    if re.search(r"why\?? show evidence|show evidence|pubmed|paper|research|citation", blob) or re.search(
+        r"\bwhy\b.{0,12}\bevidence\b", blob
+    ):
         intents.append("request_research")
     if re.search(r"don'?t have (?:any )?(?:more )?labs|no (?:more )?records|i don'?t have (?:those|it|them)", blob):
         intents.append("cannot_provide_evidence")
-    if re.search(r"like i said|already (?:answered|told|said)|i just (?:said|told)", blob):
+    if re.search(
+        r"like i said|already (?:answered|told|said)|i just (?:said|told)|asked (?:the )?(?:same thing|that) already|multiple times|you(?:'ve| have) asked",
+        blob,
+    ):
         intents.append("repetition_frustration")
     return intents
 
@@ -188,6 +202,7 @@ class ControlState:
     last_intents: list[str] = field(default_factory=list)
     focus_history: list[dict] = field(default_factory=list)
     applied_events: list[str] = field(default_factory=list)
+    observations: list[dict] = field(default_factory=list)
     cannot_provide_count: int = 0
     frustration_count: int = 0
     version: int = 1
@@ -201,6 +216,7 @@ class ControlState:
             "last_intents": list(self.last_intents),
             "focus_history": [dict(item) for item in self.focus_history],
             "applied_events": list(self.applied_events),
+            "observations": [dict(item) for item in self.observations],
             "cannot_provide_count": self.cannot_provide_count,
             "frustration_count": self.frustration_count,
         }
@@ -215,6 +231,7 @@ class ControlState:
             last_intents=list(data.get("last_intents") or []),
             focus_history=[dict(item) for item in (data.get("focus_history") or []) if isinstance(item, dict)],
             applied_events=[str(item) for item in (data.get("applied_events") or [])],
+            observations=[dict(item) for item in (data.get("observations") or []) if isinstance(item, dict)],
             cannot_provide_count=int(data.get("cannot_provide_count") or 0),
             frustration_count=int(data.get("frustration_count") or 0),
             version=int(data.get("version") or 1),
@@ -312,6 +329,21 @@ def apply_control(
         _set_slot(state, "prior_labs.records_available", "false")
     if "repetition_frustration" in intents:
         state.frustration_count += 1
+    from app.discovery.observations import classify_novelty, extract_observations, merge_observations
+
+    prior_obs = list(state.observations)
+    incoming_obs = extract_observations(text)
+    for item in incoming_obs:
+        item["novelty"] = classify_novelty(state.observations, item)
+    state.observations = merge_observations(state.observations, incoming_obs)
+    if prior_obs and any(str(item.get("novelty") or "").startswith("novel") for item in incoming_obs):
+        intents.append("novel_observation")
+    if facts.get("visible_swelling") == "absent" or facts.get("swelling") == "absent":
+        _set_slot(state, "case.swelling", "absent")
+    if facts.get("visible_redness") == "absent" or facts.get("redness") == "absent":
+        _set_slot(state, "case.redness", "absent")
+    if facts.get("visible_warmth") == "absent" or facts.get("warmth") == "absent":
+        _set_slot(state, "case.warmth", "absent")
     if source_event_id:
         state.applied_events.append(source_event_id)
     active_concern = next((code for code, status in state.focus.items() if status == "active"), mentioned)
@@ -329,14 +361,14 @@ def apply_control(
         _set_slot(state, "burning_feet.laterality", "bilateral")
     if facts.get("laterality") in {"bilateral", "both"} and "facial_heat" in state.focus:
         _set_slot(state, "facial_heat.laterality", "bilateral")
-    if facts.get("meal_relation"):
+    if facts.get("meal_relation") and "facial_heat" in state.focus:
         _set_slot(state, "facial_heat.meal_delay", facts["meal_relation"])
     if facts.get("episode_duration"):
         _set_slot(state, "facial_heat.duration", facts["episode_duration"])
     for pattern, key, value in SLOT_PHRASES:
         if pattern.search(text or ""):
             _set_slot(state, key, value)
-    if re.search(r"inflamm", text or "", re.I):
+    if re.search(r"inflamm", text or "", re.I) and re.search(r"food", text or "", re.I):
         _set_slot(state, "patient_interpretation", facts.get("patient_interpretation") or "inflammatory foods")
     if "do not change" in (text or "").lower() or "don't change" in (text or "").lower() or "position and activity" in (text or "").lower():
         _set_slot(state, "burning_feet.position_activity_effect", "none_reported")
@@ -365,13 +397,13 @@ def decide_response_mode(
     if contradictions:
         return "CLARIFY_CONTRADICTION"
     intents = set(control.last_intents)
-    if "request_research" in intents and "request_next_steps" not in intents:
+    if "request_research" in intents:
         return "RESEARCH_EXPLANATION"
+    if "repetition_frustration" in intents or control.frustration_count >= 1:
+        return "INTERIM_SYNTHESIS"
     if "request_next_steps" in intents or "request_synthesis" in intents:
         return "NEXT_STEPS" if "request_next_steps" in intents else "INTERIM_SYNTHESIS"
     if control.cannot_provide_count >= 1 and "cannot_provide_evidence" in intents:
-        return "INTERIM_SYNTHESIS"
-    if control.frustration_count >= 2:
         return "INTERIM_SYNTHESIS"
     if unanswered_high_value:
         return "ASK_ONE_QUESTION"

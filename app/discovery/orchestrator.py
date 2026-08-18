@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 
 from app.discovery.actions import NextAction, generate_actions, select_action
@@ -183,6 +184,28 @@ def _compose(
     return "I have an update on the Case, but I will not write a diagnosis."
 
 
+def _draft_is_safe(message: str, control) -> bool:
+    blob = (message or "").lower()
+    if control is None:
+        return True
+    slots = getattr(control, "slots", {}) or {}
+    swelling_closed = any(key.endswith("visible_swelling") and item.get("value") == "absent" for key, item in slots.items())
+    redness_closed = any(key.endswith("visible_redness") and item.get("value") == "absent" for key, item in slots.items())
+    if swelling_closed and re.search(r"any swell|\bswell(?:ing)?\b.*\?", blob):
+        return False
+    if redness_closed and re.search(r"redness|\bwarmth\b", blob) and "?" in blob:
+        return False
+    if "epigastric" in blob and (
+        any(item.get("site") == "right_upper_abdomen" for item in getattr(control, "observations", []) or [])
+        or any(item.get("value") == "ruq" for item in slots.values() if isinstance(item, dict))
+    ):
+        if "will not rewrite" not in blob and "does not" not in blob:
+            return False
+    if re.search(r"\binflammation\b", blob) and "does not establish inflammation" not in blob and "not establish" not in blob:
+        return False
+    return True
+
+
 def _critic(message: str) -> str:
     banned = ("you have small-fiber", "you have neuropathy", "this confirms", "this strongly suggests")
     lowered = message.lower()
@@ -219,6 +242,12 @@ def orchestrate(
     )
     incoming = extract_facts(text, current_question_closes=current_closes)
     have = {item.name for item in incoming}
+    kept: list[ExtractedFact] = []
+    for item in incoming:
+        if item.name == "location" and prior_facts.get("location") == "ruq" and item.value == "epigastric":
+            item = ExtractedFact(name="location", value="ruq", kind=item.kind)
+        kept.append(item)
+    incoming = kept
     for item in safety_findings_to_facts(safety_findings):
         if item.name not in have:
             incoming.append(item)
@@ -249,6 +278,7 @@ def orchestrate(
             merged.get("location"),
             "burning feet" if merged.get("burning sensation") or merged.get("location") == "feet" else "",
             "right upper rib" if merged.get("abdominal_pain") in {"ruq", "right_upper"} or merged.get("location") == "ruq" else "",
+            "itch crawling genital" if merged.get("itch") or merged.get("crawling_sensation") or merged.get("itch_site") else "",
         )
         if part
     )
@@ -383,15 +413,15 @@ def orchestrate(
             control=control,
             unanswered_high_value=unanswered_high_value,
         )
-        slot_preview = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
-        if mode == "ASK_ONE_QUESTION" and (
+        if mode == "ASK_ONE_QUESTION" and safety.state not in {"S1", "S3", "S4"} and (
             "request_next_steps" in control.last_intents
             or "request_synthesis" in control.last_intents
+            or "repetition_frustration" in control.last_intents
+            or "request_research" in control.last_intents
             or control.frustration_count >= 1
-            or bool(slot_preview.get("facial_heat.meal_delay") or merged.get("meal_relation"))
         ):
             mode = "NEXT_STEPS"
-        if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
+        if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS", "RESEARCH_EXPLANATION"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
             from app.discovery.decision_events import (
                 DecisionLog,
@@ -409,6 +439,12 @@ def orchestrate(
             ) else []
             family_ids = [getattr(item, "code", None) or (item.get("code") if isinstance(item, dict) else None) for item in snapshot.hypotheses]
             slot_facts = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
+            if merged.get("itch") or merged.get("crawling_sensation"):
+                slot_facts["itch"] = merged.get("itch") or "reported"
+                slot_facts["crawling_sensation"] = merged.get("crawling_sensation") or ""
+                slot_facts["itch_site"] = merged.get("itch_site") or ""
+            if "repetition_frustration" in control.last_intents:
+                slot_facts["_repeat_complaint"] = "true"
             cards = [
                 item
                 for item in cards_for_next_steps(
@@ -460,7 +496,11 @@ def orchestrate(
             action = NextAction(
                 type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
                 objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
-                prompt=render_explanation_text(view, facts={**merged, **slot_facts}),
+                prompt=render_explanation_text(
+                    view,
+                    facts={**merged, **slot_facts},
+                    observations=control.observations,
+                ),
                 score=0.94,
                 extras={
                     "response_mode": mode,
@@ -472,6 +512,7 @@ def orchestrate(
                     "family_ids": [item["id"] for item in view.get("families") or []],
                     "candidate_ids": [item.get("id") for item in view.get("ranked_actions") or []],
                     "locked_verbalization": True,
+                    "observations": control.observations,
                 },
             )
         else:
@@ -499,6 +540,11 @@ def orchestrate(
         message = pick_verbalization(message, llm_message)
     if _critic(message) == "blocked":
         message = "I updated the Case. I will not write a diagnosis. " + (action.prompt or "")
+    if usefulness_governor_enabled() and not _draft_is_safe(message, control):
+        from app.discovery.telemetry import increment
+
+        increment("unsupported_mechanism_rejection")
+        message = action.prompt or message
 
     changed = [f"{item.name}={item.value}" for item in incoming]
     if contradictions:
