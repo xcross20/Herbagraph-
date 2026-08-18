@@ -59,6 +59,17 @@ class TurnPipelineResult:
     safety_state: str = "S0"
 
 
+def _control_from_case(case: DiscoveryCase) -> dict | None:
+    raw = getattr(case, "control_json", None)
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
 def normalize_input(text: str) -> tuple[str, str]:
     original = text or ""
     return original, " ".join(original.split()).strip()
@@ -181,6 +192,7 @@ async def run_turn(
         last_visit=last_visit,
         person=person,
         persisted_gaps=persisted_gaps or None,
+        control_state=_control_from_case(case),
     )
     _stage("extract_facts")
     _stage("detect_conflicts")
@@ -287,6 +299,8 @@ async def run_turn(
     case.stage = result.stage
     case.problem_representation = result.problem_representation
     case.safety_json = json.dumps(result.safety or {})
+    if result.control is not None:
+        case.control_json = json.dumps(result.control)
     if result.safety_status == "S4":
         case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()

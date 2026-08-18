@@ -537,6 +537,7 @@ class DiscoveryGuide:
         last_visit: dict | None = None,
         person: dict | None = None,
         persisted_gaps: list[dict] | None = None,
+        control_state: dict | None = None,
     ) -> TurnResult:
         used_plan = plan
         if used_plan is None:
@@ -568,6 +569,7 @@ class DiscoveryGuide:
             guide_actions=guide_actions or None,
             wants_evidence=wants_literature,
             persisted_gaps=persisted_gaps,
+            control_state=control_state,
         )
         citations: list[dict] = []
         if wants_literature or result.action.type == "retrieve_evidence":

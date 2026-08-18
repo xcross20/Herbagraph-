@@ -43,6 +43,7 @@ class DiscoveryCase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     problem_representation: Mapped[str | None] = mapped_column(Text, nullable=True)
     literature_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     safety_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    control_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     findings: Mapped[list["DiscoveryFinding"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"

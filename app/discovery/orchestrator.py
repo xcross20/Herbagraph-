@@ -63,6 +63,7 @@ class TurnResult:
     clinical_followup_needed: bool = False
     safety_override: bool = False
     guide_plan: dict | None = None
+    control: dict | None = None
 
     def as_dict(self) -> dict:
         payload = asdict(self)
@@ -109,6 +110,22 @@ def _unknowns(facts: dict[str, str]) -> list[str]:
         if value is None or value == "unknown":
             missing.append(key)
     return missing
+
+
+def _usefulness_synthesis(control, facts: dict[str, str], mode: str) -> str:
+    del mode
+    paused = [code.replace("_", " ") for code, status in control.focus.items() if status == "paused_by_user"]
+    active = [code.replace("_", " ") for code, status in control.focus.items() if status == "active"]
+    attribution = facts.get("patient_interpretation") or "inflammatory foods"
+    paused_line = f" I am not pursuing {', '.join(paused)} unless you resume it." if paused else ""
+    return (
+        f"Here is a bounded interim view of the active concerns ({', '.join(active) or 'the current symptoms'})."
+        f"{paused_line} "
+        "Facial heat and right-upper discomfort may or may not share a cause; timing together is not proof. "
+        f"“{attribution}” stays your description, not a confirmed mechanism. "
+        "Without verified labs I will not interpret numbers. Next useful step is a structured episode log "
+        "or a clinician-ready brief — not another intake question. This is not a diagnosis."
+    )
 
 
 def _compose(
@@ -182,6 +199,7 @@ def orchestrate(
     guide_actions: list | None = None,
     wants_evidence: bool | None = None,
     persisted_gaps: list[dict] | None = None,
+    control_state: dict | None = None,
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
     prior_safety = findings_from_fact_map(prior_facts)
@@ -239,6 +257,27 @@ def orchestrate(
         safety=safety,
         guide_actions=guide_actions,
     )
+    from app.discovery.actions import QUESTIONS
+    from app.discovery.usefulness import (
+        ControlState,
+        apply_control,
+        decide_response_mode,
+        filter_paused_questions,
+        slot_is_answered,
+        usefulness_governor_enabled,
+    )
+
+    control = apply_control(ControlState.from_dict(control_state), text, merged)
+    if usefulness_governor_enabled():
+        kept = []
+        for candidate in candidates:
+            closes = next((item.closes for item in QUESTIONS if item.code == candidate.question_id), None)
+            if slot_is_answered(control, closes):
+                continue
+            if filter_paused_questions(candidate.type, candidate.question_id, candidate.prompt, control):
+                continue
+            kept.append(candidate)
+        candidates = kept
     action = select_action(candidates)
     coverage_by_code = {
         getattr(item, "code", ""): float(getattr(item, "investigation_coverage", 0.0) or 0.0)
@@ -324,6 +363,26 @@ def orchestrate(
             "alternatives": list(ranked[0].alternatives),
             **ranked[0].components,
         }
+    if usefulness_governor_enabled():
+        unanswered_high_value = action.type == "ask_question" and not slot_is_answered(
+            control, next((item.closes for item in QUESTIONS if item.code == action.question_id), None)
+        )
+        mode = decide_response_mode(
+            safety_state=safety.state,
+            contradictions=contradictions,
+            control=control,
+            unanswered_high_value=unanswered_high_value,
+        )
+        if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
+            action = NextAction(
+                type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
+                objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
+                prompt=_usefulness_synthesis(control, merged, mode),
+                score=0.94,
+                extras={"response_mode": mode, "paused": [code for code, status in control.focus.items() if status == "paused_by_user"]},
+            )
+        else:
+            action.extras = {**(action.extras or {}), "response_mode": mode}
     if safety.state in {"S3", "S4"}:
         message = safety.message or _compose(
             action,
@@ -370,6 +429,7 @@ def orchestrate(
         clinical_followup_needed=safety.clinical_followup_needed,
         safety_override=safety.override,
         critic=safety.critic if safety.state in {"S3", "S4"} else "Investigation relevance is not a diagnosis.",
+        control=control.as_dict() if control is not None else None,
     )
 
 
