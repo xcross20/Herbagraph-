@@ -370,7 +370,9 @@ async def add_case_turn(
     if case is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
     audience = "clinician" if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN} else "consumer"
-    await apply_user_turn(db, case, payload.text, audience=audience)
+    await apply_user_turn(
+        db, case, payload.text, audience=audience, idempotency_key=payload.idempotency_key
+    )
     await db.commit()
     return await case_to_read(db, case)
 
@@ -393,7 +395,14 @@ async def stream_case_turn(
             if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN}
             else "consumer"
         )
-        await apply_user_turn(db, case, payload.text, audience=audience, on_phase=on_phase)
+        await apply_user_turn(
+            db,
+            case,
+            payload.text,
+            audience=audience,
+            on_phase=on_phase,
+            idempotency_key=payload.idempotency_key,
+        )
         await db.commit()
         await put({"event": "done", "case": await case_to_read(db, case)})
 

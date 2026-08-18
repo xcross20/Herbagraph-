@@ -35,6 +35,7 @@ class DiscoveryAnswerCreate(BaseModel):
 
 class DiscoveryTurnCreate(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
+    idempotency_key: str | None = Field(default=None, max_length=80)
 
 
 class DiscoveryDisclaimerAck(BaseModel):

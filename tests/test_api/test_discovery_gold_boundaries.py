@@ -210,6 +210,25 @@ async def test_api_correction_chain_visible_after_restart(authed_client, db_sess
     assert onsets == ["after surgery"]
 
 
+async def test_api_idempotent_turn_key_does_not_duplicate(authed_client):
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months my feet have burned at night."},
+    )
+    case_id = created.json()["id"]
+    first = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "The burning is worse at night.", "idempotency_key": "same-client-event"},
+    )
+    second = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "The burning is worse at night.", "idempotency_key": "same-client-event"},
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(first.json()["turns"]) == len(second.json()["turns"])
+
+
 async def test_api_replay_correction_restart_and_inactivation(authed_client, db_session):
     import uuid
 

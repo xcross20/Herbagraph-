@@ -974,100 +974,23 @@ async def apply_user_turn(
     *,
     audience: str = "consumer",
     on_phase: Callable[..., Any] | None = None,
+    idempotency_key: str | None = None,
+    fail_after: str | None = None,
 ) -> CaseSnapshot:
-    """One orchestrated turn: mutate the Case, then speak the chosen action."""
-    turns = (
-        await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
-    ).scalars().all()
-    findings = (
-        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
-    ).scalars().all()
-    asked = [turn.question_code for turn in turns if turn.role == DiscoveryTurnRole.SYSTEM and turn.question_code]
-    answered = {item.name for item in findings if item.kind == DiscoveryFindingKind.ASSESSMENT}
-    prior = facts_from_findings(findings)
-    payload = _last_system_payload(list(turns))
-    current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
-    from app.discovery.guide import DiscoveryGuide
-    from app.discovery.snapshot import prior_facts_from_snapshot
+    """One orchestrated turn: the 19-step pipeline owns the transaction."""
+    from app.discovery.turn_engine import run_turn
 
-    snap_payload = None
-    if case.patient_id:
-        snap_payload = await _snapshot_payload(db, case.patient_id)
-        if snap_payload:
-            prior = {**prior_facts_from_snapshot(snap_payload), **prior}
-    if getattr(case, "safety_json", None):
-        try:
-            held = json.loads(case.safety_json)
-            if isinstance(held, dict) and held.get("state"):
-                prior["safety_state"] = str(held["state"])
-        except json.JSONDecodeError:
-            pass
-    recent = [turn.text for turn in sorted(turns, key=lambda item: item.created_at)][-12:]
-    last_visit = None
-    if snap_payload:
-        from app.discovery.context import last_visit_from_snapshot
-
-        last_visit = last_visit_from_snapshot(snap_payload)
-    person = await _person_context(
-        db, case, prior_facts=prior, last_visit=last_visit, snapshot_payload=snap_payload
-    )
-    result = await DiscoveryGuide().process_turn(
+    result = await run_turn(
+        db,
+        case,
         text,
-        prior_facts=prior,
-        asked=asked,
-        answered=answered,
-        current_closes=current_closes,
-        concern=case.presenting_concern,
         audience=audience,
-        turn_count=len(turns),
-        recent_turns=recent,
-        problem=case.problem_representation,
         on_phase=on_phase,
-        last_visit=last_visit,
-        person=person,
+        idempotency_key=idempotency_key,
+        fail_after=fail_after,
+        opening=False,
     )
-    await _attach_literature(case, text, result)
-    user_turn = await add_turn(
-        db,
-        case,
-        role=DiscoveryTurnRole.USER,
-        text=text.strip(),
-        kind="turn",
-        intent=",".join(result.intents),
-        stage=result.stage,
-    )
-    await _persist_turn_findings(
-        db, case.id, result.new_findings, source_event_id=str(user_turn.id)
-    )
-    await db.flush()
-    snapshot = await rebuild_case(db, case)
-    await add_turn(
-        db,
-        case,
-        role=DiscoveryTurnRole.SYSTEM,
-        text=result.message,
-        kind=result.action.type,
-        question_code=result.action.question_id,
-        intent=",".join(result.intents),
-        action_type=result.action.type,
-        stage=result.stage,
-        payload=json.dumps(result.as_dict()),
-    )
-    case.stage = result.stage
-    case.problem_representation = result.problem_representation
-    case.safety_json = json.dumps(result.safety or {})
-    if result.safety_status == "S4":
-        case.status = DiscoveryCaseStatus.PAUSED
-    await db.flush()
-    await persist_map_version(db, case, snapshot)
-    if case.patient_id:
-        from app.discovery.snapshot import generate_patient_snapshot
-
-        try:
-            await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
-        except ValueError:
-            pass
-    return snapshot
+    return result.snapshot
 
 
 async def apply_opening_turn(
@@ -1077,68 +1000,21 @@ async def apply_opening_turn(
     *,
     audience: str = "consumer",
     on_phase: Callable[..., Any] | None = None,
+    idempotency_key: str | None = None,
 ) -> CaseSnapshot:
-    from app.discovery.guide import DiscoveryGuide
-    from app.discovery.snapshot import prior_facts_from_snapshot
+    from app.discovery.turn_engine import run_turn
 
-    snapshot = await rebuild_case(db, case)
-    opening = await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="concern")
-    prior: dict[str, str] = {}
-    snap_payload = await _snapshot_payload(db, case.patient_id) if case.patient_id else None
-    if snap_payload:
-        prior = prior_facts_from_snapshot(snap_payload)
-    last_visit = None
-    if snap_payload:
-        from app.discovery.context import last_visit_from_snapshot
-
-        last_visit = last_visit_from_snapshot(snap_payload)
-    result = await DiscoveryGuide().process_turn(
-        text,
-        prior_facts=prior,
-        asked=[],
-        answered=set(),
-        concern=text,
-        audience=audience,
-        turn_count=0,
-        problem=case.problem_representation,
-        on_phase=on_phase,
-        last_visit=last_visit,
-        person=await _person_context(
-            db, case, prior_facts=prior, last_visit=last_visit, snapshot_payload=snap_payload
-        ),
-    )
-    await _attach_literature(case, text, result)
-    await _persist_turn_findings(
-        db, case.id, result.new_findings, source_event_id=str(opening.id)
-    )
-    await db.flush()
-    snapshot = await rebuild_case(db, case)
-    await add_turn(
+    await rebuild_case(db, case)
+    result = await run_turn(
         db,
         case,
-        role=DiscoveryTurnRole.SYSTEM,
-        text=result.message,
-        kind=result.action.type,
-        question_code=result.action.question_id,
-        action_type=result.action.type,
-        stage=result.stage,
-        payload=json.dumps(result.as_dict()),
+        text,
+        audience=audience,
+        on_phase=on_phase,
+        idempotency_key=idempotency_key,
+        opening=True,
     )
-    case.stage = result.stage
-    case.problem_representation = result.problem_representation
-    case.safety_json = json.dumps(result.safety or {})
-    if result.safety_status == "S4":
-        case.status = DiscoveryCaseStatus.PAUSED
-    await db.flush()
-    await persist_map_version(db, case, snapshot)
-    if case.patient_id:
-        from app.discovery.snapshot import generate_patient_snapshot
-
-        try:
-            await generate_patient_snapshot(db, user_id=case.user_id, patient_id=case.patient_id)
-        except ValueError:
-            pass
-    return snapshot
+    return result.snapshot
 
 
 def _active_findings_for_read(case: DiscoveryCase, snapshot: CaseSnapshot):
