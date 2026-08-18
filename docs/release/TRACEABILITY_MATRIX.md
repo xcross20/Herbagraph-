@@ -45,3 +45,20 @@ Repaired Codex PR-A evidence commit:
 Required CI remained red at merge (inherited catalog/scenario failures). That
 redness was not repaired in PR-A and is not evidence that the red-test packet
 failed.
+
+## PR-55 increment (2026-08-18)
+
+Candidate SHA `47a3c9d4db738e8e6e9933d3322874b61459496a`. Verdict: **NOT READY**.
+See `docs/release/MVP_RELEASE_CANDIDATE.md`.
+
+| Packet | Primary tests | Local result |
+|---|---|---|
+| PR-48 | `tests/discovery_mvp/test_coverage_ontology.py` | passed |
+| PR-49 | `tests/discovery_mvp/test_ranker.py` | passed |
+| PR-50 | `tests/discovery_mvp/test_scientific_fail_closed.py` | passed |
+| PR-51 | `tests/discovery_mvp/test_intervention_monitoring.py` | passed |
+| PR-52 | `tests/test_api/test_discovery_idor.py` | passed |
+| PR-53 | `tests/discovery_mvp/test_observability.py` | passed |
+| PR-54 | `tests/test_api/test_founder_uat_scenario.py` | passed |
+| Exact-SHA `gates` / `postgres-truth` | GitHub Actions | blocked by billing |
+| Founder browser UAT | `docs/release/FOUNDER_UAT.md` | unsigned |
