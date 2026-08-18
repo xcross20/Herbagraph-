@@ -1,0 +1,37 @@
+{
+  "version": "modality-maps-v1",
+  "provenance": {"source": "issue-61-mvp-three-maps", "reviewed": "2026-08-18"},
+  "modalities": [
+    {"code": "history", "label": "history and structured interview", "authorization": "none", "burden": 0.1, "cost": 0.05},
+    {"code": "patient_generated", "label": "patient-generated evidence", "authorization": "none", "burden": 0.15, "cost": 0.05},
+    {"code": "examination", "label": "physical or clinical examination", "authorization": "professional", "burden": 0.25, "cost": 0.2},
+    {"code": "standard_lab", "label": "standard laboratory testing", "authorization": "order", "burden": 0.3, "cost": 0.35},
+    {"code": "functional_lab", "label": "functional or metabolic marker", "authorization": "order", "burden": 0.35, "cost": 0.4},
+    {"code": "imaging", "label": "imaging", "authorization": "order", "burden": 0.45, "cost": 0.55},
+    {"code": "electrophysiology", "label": "electrophysiology", "authorization": "order", "burden": 0.5, "cost": 0.6},
+    {"code": "pathology", "label": "pathology or tissue evaluation", "authorization": "specialist", "burden": 0.7, "cost": 0.65},
+    {"code": "record_retrieval", "label": "record retrieval or reinterpretation", "authorization": "none", "burden": 0.15, "cost": 0.1},
+    {"code": "monitoring", "label": "watchful monitoring", "authorization": "none", "burden": 0.1, "cost": 0.05}
+  ],
+  "maps": {
+    "burning_feet": [
+      {"id": "bf-history", "modality": "history", "target": "small_fiber_density", "coverage": "partially_assesses", "label": "Structured sensory-quality history", "information_value": 0.55, "why": "Clarifies distribution and red flags without diagnosing."},
+      {"id": "bf-records", "modality": "record_retrieval", "target": "blood_counts", "coverage": "partially_assesses", "label": "Retrieve the labs described as normal", "information_value": 0.8, "why": "Recalled-normal results are unverified."},
+      {"id": "bf-emg", "modality": "electrophysiology", "target": "small_fiber_density", "coverage": "does_not_directly_assess", "label": "EMG / NCS", "information_value": 0.25, "why": "EMG does not directly assess small-fiber density."},
+      {"id": "bf-exam", "modality": "examination", "target": "large_fiber_function", "coverage": "partially_assesses", "label": "Focused sensory examination", "information_value": 0.62, "why": "Exam can change large-fiber versus small-fiber sequencing."},
+      {"id": "bf-biopsy", "modality": "pathology", "target": "small_fiber_density", "coverage": "directly_assesses", "label": "Skin biopsy / IENFD if still unexplained", "information_value": 0.7, "why": "Direct small-fiber structural measure after non-addressing large-fiber tests."},
+      {"id": "bf-watch", "modality": "monitoring", "target": "small_fiber_density", "coverage": "partially_assesses", "label": "Watchful symptom log", "information_value": 0.4, "why": "A legitimate option when safety is S0 and records are missing."}
+    ],
+    "ruq_discomfort": [
+      {"id": "ruq-history", "modality": "history", "target": "biliary_stones", "coverage": "partially_assesses", "label": "Fat-trigger and episode log", "information_value": 0.66, "why": "Meal timing changes biliary versus gastric sequencing."},
+      {"id": "ruq-us", "modality": "imaging", "target": "biliary_stones", "coverage": "directly_assesses", "label": "RUQ ultrasound discussion", "information_value": 0.78, "why": "Ultrasound can look for stones and dilation."},
+      {"id": "ruq-hida", "modality": "imaging", "target": "biliary_ejection", "coverage": "directly_assesses", "label": "HIDA only if structure is already known", "information_value": 0.5, "why": "Ejection is a different target than stones."},
+      {"id": "ruq-records", "modality": "record_retrieval", "target": "biliary_stones", "coverage": "partially_assesses", "label": "Retrieve any prior abdominal imaging", "information_value": 0.72, "why": "Old reports can avoid a new test."}
+    ],
+    "facial_heat": [
+      {"id": "fh-log", "modality": "patient_generated", "target": "b12_status", "coverage": "does_not_directly_assess", "label": "Food and timing episode log", "information_value": 0.74, "why": "Documents delay and triggers without treating ‘inflammatory foods’ as a mechanism."},
+      {"id": "fh-exam", "modality": "examination", "target": "structural_brain_lesion", "coverage": "does_not_directly_assess", "label": "Clinician exam if red flags appear", "information_value": 0.45, "why": "Exam is not facial-flush proof and is reserved for safety."},
+      {"id": "fh-watch", "modality": "monitoring", "target": "b12_status", "coverage": "does_not_directly_assess", "label": "Watchful monitoring of episodes", "information_value": 0.48, "why": "No verified labs; monitoring is allowed without inventing values."}
+    ]
+  }
+}

@@ -89,9 +89,9 @@ class Settings(BaseSettings):
     discovery_document_reconciliation: bool = False
     discovery_voice_enabled: bool = False
     discovery_intervention_ledger: bool = False
-    discovery_usefulness_governor_v1: bool = False
-    next_evidence_planner_v1: bool = False
-    literature_claim_cards_v1: bool = False
+    discovery_usefulness_governor_v1: bool = True
+    next_evidence_planner_v1: bool = True
+    literature_claim_cards_v1: bool = True
 
     @property
     def cors_origin_list(self) -> list[str]:

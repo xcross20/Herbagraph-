@@ -1,0 +1,49 @@
+{
+  "version": "composition-graph-v1",
+  "provenance": {"source": "issue-60-mvp-fixtures", "reviewed": "2026-08-18"},
+  "concepts": [
+    {"code": "grape", "layer": "concept", "label": "grape", "kind": "food"},
+    {"code": "vitis_vinifera", "layer": "subtype", "label": "Vitis vinifera", "parent": "grape"},
+    {"code": "grape_dark_phenotype", "layer": "phenotype", "label": "dark grape color", "parent": "grape"},
+    {"code": "grape_green_phenotype", "layer": "phenotype", "label": "green grape color", "parent": "grape"},
+    {"code": "grape_skin", "layer": "part", "label": "grape skin", "parent": "grape"},
+    {"code": "grape_flesh", "layer": "part", "label": "grape flesh", "parent": "grape"},
+    {"code": "grape_seed", "layer": "part", "label": "grape seed", "parent": "grape"},
+    {"code": "grape_juice", "layer": "preparation", "label": "grape juice", "parent": "grape"},
+    {"code": "grape_skin_extract", "layer": "preparation", "label": "grape-skin extract", "parent": "grape_skin"},
+    {"code": "salt", "layer": "concept", "label": "culinary salt", "kind": "food"},
+    {"code": "sodium_chloride", "layer": "form", "label": "sodium chloride", "parent": "salt"},
+    {"code": "potassium_chloride_salt", "layer": "form", "label": "potassium chloride salt substitute", "parent": "salt"},
+    {"code": "iodized_table_salt", "layer": "preparation", "label": "iodized table salt", "parent": "sodium_chloride"},
+    {"code": "non_iodized_specialty_salt", "layer": "preparation", "label": "non-iodized specialty salt", "parent": "sodium_chloride"},
+    {"code": "pink_rock_salt_batch", "layer": "product_batch", "label": "measured pink rock salt batch", "parent": "non_iodized_specialty_salt"},
+    {"code": "vitamin_b12", "layer": "concept", "label": "vitamin B12", "kind": "nutrient"},
+    {"code": "cyanocobalamin", "layer": "form", "label": "cyanocobalamin", "parent": "vitamin_b12"},
+    {"code": "methylcobalamin", "layer": "form", "label": "methylcobalamin", "parent": "vitamin_b12"},
+    {"code": "serum_b12", "layer": "assay", "label": "total serum B12", "parent": "vitamin_b12"},
+    {"code": "holotc", "layer": "assay", "label": "holotranscobalamin", "parent": "vitamin_b12"},
+    {"code": "mma", "layer": "assay", "label": "methylmalonic acid", "parent": "vitamin_b12"},
+    {"code": "homocysteine", "layer": "assay", "label": "homocysteine", "parent": "vitamin_b12"},
+    {"code": "biotin", "layer": "concept", "label": "biotin", "kind": "nutrient"},
+    {"code": "d_biotin", "layer": "form", "label": "D-biotin", "parent": "biotin"},
+    {"code": "unknown_biotin_product", "layer": "product_batch", "label": "unspecified biotin product", "parent": "biotin"}
+  ],
+  "relations": [
+    {"from": "grape_skin_extract", "to": "grape_green_phenotype", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "extract evidence does not transfer to whole green grapes"},
+    {"from": "grape_dark_phenotype", "to": "grape", "relation": "has_phenotype", "provenance": "composition-graph-v1", "limitation": "color is retrieval, not dose"},
+    {"from": "pink_rock_salt_batch", "to": "non_iodized_specialty_salt", "relation": "contains_measured", "provenance": "pmc:7603209", "limitation": "batch minerals do not transfer to every Himalayan salt"},
+    {"from": "iodized_table_salt", "to": "non_iodized_specialty_salt", "relation": "does_not_address", "provenance": "fda-iodized-salt", "limitation": "iodization is not inherited"},
+    {"from": "potassium_chloride_salt", "to": "sodium_chloride", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "KCl substitute is not NaCl safety"},
+    {"from": "serum_b12", "to": "vitamin_b12", "relation": "partially_assesses", "provenance": "composition-graph-v1", "limitation": "total B12 is not a complete neurologic evaluation"},
+    {"from": "mma", "to": "vitamin_b12", "relation": "partially_assesses", "provenance": "composition-graph-v1", "limitation": "MMA is not specific when kidney function is reduced"},
+    {"from": "homocysteine", "to": "vitamin_b12", "relation": "partially_assesses", "provenance": "composition-graph-v1", "limitation": "homocysteine is nonspecific"},
+    {"from": "methylcobalamin", "to": "cyanocobalamin", "relation": "has_form", "provenance": "composition-graph-v1", "limitation": "activity is not clinical superiority"},
+    {"from": "d_biotin", "to": "unknown_biotin_product", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "unknown product form stays unknown"},
+    {"from": "biotin", "to": "serum_b12", "relation": "interferes_with_assay", "provenance": "composition-graph-v1", "limitation": "high-dose biotin can interfere with some immunoassays"}
+  ],
+  "sources": [
+    {"id": "pmc:8567006", "title": "Grape bioactive composition review", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8567006/"},
+    {"id": "pmc:7603209", "title": "Pink-salt composition analysis", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC7603209/"},
+    {"id": "fda-iodized-salt", "title": "FDA iodized-salt policy", "url": "https://www.fda.gov/media/94563/download"}
+  ]
+}

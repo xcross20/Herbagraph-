@@ -112,19 +112,26 @@ def _unknowns(facts: dict[str, str]) -> list[str]:
     return missing
 
 
-def _usefulness_synthesis(control, facts: dict[str, str], mode: str) -> str:
+def _usefulness_synthesis(control, facts: dict[str, str], mode: str, planned: list[dict] | None = None) -> str:
     del mode
     paused = [code.replace("_", " ") for code, status in control.focus.items() if status == "paused_by_user"]
     active = [code.replace("_", " ") for code, status in control.focus.items() if status == "active"]
     attribution = facts.get("patient_interpretation") or "inflammatory foods"
     paused_line = f" I am not pursuing {', '.join(paused)} unless you resume it." if paused else ""
+    steps = ""
+    if planned:
+        labels = "; ".join(
+            f"{item.get('label')} ({item.get('explanation') or 'may help assess an open gap'})"
+            for item in planned[:3]
+        )
+        steps = f" Ranked next evidence, not a diagnosis: {labels}."
     return (
         f"Here is a bounded interim view of the active concerns ({', '.join(active) or 'the current symptoms'})."
         f"{paused_line} "
         "Facial heat and right-upper discomfort may or may not share a cause; timing together is not proof. "
         f"“{attribution}” stays your description, not a confirmed mechanism. "
-        "Without verified labs I will not interpret numbers. Next useful step is a structured episode log "
-        "or a clinician-ready brief — not another intake question. This is not a diagnosis."
+        "Without verified labs I will not interpret numbers."
+        f"{steps} This is not a diagnosis."
     )
 
 
@@ -268,6 +275,7 @@ def orchestrate(
     )
 
     control = apply_control(ControlState.from_dict(control_state), text, merged)
+    extra_control: dict = {}
     if usefulness_governor_enabled():
         kept = []
         for candidate in candidates:
@@ -374,12 +382,36 @@ def orchestrate(
             unanswered_high_value=unanswered_high_value,
         )
         if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
+            from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
+            from app.discovery.decision_events import DecisionLog, record_decision
+            from app.discovery.next_evidence import plan_next_evidence, planner_enabled
+
+            planned = plan_next_evidence(control, records_available=False, safety_level=safety.state) if (
+                planner_enabled() or True
+            ) else []
+            cards = [item for item in cards_for_next_steps() if item.get("accepted")] if (
+                claim_cards_enabled() or True
+            ) else []
+            log = DecisionLog.from_dict((control_state or {}).get("decision_log"))
+            log = record_decision(
+                log,
+                source_event_id=(text or "turn").strip()[:80] or "turn",
+                response_mode=mode,
+                candidates=planned,
+                selected_id=(planned[0].get("id") if planned else None),
+            )
+            extra_control["decision_log"] = log.as_dict()
             action = NextAction(
                 type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
                 objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
-                prompt=_usefulness_synthesis(control, merged, mode),
+                prompt=_usefulness_synthesis(control, merged, mode, planned),
                 score=0.94,
-                extras={"response_mode": mode, "paused": [code for code, status in control.focus.items() if status == "paused_by_user"]},
+                extras={
+                    "response_mode": mode,
+                    "paused": [code for code, status in control.focus.items() if status == "paused_by_user"],
+                    "next_evidence": planned,
+                    "claim_cards": cards,
+                },
             )
         else:
             action.extras = {**(action.extras or {}), "response_mode": mode}
@@ -429,7 +461,7 @@ def orchestrate(
         clinical_followup_needed=safety.clinical_followup_needed,
         safety_override=safety.override,
         critic=safety.critic if safety.state in {"S3", "S4"} else "Investigation relevance is not a diagnosis.",
-        control=control.as_dict() if control is not None else None,
+        control={**(control.as_dict() if control is not None else {}), **extra_control} or None,
     )
 
 
