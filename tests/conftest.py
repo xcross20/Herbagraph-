@@ -21,6 +21,20 @@ import uuid  # noqa: E402
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Required PostgreSQL tests may not skip when the CI job has a live engine."""
+    outcome = yield
+    report = outcome.get_result()
+    if (
+        report.skipped
+        and item.get_closest_marker("requires_postgres")
+        and os.environ.get("HERBAGRAPH_REQUIRE_POSTGRES") == "1"
+    ):
+        report.outcome = "failed"
+        report.longrepr = "required PostgreSQL test skipped on a truth-layer job"
 from httpx import ASGITransport, AsyncClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine  # noqa: E402

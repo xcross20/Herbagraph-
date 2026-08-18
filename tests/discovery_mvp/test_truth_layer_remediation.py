@@ -151,6 +151,7 @@ def _postgres_url() -> str | None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.requires_postgres
 async def test_two_postgres_sessions_converge_on_one_semantic_finding():
     url = _postgres_url()
     if url is None:
