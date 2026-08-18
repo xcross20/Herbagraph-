@@ -124,6 +124,11 @@ def _compose(
             "Based on what you've shared so far, this needs urgent in-person evaluation "
             "rather than more Discovery questions. This is not a diagnosis."
         )
+    if action.type == "no_candidate":
+        return (
+            "There is no remaining eligible investigation candidate. "
+            "I will not invent a next test. This is not a diagnosis."
+        )
     if action.type == "advise_prompt_evaluation":
         return (
             "Based on what you've shared so far, prompt in-person assessment would be the safer next step. "
@@ -176,6 +181,7 @@ def orchestrate(
     llm_message: str | None = None,
     guide_actions: list | None = None,
     wants_evidence: bool | None = None,
+    persisted_gaps: list[dict] | None = None,
 ) -> TurnResult:
     intents = classify_intent(text, current_question_closes=current_closes)
     prior_safety = findings_from_fact_map(prior_facts)
@@ -245,7 +251,12 @@ def orchestrate(
         "ask_question": 0.12,
         "clarify": 0.18,
     }
-    gaps = []
+    from app.discovery.evidence_graph import gaps_from_hypotheses
+
+    if persisted_gaps is not None:
+        gaps = [dict(item) for item in persisted_gaps]
+    else:
+        gaps = gaps_from_hypotheses(snapshot.hypotheses)
     for candidate in candidates:
         extras = candidate.extras or {}
         branch = extras.get("branch") or extras.get("branch_code")
@@ -266,6 +277,9 @@ def orchestrate(
                 "burden": float(extras.get("burden") or _COST.get(candidate.type, 0.2)),
                 "explanation": candidate.objective,
                 "candidate": candidate,
+                "commerce_boosted": bool(extras.get("commerce_boosted")),
+                "contraindicated": bool(extras.get("contraindicated")),
+                "non_addressing": bool(extras.get("non_addressing")),
             }
         )
     ranked = rank_next_actions(gaps=gaps, safety_level=safety.state)
@@ -283,14 +297,31 @@ def orchestrate(
                 score=ranked[0].score,
                 extras=extras,
             )
+    elif ranked and ranked[0].action_type == "no_candidate":
+        action = NextAction(
+            type="no_candidate",
+            objective=ranked[0].label,
+            prompt=ranked[0].label,
+            score=0.0,
+            extras={"ranker": ranked[0].version, "explanation": ranked[0].explanation},
+        )
     elif ranked:
-        chosen = next((item["candidate"] for item in gaps if item["code"] == ranked[0].gap_code), None)
+        chosen = next((item.get("candidate") for item in gaps if item.get("code") == ranked[0].gap_code), None)
         if chosen is not None:
             action = chosen
+        else:
+            action = NextAction(
+                type=ranked[0].action_type,
+                objective=ranked[0].label,
+                prompt=ranked[0].label,
+                score=ranked[0].score,
+                extras={"branch": ranked[0].branch_code, "gap_code": ranked[0].gap_code},
+            )
         action.extras = {
             **(action.extras or {}),
             "ranker": ranked[0].version,
             "ranker_score": ranked[0].score,
+            "alternatives": list(ranked[0].alternatives),
             **ranked[0].components,
         }
     if safety.state in {"S3", "S4"}:

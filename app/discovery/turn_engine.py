@@ -163,6 +163,9 @@ async def run_turn(
     payload = _last_system_payload(turns)
     current_closes = _closes_for_question((payload.get("action") or {}).get("question_id"))
     person = await _person_context(db, case, prior_facts=prior, last_visit=last_visit, snapshot_payload=snap_payload)
+    from app.discovery.evidence_graph import load_open_gaps
+
+    persisted_gaps = await load_open_gaps(db, case.id)
     result = await DiscoveryGuide().process_turn(
         normalized,
         prior_facts=prior,
@@ -177,6 +180,7 @@ async def run_turn(
         on_phase=on_phase,
         last_visit=last_visit,
         person=person,
+        persisted_gaps=persisted_gaps or None,
     )
     _stage("extract_facts")
     _stage("detect_conflicts")

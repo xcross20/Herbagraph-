@@ -9,17 +9,18 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.discovery.coverage_catalog import concepts_for_branch, test_code_for_finding
+from app.discovery.coverage_catalog import concept_label, concepts_for_branch, test_code_for_finding
 from app.discovery.evidence_interpreter import interpret_workup
-from app.discovery.identity import evidence_identity_key
+from app.discovery.identity import evidence_identity_key, gap_identity_key
 from app.discovery.resolver import resolve_test
 from app.models.discovery import (
     DiscoveryEvidenceEdge,
+    DiscoveryEvidenceGap,
     DiscoveryFinding,
     DiscoveryHypothesis,
     DiscoveryWorkupItem,
 )
-from app.models.enums import EvidenceRelationship, ResolverStatus
+from app.models.enums import CoverageRelation, EvidenceRelationship, ResolverStatus
 
 
 def workup_identity_key(*, case_id: uuid.UUID, test_code: str, source_event_id: str) -> str:
@@ -157,6 +158,133 @@ async def persist_evidence_graph(
             written.append(row)
     await db.flush()
     return written
+
+
+def gaps_from_hypotheses(hypotheses: list, *, mentioned_tests: set[str] | None = None) -> list[dict]:
+    from app.discovery.coverage_governor import assess_coverage
+
+    gaps: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+    tests = list(mentioned_tests or ())
+    for hypo in hypotheses or []:
+        branch = getattr(hypo, "code", None) or getattr(hypo, "branch_code", None) or ""
+        keys = (branch, getattr(hypo, "branch", None))
+        concepts: list[str] = []
+        for key in keys:
+            concepts.extend(concepts_for_branch(key or ""))
+        if not concepts and branch:
+            concepts.append(str(branch))
+        for concept in dict.fromkeys(concepts):
+            pair = (str(branch), concept)
+            if pair in seen:
+                continue
+            seen.add(pair)
+            relation = "unknown"
+            if tests:
+                assessment = assess_coverage(tests[0], concept)
+                relation = assessment.relation.value
+            if relation == CoverageRelation.DIRECTLY_ASSESSES.value:
+                continue
+            gaps.append(
+                {
+                    "code": concept,
+                    "label": f"Investigate {concept_label(concept)}",
+                    "branch_code": str(branch or concept),
+                    "action_type": "ask_question",
+                    "information_value": 0.75 if relation == "does_not_directly_assess" else 0.6,
+                    "coverage_gain": 0.85 if relation == "does_not_directly_assess" else 0.5,
+                    "redundancy": 0.0,
+                    "cost": 0.2,
+                    "burden": 0.2,
+                    "commerce_boosted": False,
+                    "explanation": f"Open coverage on {concept} ({relation}).",
+                    "coverage": relation,
+                }
+            )
+    return gaps
+
+
+async def persist_open_gaps(
+    db: AsyncSession,
+    *,
+    case_id: uuid.UUID,
+    source_event_id: str = "coverage-gap",
+) -> list[DiscoveryEvidenceGap]:
+    hypotheses = list(
+        (await db.execute(select(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case_id))).scalars()
+    )
+    findings = list(
+        (
+            await db.execute(
+                select(DiscoveryFinding).where(
+                    DiscoveryFinding.case_id == case_id,
+                    DiscoveryFinding.active.is_(True),
+                )
+            )
+        ).scalars()
+    )
+    mentioned = {code for code in (test_code_for_finding(item.name) for item in findings) if code}
+    desired = gaps_from_hypotheses(hypotheses, mentioned_tests=mentioned)
+    written: list[DiscoveryEvidenceGap] = []
+    desired_keys = {(item["branch_code"], item["code"]) for item in desired}
+    existing = list(
+        (await db.execute(select(DiscoveryEvidenceGap).where(DiscoveryEvidenceGap.case_id == case_id))).scalars()
+    )
+    for row in existing:
+        if (row.branch_code, row.code) not in desired_keys and row.active:
+            row.active = False
+    for item in desired:
+        identity = gap_identity_key(
+            case_id=case_id,
+            branch_code=item["branch_code"],
+            gap_code=item["code"],
+            source_event_id=source_event_id,
+        )
+        row = next((gap for gap in existing if gap.identity_key == identity), None)
+        if row is None:
+            row = DiscoveryEvidenceGap(
+                case_id=case_id,
+                branch_code=item["branch_code"],
+                code=item["code"],
+                active=True,
+                source_event_id=source_event_id,
+                identity_key=identity,
+            )
+            db.add(row)
+        else:
+            row.active = True
+        written.append(row)
+    await db.flush()
+    return written
+
+
+async def load_open_gaps(db: AsyncSession, case_id: uuid.UUID) -> list[dict]:
+    rows = list(
+        (
+            await db.execute(
+                select(DiscoveryEvidenceGap).where(
+                    DiscoveryEvidenceGap.case_id == case_id,
+                    DiscoveryEvidenceGap.active.is_(True),
+                )
+            )
+        ).scalars()
+    )
+    return [
+        {
+            "code": row.code,
+            "label": f"Investigate {concept_label(row.code)}",
+            "branch_code": row.branch_code,
+            "action_type": "ask_question",
+            "information_value": 0.7,
+            "coverage_gain": 0.7,
+            "redundancy": 0.0,
+            "cost": 0.2,
+            "burden": 0.2,
+            "commerce_boosted": False,
+            "explanation": f"Persisted open gap {row.code} on {row.branch_code}.",
+        }
+        for row in rows
+    ]
 
 
 def contradictions_for(edges: list[DiscoveryEvidenceEdge]) -> list[str]:
