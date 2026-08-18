@@ -47,6 +47,10 @@ class AuditAction(str, enum.Enum):
     REPORT_VIEWED = "report_viewed"
     REPORT_DOWNLOADED = "report_downloaded"
     CONTEXT_ADDED = "context_added"
+    CASE_VIEWED = "case_viewed"
+    CASE_UPDATED = "case_updated"
+    CASE_EXPORTED = "case_exported"
+    CASE_DELETED = "case_deleted"
 
 
 class DiscoveryCaseStatus(str, enum.Enum):
