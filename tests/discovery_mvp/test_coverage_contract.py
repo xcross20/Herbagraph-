@@ -73,7 +73,7 @@ def test_unrelated_emg_must_not_attach_to_biliary_persist_path():
     assert len(small_fiber) == 1
     assert small_fiber[0].relationship is EvidenceRelationship.DOES_NOT_ADDRESS
     assert small_fiber[0].coverage is CoverageRelation.DOES_NOT_DIRECTLY_ASSESS
-    assert assess_coverage("emg_ncs", "biliary_stones").relation is CoverageRelation.NOT_APPLICABLE
+    assert assess_coverage("emg_ncs", "biliary_stones").relation is CoverageRelation.UNKNOWN
 
 
 def test_map_payload_represents_non_addressing_and_unresolved():

@@ -215,3 +215,24 @@ class DiscoveryDocumentRead(BaseModel):
     accepted: bool
     detail: str
     case: DiscoveryCaseRead | None = None
+
+
+class DiscoveryMonitoringCreate(BaseModel):
+    target: str
+    observation_time: str
+    outcome_kind: str
+    source_event_id: str
+    exposure: str | None = None
+    adherence: str | None = None
+    notes: str | None = None
+
+
+class DiscoveryMonitoringRead(BaseModel):
+    id: uuid.UUID
+    target: str
+    observation_time: str
+    outcome_kind: str
+    exposure: str | None = None
+    adherence: str | None = None
+    notes: str | None = None
+    causal_claim: bool

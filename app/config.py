@@ -78,6 +78,9 @@ class Settings(BaseSettings):
     app_public_url: str = ""
     # Runtime plane: local | uat | preview | production. Never treat uat as production.
     app_env: str = ""
+    # Dark launch: compute truth-layer projections without making them authoritative.
+    discovery_truth_layer_authoritative: bool = False
+    discovery_dark_compare: bool = True
 
     @property
     def cors_origin_list(self) -> list[str]:

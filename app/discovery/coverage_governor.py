@@ -29,8 +29,11 @@ def assess_coverage(
         if row.test_code == test_code and row.concept == investigation_concept
     ]
     if not matches:
+        from app.discovery.tripwires import record_unknown_coverage
+
+        record_unknown_coverage()
         return CoverageAssessment(
-            relation=CoverageRelation.NOT_APPLICABLE,
+            relation=CoverageRelation.UNKNOWN,
             explanation="No coverage relation is catalogued for this test and concept.",
             test_code=test_code,
             concept=investigation_concept,

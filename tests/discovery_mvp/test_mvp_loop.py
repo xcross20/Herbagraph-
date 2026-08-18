@@ -1,4 +1,8 @@
-"""PR-E through PR-I: lifecycle, output, ranker, monitoring, gold cases."""
+"""Component tests for lifecycle, output, ranker, and monitoring.
+
+These do not cross Ask/API boundaries. Real-boundary gold cases live in
+`tests/test_api/test_discovery_gold_boundaries.py`.
+"""
 
 from __future__ import annotations
 
@@ -40,7 +44,7 @@ async def _case(db_session) -> DiscoveryCase:
     return case
 
 
-def test_e2e_burning_feet_normal_emg_keeps_small_fiber_open():
+def test_component_burning_feet_normal_emg_keeps_small_fiber_open():
     interpreted = interpret_workup(
         raw_label="EMG",
         branch_codes=["small_fiber_density", "large_fiber_function"],
@@ -58,14 +62,14 @@ def test_e2e_burning_feet_normal_emg_keeps_small_fiber_open():
     assert decision.resolved_at is None
 
 
-def test_e2e_gallbladder_plus_unrelated_emg_creates_no_biliary_edge():
+def test_component_gallbladder_plus_unrelated_emg_creates_no_biliary_edge():
     interpreted = interpret_workup(
         raw_label="EMG",
         branch_codes=["biliary_stones"],
         result_state="negative",
     )
     assert interpreted.edges == []
-    assert any("not_applicable" in item for item in interpreted.discarded)
+    assert any("unknown" in item for item in interpreted.discarded)
 
 
 def test_scientific_output_rejects_diagnosis_and_sourceless_claims():
