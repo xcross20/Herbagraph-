@@ -1,0 +1,32 @@
+{
+  "id": "USE-58-01",
+  "version": "discovery-usefulness-v1",
+  "source": "issue 58 synthetic benchmark, no PHI",
+  "turns": [
+    {"role": "user", "text": "For six months both of my feet have burned at night."},
+    {"role": "user", "text": "My doctor said my blood work was normal but I do not have the records."},
+    {"role": "user", "text": "I think my TIBC was 305 but I am not sure."},
+    {"role": "user", "text": "I also get heat in my face on both sides after foods I call inflammatory."},
+    {"role": "user", "text": "There is some mild discomfort under my right ribs too."},
+    {"role": "user", "text": "It starts an hour or more after eating and lasts an hour or two."},
+    {"role": "user", "text": "Position and activity do not change it."},
+    {"role": "user", "text": "Let's not deal with the burning feet."},
+    {"role": "user", "text": "There is a delay like I said. What do you think I should do? I don't have any more labs."}
+  ],
+  "expected": {
+    "paused": ["burning_feet"],
+    "active": ["facial_heat", "ruq_discomfort"],
+    "slots_answered": [
+      "burning_feet.laterality",
+      "facial_heat.laterality",
+      "facial_heat.meal_delay",
+      "facial_heat.duration",
+      "burning_feet.position_activity_effect",
+      "prior_labs.records_available"
+    ],
+    "response_mode": ["INTERIM_SYNTHESIS", "NEXT_STEPS"],
+    "must_not_reask": ["laterality", "duration", "meal_relation", "emg_status", "prior_workup"],
+    "patient_attribution": ["inflammatory"],
+    "no_shared_cause": true
+  }
+}
