@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.enums import (
     BranchLifecycleStatus,
+    CausalClaimKind,
     CoverageRelation,
     DiscoveryCaseStatus,
     DiscoveryFindingKind,
@@ -288,5 +289,10 @@ class DiscoveryMonitoringEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source_event_id: Mapped[str] = mapped_column(String(200), nullable=False)
     identity_key: Mapped[str] = mapped_column(String(64), nullable=False)
     causal_claim: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    causal_kind: Mapped[CausalClaimKind] = mapped_column(
+        Enum(CausalClaimKind, native_enum=False, length=40),
+        default=CausalClaimKind.INSUFFICIENT_FOR_CAUSAL_INFERENCE,
+        nullable=False,
+    )
 
     __table_args__ = (Index("uq_discovery_monitoring_identity", "case_id", "identity_key", unique=True),)

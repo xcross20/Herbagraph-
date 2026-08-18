@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_alembic_has_single_accepted_head():
     raw = subprocess.check_output(["python3", "-m", "alembic", "heads"], cwd=ROOT, text=True)
     heads = [line.split()[0] for line in raw.splitlines() if line.strip()]
-    assert heads == ["u5c6d7e8f9g0"]
+    assert heads == ["u6d7e8f9g0h1"]
 
 
 def test_preflight_migrate_accepts_current_head():

@@ -237,3 +237,5 @@ class DiscoveryMonitoringRead(BaseModel):
     adherence: str | None = None
     notes: str | None = None
     causal_claim: bool
+    causal_kind: str = "insufficient_for_causal_inference"
+    safety_escalation: bool = False

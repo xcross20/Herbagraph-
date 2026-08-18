@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
-from app.discovery.monitoring import record_monitoring_event
+from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
 from app.discovery.service import (
     add_case_tests_to_plan,
     apply_opening_turn,
@@ -278,6 +278,8 @@ async def add_monitoring_event(
         adherence=event.adherence,
         notes=event.notes,
         causal_claim=event.causal_claim,
+        causal_kind=event.causal_kind.value,
+        safety_escalation=monitoring_requires_safety_escalation(event.outcome_kind),
     )
 
 
