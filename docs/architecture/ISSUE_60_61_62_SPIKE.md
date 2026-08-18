@@ -20,6 +20,14 @@ Extend the existing coverage catalog with modality metadata and **three** comple
 
 `decision_events.record_decision` snapshots the candidate set after ranking. Replay of the same source event is idempotent. Events never change scientific rank. Consent purpose defaults to `direct_service`. Instrumentation failure must not block Ask.
 
+## #60 configuration-only fifth domain
+
+`composition_graph_extensibility_folate.json` is the MVP proof that another nutrient can reuse the same layers. It is not a catalog expansion.
+
+## #62 later evidence
+
+`link_later_evidence` computes a governed map delta. Recalled total B12 is `partially_assessed` and cannot close. Non-addressing coverage stays `non_addressing`. `founder_uat_view` is metrics-only.
+
 ## Not in this increment
 
 Exhaustive food/nutrient catalogs, outcome-trained ranking, production flag activation, or replacing the lab engine.

@@ -1,0 +1,17 @@
+{
+  "version": "composition-graph-v1-overlay",
+  "provenance": {"source": "issue-60-configuration-only-extensibility", "reviewed": "2026-08-18"},
+  "concepts": [
+    {"code": "folate", "layer": "concept", "label": "folate", "kind": "nutrient"},
+    {"code": "folic_acid", "layer": "form", "label": "folic acid", "parent": "folate"},
+    {"code": "five_mthf", "layer": "form", "label": "5-methyltetrahydrofolate", "parent": "folate"},
+    {"code": "serum_folate", "layer": "assay", "label": "serum folate", "parent": "folate"},
+    {"code": "unknown_folate_product", "layer": "product_batch", "label": "unspecified folate product", "parent": "folate"}
+  ],
+  "relations": [
+    {"from": "serum_folate", "to": "folate", "relation": "partially_assesses", "provenance": "composition-graph-v1", "limitation": "serum folate is not a complete one-carbon evaluation"},
+    {"from": "five_mthf", "to": "folic_acid", "relation": "has_form", "provenance": "composition-graph-v1", "limitation": "biochemical activity is not clinical superiority"},
+    {"from": "five_mthf", "to": "unknown_folate_product", "relation": "does_not_address", "provenance": "composition-graph-v1", "limitation": "unknown product form stays unknown"}
+  ],
+  "sources": []
+}
