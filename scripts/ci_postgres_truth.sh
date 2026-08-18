@@ -9,6 +9,7 @@ if [[ -z "${HERBAGRAPH_TEST_POSTGRES:-}" ]]; then
   exit 1
 fi
 export HERBAGRAPH_REQUIRE_POSTGRES=1
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 PY="${PYTHON:-python3}"
 
 echo "=== empty-database migration ==="

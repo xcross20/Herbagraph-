@@ -16,8 +16,12 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 
-from app.database import Base
-import app.models  # noqa: F401
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.database import Base  # noqa: E402
+import app.models  # noqa: E402,F401
 
 
 def _sync_url(url: str) -> str:
@@ -25,7 +29,7 @@ def _sync_url(url: str) -> str:
 
 
 def _cfg() -> Config:
-    return Config(str(Path("alembic.ini")))
+    return Config(str(ROOT / "alembic.ini"))
 
 
 def _reset(engine) -> None:
