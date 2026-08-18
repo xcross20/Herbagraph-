@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_db, get_verified_user
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
 from app.discovery.authorization import require_owned_case
+from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
 from app.discovery.service import (
     add_case_tests_to_plan,
@@ -69,7 +70,7 @@ def _ndjson_stream(work):
             try:
                 await work(queue.put, on_phase)
             except Exception as exc:
-                await queue.put({"event": "error", "detail": str(exc)})
+                await queue.put({"event": "error", "detail": public_schema_error(exc)})
             finally:
                 await queue.put(None)
 

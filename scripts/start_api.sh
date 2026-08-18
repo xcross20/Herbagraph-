@@ -61,9 +61,32 @@ if [[ "$migration_ok" -ne 1 ]]; then
     python3 "$root/scripts/bootstrap_nonprod_schema.py" --force
     echo "Schema bootstrap done. Seed catalog separately: python scripts/seed_db.py"
   else
-    echo "WARNING: alembic upgrade head failed — starting API anyway."
+    echo "ERROR: alembic upgrade head failed. Refusing to start Ask against a stale schema."
     echo "Check DATABASE_URL and run: railway run alembic upgrade head"
+    exit 1
   fi
 fi
+python3 - <<'PY'
+import asyncio
+
+from sqlalchemy import inspect
+from sqlalchemy.ext.asyncio import create_async_engine
+
+from app.config import settings
+from app.discovery.schema_ready import missing_discovery_schema
+
+async def main() -> int:
+    engine = create_async_engine(settings.database_url)
+    async with engine.connect() as conn:
+        missing = await conn.run_sync(lambda sync: missing_discovery_schema(inspect(sync)))
+    await engine.dispose()
+    if missing:
+        print("ERROR: Discovery schema is incomplete:", ", ".join(missing))
+        return 1
+    print("Discovery schema ready.")
+    return 0
+
+raise SystemExit(asyncio.run(main()))
+PY
 
 exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT"

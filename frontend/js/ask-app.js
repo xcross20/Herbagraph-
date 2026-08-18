@@ -10,6 +10,15 @@
     "I've been dealing with this weird pain under my right ribs for eight months.",
   ];
 
+  function friendlyError(raw) {
+    const text = String(raw || "");
+    if (/undefinedcolumn|does not exist|sqlalchemy|asyncpg|programmingerror/i.test(text)) {
+      return "Discovery storage is out of date. I could not save that turn.";
+    }
+    if (text.length > 240) return text.slice(0, 220) + "…";
+    return text;
+  }
+
   function esc(s) {
     return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
@@ -30,7 +39,7 @@
         const parsed = JSON.parse(raw);
         if (parsed && parsed.detail) detail = typeof parsed.detail === "string" ? parsed.detail : raw;
       } catch (_) { /* keep raw body */ }
-      throw new Error(detail);
+      throw new Error(friendlyError(detail));
     }
     return resp.status === 204 ? null : resp.json();
   }
@@ -46,7 +55,7 @@
     }
     if (!resp.ok || !resp.body) {
       const raw = await resp.text();
-      throw new Error(raw || resp.statusText);
+      throw new Error(friendlyError(raw || resp.statusText));
     }
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
