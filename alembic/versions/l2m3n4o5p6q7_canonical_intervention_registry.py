@@ -17,7 +17,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "canonical_entities",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
         sa.Column("entity_id", sa.String(length=24), nullable=False),
         sa.Column("canonical_name", sa.String(length=200), nullable=False),
         sa.Column("display_name", sa.String(length=200), nullable=False),
@@ -28,8 +28,8 @@ def upgrade() -> None:
         sa.Column("preparation", sa.String(length=120), nullable=True),
         sa.Column("coverage_tier", sa.String(length=10), nullable=False, server_default="tier_c"),
         sa.Column("review_status", sa.String(length=30), nullable=False, server_default="machine_generated"),
-        sa.Column("intervention_id", sa.Uuid(), nullable=True),
-        sa.Column("compound_id", sa.Uuid(), nullable=True),
+        sa.Column("intervention_id", sa.CHAR(length=36), nullable=True),
+        sa.Column("compound_id", sa.CHAR(length=36), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
@@ -42,8 +42,8 @@ def upgrade() -> None:
 
     op.create_table(
         "entity_synonyms",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("entity_id_fk", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
+        sa.Column("entity_id_fk", sa.CHAR(length=36), nullable=False),
         sa.Column("synonym", sa.String(length=200), nullable=False),
         sa.Column("synonym_normalized", sa.String(length=200), nullable=False),
         sa.Column("locale", sa.String(length=10), nullable=True),
@@ -57,8 +57,8 @@ def upgrade() -> None:
 
     op.create_table(
         "entity_external_ids",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("entity_id_fk", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
+        sa.Column("entity_id_fk", sa.CHAR(length=36), nullable=False),
         sa.Column("source", sa.String(length=20), nullable=False),
         sa.Column("external_id", sa.String(length=80), nullable=False),
         sa.Column("created_at", sa.DateTime(), nullable=False),
@@ -71,9 +71,9 @@ def upgrade() -> None:
 
     op.create_table(
         "graph_edges",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("source_entity_id", sa.Uuid(), nullable=False),
-        sa.Column("target_entity_id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
+        sa.Column("source_entity_id", sa.CHAR(length=36), nullable=False),
+        sa.Column("target_entity_id", sa.CHAR(length=36), nullable=False),
         sa.Column("relationship_type", sa.String(length=30), nullable=False),
         sa.Column("direction", sa.String(length=40), nullable=True),
         sa.Column("evidence_type", sa.String(length=30), nullable=False, server_default="mechanistic"),
@@ -95,12 +95,12 @@ def upgrade() -> None:
 
     op.create_table(
         "enrichment_queue",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
         sa.Column("query_name", sa.String(length=200), nullable=False),
         sa.Column("query_normalized", sa.String(length=200), nullable=False),
         sa.Column("status", sa.String(length=20), nullable=False, server_default="pending"),
         sa.Column("priority", sa.Integer(), nullable=False, server_default="100"),
-        sa.Column("entity_id_fk", sa.Uuid(), nullable=True),
+        sa.Column("entity_id_fk", sa.CHAR(length=36), nullable=True),
         sa.Column("result_summary", sa.Text(), nullable=True),
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column("requested_by", sa.String(length=120), nullable=True),

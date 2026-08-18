@@ -62,13 +62,17 @@ def main() -> int:
     engine = create_engine(sync)
     try:
         _reset(engine)
+        if args.mode == "empty":
+            command.upgrade(_cfg(), "head")
+            if not _has_fk(engine):
+                print("empty alembic upgrade head missing supersedes self-FK", file=sys.stderr)
+                return 1
+            print("empty-database alembic upgrade head ok")
+            return 0
         Base.metadata.create_all(engine)
         if not _has_fk(engine):
             print("empty create_all missing supersedes self-FK", file=sys.stderr)
             return 1
-        if args.mode == "empty":
-            print("empty-database current schema ok")
-            return 0
         with engine.begin() as conn:
             for fk in inspect(engine).get_foreign_keys("discovery_findings"):
                 if "supersedes_finding_id" in (fk.get("constrained_columns") or []) and fk.get("name"):

@@ -12,8 +12,12 @@ export HERBAGRAPH_REQUIRE_POSTGRES=1
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:$PYTHONPATH}"
 PY="${PYTHON:-python3}"
 
+echo "=== alembic preflight ==="
+"$PY" scripts/preflight_migrate.py
+
 echo "=== empty-database migration ==="
 DATABASE_URL="$HERBAGRAPH_TEST_POSTGRES" "$PY" scripts/ci_postgres_migrate.py --mode empty
+DATABASE_URL="$HERBAGRAPH_TEST_POSTGRES" "$PY" scripts/schema_fingerprint.py
 
 echo "=== upgrade from previous supported revision ==="
 DATABASE_URL="$HERBAGRAPH_TEST_POSTGRES" "$PY" scripts/ci_postgres_migrate.py --mode upgrade
