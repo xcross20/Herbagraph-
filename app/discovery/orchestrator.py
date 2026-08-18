@@ -287,7 +287,7 @@ def facts_from_findings(findings: list) -> dict[str, str]:
         item
         if isinstance(item, FindingDraft)
         else FindingDraft(
-            kind=getattr(item, "kind", "symptom"),
+            kind=getattr(getattr(item, "kind", "symptom"), "value", getattr(item, "kind", "symptom")),
             name=getattr(item, "name", ""),
             value=getattr(item, "value", None),
             status=None,

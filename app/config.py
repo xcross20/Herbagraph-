@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     google_oauth_enabled: bool = False
     # Public site URL for OAuth redirect documentation (e.g. https://www.herbagraph.com).
     app_public_url: str = ""
+    # Runtime plane: local | uat | preview | production. Never treat uat as production.
+    app_env: str = ""
+    # Dark launch: compute truth-layer projections without making them authoritative.
+    discovery_truth_layer_authoritative: bool = False
+    discovery_dark_compare: bool = True
     # Discovery investigation graph. Additive; legacy rebuild remains as cache.
     discovery_guide_enabled: bool = True
     discovery_investigation_state_v2: bool = False

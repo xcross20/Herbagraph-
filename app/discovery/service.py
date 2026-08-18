@@ -9,12 +9,13 @@ from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import attributes, selectinload
 
 from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
+from app.discovery.mutations import apply_finding_drafts
 from app.discovery.orchestrator import facts_from_findings
 from app.models.discovery import (
     DiscoveryCase,
@@ -100,6 +101,19 @@ def _literature_from_case(case: DiscoveryCase) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def _safety_state(case: DiscoveryCase) -> str:
+    raw = getattr(case, "safety_json", None)
+    if not raw:
+        return "S0"
+    try:
+        held = json.loads(raw)
+    except json.JSONDecodeError:
+        return "S0"
+    if isinstance(held, dict):
+        return str(held.get("state") or "S0")
+    return "S0"
+
+
 def _provenance(item: FindingDraft) -> str:
     value = (item.value or "").lower()
     if "unverified" in value or value in {"mentioned", "reported_normal", "reported_abnormal"}:
@@ -153,8 +167,21 @@ def _prior_workup_from_findings(findings: list[FindingDraft]) -> list[dict]:
 
 
 async def persist_map_version(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> DiscoveryMapVersion:
-    facts = facts_from_findings(snapshot.findings)
-    payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns_from_facts(facts))
+    persisted = list(
+        (
+            await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    findings = [row for row in persisted if getattr(row, "active", True)] if persisted else snapshot.findings
+    facts = facts_from_findings(findings)
+    payload = build_map_payload(
+        snapshot=snapshot,
+        facts=facts,
+        unknowns=unknowns_from_facts(facts),
+        findings=findings,
+        canonical_findings=persisted,
+        safety_level=_safety_state(case),
+    )
     fingerprint = payload_fingerprint(payload)
     existing = (
         await db.execute(
@@ -280,9 +307,22 @@ def snapshot_to_read(
             options=list(interaction_raw.get("options") or []),
             accepted_types=list(interaction_raw.get("accepted_types") or []),
         )
-    facts = facts_from_findings(snapshot.findings)
+    active_findings = _active_findings_for_read(case, snapshot)
+    from app.discovery.tripwires import evaluate_finding_projection
+
+    canonical = list(case.__dict__.get("findings") or [])
+    evaluate_finding_projection(canonical or list(active_findings), exposed=active_findings)
+    facts = facts_from_findings(active_findings)
     unknowns = list(payload.get("unknowns") or unknowns_from_facts(facts))
-    map_payload = build_map_payload(snapshot=snapshot, facts=facts, unknowns=unknowns)
+    safety_level = str(payload.get("safety_status") or (payload.get("safety") or {}).get("state") or _safety_state(case))
+    map_payload = build_map_payload(
+        snapshot=snapshot,
+        facts=facts,
+        unknowns=unknowns,
+        findings=active_findings,
+        canonical_findings=canonical,
+        safety_level=safety_level,
+    )
     map_version = getattr(case, "_map_version", None)
     return DiscoveryCaseRead(
         id=case.id,
@@ -300,7 +340,7 @@ def snapshot_to_read(
                 status=item.status,
                 source=item.source,
             )
-            for item in snapshot.findings
+            for item in active_findings
         ],
         hypotheses=[
             DiscoveryHypothesisRead(
@@ -309,10 +349,8 @@ def snapshot_to_read(
                 branch=item.branch,
                 status=item.status,
                 investigation_relevance=item.investigation_relevance,
-                diagnostic_certainty=item.diagnostic_certainty,
                 investigation_coverage=item.investigation_coverage,
                 investigation_relevance_percent=_percent(item.investigation_relevance),
-                diagnostic_certainty_percent=_percent(item.diagnostic_certainty),
                 investigation_coverage_percent=_percent(item.investigation_coverage),
                 why_limited=item.why_limited,
                 missing_markers=item.missing_markers,
@@ -393,37 +431,33 @@ def snapshot_to_read(
     )
 
 
-async def apply_snapshot(db: AsyncSession, case: DiscoveryCase, snapshot: CaseSnapshot) -> None:
+async def apply_snapshot(
+    db: AsyncSession,
+    case: DiscoveryCase,
+    snapshot: CaseSnapshot,
+    *,
+    source_event_id: str | None = None,
+) -> None:
     case.presenting_concern = snapshot.presenting_concern
     case.investigation_coverage = snapshot.investigation_coverage
     case.snapshot = json.dumps(snapshot.as_dict())
     if case.id is not None:
-        from app.discovery.flags import discovery_append_only
+        event_id = source_event_id or str(uuid.uuid4())
+        from app.discovery.dark_launch import maybe_compare_and_block_write
 
-        if discovery_append_only():
-            await db.execute(
-                delete(DiscoveryFinding).where(
-                    DiscoveryFinding.case_id == case.id,
-                    DiscoveryFinding.source_turn_id.is_(None),
-                    DiscoveryFinding.provenance.is_(None),
-                )
-            )
-        else:
-            await db.execute(delete(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        held = list(
+            (
+                await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+            ).scalars()
+        )
+        comparison = maybe_compare_and_block_write(
+            legacy_values=[item.value or "" for item in snapshot.findings],
+            truth_values=[row.value or "" for row in held if getattr(row, "active", True)],
+        )
+        if comparison.authoritative:
+            await apply_finding_drafts(db, case.id, snapshot.findings, source_event_id=event_id)
         await db.execute(delete(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case.id))
         await db.flush()
-    for item in snapshot.findings:
-        db.add(
-            DiscoveryFinding(
-                case_id=case.id,
-                kind=DiscoveryFindingKind(item.kind),
-                name=item.name,
-                value=item.value,
-                status=item.status,
-                branch=item.branch,
-                source=item.source,
-            )
-        )
     for item in snapshot.hypotheses:
         db.add(
             DiscoveryHypothesis(
@@ -637,12 +671,7 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
     if case.id is None:
         return assessed, answered, extras
     findings = (
-        await db.execute(
-            select(DiscoveryFinding).where(
-                DiscoveryFinding.case_id == case.id,
-                DiscoveryFinding.is_active.is_(True),
-            )
-        )
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
     ).scalars().all()
     outcomes = (
         await db.execute(select(DiscoveryOutcome).where(DiscoveryOutcome.case_id == case.id))
@@ -910,12 +939,7 @@ async def apply_user_turn(
         await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
     ).scalars().all()
     findings = (
-        await db.execute(
-            select(DiscoveryFinding).where(
-                DiscoveryFinding.case_id == case.id,
-                DiscoveryFinding.is_active.is_(True),
-            )
-        )
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
     ).scalars().all()
     asked = [turn.question_code for turn in turns if turn.role == DiscoveryTurnRole.SYSTEM and turn.question_code]
     answered = {item.name for item in findings if item.kind == DiscoveryFindingKind.ASSESSMENT}
@@ -1004,7 +1028,7 @@ async def apply_user_turn(
     if result.safety_status == "S4":
         case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
-    await _persist_v2(db, case, text, result)
+    await persist_map_version(db, case, snapshot)
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
 
@@ -1085,7 +1109,7 @@ async def apply_opening_turn(
     if result.safety_status == "S4":
         case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
-    await _persist_v2(db, case, text, result)
+    await persist_map_version(db, case, snapshot)
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
 
@@ -1096,78 +1120,15 @@ async def apply_opening_turn(
     return snapshot
 
 
-async def _persist_v2(db: AsyncSession, case: DiscoveryCase, text: str, result) -> None:
-    from app.discovery.flags import discovery_v2_enabled
-    from app.discovery.reconciliation import persist_turn_v2
-
-    if not discovery_v2_enabled():
-        return
-    await persist_turn_v2(db, case, text=text, plan=result.guide_plan)
-
-
-async def _investigation_map_v2(db: AsyncSession, case: DiscoveryCase, *, version: int) -> dict | None:
-    from app.discovery.flags import discovery_v2_enabled
-    from app.discovery.map import build_map_payload_v2
-    from app.models.discovery import (
-        DiscoveryBranchEvidence,
-        DiscoveryEvidenceGap,
-        DiscoveryInvestigationBranch,
-    )
-
-    if not discovery_v2_enabled():
-        return None
-    branches = list(
-        (
-            await db.execute(
-                select(DiscoveryInvestigationBranch).where(DiscoveryInvestigationBranch.case_id == case.id)
-            )
-        ).scalars()
-    )
-    if not branches:
-        return None
-    branch_ids = [item.id for item in branches]
-    evidence_rows = list(
-        (
-            await db.execute(select(DiscoveryBranchEvidence).where(DiscoveryBranchEvidence.branch_id.in_(branch_ids)))
-        ).scalars()
-    )
-    gap_rows = list(
-        (await db.execute(select(DiscoveryEvidenceGap).where(DiscoveryEvidenceGap.case_id == case.id))).scalars()
-    )
-    by_id = {item.id: item.code for item in branches}
-    return build_map_payload_v2(
-        case_id=str(case.id),
-        version=version,
-        branches=[
-            {
-                "id": str(item.id),
-                "code": item.code,
-                "label": item.label,
-                "status": item.status.value,
-                "investigation_relevance": item.investigation_relevance,
-                "coverage": item.coverage,
-                "coverage_confidence": item.coverage_confidence,
-            }
-            for item in branches
-        ],
-        evidence=[
-            {
-                "branch_code": by_id.get(item.branch_id, ""),
-                "relationship": item.relationship.value,
-                "rationale": item.rationale,
-            }
-            for item in evidence_rows
-        ],
-        gaps=[
-            {
-                "branch_code": by_id.get(item.branch_id, "") if item.branch_id else "",
-                "label": item.label,
-                "description": item.description,
-                "status": item.status.value,
-            }
-            for item in gap_rows
-        ],
-    )
+def _active_findings_for_read(case: DiscoveryCase, snapshot: CaseSnapshot):
+    loaded = case.__dict__.get("findings", None)
+    if loaded is not None:
+        return [item for item in list(loaded) if getattr(item, "active", True)]
+    return [
+        item
+        for item in snapshot.findings
+        if getattr(item, "active", True)
+    ]
 
 
 def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:
@@ -1177,6 +1138,10 @@ def snapshot_from_case(case: DiscoveryCase) -> CaseSnapshot:
 
 
 async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRead:
+    findings = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    attributes.set_committed_value(case, "findings", list(findings))
     outcomes = (
         await db.execute(select(DiscoveryOutcome).where(DiscoveryOutcome.case_id == case.id))
     ).scalars().all()
@@ -1193,10 +1158,6 @@ async def case_to_read(db: AsyncSession, case: DiscoveryCase) -> DiscoveryCaseRe
     if latest_map is not None:
         case._map_version = latest_map.version
     read = snapshot_to_read(case, snapshot_from_case(case), outcomes=list(outcomes), turns=list(turns))
-    v2_map = await _investigation_map_v2(db, case, version=read.map_version or 1)
-    if v2_map and v2_map.get("branches"):
-        read.investigation_map = v2_map
-        read.confidence_increasers = v2_map.get("confidence_increasers") or read.confidence_increasers
     from app.discovery.context import last_visit_from_case
 
     visit = last_visit_from_case(
@@ -1281,6 +1242,12 @@ async def ingest_case_document(
             "kind": "lab",
             "accepted": False,
             "detail": "Use the existing lab upload in the workspace. Discovery does not replace the lab parser.",
+        }
+    if kind == "unsupported":
+        return {
+            "kind": "unsupported",
+            "accepted": False,
+            "detail": "Document could not be parsed. This is a failed or unsupported input, not a successful empty report.",
         }
     for item in extract_record_findings(kind, text):
         finding_kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "context"

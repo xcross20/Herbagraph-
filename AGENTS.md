@@ -2,6 +2,10 @@
 
 This repository is governed by the HerbaGraph product vision and evidence-discipline rules below. These instructions apply repository-wide unless a more specific AGENTS.md adds stricter rules.
 
+## Required context load
+
+Before material product, design, research, architecture, or implementation work, read `docs/founder/HERBAGRAPH_FOUNDER_CONTEXT.md`, then the Product North Star, collaboration protocol, applicable specifications, ADRs, issues, PRs, and exact checks. The Founder Context is interpretive guidance; accepted ADRs and explicit later Founder decisions control when they conflict.
+
 ## Roles
 
 - Founder / Vision Owner: sets product vision, risk tolerance, scope, and final release approval.
@@ -48,13 +52,13 @@ Guided Discovery is additive. It sits above the existing laboratory analysis eng
 
 ## Branch and PR model
 
-- `main`: owner-approved and releasable only.
-- `integration/agent`: staging lane for reviewed autonomous work.
+- `main`: releasable branch. Founder authorized Grok to merge and push here without per-change Architect approval.
+- `integration/agent`: staging lane for autonomous work and Railway UAT.
 - `grok/<issue>-<slug>`: implementation branches.
 - `architect/<issue>-<slug>`: architecture or specification branches.
 - `agent/<slug>`: automation-created foundation or maintenance branches.
 
-Agents must not push directly to `main`. Implementation PRs target `integration/agent`. Promotion PRs from `integration/agent` to `main` require Founder approval. After exact-SHA Architect approval and green `gates`, the loop may merge an allowlisted autonomous-uat path (`tests/fixtures/agent_loop_canary.txt` only) into `integration/agent` so persistent Railway UAT updates. It must not merge to `main` or retarget production.
+Implementation PRs still default to `integration/agent`. Grok may promote `integration/agent` to `main` when the Founder has granted standing merge permission. Do not retarget production Railway unless the Founder asks.
 
 Each PR must identify the exact issue/specification, current commit SHA, changed behavior, tests run, known limitations, migrations, security implications, and rollback approach.
 

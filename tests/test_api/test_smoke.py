@@ -7,6 +7,24 @@ async def test_health_check(client):
     response = await client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert "environment" in response.json()
+
+
+async def test_meta_and_demo_entry(client):
+    meta = await client.get("/meta")
+    assert meta.status_code == 200
+    body = meta.json()
+    assert body["service"] == "herbagraph"
+    assert body["demo_path"] == "/demo"
+    assert body["is_production"] is False
+    from app.config import Settings
+
+    assert Settings.model_fields["discovery_truth_layer_authoritative"].default is False
+    assert isinstance(body["truth_layer_authoritative"], bool)
+    assert isinstance(body["tripwires"], dict)
+    demo = await client.get("/demo", follow_redirects=False)
+    assert demo.status_code == 302
+    assert demo.headers["location"] == "/demo.html"
 
 
 async def test_system_status_reports_auth_readiness(client):

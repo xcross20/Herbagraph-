@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, status
@@ -8,6 +9,7 @@ from app import __version__
 from app.api.v1.router import api_router
 from app.config import settings
 from app.core.db_health import check_database
+from app.core.runtime_env import runtime_environment
 from app.database import AsyncSessionLocal
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -32,7 +34,37 @@ app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check() -> dict:
-    return {"status": "ok", "version": __version__}
+    return {
+        "status": "ok",
+        "version": __version__,
+        "environment": runtime_environment(),
+    }
+
+
+@app.get("/meta")
+async def environment_meta() -> dict:
+    """Public, non-secret runtime plane so the UI can label UAT vs production."""
+    env = runtime_environment()
+    from app.discovery.dark_launch import truth_layer_is_authoritative
+    from app.discovery.telemetry import snapshot
+
+    return {
+        "service": "herbagraph",
+        "environment": env,
+        "is_production": env == "production",
+        "demo_path": "/demo",
+        "public_url": settings.app_public_url or "",
+        "git_sha": (os.environ.get("RAILWAY_GIT_COMMIT_SHA") or "")[:12],
+        "synthetic_data_only": env != "production",
+        "truth_layer_authoritative": truth_layer_is_authoritative(),
+        "tripwires": snapshot(),
+    }
+
+
+@app.get("/demo")
+async def demo_entry() -> RedirectResponse:
+    """Human UAT entry: landing page with links into the live UI."""
+    return RedirectResponse(url="/demo.html", status_code=302)
 
 
 @app.get("/ready")

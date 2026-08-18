@@ -18,7 +18,7 @@ async def test_create_case_from_concern(authed_client):
     body = resp.json()
     assert body["presenting_concern"].startswith("My feet burn")
     assert body["hypotheses"]
-    assert all(h["diagnostic_certainty"] < h["investigation_relevance"] + 0.05 for h in body["hypotheses"])
+    assert all("diagnostic_certainty" not in h for h in body["hypotheses"])
     assert "diagnosis" in body["disclaimer"].lower()
     case_id = body["id"]
 

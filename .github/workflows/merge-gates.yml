@@ -1,0 +1,52 @@
+name: Merge gates
+
+on:
+  pull_request:
+    branches: [integration/agent]
+  pull_request_review:
+    types: [submitted, dismissed]
+  issue_comment:
+    types: [created]
+
+jobs:
+  merge-gates:
+    if: >
+      github.event_name == 'pull_request' ||
+      github.event.pull_request != null ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Collect PR artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            NUMBER="${{ github.event.issue.number }}"
+          else
+            NUMBER="${{ github.event.pull_request.number }}"
+          fi
+          HEAD=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}" --jq .head.sha)
+          echo "PR_NUMBER=$NUMBER" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$HEAD" >> "$GITHUB_ENV"
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${NUMBER}/comments" > /tmp/comments.json
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${NUMBER}/reviews" > /tmp/reviews.json
+          gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD}/check-runs" --jq '.check_runs' > /tmp/checks.json
+
+      - name: Evaluate exact-SHA merge gates
+        env:
+          HERBAGRAPH_ARCHITECT_LOGINS: xcross20
+          HERBAGRAPH_FOUNDER_LOGINS: xcross20
+        run: |
+          python3 scripts/require_merge_gates.py \
+            --head-sha "$HEAD_SHA" \
+            --comments-json /tmp/comments.json \
+            --reviews-json /tmp/reviews.json \
+            --checks-json /tmp/checks.json

@@ -21,13 +21,23 @@ def _pr(**overrides) -> PullRequestView:
     return PullRequestView(**data)
 
 
-def test_fork_and_non_grok_heads_are_rejected():
+def test_fork_and_non_implementation_heads_are_rejected():
     fork = _pr(is_fork=True, head_repo="outsider/Herbagraph-")
     assert qualify_pull_request(fork, handoff_sha=SHA).allowed is False
     other = _pr(head_ref="feature/loop")
-    assert qualify_pull_request(other, handoff_sha=SHA).reason == "head_must_be_grok_branch"
+    assert (
+        qualify_pull_request(other, handoff_sha=SHA).reason
+        == "head_must_be_reviewable_implementation_branch"
+    )
     excluded = _pr(head_ref="grok/mvp-baseline-red-tests")
     assert qualify_pull_request(excluded, handoff_sha=SHA).reason == "head_explicitly_excluded_from_rollout"
+
+
+def test_agent_implementation_branch_is_eligible_for_exact_sha_review():
+    agent = _pr(head_ref="agent/33-mvp-baseline-repair")
+    result = qualify_pull_request(agent, handoff_sha=SHA)
+    assert result.allowed is True
+    assert result.reason == "qualified"
 
 
 def test_approval_never_merges():

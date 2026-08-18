@@ -14,6 +14,8 @@ os.environ.setdefault("UPLOAD_DIR", tempfile.mkdtemp(prefix="herbagraph-test-upl
 os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("AUTH_PROVIDER", "local")
 os.environ.setdefault("SIGNUP_ACCESS_CODE", "")
+# Persist tests opt in. Production/UAT default remains False on Settings.
+os.environ.setdefault("DISCOVERY_TRUTH_LAYER_AUTHORITATIVE", "true")
 
 import uuid  # noqa: E402
 

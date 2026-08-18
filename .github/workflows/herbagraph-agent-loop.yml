@@ -86,8 +86,8 @@ jobs:
             echo "fork PRs cannot access agent secrets"
             exit 1
           fi
-          if [ -n "$HEAD_REF" ] && [[ "$HEAD_REF" != grok/* ]]; then
-            echo "head must be a grok/** branch"
+          if [ -n "$HEAD_REF" ] && [[ "$HEAD_REF" != grok/* && "$HEAD_REF" != agent/* ]]; then
+            echo "head must be a grok/** or agent/** implementation branch"
             exit 1
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -391,7 +391,7 @@ jobs:
 
   correct-model:
     needs: [qualify, architect-write]
-    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    if: needs.qualify.outputs.qualified == 'true' && startsWith(needs.qualify.outputs.head_ref, 'grok/') && needs.architect-write.outputs.run_correction == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -468,7 +468,7 @@ jobs:
 
   validate:
     needs: [qualify, architect-write, correct-model]
-    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    if: needs.qualify.outputs.qualified == 'true' && startsWith(needs.qualify.outputs.head_ref, 'grok/') && needs.architect-write.outputs.run_correction == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -544,7 +544,7 @@ jobs:
 
   commit:
     needs: [qualify, architect-write, validate]
-    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.run_correction == 'true'
+    if: needs.qualify.outputs.qualified == 'true' && startsWith(needs.qualify.outputs.head_ref, 'grok/') && needs.architect-write.outputs.run_correction == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

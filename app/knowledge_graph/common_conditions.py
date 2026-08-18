@@ -75,6 +75,8 @@ COMMON_CONDITIONS: list[dict] = [
      "aliases": ["hcv"], "safety_keys": ["liver_disease"]},
     {"key": "cirrhosis", "label": "Cirrhosis", "category": "Kidney & liver",
      "aliases": [], "safety_keys": ["liver_disease"]},
+    {"key": "liver_disease", "label": "Liver disease (other)", "category": "Kidney & liver",
+     "aliases": ["hepatic disease", "chronic liver disease"], "safety_keys": ["liver_disease"]},
     {"key": "gallstones", "label": "Gallstones / gallbladder disease", "category": "Kidney & liver",
      "aliases": ["cholelithiasis", "cholecystitis"], "safety_keys": []},
 

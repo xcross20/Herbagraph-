@@ -134,11 +134,17 @@ The workflow uses `pull_request_target` so the running YAML and orchestrator com
 A PR event (`opened`, `synchronize`, `reopened`, `labeled`, `ready_for_review`) or `workflow_dispatch` may start the loop only when **all** of these are true:
 
 - base branch is `integration/agent`;
-- head is a same-repository `grok/**` branch;
+- head is a same-repository `grok/**` or `agent/**` implementation branch;
 - the PR has the `agent-loop` label;
 - a `HERBAGRAPH_IMPLEMENTATION_REPORT` in the PR body or comments names the **current** 40-character head SHA.
 
 `grok/mvp-baseline-red-tests` (PR #6) is explicitly excluded from rollout.
+
+Both implementation prefixes receive the same exact-SHA, read-only Architect
+review. Automated Grok correction commits and guarded autonomous UAT merges
+remain restricted to `grok/**`. An `agent/**` PR may be reviewed and labeled,
+but another agent never edits that Codex branch and the workflow never merges
+it; the Founder or a separately authorized delivery step handles disposition.
 
 Fork PRs never receive agent secrets (`pull_request` only; never `pull_request_target`).
 
@@ -184,6 +190,7 @@ python scripts/agent_protocol/dry_run.py
 
 - Autonomous implementation branches start from current `integration/agent`.
 - Grok branches use `grok/<issue>-<slug>`.
+- Codex implementation branches use `agent/<issue>-<slug>` and are automated-review-only.
 - Architect proposal branches use `architect/<issue>-<slug>`.
 - Implementation PRs target `integration/agent`.
 - Only an owner-approved promotion PR targets `main`.

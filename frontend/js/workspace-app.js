@@ -603,7 +603,7 @@ function renderDiscoveryCase(body) {
   for (const h of hypos) {
     html += `<article class="wallet-card">`;
     html += `<h2>${esc(h.label)}</h2>`;
-    html += `<p class="muted">Relevance ${h.investigation_relevance_percent}% · Diagnostic certainty ${h.diagnostic_certainty_percent}% · Coverage ${h.investigation_coverage_percent}%</p>`;
+    html += `<p class="muted">Relevance ${h.investigation_relevance_percent}% · Coverage ${h.investigation_coverage_percent}%</p>`;
     html += `<p class="muted">${esc(h.not_a_diagnosis || "")}</p>`;
     if ((h.why_limited || []).length) {
       html += `<ul>${h.why_limited.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>`;
@@ -687,7 +687,7 @@ function renderAtlasInvestigation(body) {
   const increasers = body.confidence_increasers || [];
   const action = body.turn_state && body.turn_state.selected_action;
   const hypoRows = hypos.map((h) =>
-    `<li><strong>${esc(h.label)}</strong><br><span class="muted">Relevance ${h.investigation_relevance_percent}% · Coverage ${h.investigation_coverage_percent}% · Certainty ${h.diagnostic_certainty_percent}% — not disease probability</span></li>`
+    `<li><strong>${esc(h.label)}</strong><br><span class="muted">Relevance ${h.investigation_relevance_percent}% · Coverage ${h.investigation_coverage_percent}% — not a diagnosis</span></li>`
   ).join("") || "<li class=\"muted\">No investigation family activated.</li>";
   const gapRows = increasers.map((item) =>
     `<li><strong>${esc(item.label)}</strong> <span class="muted">${esc(item.reason || "")}</span></li>`
