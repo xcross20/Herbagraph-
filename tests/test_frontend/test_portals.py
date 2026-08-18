@@ -104,6 +104,8 @@ def test_ask_portal_is_secondary_not_a_workspace_replacement():
     assert "hg_active_patient_id" in js
     assert "Discovery is paused" in js
     assert "data-ask-control" in js
+    assert "data-supportive-actions" in js
+    assert "data-action-plan" in js
     assert "data-explanation-drawer" in js
     assert "data-family-id" in js
     assert "data-why-family" in js

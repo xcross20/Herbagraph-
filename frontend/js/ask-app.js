@@ -221,6 +221,24 @@
       <p class="ask-note" data-ask-control="1">${mode ? `Response mode: ${esc(mode)}. ` : ""}${pausedLabel ? `Paused: ${esc(pausedLabel)}. Ask will not return to a paused concern unless you resume it or safety requires it.` : "No concern is paused."}</p>`;
   }
 
+  function renderActionPlan(body) {
+    const plan = body.action_plan || (body.control && body.control.action_plan);
+    const snapshot = body.snapshot_id || (body.control && body.control.snapshot_id) || "";
+    if (!plan && !snapshot) return "";
+    const options = ((plan && plan.options) || []).map((item) =>
+      `<li data-action-id="${esc(item.id || "")}">${esc(item.label)}</li>`
+    ).join("");
+    const avoid = ((plan && plan.avoid) || []).map((item) =>
+      `<li data-action-id="${esc(item.id || "")}">${esc(item.label)}</li>`
+    ).join("");
+    return `<div class="ask-action-plan" data-action-plan="1" data-snapshot-id="${esc(snapshot)}">
+      <h2>What can I do now?</h2>
+      ${options ? `<p><strong>Low-risk options</strong></p><ul>${options}</ul>` : ""}
+      ${avoid ? `<p><strong>Avoid for now</strong></p><ul>${avoid}</ul>` : ""}
+      <p class="ask-note">Supportive options are not a diagnosis or treatment plan.${snapshot ? ` Snapshot ${esc(snapshot)}.` : ""}</p>
+    </div>`;
+  }
+
   function renderAskSafety(body) {
     const state = (body.turn_state && body.turn_state.safety_status) || (body.safety && body.safety.state);
     if (!state || state === "S0") return "";
@@ -374,10 +392,12 @@
           <h2>Investigating</h2><ul>${hypos}</ul>
           <h2>Would increase confidence</h2><ul>${gaps}</ul>
           ${renderAskControl(body)}
+          ${renderActionPlan(body)}
           ${renderAskSafety(body)}
           <h2>Literature</h2>
           <ul>${cites}</ul>
           <p class="ask-note">Citations are stored claim cards only. Missing literature is a limitation, not an invented PMID. They are not a diagnosis.</p>
+          <button type="button" class="ask-chip" data-select-value="What can I do now?" data-supportive-actions="1">What can I do now?</button>
           <button type="button" class="ask-chip" data-select-value="why? show evidence">Why / show evidence</button>
           <h2>Attach a report</h2>
           <form class="ask-attach" id="ask-attach">

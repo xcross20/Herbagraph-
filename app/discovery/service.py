@@ -470,6 +470,15 @@ def snapshot_to_read(
         last_visit=None,
         control=control_payload,
         explanation=explanation,
+        action_plan=(control_payload or {}).get("action_plan") if isinstance(control_payload, dict) else None
+        or (action_extras.get("action_plan") if isinstance(action_extras, dict) else None),
+        snapshot_id=(
+            (control_payload or {}).get("snapshot_id")
+            if isinstance(control_payload, dict)
+            else None
+        )
+        or (action_extras.get("snapshot_id") if isinstance(action_extras, dict) else None)
+        or (str(map_version) if map_version is not None else None),
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,

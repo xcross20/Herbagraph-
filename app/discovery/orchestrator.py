@@ -418,10 +418,11 @@ def orchestrate(
             or "request_synthesis" in control.last_intents
             or "repetition_frustration" in control.last_intents
             or "request_research" in control.last_intents
+            or "request_supportive_actions" in control.last_intents
             or control.frustration_count >= 1
         ):
-            mode = "NEXT_STEPS"
-        if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS", "RESEARCH_EXPLANATION"}:
+            mode = "SUPPORTIVE_ACTIONS" if "request_supportive_actions" in control.last_intents else "NEXT_STEPS"
+        if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS", "RESEARCH_EXPLANATION", "SUPPORTIVE_ACTIONS"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
             from app.discovery.decision_events import (
                 DecisionLog,
@@ -493,14 +494,31 @@ def orchestrate(
                 increment("paused_concern_held")
             if control.paused_family_ids():
                 increment("paused_family_held")
-            action = NextAction(
-                type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
-                objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
-                prompt=render_explanation_text(
-                    view,
+            snapshot_id = hashed_source(f"{mode}|{sorted(view.get('family_ids') or [])}|{len(control.observations)}")
+            action_plan = None
+            prompt = render_explanation_text(
+                view,
+                facts={**merged, **slot_facts},
+                observations=control.observations,
+            )
+            if mode == "SUPPORTIVE_ACTIONS":
+                from app.discovery.supportive_actions import build_action_plan, render_action_plan
+
+                action_plan = build_action_plan(
+                    control=control,
                     facts={**merged, **slot_facts},
-                    observations=control.observations,
-                ),
+                    safety_state=safety.state,
+                    family_ids=[item["id"] for item in view.get("families") or []],
+                    snapshot_id=snapshot_id,
+                )
+                extra_control["action_plan"] = action_plan
+                extra_control["snapshot_id"] = snapshot_id
+                increment("supportive_actions_selected")
+                prompt = render_action_plan(action_plan) + " " + prompt
+            action = NextAction(
+                type="summarize" if mode in {"INTERIM_SYNTHESIS", "SUPPORTIVE_ACTIONS"} else "show_investigation_map",
+                objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
+                prompt=prompt,
                 score=0.94,
                 extras={
                     "response_mode": mode,
@@ -513,6 +531,8 @@ def orchestrate(
                     "candidate_ids": [item.get("id") for item in view.get("ranked_actions") or []],
                     "locked_verbalization": True,
                     "observations": control.observations,
+                    "action_plan": extra_control.get("action_plan"),
+                    "snapshot_id": extra_control.get("snapshot_id"),
                 },
             )
         else:

@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     next_evidence_planner_v1: bool = True
     literature_claim_cards_v1: bool = True
     decision_impact_events_v1: bool = True
+    supportive_actions_v1: bool = False
+    supplement_discussion_v1: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

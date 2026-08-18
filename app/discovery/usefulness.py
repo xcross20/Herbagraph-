@@ -18,6 +18,7 @@ RESPONSE_MODES = (
     "INTERIM_SYNTHESIS",
     "NEXT_STEPS",
     "RESEARCH_EXPLANATION",
+    "SUPPORTIVE_ACTIONS",
     "REQUEST_EVIDENCE",
     "ASK_ONE_QUESTION",
     "NO_ELIGIBLE_ACTION",
@@ -114,6 +115,11 @@ def classify_control_intent(text: str) -> list[str]:
             intents.append("pause_topic")
     if re.search(r"resume .{0,20}feet|back to (?:the )?feet|burning feet again", blob):
         intents.append("resume_topic")
+    if re.search(
+        r"what can i do now|anything for relief|for relief|help while i wait|try today|before (?:getting )?(?:some of )?these tests|what should i avoid|manage this before",
+        blob,
+    ):
+        intents.append("request_supportive_actions")
     if re.search(
         r"what (?:do you think|should i do)|next step|what now|what else|plan|answers now|other insight|any other insight",
         blob,
@@ -397,6 +403,8 @@ def decide_response_mode(
     if contradictions:
         return "CLARIFY_CONTRADICTION"
     intents = set(control.last_intents)
+    if "request_supportive_actions" in intents:
+        return "SUPPORTIVE_ACTIONS"
     if "request_research" in intents:
         return "RESEARCH_EXPLANATION"
     if "repetition_frustration" in intents or control.frustration_count >= 1:

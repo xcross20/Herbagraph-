@@ -1,0 +1,10 @@
+{
+  "id": "USE-64-01",
+  "version": "supportive-actions-v1",
+  "source": "issue 64 founder UAT, synthetic no PHI",
+  "turns": [
+    {"role": "user", "text": "There is mild discomfort under my right ribs after fatty meals."},
+    {"role": "user", "text": "yeah after fatty foods, ive been wondering if theres any thing i can do for relief before getting some of these tests"},
+    {"role": "user", "text": "yeah possibly but what can i do now?"}
+  ]
+}

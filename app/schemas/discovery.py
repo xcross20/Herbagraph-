@@ -221,6 +221,8 @@ class DiscoveryCaseRead(BaseModel):
     last_visit: dict | None = None
     control: dict | None = None
     explanation: dict | None = None
+    action_plan: dict | None = None
+    snapshot_id: str | None = None
     disclaimer: str
     created_at: datetime
     updated_at: datetime
