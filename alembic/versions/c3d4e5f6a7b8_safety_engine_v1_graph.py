@@ -17,7 +17,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "safety_graph_nodes",
-        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
         sa.Column("name", sa.String(length=150), nullable=False),
         sa.Column("node_type", sa.String(length=30), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -29,9 +29,9 @@ def upgrade() -> None:
     )
     op.create_table(
         "safety_graph_edges",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("source_node_id", sa.Uuid(), nullable=False),
-        sa.Column("target_node_id", sa.Uuid(), nullable=False),
+        sa.Column("id", sa.CHAR(length=36), nullable=False),
+        sa.Column("source_node_id", sa.CHAR(length=36), nullable=False),
+        sa.Column("target_node_id", sa.CHAR(length=36), nullable=False),
         sa.Column("relationship_type", sa.String(length=30), nullable=False),
         sa.Column("severity", sa.String(length=20), nullable=False),
         sa.Column("mechanism", sa.Text(), nullable=False),
