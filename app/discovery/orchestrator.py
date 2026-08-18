@@ -385,7 +385,13 @@ def orchestrate(
         )
         if mode in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}:
             from app.discovery.claim_cards import cards_for_next_steps, claim_cards_enabled
-            from app.discovery.decision_events import DecisionLog, hashed_source, record_decision
+            from app.discovery.decision_events import (
+                DecisionLog,
+                founder_uat_view,
+                hashed_source,
+                link_later_evidence,
+                record_decision,
+            )
             from app.discovery.explanation import build_explanation_view, render_explanation_text
             from app.discovery.next_evidence import plan_next_evidence, planner_enabled
             from app.discovery.telemetry import increment
@@ -393,7 +399,8 @@ def orchestrate(
             planned = plan_next_evidence(control, records_available=False, safety_level=safety.state) if (
                 planner_enabled() or True
             ) else []
-            cards = [item for item in cards_for_next_steps() if item.get("accepted")] if (
+            family_ids = [getattr(item, "code", None) or (item.get("code") if isinstance(item, dict) else None) for item in snapshot.hypotheses]
+            cards = [item for item in cards_for_next_steps([code for code in family_ids if code]) if item.get("accepted")] if (
                 claim_cards_enabled() or True
             ) else []
             slot_facts = {key: (item.get("value") if isinstance(item, dict) else item) for key, item in control.slots.items()}
@@ -406,19 +413,36 @@ def orchestrate(
                 response_mode=mode,
             )
             log = DecisionLog.from_dict((control_state or {}).get("decision_log"))
-            log = record_decision(
-                log,
-                source_event_id=hashed_source(text),
-                response_mode=mode,
-                candidates=planned,
-                selected_id=(planned[0].get("id") if planned else None),
-            )
+            try:
+                log = record_decision(
+                    log,
+                    source_event_id=hashed_source(text),
+                    response_mode=mode,
+                    candidates=planned,
+                    selected_id=(planned[0].get("id") if planned else None),
+                )
+                if slot_facts.get("prior_labs.b12_last_check"):
+                    log = link_later_evidence(
+                        log,
+                        evidence_id="prior_labs.b12_last_check",
+                        coverage="partially_assesses",
+                        branch_id="b12_functional_gap",
+                        usable=True,
+                        source_event_id=hashed_source(f"b12-recall|{slot_facts.get('prior_labs.b12_last_check')}"),
+                        selected_id="bf-b12",
+                    )
+            except Exception:
+                log.instrumentation_failures += 1
+                increment("decision_instrumentation_failure")
             extra_control["decision_log"] = log.as_dict()
+            extra_control["decision_trace"] = founder_uat_view(log)
             extra_control["explanation"] = view
             increment(f"response_mode_{mode.lower()}")
             increment("explanation_view_bound")
             if any(status == "paused_by_user" for status in control.focus.values()):
                 increment("paused_concern_held")
+            if control.paused_family_ids():
+                increment("paused_family_held")
             action = NextAction(
                 type="summarize" if mode == "INTERIM_SYNTHESIS" else "show_investigation_map",
                 objective="Bounded interim synthesis of active concerns. This is not a diagnosis.",
@@ -427,6 +451,7 @@ def orchestrate(
                 extras={
                     "response_mode": mode,
                     "paused": [code for code, status in control.focus.items() if status == "paused_by_user"],
+                    "paused_families": sorted(control.paused_family_ids()),
                     "next_evidence": planned,
                     "claim_cards": cards,
                     "explanation": view,
