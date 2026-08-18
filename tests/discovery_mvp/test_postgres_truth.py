@@ -30,6 +30,7 @@ def _require_or_skip() -> str:
     return url
 
 
+@pytest.mark.requires_postgres
 def test_orm_constraints_exist_in_live_postgres():
     url = _require_or_skip()
     engine = create_engine(url)

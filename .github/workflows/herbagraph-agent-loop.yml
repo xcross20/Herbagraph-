@@ -605,7 +605,7 @@ jobs:
 
   promote-uat:
     needs: [qualify, architect-write]
-    if: needs.qualify.outputs.qualified == 'true' && needs.architect-write.outputs.verdict == 'ARCHITECT_APPROVED'
+    if: needs.qualify.outputs.qualified == 'true' && startsWith(needs.qualify.outputs.head_ref, 'grok/') && needs.architect-write.outputs.verdict == 'ARCHITECT_APPROVED'
     runs-on: ubuntu-latest
     permissions:
       contents: write

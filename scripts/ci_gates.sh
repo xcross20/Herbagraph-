@@ -42,7 +42,13 @@ echo "[11/12] pipeline resilience (scenarios × adversarial mutations)..."
 python3 scripts/audit_pipeline_resilience.py
 
 echo "[12/12] pytest full suite..."
-python3 -m pytest tests/ -q --tb=line
+mkdir -p artifacts
+python3 -m pytest tests/ -q --tb=line --junitxml=artifacts/pytest-gates.xml
+python3 scripts/write_gate_report.py \
+  --junit artifacts/pytest-gates.xml \
+  --out artifacts/gate-report.json \
+  --sha "${GITHUB_SHA:-$(git rev-parse HEAD)}" \
+  --command "pytest tests/"
 
 if [[ "${HERBAGRAPH_OPS_RESEED:-0}" == "1" ]]; then
   echo ""

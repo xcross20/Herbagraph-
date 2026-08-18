@@ -41,7 +41,16 @@ jobs:
       - name: Run mandatory gates
         env:
           HERBAGRAPH_TEST_POSTGRES: postgresql+asyncpg://herbagraph:herbagraph@localhost:5432/herbagraph
+          HERBAGRAPH_REQUIRE_POSTGRES: "1"
         run: bash scripts/ci_gates.sh
+
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-report
+          path: artifacts/gate-report.json
+          if-no-files-found: warn
 
       - name: Reseed hint when catalog files change
         if: github.event_name == 'pull_request'
