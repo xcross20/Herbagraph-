@@ -101,6 +101,19 @@ def _literature_from_case(case: DiscoveryCase) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def _safety_state(case: DiscoveryCase) -> str:
+    raw = getattr(case, "safety_json", None)
+    if not raw:
+        return "S0"
+    try:
+        held = json.loads(raw)
+    except json.JSONDecodeError:
+        return "S0"
+    if isinstance(held, dict):
+        return str(held.get("state") or "S0")
+    return "S0"
+
+
 def _provenance(item: FindingDraft) -> str:
     value = (item.value or "").lower()
     if "unverified" in value or value in {"mentioned", "reported_normal", "reported_abnormal"}:
@@ -166,6 +179,8 @@ async def persist_map_version(db: AsyncSession, case: DiscoveryCase, snapshot: C
         facts=facts,
         unknowns=unknowns_from_facts(facts),
         findings=findings,
+        canonical_findings=persisted,
+        safety_level=_safety_state(case),
     )
     fingerprint = payload_fingerprint(payload)
     existing = (
@@ -295,14 +310,18 @@ def snapshot_to_read(
     active_findings = _active_findings_for_read(case, snapshot)
     from app.discovery.tripwires import evaluate_finding_projection
 
-    evaluate_finding_projection(list(case.__dict__.get("findings") or []) or list(active_findings))
+    canonical = list(case.__dict__.get("findings") or [])
+    evaluate_finding_projection(canonical or list(active_findings), exposed=active_findings)
     facts = facts_from_findings(active_findings)
     unknowns = list(payload.get("unknowns") or unknowns_from_facts(facts))
+    safety_level = str(payload.get("safety_status") or (payload.get("safety") or {}).get("state") or _safety_state(case))
     map_payload = build_map_payload(
         snapshot=snapshot,
         facts=facts,
         unknowns=unknowns,
         findings=active_findings,
+        canonical_findings=canonical,
+        safety_level=safety_level,
     )
     map_version = getattr(case, "_map_version", None)
     return DiscoveryCaseRead(
@@ -431,11 +450,12 @@ async def apply_snapshot(
                 await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
             ).scalars()
         )
-        maybe_compare_and_block_write(
+        comparison = maybe_compare_and_block_write(
             legacy_values=[item.value or "" for item in snapshot.findings],
             truth_values=[row.value or "" for row in held if getattr(row, "active", True)],
         )
-        await apply_finding_drafts(db, case.id, snapshot.findings, source_event_id=event_id)
+        if comparison.authoritative:
+            await apply_finding_drafts(db, case.id, snapshot.findings, source_event_id=event_id)
         await db.execute(delete(DiscoveryHypothesis).where(DiscoveryHypothesis.case_id == case.id))
         await db.flush()
     for item in snapshot.hypotheses:
@@ -1008,6 +1028,7 @@ async def apply_user_turn(
     if result.safety_status == "S4":
         case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
+    await persist_map_version(db, case, snapshot)
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
 
@@ -1088,6 +1109,7 @@ async def apply_opening_turn(
     if result.safety_status == "S4":
         case.status = DiscoveryCaseStatus.PAUSED
     await db.flush()
+    await persist_map_version(db, case, snapshot)
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
 

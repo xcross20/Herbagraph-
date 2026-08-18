@@ -18,12 +18,15 @@ async def apply_finding_drafts(
     drafts,
     *,
     source_event_id: str,
+    after_read=None,
 ) -> None:
     rows = list(
         (
             await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case_id))
         ).scalars()
     )
+    if after_read is not None:
+        await after_read()
     by_identity = {row.identity_key: row for row in rows if row.identity_key}
     active_by_name: dict[str, DiscoveryFinding] = {}
     for row in rows:

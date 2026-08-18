@@ -41,6 +41,9 @@ jobs:
           gh api "repos/${GITHUB_REPOSITORY}/commits/${HEAD}/check-runs" --jq '.check_runs' > /tmp/checks.json
 
       - name: Evaluate exact-SHA merge gates
+        env:
+          HERBAGRAPH_ARCHITECT_LOGINS: xcross20
+          HERBAGRAPH_FOUNDER_LOGINS: xcross20
         run: |
           python3 scripts/require_merge_gates.py \
             --head-sha "$HEAD_SHA" \

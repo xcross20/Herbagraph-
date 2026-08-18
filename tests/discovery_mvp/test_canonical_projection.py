@@ -133,15 +133,19 @@ async def test_correction_links_replacement_and_excludes_inactive_history_from_a
 
     attributes.set_committed_value(case, "findings", rows)
     read = snapshot_to_read(case, snapshot)
-    dumped = json.dumps(read.model_dump(), default=str).lower()
-    payload = json.dumps(
-        build_map_payload(snapshot=snapshot, facts={"onset": "before surgery"}, unknowns=[]),
-        default=str,
-    ).lower()
-    assert "after surgery" not in dumped
-    assert "after surgery" not in payload
-    for finding in read.findings:
-        assert finding.value != "after surgery"
+    payload = build_map_payload(
+        snapshot=snapshot,
+        facts={"onset": "before surgery"},
+        unknowns=[],
+        findings=read.findings,
+        canonical_findings=rows,
+    )
+    assert all(item.value != "after surgery" for item in read.findings)
+    assert "after surgery" not in json.dumps([item.model_dump() for item in read.findings], default=str).lower()
+    for branch in payload.get("branches") or []:
+        assert "after surgery" not in json.dumps(branch, default=str).lower()
+    history = payload.get("finding_history") or []
+    assert any(item.get("value") == "after surgery" and item.get("active") is False for item in history)
 
     api_read = await case_to_read(db_session, case)
     assert all(item.value != "after surgery" for item in api_read.findings)

@@ -62,6 +62,7 @@ async def _assert_invariants(db_session, case: DiscoveryCase) -> None:
     assert "correction_missing_predecessor" not in violations
     attributes.set_committed_value(case, "findings", rows)
     read = snapshot_to_read(case, _snapshot(case, "ignored"))
+    assert "inactive_finding_exposed_as_active" not in evaluate_finding_projection(rows, exposed=read.findings)
     active_ids = {row.id for row in rows if row.active}
     assert len(active_ids) <= 1
     for item in read.findings:
