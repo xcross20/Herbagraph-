@@ -1,0 +1,34 @@
+{
+  "version": "parser-benchmark-v1",
+  "source": "synthetic fixtures, not live patient records",
+  "cases": [
+    {
+      "id": "PAR-EMG-01",
+      "filename": "emg-report.txt",
+      "text": "Needle EMG and nerve conduction studies were normal.",
+      "expected_kind": "emg",
+      "expected_findings": {"emg testing": "reported_normal"}
+    },
+    {
+      "id": "PAR-LAB-01",
+      "filename": "quest-panel.txt",
+      "text": "Quest Diagnostics\nGlucose 98 mg/dL Reference Range: 65-99\nCollected: 2026-01-15",
+      "expected_kind": "lab",
+      "expected_findings": {}
+    },
+    {
+      "id": "PAR-FAIL-01",
+      "filename": "labs.pdf",
+      "text": "%PDF-1.4 unreadable binary junk",
+      "expected_kind": "unsupported",
+      "expected_findings": {}
+    },
+    {
+      "id": "PAR-NOTE-01",
+      "filename": "visit-note.txt",
+      "text": "Follow-up visit. Patient reports burning in both feet at night for six months.",
+      "expected_kind": "note",
+      "expected_findings": {}
+    }
+  ]
+}
