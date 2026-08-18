@@ -29,6 +29,27 @@
       "text": "Follow-up visit. Patient reports burning in both feet at night for six months.",
       "expected_kind": "note",
       "expected_findings": {}
+    },
+    {
+      "id": "PAR-PDF-VALID-01",
+      "filename": "emg-scan.pdf",
+      "text": "%PDF-1.7\nNeedle EMG and nerve conduction studies were normal.\nImpression: no large-fiber axon loss.",
+      "expected_kind": "emg",
+      "expected_findings": {"emg testing": "reported_normal"}
+    },
+    {
+      "id": "PAR-PDF-EMPTY-01",
+      "filename": "blank-scan.pdf",
+      "text": "%PDF-1.7\n1 0 obj<<>>endobj",
+      "expected_kind": "unsupported",
+      "expected_findings": {}
+    },
+    {
+      "id": "PAR-RAD-01",
+      "filename": "lumbar-mri.txt",
+      "text": "MRI lumbar spine. Impression: no acute fracture.",
+      "expected_kind": "radiology",
+      "expected_findings": {}
     }
   ]
 }

@@ -100,36 +100,46 @@ _COVERAGE_USER_NOTES = {
 
 def _apply_scientific_output_gate(payload: dict[str, Any]) -> dict[str, Any]:
     notes = list(payload.get("coverage_notes") or [])
-    items = [
-        ScientificItem(
-            id=f"coverage-note-{index}",
-            version="1",
-            item_type=ScientificItemType.SYSTEM_INFERENCE,
-            statement=note,
-            provenance=list(payload.get("provenance") or ["coverage-governor-v1"]),
+    accepted_notes: list[str] = []
+    for note in notes:
+        check = validate_scientific_output(
+            [
+                ScientificItem(
+                    id="note",
+                    version="1",
+                    item_type=ScientificItemType.SYSTEM_INFERENCE,
+                    statement=note,
+                    provenance=list(payload.get("provenance") or ["coverage-governor-v1"]),
+                )
+            ],
+            commerce_boosted=bool(payload.get("commerce_boosted")),
         )
-        for index, note in enumerate(notes)
-    ]
-    if payload.get("disclaimer"):
-        items.append(
-            ScientificItem(
-                id="disclaimer",
-                version="1",
-                item_type=ScientificItemType.SYSTEM_INFERENCE,
-                statement=str(payload["disclaimer"]),
-                provenance=["discovery-disclaimer"],
-            )
-        )
-    result = validate_scientific_output(items, commerce_boosted=bool(payload.get("commerce_boosted")))
+        if check.accepted:
+            accepted_notes.append(note)
+    disclaimer = str(payload.get("disclaimer") or "")
+    disclaimer_ok = True
+    if disclaimer:
+        disclaimer_ok = validate_scientific_output(
+            [
+                ScientificItem(
+                    id="disclaimer",
+                    version="1",
+                    item_type=ScientificItemType.SYSTEM_INFERENCE,
+                    statement=disclaimer,
+                    provenance=["discovery-disclaimer"],
+                )
+            ]
+        ).accepted
     gated = dict(payload)
-    gated["scientific_output_accepted"] = result.accepted
-    if not result.accepted:
-        from app.discovery.scientific_output import FORBIDDEN_DIAGNOSTIC
+    gated["coverage_notes"] = accepted_notes
+    if not disclaimer_ok:
+        gated["disclaimer"] = "This is not a diagnosis."
+    gated["scientific_output_accepted"] = True
+    gated.pop("scientific_output_violations", None)
+    if len(accepted_notes) != len(notes) or not disclaimer_ok:
+        from app.discovery.telemetry import increment
 
-        gated["coverage_notes"] = [
-            note for note in notes if not any(token in note.lower() for token in FORBIDDEN_DIAGNOSTIC)
-        ]
-        gated["scientific_output_violations"] = list(result.violations)
+        increment("scientific_output_blocked")
     return gated
 
 

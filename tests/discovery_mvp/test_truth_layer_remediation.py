@@ -278,6 +278,33 @@ async def test_dark_launch_off_does_not_write_findings(db_session, monkeypatch):
         get_settings.cache_clear()
 
 
+@pytest.mark.asyncio
+async def test_note_and_removal_use_mutation_seam(db_session):
+    from app.discovery.service import record_user_note, remove_named_finding
+
+    case = await _case(db_session)
+    await record_user_note(db_session, case, "Patient clarified the burning is worse at night.")
+    await db_session.flush()
+    rows = list(
+        (
+            await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    notes = [row for row in rows if row.name == "Additional note"]
+    assert len(notes) == 1
+    assert notes[0].identity_key
+    await remove_named_finding(db_session, case, "Additional note")
+    await db_session.flush()
+    held = list(
+        (
+            await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+        ).scalars()
+    )
+    notes = [row for row in held if row.name == "Additional note"]
+    assert notes
+    assert all(row.active is False for row in notes)
+
+
 def test_inactive_exposed_projection_is_reachable():
     from types import SimpleNamespace
 

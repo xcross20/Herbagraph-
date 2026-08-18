@@ -89,3 +89,22 @@ async def apply_finding_drafts(
         by_identity[identity_key] = row
         if getattr(row, "active", True):
             active_by_name[name_key] = row
+
+
+async def inactivate_findings_by_name(db: AsyncSession, case_id, name: str) -> int:
+    """Append-only removal: deactivate matching active rows. Never DELETE."""
+    rows = list(
+        (
+            await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case_id))
+        ).scalars()
+    )
+    target = normalize_label(name)
+    changed = 0
+    for row in rows:
+        if not getattr(row, "active", True):
+            continue
+        label = normalize_label(row.name)
+        if label == target or label.startswith(f"{target} "):
+            row.active = False
+            changed += 1
+    return changed

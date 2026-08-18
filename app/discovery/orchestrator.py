@@ -234,20 +234,41 @@ def orchestrate(
         guide_actions=guide_actions,
     )
     action = select_action(candidates)
-    ranked = rank_next_actions(
-        gaps=[
+    coverage_by_code = {
+        getattr(item, "code", ""): float(getattr(item, "investigation_coverage", 0.0) or 0.0)
+        for item in snapshot.hypotheses
+    }
+    _COST = {
+        "request_record": 0.55,
+        "transition_to_labs": 0.55,
+        "retrieve_evidence": 0.25,
+        "ask_question": 0.12,
+        "clarify": 0.18,
+    }
+    gaps = []
+    for candidate in candidates:
+        extras = candidate.extras or {}
+        branch = extras.get("branch") or extras.get("branch_code")
+        coverage = coverage_by_code.get(branch or "", 0.0)
+        asked_already = bool(
+            candidate.question_id and (candidate.question_id in asked or candidate.question_id in answered)
+        )
+        gaps.append(
             {
-                "code": getattr(item, "code", None),
-                "label": getattr(item, "label", None),
-                "branch_code": getattr(item, "branch", None),
-                "information_value": 0.75,
-                "action_type": "clarifying_question",
-                "explanation": "Open investigation family.",
+                "code": candidate.question_id or candidate.type,
+                "label": candidate.prompt or candidate.objective,
+                "branch_code": branch,
+                "action_type": candidate.type,
+                "information_value": float(candidate.score or 0.0),
+                "coverage_gain": max(0.0, 1.0 - coverage) if branch else float(candidate.score or 0.0),
+                "redundancy": 1.0 if asked_already else float(extras.get("redundancy") or 0.0),
+                "cost": float(extras.get("cost") or _COST.get(candidate.type, 0.2)),
+                "burden": float(extras.get("burden") or _COST.get(candidate.type, 0.2)),
+                "explanation": candidate.objective,
+                "candidate": candidate,
             }
-            for item in snapshot.hypotheses[:6]
-        ],
-        safety_level=safety.state,
-    )
+        )
+    ranked = rank_next_actions(gaps=gaps, safety_level=safety.state)
     if ranked and ranked[0].action_type == "professional_review":
         extras = {**(action.extras or {}), "ranker": ranked[0].version, "explanation": ranked[0].explanation}
         if action.type in {"show_safety_message", "advise_prompt_evaluation"}:
@@ -262,6 +283,16 @@ def orchestrate(
                 score=ranked[0].score,
                 extras=extras,
             )
+    elif ranked:
+        chosen = next((item["candidate"] for item in gaps if item["code"] == ranked[0].gap_code), None)
+        if chosen is not None:
+            action = chosen
+        action.extras = {
+            **(action.extras or {}),
+            "ranker": ranked[0].version,
+            "ranker_score": ranked[0].score,
+            **ranked[0].components,
+        }
     if safety.state in {"S3", "S4"}:
         message = safety.message or _compose(
             action,

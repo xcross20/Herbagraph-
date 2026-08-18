@@ -292,6 +292,7 @@ def generate_actions(
                 ),
                 interaction={"type": "file_upload", "accepted_types": ["pdf"]},
                 score=0.84,
+                extras={"coverage_gain": 1.0, "cost": 0.2, "burden": 0.25},
             )
         )
 

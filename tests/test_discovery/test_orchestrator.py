@@ -31,6 +31,14 @@ def test_fixture_extracts_symptoms_not_a_diagnosis():
     assert "laterality" in " ".join(result.unknowns)
 
 
+def test_ordinary_discovery_uses_ranker_not_only_emergencies():
+    result = orchestrate(FIXTURE, prior_facts={}, asked=[], answered=set())
+    assert result.action.extras.get("ranker") == "ranker-v1"
+    assert "information_value" in (result.action.extras or {})
+    assert "coverage_gain" in (result.action.extras or {})
+    assert result.action.extras.get("information_value") != 0.75 or result.action.type != "ask_question"
+
+
 def test_safety_override_uses_live_ranker():
     result = orchestrate(
         "Chest pain and I cannot catch my breath.",

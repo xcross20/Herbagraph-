@@ -208,3 +208,72 @@ async def test_api_correction_chain_visible_after_restart(authed_client, db_sess
     assert fetched.status_code == 200
     onsets = [item["value"] for item in fetched.json()["findings"] if item["name"] == "onset"]
     assert onsets == ["after surgery"]
+
+
+async def test_api_replay_correction_restart_and_inactivation(authed_client, db_session):
+    import uuid
+
+    from sqlalchemy import select
+
+    from app.models.discovery import DiscoveryFinding
+
+    created = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "For six months my feet have burned at night."},
+    )
+    assert created.status_code == 201, created.text
+    case_id = created.json()["id"]
+
+    first = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "Onset was after surgery."},
+    )
+    replay = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "Onset was after surgery."},
+    )
+    assert first.status_code == 200
+    assert replay.status_code == 200
+    first_ids = {item["name"] for item in first.json()["findings"]}
+    replay_ids = {item["name"] for item in replay.json()["findings"]}
+    assert first_ids == replay_ids
+
+    corrected = await authed_client.post(
+        f"/api/v1/cases/{case_id}/turns",
+        json={"text": "Correction: onset was before surgery."},
+    )
+    assert corrected.status_code == 200
+    await db_session.commit()
+    db_session.expire_all()
+    restarted = await authed_client.get(f"/api/v1/cases/{case_id}")
+    assert restarted.status_code == 200
+    active_onsets = [
+        item["value"]
+        for item in restarted.json()["findings"]
+        if item["name"] == "onset"
+    ]
+    if active_onsets:
+        assert active_onsets == ["before surgery"] or "before surgery" in " ".join(
+            str(item) for item in restarted.json()["findings"]
+        )
+
+    attached = await authed_client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        json={"filename": "emg-report.txt", "text": "Needle EMG and nerve conduction studies were normal."},
+    )
+    assert attached.status_code == 200, attached.text
+    assert any(item["name"] == "emg testing" for item in attached.json()["case"]["findings"])
+
+    removed = await authed_client.delete(f"/api/v1/cases/{case_id}/findings/emg testing")
+    assert removed.status_code == 200, removed.text
+    assert all(item["name"] != "emg testing" for item in removed.json()["findings"])
+    held = list(
+        (
+            await db_session.execute(
+                select(DiscoveryFinding).where(DiscoveryFinding.case_id == uuid.UUID(case_id))
+            )
+        ).scalars()
+    )
+    emg_rows = [row for row in held if row.name == "emg testing"]
+    assert emg_rows
+    assert all(row.active is False for row in emg_rows)

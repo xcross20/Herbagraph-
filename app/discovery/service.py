@@ -15,7 +15,7 @@ from app.discovery.actions import QUESTIONS
 from app.discovery.conversation import answer_preface, compose_system_reply
 from app.discovery.engine import CaseSnapshot, FindingDraft, describe_rebuild_changes, rebuild_case_state
 from app.discovery.map import build_map_payload, payload_fingerprint, unknowns_from_facts
-from app.discovery.mutations import apply_finding_drafts
+from app.discovery.mutations import apply_finding_drafts, inactivate_findings_by_name
 from app.discovery.orchestrator import facts_from_findings
 from app.models.discovery import (
     DiscoveryCase,
@@ -677,6 +677,8 @@ async def _assessment_state(db: AsyncSession, case: DiscoveryCase) -> tuple[list
         await db.execute(select(DiscoveryOutcome).where(DiscoveryOutcome.case_id == case.id))
     ).scalars().all()
     for item in findings:
+        if not getattr(item, "active", True):
+            continue
         if item.kind == DiscoveryFindingKind.ASSESSMENT:
             extras.append(_draft_from_finding(item))
             answered.append(item.name)
@@ -830,19 +832,7 @@ async def answer_question(
             question_code=question.code,
         )
     )
-    db.add(
-        DiscoveryFinding(
-            case_id=case.id,
-            kind=DiscoveryFindingKind.ASSESSMENT,
-            name=question.closes,
-            value="already_assessed" if answer == "yes" else answer,
-            status=None,
-            branch=None,
-            source="user",
-        )
-    )
-    await db.flush()
-    await add_turn(
+    user_turn = await add_turn(
         db,
         case,
         role=DiscoveryTurnRole.USER,
@@ -850,24 +840,44 @@ async def answer_question(
         kind="answer",
         question_code=question.code,
     )
+    await _persist_turn_findings(
+        db,
+        case.id,
+        [
+            FindingDraft(
+                kind="assessment",
+                name=question.closes,
+                value="already_assessed" if answer == "yes" else answer,
+                status=None,
+                branch=None,
+                source="user",
+            )
+        ],
+        source_event_id=str(user_turn.id),
+    )
+    await db.flush()
     updated = await rebuild_case(db, case)
     await add_system_reply(db, case, updated, preface=answer_preface(answer))
     return updated
 
 
 async def record_user_note(db: AsyncSession, case: DiscoveryCase, text: str) -> CaseSnapshot:
-    db.add(
-        DiscoveryFinding(
-            case_id=case.id,
-            kind=DiscoveryFindingKind.CONTEXT,
-            name="Additional note",
-            value=text.strip(),
-            status=None,
-            branch=None,
-            source="user",
-        )
+    user_turn = await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="note")
+    await _persist_turn_findings(
+        db,
+        case.id,
+        [
+            FindingDraft(
+                kind="context",
+                name="Additional note",
+                value=text.strip(),
+                status=None,
+                branch=None,
+                source="user",
+            )
+        ],
+        source_event_id=str(user_turn.id),
     )
-    await add_turn(db, case, role=DiscoveryTurnRole.USER, text=text.strip(), kind="note")
     await db.flush()
     snapshot = await rebuild_case(db, case)
     await add_system_reply(db, case, snapshot)
@@ -1247,26 +1257,29 @@ async def ingest_case_document(
             "accepted": False,
             "detail": "Document could not be parsed. This is a failed or unsupported input, not a successful empty report.",
         }
-    for item in extract_record_findings(kind, text):
-        finding_kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "context"
-        db.add(
-            DiscoveryFinding(
-                case_id=case.id,
-                kind=DiscoveryFindingKind(finding_kind),
-                name=item.name,
-                value=item.value,
-                source="document",
-            )
-        )
-    await db.flush()
-    await rebuild_case(db, case)
-    await add_turn(
+    doc_turn = await add_turn(
         db,
         case,
         role=DiscoveryTurnRole.SYSTEM,
         text=f"Attached {filename} as a {kind} report finding. This is not a diagnosis.",
         kind="document",
     )
+    drafts = []
+    for item in extract_record_findings(kind, text):
+        finding_kind = item.kind if item.kind in {k.value for k in DiscoveryFindingKind} else "context"
+        drafts.append(
+            FindingDraft(
+                kind=finding_kind,
+                name=item.name,
+                value=item.value,
+                status=None,
+                branch=None,
+                source="document",
+            )
+        )
+    await _persist_turn_findings(db, case.id, drafts, source_event_id=str(doc_turn.id))
+    await db.flush()
+    await rebuild_case(db, case)
     if case.patient_id:
         from app.discovery.snapshot import generate_patient_snapshot
 
@@ -1278,16 +1291,8 @@ async def ingest_case_document(
 
 
 async def remove_named_finding(db: AsyncSession, case: DiscoveryCase, name: str) -> None:
-    rows = (
-        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
-    ).scalars().all()
-    target = name.strip().lower()
-    removed = False
-    for item in rows:
-        if item.name.lower() == target or item.name.lower().startswith(target + "_"):
-            await db.delete(item)
-            removed = True
-    if not removed:
+    changed = await inactivate_findings_by_name(db, case.id, name)
+    if not changed:
         raise ValueError("Finding not found")
     await db.flush()
     await rebuild_case(db, case)

@@ -14,7 +14,17 @@ class PathComparison:
 
 
 def truth_layer_is_authoritative() -> bool:
+    """User mutations always use apply_finding_drafts.
+
+    This flag only authorizes apply_snapshot to rebuild findings from the
+    engine snapshot. Compare-only mode still persists Ask/answer/note/document
+    mutations through the canonical seam.
+    """
     return bool(getattr(get_settings(), "discovery_truth_layer_authoritative", False))
+
+
+def snapshot_rebuild_writes_findings() -> bool:
+    return truth_layer_is_authoritative()
 
 
 def compare_projections(*, legacy_values: list[str], truth_values: list[str]) -> PathComparison:

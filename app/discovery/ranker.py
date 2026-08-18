@@ -39,7 +39,18 @@ def rank_next_actions(
     for index, gap in enumerate(gaps):
         info = float(gap.get("information_value", 0.7))
         redundancy = float(gap.get("redundancy", 0.0))
-        score = max(0.0, info - redundancy - index * 0.01)
+        cost = float(gap.get("cost", 0.2))
+        burden = float(gap.get("burden", 0.2))
+        coverage_gain = float(gap.get("coverage_gain", info))
+        score = max(
+            0.0,
+            0.45 * info
+            + 0.30 * coverage_gain
+            - redundancy
+            - 0.15 * cost
+            - 0.15 * burden
+            - index * 0.01,
+        )
         ranked.append(
             RankedAction(
                 action_type=str(gap.get("action_type") or "clarifying_question"),
@@ -47,7 +58,14 @@ def rank_next_actions(
                 branch_code=gap.get("branch_code"),
                 gap_code=gap.get("code"),
                 score=round(score, 4),
-                components={"safety": 0.0, "information_value": info, "redundancy": redundancy},
+                components={
+                    "safety": 0.0,
+                    "information_value": info,
+                    "coverage_gain": coverage_gain,
+                    "redundancy": redundancy,
+                    "cost": cost,
+                    "burden": burden,
+                },
                 explanation=str(gap.get("explanation") or "Highest-value remaining coverage gap."),
             )
         )
