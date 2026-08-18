@@ -6,7 +6,7 @@ from app.discovery.catalog import HYPOTHESIS_FAMILIES
 from app.discovery.explanation import build_explanation_view
 from app.discovery.map import confidence_increasers
 from app.discovery.orchestrator import orchestrate
-from app.discovery.usefulness import classify_control_intent, usefulness_governor_enabled
+from app.discovery.usefulness import classify_control_intent, apply_control, ControlState, usefulness_governor_enabled
 
 
 def test_uat_forces_governor_even_if_flag_is_off(monkeypatch):
@@ -85,3 +85,33 @@ def test_explanation_view_ids_match_panel_and_distinguish_coverage():
     b12 = next(item for item in view["families"][0]["evaluations"] if item["id"] == "bf-b12")
     assert emg["coverage_relation"] == "does_not_address"
     assert b12["coverage_relation"] == "evaluates_contributor"
+
+
+def test_pause_b12_then_other_insight_does_not_reask_b12(monkeypatch):
+    monkeypatch.setattr("app.discovery.usefulness.usefulness_governor_enabled", lambda: True)
+    prior = {"laterality": "bilateral"}
+    control = apply_control(
+        ControlState(focus={"burning_feet": "active", "facial_heat": "active"}),
+        "My last B12 check was last year.",
+        {},
+    )
+    last = orchestrate(
+        "never mind about B12, what else?",
+        prior_facts=prior,
+        asked=[],
+        answered=set(),
+        control_state=control.as_dict(),
+    )
+    extras = last.action.extras or {}
+    assert extras.get("response_mode") in {"INTERIM_SYNTHESIS", "NEXT_STEPS"}
+    assert "b12_functional_gap" in (extras.get("paused_families") or [])
+    assert last.control["focus"]["burning_feet"] == "active"
+    ids = extras.get("candidate_ids") or []
+    assert "bf-b12" not in ids
+    blob = (last.message + " " + (last.action.prompt or "")).lower()
+    assert "paused" in blob or "b12" in blob
+    assert extras.get("explanation")
+    cards = extras.get("claim_cards") or []
+    assert all(card.get("accepted") for card in cards)
+    if not cards:
+        assert "limitation" in blob
