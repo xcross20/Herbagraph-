@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 
@@ -191,14 +192,46 @@ async def test_two_postgres_sessions_converge_on_one_semantic_finding():
             source="user",
         )
 
+        barrier = asyncio.Barrier(2)
+        outcomes: list[str] = []
+
         async def _apply():
             async with factory() as session:
                 await session.execute(text(f"SET search_path TO {schema}"))
-                await apply_finding_drafts(session, case_id, [draft], source_event_id="same-turn")
-                await session.commit()
 
-        await _apply()
-        await _apply()
+                async def _after_read():
+                    await barrier.wait()
+
+                try:
+                    await apply_finding_drafts(
+                        session,
+                        case_id,
+                        [draft],
+                        source_event_id="same-turn",
+                        after_read=_after_read,
+                    )
+                    await session.commit()
+                    outcomes.append("committed")
+                except Exception as exc:  # noqa: BLE001 - record defined loser recovery
+                    await session.rollback()
+                    existing = (
+                        await session.execute(
+                            select(DiscoveryFinding).where(DiscoveryFinding.case_id == case_id)
+                        )
+                    ).scalars().all()
+                    if existing:
+                        outcomes.append("recovered")
+                        return
+                    outcomes.append(f"failed:{type(exc).__name__}")
+                    raise
+
+        results = await asyncio.gather(_apply(), _apply(), return_exceptions=True)
+        assert all(item is None or isinstance(item, Exception) for item in results)
+        assert all(item in {"committed", "recovered"} for item in outcomes)
+        assert "committed" in outcomes
+        assert len(outcomes) == 2
+        if isinstance(results[0], Exception) and isinstance(results[1], Exception):
+            raise AssertionError(f"both workers failed: {results}")
 
         async with factory() as session:
             await session.execute(text(f"SET search_path TO {schema}"))
@@ -220,6 +253,55 @@ async def test_two_postgres_sessions_converge_on_one_semantic_finding():
         async with engine.begin() as conn:
             await conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
         await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_dark_launch_off_does_not_write_findings(db_session, monkeypatch):
+    from app.config import get_settings
+    from app.discovery.telemetry import snapshot
+
+    monkeypatch.setenv("DISCOVERY_TRUTH_LAYER_AUTHORITATIVE", "false")
+    get_settings.cache_clear()
+    try:
+        case = await _case(db_session)
+        before = snapshot().get("dark_launch_write_suppressed", 0)
+        await apply_snapshot(db_session, case, _snapshot(case, "after surgery"), source_event_id="dark-off")
+        await db_session.flush()
+        rows = list(
+            (
+                await db_session.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+            ).scalars()
+        )
+        assert rows == []
+        assert snapshot().get("dark_launch_write_suppressed", 0) >= before + 1
+    finally:
+        get_settings.cache_clear()
+
+
+def test_inactive_exposed_projection_is_reachable():
+    from types import SimpleNamespace
+
+    from app.discovery.tripwires import evaluate_finding_projection
+
+    inactive = SimpleNamespace(
+        id="inactive-1",
+        name="onset",
+        value="after surgery",
+        active=False,
+        supersedes_finding_id=None,
+    )
+    active = SimpleNamespace(
+        id="active-1",
+        name="onset",
+        value="before surgery",
+        active=True,
+        supersedes_finding_id="inactive-1",
+    )
+    exposed = [inactive]
+    violations = evaluate_finding_projection([inactive, active], exposed=exposed)
+    assert "inactive_finding_exposed_as_active" in violations
+    clean = evaluate_finding_projection([inactive, active], exposed=[active])
+    assert "inactive_finding_exposed_as_active" not in clean
 
 
 def test_alembic_and_orm_agree_on_self_fk_and_active_gap_index():

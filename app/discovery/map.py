@@ -76,6 +76,98 @@ def _empty_evidence_buckets() -> dict[str, list]:
     }
 
 
+_TEST_FROM_FACT = {
+    "emg testing": "emg_ncs",
+}
+
+_COVERAGE_PAIRS = {
+    "small_fiber_dysfunction": (("emg_ncs", "small_fiber_density"),),
+    "peripheral_nerve": (("emg_ncs", "small_fiber_density"),),
+    "biliary_colic_pattern": (("emg_ncs", "biliary_stones"),),
+    "biliary": (("emg_ncs", "biliary_stones"),),
+}
+
+_COVERAGE_USER_NOTES = {
+    ("emg_ncs", "small_fiber_density"): (
+        "A normal EMG does not assess small-fiber density.",
+        "Small-fiber investigation remains open.",
+    ),
+    ("emg_ncs", "biliary_stones"): ("EMG is not evidence about biliary structure.",),
+}
+
+
+def _mentioned_tests(facts: dict[str, str]) -> set[str]:
+    mentioned: set[str] = set()
+    for name, test_code in _TEST_FROM_FACT.items():
+        if facts.get(name) in {"mentioned", "reported_normal", "reported_abnormal"}:
+            mentioned.add(test_code)
+    return mentioned
+
+
+def coverage_projection(
+    *,
+    facts: dict[str, str],
+    hypotheses: list[Any],
+    canonical_findings: list[Any] | None = None,
+    safety_level: str = "S0",
+) -> dict[str, Any]:
+    """Structured coverage and user-facing notes from the governor + ranker."""
+    from app.discovery.coverage_governor import assess_coverage
+    from app.discovery.ranker import rank_next_actions
+
+    mentioned = _mentioned_tests(facts)
+    coverage: dict[str, dict[str, str]] = {}
+    notes: list[str] = []
+    provenance: list[str] = []
+    seen_pairs: set[tuple[str, str]] = set()
+    for hypo in hypotheses or []:
+        keys = (getattr(hypo, "code", None), getattr(hypo, "branch", None))
+        for key in keys:
+            for test_code, concept in _COVERAGE_PAIRS.get(key or "", ()):
+                if test_code not in mentioned or (test_code, concept) in seen_pairs:
+                    continue
+                seen_pairs.add((test_code, concept))
+                assessment = assess_coverage(test_code, concept)
+                coverage.setdefault(test_code, {})[concept] = assessment.relation.value
+                notes.extend(_COVERAGE_USER_NOTES.get((test_code, concept), ()))
+                notes.append(assessment.explanation)
+                provenance.append(assessment.rule_version)
+
+    active = [item for item in (canonical_findings or []) if getattr(item, "active", True)]
+    inactive = [item for item in (canonical_findings or []) if not getattr(item, "active", True)]
+    active_names = {getattr(item, "name", None) for item in active}
+    history = []
+    for item in inactive:
+        if getattr(item, "name", None) not in active_names:
+            continue
+        history.append(
+            {
+                "name": getattr(item, "name", None),
+                "value": getattr(item, "value", None),
+                "active": False,
+            }
+        )
+    if any(item.get("name") == "onset" for item in history):
+        current = next((item for item in active if getattr(item, "name", None) == "onset"), None)
+        if current is not None:
+            notes.append(f"current onset is {current.value}")
+            notes.append("prior onset values remain in history")
+
+    next_actions = [
+        {"label": item.label, "explanation": item.explanation, "action_type": item.action_type}
+        for item in rank_next_actions(gaps=[], safety_level=safety_level)
+    ]
+    return {
+        "coverage": coverage,
+        "coverage_notes": notes,
+        "finding_history": history,
+        "provenance": list(dict.fromkeys(provenance or ["coverage-governor-v1"])),
+        "next_actions": next_actions,
+        "commerce_boosted": False,
+        "safety_level": safety_level,
+    }
+
+
 def build_map_payload(
     *,
     snapshot: Any,
@@ -83,6 +175,8 @@ def build_map_payload(
     unknowns: list[str],
     evidence_by_branch: dict[str, dict[str, list]] | None = None,
     findings: list[Any] | None = None,
+    canonical_findings: list[Any] | None = None,
+    safety_level: str = "S0",
 ) -> dict:
     source_findings = [
         item
@@ -123,6 +217,12 @@ def build_map_payload(
         hypotheses=snapshot.hypotheses,
         monitor_plan=getattr(snapshot, "monitor_plan", None),
     )
+    extra = coverage_projection(
+        facts=facts,
+        hypotheses=snapshot.hypotheses,
+        canonical_findings=canonical_findings,
+        safety_level=safety_level,
+    )
     return {
         "not_disease_probability": True,
         "investigation_coverage": snapshot.investigation_coverage,
@@ -130,6 +230,7 @@ def build_map_payload(
         "unknowns": list(unknowns),
         "confidence_increasers": increasers,
         "disclaimer": snapshot.disclaimer,
+        **extra,
     }
 
 

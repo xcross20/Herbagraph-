@@ -30,7 +30,7 @@ def compare_projections(*, legacy_values: list[str], truth_values: list[str]) ->
 
 
 def maybe_compare_and_block_write(*, legacy_values: list[str], truth_values: list[str]) -> PathComparison:
-    """Dark launch: compare always; writes stay off until the flag is on."""
+    """Compare always. Return authoritative=False to suppress finding writes."""
     comparison = compare_projections(legacy_values=legacy_values, truth_values=truth_values)
     if not comparison.authoritative:
         from app.discovery.telemetry import increment

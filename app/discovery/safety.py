@@ -256,7 +256,11 @@ def extract_safety_findings(
         present("chest_pain", qualifier=qual, severity="severe" if qual else severity)
     if re.search(r"\bsweating\b|diaphore", blob):
         present("sweating")
-    if re.search(r"struggling to breathe|short of breath|can't breathe|cannot breathe|\bdyspnea\b", blob):
+    if re.search(
+        r"struggling to breathe|short of breath|can't breathe|cannot breathe|"
+        r"can'?t catch my breath|cannot catch my breath|catch my breath|\bdyspnea\b",
+        blob,
+    ):
         present("dyspnea")
     if re.search(r"pass out|passing out|syncope|\bfaint", blob):
         present("syncope")
