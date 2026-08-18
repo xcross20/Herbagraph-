@@ -8,6 +8,8 @@ _COUNTERS: Counter[str] = Counter()
 
 
 def increment(name: str, amount: int = 1) -> None:
+    if any(token in name.lower() for token in ("ssn", "mrn", "dob", "email", "phi")):
+        name = "phi_key_rejected"
     _COUNTERS[name] += amount
 
 

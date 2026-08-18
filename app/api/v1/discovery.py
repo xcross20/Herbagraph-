@@ -15,6 +15,8 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
+from app.discovery.authorization import require_owned_case
+from app.services.audit import record_audit_event
 from app.discovery.service import (
     add_case_tests_to_plan,
     apply_opening_turn,
@@ -22,7 +24,6 @@ from app.discovery.service import (
     answer_question,
     case_to_read,
     create_case,
-    get_owned_case,
     ingest_case_document,
     remove_named_finding,
     verify_named_finding,
@@ -35,7 +36,7 @@ from app.discovery.service import (
     suggested_test_labels,
     snapshot_from_case,
 )
-from app.models.enums import MonitoringOutcomeKind, UserRole
+from app.models.enums import AuditAction, MonitoringOutcomeKind, UserRole
 from app.models.lab import LabReport
 from app.models.user import User
 from app.models.discovery import DiscoveryMapVersion, DiscoveryTurn
@@ -195,9 +196,7 @@ async def list_case_turns(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DiscoveryTurnRead]:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     rows = (
         await db.execute(select(DiscoveryTurn).where(DiscoveryTurn.case_id == case.id))
     ).scalars().all()
@@ -220,9 +219,7 @@ async def get_investigation_map(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     latest = (
         await db.execute(
             select(DiscoveryMapVersion)
@@ -247,9 +244,7 @@ async def add_monitoring_event(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryMonitoringRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     try:
         kind = MonitoringOutcomeKind(payload.outcome_kind)
     except ValueError as exc:
@@ -289,9 +284,16 @@ async def get_case(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_VIEWED,
+        summary="Case viewed",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case.id),
+        detail={"result": "ok"},
+    )
     return await case_to_read(db, case)
 
 
@@ -302,9 +304,7 @@ async def rebuild_owned_case(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
 
     labs = labs_from_ingest(payload.labs) if payload.labs else None
     lab_report_id = payload.lab_report_id
@@ -350,9 +350,7 @@ async def answer_case_question(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     try:
         await answer_question(db, case, code=payload.code, answer=payload.answer, note=payload.note)
     except ValueError as exc:
@@ -368,9 +366,7 @@ async def add_case_turn(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     audience = "clinician" if current_user.role in {UserRole.CLINICIAN, UserRole.ADMIN, UserRole.ORGANIZATION_ADMIN} else "consumer"
     await apply_user_turn(
         db, case, payload.text, audience=audience, idempotency_key=payload.idempotency_key
@@ -388,8 +384,9 @@ async def stream_case_turn(
 ) -> StreamingResponse:
     async def work(put, on_phase) -> None:
         await put({"event": "accepted", "text": payload.text})
-        case = await get_owned_case(db, case_id, current_user.id)
-        if case is None:
+        try:
+            case = await require_owned_case(db, case_id, current_user.id)
+        except HTTPException:
             await put({"event": "error", "detail": "Case not found"})
             return
         audience = (
@@ -418,9 +415,7 @@ async def add_recommended_tests(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[DiscoveryTestPlanItemRead]:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     created = await add_case_tests_to_plan(db, case, current_user.id, payload.labels or None)
     if not created and not payload.labels:
         snapshot = snapshot_from_case(case)
@@ -451,9 +446,7 @@ async def attach_case_document(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryDocumentRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     result = await ingest_case_document(db, case, filename=payload.filename, text=payload.text)
     if not result["accepted"]:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=result["detail"])
@@ -473,9 +466,7 @@ async def delete_case_finding(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     try:
         await remove_named_finding(db, case, name)
     except ValueError as exc:
@@ -491,9 +482,7 @@ async def verify_case_finding(
     current_user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> DiscoveryCaseRead:
-    case = await get_owned_case(db, case_id, current_user.id)
-    if case is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Case not found")
+    case = await require_owned_case(db, case_id, current_user.id)
     try:
         await verify_named_finding(db, case, name)
     except ValueError as exc:
