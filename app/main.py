@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app import __version__
@@ -29,6 +30,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class CorrelationIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        from app.discovery.observability import correlation_id
+
+        request_id = request.headers.get("x-request-id") or correlation_id()
+        response = await call_next(request)
+        response.headers["x-request-id"] = request_id
+        return response
+
+
+app.add_middleware(CorrelationIdMiddleware)
 app.include_router(api_router, prefix="/api/v1")
 
 
