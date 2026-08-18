@@ -6,6 +6,8 @@ import hashlib
 import json
 from typing import Any
 
+from app.discovery.scientific_output import ScientificItem, ScientificItemType, validate_scientific_output
+
 
 _PATTERN_UNKNOWNS = (
     "laterality",
@@ -94,6 +96,41 @@ _COVERAGE_USER_NOTES = {
     ),
     ("emg_ncs", "biliary_stones"): ("EMG is not evidence about biliary structure.",),
 }
+
+
+def _apply_scientific_output_gate(payload: dict[str, Any]) -> dict[str, Any]:
+    notes = list(payload.get("coverage_notes") or [])
+    items = [
+        ScientificItem(
+            id=f"coverage-note-{index}",
+            version="1",
+            item_type=ScientificItemType.SYSTEM_INFERENCE,
+            statement=note,
+            provenance=list(payload.get("provenance") or ["coverage-governor-v1"]),
+        )
+        for index, note in enumerate(notes)
+    ]
+    if payload.get("disclaimer"):
+        items.append(
+            ScientificItem(
+                id="disclaimer",
+                version="1",
+                item_type=ScientificItemType.SYSTEM_INFERENCE,
+                statement=str(payload["disclaimer"]),
+                provenance=["discovery-disclaimer"],
+            )
+        )
+    result = validate_scientific_output(items, commerce_boosted=bool(payload.get("commerce_boosted")))
+    gated = dict(payload)
+    gated["scientific_output_accepted"] = result.accepted
+    if not result.accepted:
+        from app.discovery.scientific_output import FORBIDDEN_DIAGNOSTIC
+
+        gated["coverage_notes"] = [
+            note for note in notes if not any(token in note.lower() for token in FORBIDDEN_DIAGNOSTIC)
+        ]
+        gated["scientific_output_violations"] = list(result.violations)
+    return gated
 
 
 def _mentioned_tests(facts: dict[str, str]) -> set[str]:
@@ -223,7 +260,7 @@ def build_map_payload(
         canonical_findings=canonical_findings,
         safety_level=safety_level,
     )
-    return {
+    payload = {
         "not_disease_probability": True,
         "investigation_coverage": snapshot.investigation_coverage,
         "branches": branches,
@@ -232,6 +269,7 @@ def build_map_payload(
         "disclaimer": snapshot.disclaimer,
         **extra,
     }
+    return _apply_scientific_output_gate(payload)
 
 
 def build_map_payload_v2(

@@ -31,6 +31,20 @@ def test_fixture_extracts_symptoms_not_a_diagnosis():
     assert "laterality" in " ".join(result.unknowns)
 
 
+def test_safety_override_uses_live_ranker():
+    result = orchestrate(
+        "Chest pain and I cannot catch my breath.",
+        prior_facts={},
+        asked=[],
+        answered=set(),
+    )
+    assert result.safety_status in {"S3", "S4"}
+    assert result.action.type in {"show_safety_message", "advise_prompt_evaluation"}
+    assert result.action.extras.get("ranker") == "ranker-v1"
+    blob = " ".join([result.action.prompt or "", result.action.objective or "", result.message]).lower()
+    assert "urgent professional review" in blob or "urgent" in blob
+
+
 def test_opening_does_not_dump_a_differential():
     result = orchestrate(FIXTURE, prior_facts={}, asked=[], answered=set())
     assert "worth investigating:" not in result.message.lower()

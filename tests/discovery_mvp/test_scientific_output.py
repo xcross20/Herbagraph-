@@ -40,6 +40,18 @@ def _assert_no_certainty_keys(node) -> None:
             _assert_no_certainty_keys(item)
 
 
+def test_map_scientific_output_gate_strips_diagnostic_notes():
+    snapshot = rebuild_case_state("For six months my feet have burned at night.", [], {})
+    payload = build_map_payload(snapshot=snapshot, facts={"burning sensation": "reported"}, unknowns=[])
+    payload["coverage_notes"] = ["You have small-fiber neuropathy.", "Small-fiber investigation remains open."]
+    from app.discovery.map import _apply_scientific_output_gate
+
+    gated = _apply_scientific_output_gate(payload)
+    assert gated["scientific_output_accepted"] is False
+    assert "You have small-fiber neuropathy." not in gated["coverage_notes"]
+    assert "Small-fiber investigation remains open." in gated["coverage_notes"]
+
+
 def test_map_payload_must_not_carry_diagnostic_certainty_keys():
     snapshot = rebuild_case_state("For six months my feet have burned at night.", [], {})
     payload = build_map_payload(snapshot=snapshot, facts={"burning sensation": "reported"}, unknowns=[])
