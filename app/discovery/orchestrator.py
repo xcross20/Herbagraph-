@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 
 from app.discovery.actions import NextAction, generate_actions, select_action
 from app.discovery.engine import FindingDraft, rebuild_case_state
+from app.discovery.ranker import rank_next_actions
 from app.discovery.intake import (
     ExtractedFact,
     detect_contradictions,
@@ -233,6 +234,34 @@ def orchestrate(
         guide_actions=guide_actions,
     )
     action = select_action(candidates)
+    ranked = rank_next_actions(
+        gaps=[
+            {
+                "code": getattr(item, "code", None),
+                "label": getattr(item, "label", None),
+                "branch_code": getattr(item, "branch", None),
+                "information_value": 0.75,
+                "action_type": "clarifying_question",
+                "explanation": "Open investigation family.",
+            }
+            for item in snapshot.hypotheses[:6]
+        ],
+        safety_level=safety.state,
+    )
+    if ranked and ranked[0].action_type == "professional_review":
+        extras = {**(action.extras or {}), "ranker": ranked[0].version, "explanation": ranked[0].explanation}
+        if action.type in {"show_safety_message", "advise_prompt_evaluation"}:
+            action.extras = extras
+            action.prompt = action.prompt or ranked[0].label
+            action.objective = action.objective or ranked[0].label
+        else:
+            action = NextAction(
+                type="advise_prompt_evaluation",
+                objective=ranked[0].label,
+                prompt=ranked[0].label,
+                score=ranked[0].score,
+                extras=extras,
+            )
     if safety.state in {"S3", "S4"}:
         message = safety.message or _compose(
             action,
