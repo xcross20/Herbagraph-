@@ -137,8 +137,21 @@ class DocumentOutcome(str, enum.Enum):
 class MonitoringOutcomeKind(str, enum.Enum):
     IMPROVED = "improved"
     NO_CHANGE = "no_change"
+    WORSENED = "worsened"
     ADVERSE_EFFECT = "adverse_effect"
     STOPPED = "stopped"
+    UNKNOWN = "unknown"
+    MISSING_FOLLOW_UP = "missing_follow_up"
+
+
+class CausalClaimKind(str, enum.Enum):
+    TEMPORAL_ASSOCIATION = "temporal_association"
+    USER_ATTRIBUTION = "user_attribution"
+    DECHALLENGE_SIGNAL = "dechallenge_signal"
+    RECHALLENGE_SIGNAL = "rechallenge_signal"
+    STATISTICAL_ASSOCIATION = "statistical_association"
+    SUPPORTED_CAUSAL_INFERENCE = "supported_causal_inference"
+    INSUFFICIENT_FOR_CAUSAL_INFERENCE = "insufficient_for_causal_inference"
 
 
 class ScientificItemType(str, enum.Enum):
