@@ -678,7 +678,7 @@ function renderAtlasMemory(body) {
   ).join("") || "<li class=\"muted\">Chronology not established.</li>";
   const workRows = workup.map((item) =>
     `<li>${esc(item.name)}: ${esc(item.value || "")} <span class="prov-badge reported">Patient-reported</span></li>`
-  ).join("") || "<li class=\"muted\">Prior workup unknown -- not the same as "labs were normal."</li>";
+  ).join("") || "<li class=\"muted\">Prior workup unknown -- not the same as 'labs were normal.'</li>";
   return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
     <h2>What HerbaGraph knows</h2>
     ${body.problem_representation ? `<p class="discovery-problem">${esc(body.problem_representation)}</p>` : ""}
