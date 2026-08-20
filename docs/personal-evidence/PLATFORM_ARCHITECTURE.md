@@ -163,7 +163,7 @@ Fields:
 - identity fingerprint
 - provenance and limitations
 
-An exposure may reference only `user_confirmed` or `expert_verified` identity. Unknown fields stay unknown. Parent concepts do not lend all claims to children.
+> **Amendment 1 — Exposure persistence ≠ attribution eligibility.** An `ExposureEvent` may reference any `ProductIdentity` status including `unresolved`. The record must include the `identity_resolution_status` field drawn from the referenced `ProductIdentity`. Known fields are recorded faithfully; unknown fields are left null — do not fabricate unresolved fields. An exposure with `unresolved` identity is valid longitudinal truth but is **ineligible** for: precise dose-response inference, ingredient-specific causal attribution, interaction claims requiring exact formulation, research-grade inclusion, experiment activation requiring verified identity, attribution analyses where identity ambiguity is a confounder, and Passport entries asserting identity claims. See ADR-0009 Amendment 1 for the full invariant and schema additions.
 
 ### RegimenVersion and RegimenItem
 
@@ -188,13 +188,50 @@ Fields:
 
 - Case, regimen item/product identity
 - actual amount, unit, route
+- `identity_resolution_status`: mirrors the referenced `ProductIdentity.identity_status` (`candidate | user_confirmed | expert_verified | unresolved`) at time of recording; null if no identity record exists
+- `identity_confidence_override_reason` (optional): when identity is unresolved, the user's stated reason for recording anyway
 - occurred-at time and reporting time
 - adherence relation to planned schedule
 - source: user, import, device, researcher
 - semantic `source_command_id`
 - provenance, correction, and active state
 
-Require a unique semantic key such as `(case_id, source_command_id)`. Repeated delivery returns the original event. Reuse of the same key with different meaning fails.
+> **Amendment 1 — Longitudinal truth is independent of attribution eligibility.** An `ExposureEvent` is a factual record of what the user reported. It is persisted to maintain complete personal history even when product/formulation identity remains unresolved. Downstream modules (signals, experiments, attribution, passport) must explicitly gate their eligibility on `identity_resolution_status`. Corrections to `ProductIdentity` invalidate dependent analyses without deleting historical exposures. See ADR-0009 Amendment 1 HC-7 and HC-8.
+
+### CaseObjective
+
+> **Amendment 2 — First-class objectives.** Purpose is no longer stored as free text alone on `RegimenItem`. A structured `CaseObjective` concept is established to support objective-aligned intervention reasoning.
+
+Represents a personal health or wellness goal tied to a Case. It is versioned and append-only.
+
+Fields:
+
+- `id`, `case_id`, `case_objective_version_id`
+- `normalized_concept`: derived from controlled vocabulary or expert mapping; not free text
+- `original_wording`: preserved verbatim user language
+- `desired_direction`: `increase | decrease | stabilize | avoid | improve`
+- `priority`: integer, 1 = highest; supports conflict resolution
+- `measurable_outcome` (JSONB): optional structured goal (concept, scale, target, threshold, time_horizon)
+- `time_horizon`: optional human-readable intent (e.g., "within 4 weeks")
+- `status`: `active | superseded | abandoned`
+- `superseded_by`: FK to replacing `CaseObjectiveVersion`
+- `constraints` (JSONB): optional "must avoid" objectives (e.g., `{ type: "must_avoid", concept: "daytime_sedation" }`)
+- `provenance`: source command ID, actor, timestamp
+- `version`, `created_at`
+
+Examples:
+- `{ normalized_concept: "sleep_continuity", original_wording: "I want to stop waking up at 3am", desired_direction: "improve", priority: 1 }`
+- `{ normalized_concept: "glucose_variability", desired_direction: "stabilize", priority: 2 }`
+- `{ normalized_concept: "daytime_energy", desired_direction: "increase", priority: 1 }`
+- `{ normalized_concept: "daytime_sedation", desired_direction: "avoid", priority: 1, constraints: { type: "must_avoid" } }`
+
+**Relationship to RegimenItem:** `RegimenItem` gains `case_objective_id` FK. A regimen item may support zero, one, or many objectives. An objective may be pursued by zero, one, or many interventions simultaneously (creating attribution ambiguity — see HC-5).
+
+**RegimenItem purpose text** is preserved as provenance for the linked `CaseObjective` or as `user_purpose_note` on `RegimenItem` for ancillary purposes not elevated to formal objectives.
+
+**Slice 1 scope:** Schema and data contracts only. Optimization — ranking interventions by objective support or detecting objective conflicts — is reserved for a future slice.
+
+See ADR-0009 Amendment 2.
 
 ### ObservationEvent
 
@@ -231,6 +268,7 @@ Fields:
 - data completeness
 - confounders
 - discovery method and version
+- `identity_resolution_minimum`: the minimum `identity_resolution_status` required for this signal to be meaningful (set at signal generation time; unresolved exposures with lower status are excluded from supporting windows)
 - status: `candidate | rejected | eligible_for_experiment | insufficient_data | superseded`
 - allowed interpretation and limitations
 
@@ -242,6 +280,7 @@ Fields:
 
 - primary question and outcome
 - exact eligible intervention
+- `identity_resolution_required` (boolean): whether this protocol template requires `user_confirmed` or `expert_verified` intervention identity to activate; unresolved exposures are ineligible
 - design type and phase plan
 - baseline, latency, washout/carryover assumptions
 - measurement schedule
@@ -271,6 +310,7 @@ A versioned deterministic analysis object:
 - method/version
 - effect estimate and uncertainty
 - adherence and missingness
+- `identity_completeness` (confidence dimension): whether all primary intervention exposures have `user_confirmed` or `expert_verified` identity; unresolved identity is a documented confounder
 - temporal-order result
 - confounder assessment
 - sensitivity analyses
@@ -330,6 +370,80 @@ Purposes must distinguish:
 - commercial communications
 
 Withdrawing research consent synchronously blocks new research reads and commits. Asynchronous revocation jobs are cleanup, not the primary enforcement boundary. Product access remains unless separately withdrawn or deleted.
+
+### RegimenIntelligence
+
+> **Amendment 3 — Regimen Intelligence seam.** An explicit domain service for regimen-level relationship analysis is established. This separates relationship reasoning from individual module logic and prevents "no documented interaction" from being treated as a safe or compatible signal.
+
+**Responsibility:** `RegimenIntelligence` reasons over relationships between products, ingredients, medications, interventions, objectives, timing, and measurements. It is a read/analysis service — it does not mutate regimen state, activate experiments, confirm identity, or publish Passport entries.
+
+**Authority boundary:** The service produces relationship assessments and flags. It does not create clinical conclusions or recommendations.
+
+**Relationship taxonomy:**
+
+| Relationship | Code | Meaning |
+|---|---|---|
+| Complementary | `complementary` | Distinct mechanisms; may combine |
+| Potential synergy | `potential_synergy` | Mechanistically plausible enhanced combined effect; unconfirmed |
+| Redundant | `redundant` | Same active ingredient or mechanism; unnecessary duplication |
+| Pharmacodynamic overlap | `pharm_overlap` | Same receptor/pathway/mechanism; risk of additive effect |
+| Pharmacokinetic interaction | `pk_interaction` | Absorption, distribution, metabolism, or excretion alteration |
+| Absorption interaction | `absorption_interaction` | Specific GI-binding, chelation, or bioavailability change |
+| Antagonistic | `antagonistic` | Known opposing mechanisms |
+| Safety conflict | `safety_conflict` | Known or plausible adverse interaction |
+| Objective conflict | `objective_conflict` | One intervention supports an objective while another conflicts with it |
+| Timing conflict | `timing_conflict` | Scheduling or temporal requirements cannot coexist |
+| Measurement confounding | `measurement_confounding` | Combined use prevents clean measurement of either effect |
+| Unknown | `unknown` | Relationship not established; must be displayed as unknown, not safe |
+| No relationship documented | `no_documentation` | Absence of documentation; not equivalent to compatible or safe |
+
+**Critical invariant:** Absence of a documented interaction MUST NOT be represented as compatibility or safety. `unknown` and `no_documentation` are explicit epistemic states rendered as such in the UI.
+
+**Schema:** `pe_regimen_intelligence_relationships` — `id`, `case_id`, `regimen_version_id`, `entity_a_type`, `entity_a_id`, `entity_b_type`, `entity_b_id`, `relationship` (taxonomy code), `confidence` (`established | plausible | speculative | unknown`), `evidence_reference`, `display_label`, `source` (`manual | automated | external_database`), timestamps.
+
+**Slice 1 scope:** Establish data contracts and relationship taxonomy. Surface known relationships from existing safety/evidence data. Flag unresolved relationships for future documentation. Do not build speculative synergy inference.
+
+**Service shape (reserved):**
+
+```python
+class RegimenIntelligence:
+    def assess_regimen(self, regimen_version_id: UUID, case_id: UUID) -> RegimenAssessment: ...
+    def query_relationship(self, entity_a: EntityRef, entity_b: EntityRef) -> Relationship: ...
+    def flag_conflicts(self, regimen_items: list[RegimenItem], objectives: list[CaseObjective]) -> list[ObjectiveConflict | TimingConflict | MeasurementConfounding]: ...
+```
+
+See ADR-0009 Amendment 3 and HC-2, HC-3, HC-4, HC-6.
+
+### RegimenCompiler (Future Boundary)
+
+> **Amendment 4 — RegimenCompiler future boundary.** A future `RegimenCompiler` domain seam is reserved. Its purpose is to transform candidate intervention sets into a coherent regimen or experimental sequence. An opaque global "best regimen" score may not become scientific truth.
+
+**Purpose:** Transform candidate intervention sets into a coherent regimen or experimental sequence considering: objective alignment, evidence strength, safety and interaction risks from `RegimenIntelligence`, complementarity and redundancy, intervention burden, timing constraints, measurability, and attribution loss from simultaneous changes.
+
+**Prohibited patterns:**
+- No opaque global "best regimen" score may become scientific truth.
+- The compiler must never assume that individually high-ranked interventions form an optimal combination.
+- No recommendation may be emitted without surfacing conflicts, tradeoffs, and attribution risks.
+
+**Reserved data shape (`CompilationResult`):**
+
+```python
+@dataclass
+class CompilationResult:
+    proposed_items: list[RegimenItem]
+    sequencing_rationale: str
+    simultaneous_change_count: int       # attribution risk indicator
+    active_conflicts: list[ConflictFlag]
+    unresolved_relationships: list[EntityRef]
+    attribution_risk_summary: str
+    burden_estimate: float
+    measurability_score: float
+    display_conflicts_and_tradeoffs: list[str]
+```
+
+**Slice 1 scope:** Architecture compatibility only. `CaseObjective` schema, `RegimenIntelligence` relationship map, and `CompilationResult` data shape are established so future implementation does not require schema migration. No compiler logic is implemented.
+
+See ADR-0009 Amendment 4.
 
 ## 5. Shared event contract
 
@@ -557,6 +671,60 @@ Accepted Personal Evidence Object -> consumer and clinician projections -> immut
 ### Slice 6 — Research mode
 
 Prospective protocol, purpose consent, study identifiers, approved metrics, deidentified export, revocation races, and operational feasibility.
+
+## 14. Hostile Design Cases
+
+> **Amendment 5 — Explicit hostile cases.** The following design and test cases verify domain invariants under adverse conditions. Each describes a failure mode, not the happy path. Implementations must demonstrate correct behavior before Slice acceptance.
+
+### HC-1: Unresolved exposure preserved but blocked from attribution
+
+An exposure with unresolved product identity is persisted to the Case timeline with full known fields and `identity_resolution_status = unresolved`. Downstream modules exclude it from attribution analyses and mark signals that depend on it as `insufficient_data`.
+
+**Invariant tested:** Exposure persistence ≠ attribution eligibility.
+
+### HC-2: Ingredient-overlap warning from two separately branded products
+
+Two independently `user_confirmed` branded products both contain the same active ingredient (e.g., zinc from different brands). `RegimenIntelligence.query_relationship(product_a, product_b)` returns `redundant` or `pharm_overlap`. The regimen review shows a visible ingredient overlap warning.
+
+**Invariant tested:** Ingredient-level normalization detects overlap even when brand names differ.
+
+### HC-3: Individual support + joint safety concern
+
+Intervention A individually supports objective sleep_quality. Intervention B individually supports objective daytime_energy. Together they produce pharmacodynamic overlap on GABA pathways creating daytime sedation. `RegimenIntelligence` returns `complementary` for each individual item vs objectives but `safety_conflict` or `pharm_overlap` for the pair.
+
+**Invariant tested:** Relationship assessment is performed on the combination, not just individual items.
+
+### HC-4: Objective support + objective conflict
+
+Intervention A supports `daytime_energy` (priority 1). Intervention B supports `avoid_daytime_sedation` (priority 1). Both are active. `RegimenIntelligence.flag_conflicts()` returns an `ObjectiveConflict` surfaced in the regimen review. Neither objective is secretly "outvoted" by a count or score.
+
+**Invariant tested:** Objective conflict flagging uses `CaseObjective.priority` and `desired_direction`, not intervention count.
+
+### HC-5: Five simultaneous starts → low attribution interpretability
+
+Five interventions start on the same day. `simultaneous_change_count = 5` is surfaced in the attribution risk summary. `measurement_confounding` is raised for the regimen as a whole. The system does not suggest a combined attribution analysis as if it were a single-intervention result.
+
+**Invariant tested:** `RegimenIntelligence` or `RegimenCompiler` computes simultaneous change count per analysis window.
+
+### HC-6: Unknown interaction displayed as unknown, not safe
+
+A new intervention's ingredient has no documented relationship with an existing medication. `RegimenIntelligence.query_relationship()` returns `unknown`. The regimen review displays "Unknown interaction — insufficient evidence to assess." The status is NOT green or neutral. `unknown` and `no_documentation` are distinct epistemic states rendered as such.
+
+**Invariant tested:** Absence of documentation ≠ compatible or safe.
+
+### HC-7: Product identity correction invalidates analyses, preserves exposures
+
+`ProductIdentity` P1 is corrected to P2 (different active ingredient). Historical `ExposureEvent` records are NOT deleted. Their `product_identity_id` is updated to reference P2 or set to `unresolved` if P2 is also uncertain. Any `AttributionAnalysis` that used P1 as a primary intervention is marked `invalid` or `superseded`. `CandidateSignal` records that referenced P1 exposures are flagged for review. The correction event is auditable and timestamped.
+
+**Invariant tested:** Identity correction triggers analysis invalidation workflow without erasing historical exposures.
+
+### HC-8: Stopping intervention changes projection, preserves history
+
+A `RegimenItem` is stopped. `RegimenItem.status` transitions to `superseded` with `stopped_at`. Historical `ExposureEvent` records before `stopped_at` are preserved unchanged. The current regimen projection excludes the stopped item. `AttributionAnalysis` that included data from the active period remains valid. The Passport entry reflects the active period and stopping reason (if provided).
+
+**Invariant tested:** Stopping does not delete exposures. Regimen projection excludes stopped items.
+
+See ADR-0009 Amendment 5 for full specification of all eight cases.
 
 ## 15. Definition of done
 

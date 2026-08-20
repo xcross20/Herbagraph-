@@ -1,6 +1,8 @@
 # ADR-0008: Extend HerbaGraph as a Personal Evidence modular monolith
 
-- **Status:** Proposed
+> **Status note (2026-08-20):** Superseded by ADR-0009. ADR-0009 documents four Founder amendments incorporated before Slice 1 implementation: Amendment 1 (exposure persistence ≠ attribution eligibility), Amendment 2 (first-class CaseObjective), Amendment 3 (RegimenIntelligence seam), Amendment 4 (RegimenCompiler future boundary), and Amendment 5 (8 hostile design cases). The base boundary decision in ADR-0008 remains accepted.
+
+- **Status:** Superseded
 - **Date:** 2026-08-20
 - **Issue:** #65
 - **Decision owners:** Founder, Health AI Architecture

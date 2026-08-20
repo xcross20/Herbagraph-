@@ -560,6 +560,8 @@ Do not use local storage as medical truth. It may hold non-sensitive UI preferen
 | projections | coherent versioned reads | mutations |
 | events | transactional domain events | business-policy decisions |
 | telemetry | non-PHI metrics | health payloads |
+| regimen_intelligence | relationship map, conflict flags, interaction taxonomy | regimen mutations, experiment activation, passport publication |
+| regimen_compiler | future: regimen sequencing proposals, conflict/tradeoff surfacing | future: opaque global scoring, automatic activation |
 
 ## 13. First implementation target
 
