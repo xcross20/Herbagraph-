@@ -1725,6 +1725,70 @@ async function renderIntakeRoute(requestedPatientId) {
 
 }
 
+function _peFeatureFlagHTML(moduleName) {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>${moduleName} is not yet enabled for your environment.</p>
+    <p style="font-size:0.85rem;margin-top:0.5rem">Contact your administrator to request access.</p>
+  </div>`;
+}
+
+async function renderTodayView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  if (fp) {
+    main.innerHTML = PE.renderToday
+      ? PE.renderToday({ fixture: fp })
+      : _notLoadedHTML();
+    if (PE.wireTodayHandlers) PE.wireTodayHandlers();
+    window.refreshTodayView = function () { renderTodayView(); };
+    setActiveNav("evidence");
+    return;
+  }
+  let dash;
+  try { dash = await api("/api/v1/workspace/dashboard"); } catch { main.innerHTML = _authRequiredHTML(); return; }
+  if (!dash?.feature_flags?.personal_evidence_regimen_v1) { main.innerHTML = _peFeatureFlagHTML("Today"); return; }
+  let resolved;
+  try { resolved = await resolveActivePatientId(null); } catch { main.innerHTML = _authRequiredHTML(); return; }
+  const opts = { caseId: resolved.patientId, patientId: resolved.patientId, hgToken: window.hgToken };
+  main.innerHTML = PE.renderToday ? PE.renderToday(opts) : _notLoadedHTML();
+  if (PE.wireTodayHandlers) PE.wireTodayHandlers();
+  window.refreshTodayView = function () { renderTodayView(); };
+  setActiveNav("evidence");
+}
+
+async function renderSignalsView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderSignals ? PE.renderSignals({}) : _notLoadedHTML();
+  if (PE.wireSignalsHandlers) PE.wireSignalsHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderExperimentsView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderExperiments ? PE.renderExperiments({}) : _notLoadedHTML();
+  if (PE.wireExperimentsHandlers) PE.wireExperimentsHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderLearnedView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderLearned ? PE.renderLearned({}) : _notLoadedHTML();
+  if (PE.wireLearnedHandlers) PE.wireLearnedHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderPassportView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderPassport ? PE.renderPassport({}) : _notLoadedHTML();
+  if (PE.wirePassportHandlers) PE.wirePassportHandlers();
+  setActiveNav("evidence");
+}
+
 async function ensurePatients() {
   let patients = await api("/api/v1/patients");
   if (!patients.length) {
@@ -2390,6 +2454,11 @@ async function render() {
     }
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
     else if (path === "reports") { setActiveNav("reports"); await renderReports(params.get("patient")); }
+    else if (path === "today") { setActiveNav("evidence"); await renderTodayView(); }
+    else if (path === "signals") { setActiveNav("evidence"); await renderSignalsView(); }
+    else if (path === "experiments") { setActiveNav("evidence"); await renderExperimentsView(); }
+    else if (path === "learned") { setActiveNav("evidence"); await renderLearnedView(); }
+    else if (path === "passport") { setActiveNav("evidence"); await renderPassportView(); }
     else if (path === "evidence" || path === "regimen") { await renderRegimenView(params.get("patient")); }
     else if (path === "intake") { await renderIntakeRoute(params.get("patient")); }
     else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
