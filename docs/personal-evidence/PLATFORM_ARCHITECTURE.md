@@ -878,3 +878,104 @@ A slice is complete only when:
 - Founder approves any RED boundary
 
 The trap: a beautiful Passport can still be a false artifact if exact identity, missingness, temporal order, consent, or Case version is wrong.
+
+---
+
+## 16. Reasoning Core extraction — Amendment #65
+
+**Status:** Authorized
+**Issue:** #65 amendment
+**Document:** `docs/personal-evidence/REASONING_CORE_ARCHITECTURE.md`
+
+### 16.1 Motivation
+
+The most durable enterprise value in HerbaGraph is not the "Ask" conversation surface. It is the reasoning infrastructure that Ask exercises: exact substance identity, measurement coverage semantics, evidence applicability enforcement, investigation state tracking, and next-best-action selection.
+
+That infrastructure currently lives in `app/discovery/` and is implicitly owned by Discovery. The refactor extracts it into `app/intelligence/`, making it first-class shared platform infrastructure consumed by both Discovery and Personal Evidence.
+
+**See:** `REASONING_CORE_ARCHITECTURE.md` for full detail.
+
+### 16.2 What already exists (no new engineering in Phase 1)
+
+The codebase already contains working implementations of all Reasoning Core engines:
+
+| Engine | Current Location | Status |
+|---|---|---|
+| **Identity Engine** | `app/discovery/composition.py` | Ready: `claim_transfers()`, `elemental_amount()`, `synonym_to_code()`, 10-layer graph, overlay extensibility |
+| **Measurement Engine** | `app/discovery/coverage_governor.py` + `coverage_catalog.py` | Ready: `assess_coverage()`, 9 seeded tests, 9 typed rules, versioned catalog |
+| **Evidence Applicability** | `app/discovery/composition.py` | Ready: `claim_transfers()` as the applicability kernel |
+| **Investigation Engine** | `app/discovery/guide.py` | Structured: `DiscoveryTurnPlan` Pydantic models, `process_turn()` |
+| **Next-Best-Action** | `app/discovery/actions.py` + `orchestrator.py` | Structured: `CatalogQuestion`, `rank_next_actions()` |
+| **Scientific Governor** | `app/discovery/scientific_output.py` | Ready: `validate_scientific_output()`, `SafetyAssessment` |
+| **Idempotency / Correction** | `app/discovery/identity.py` | Ready: `finding_identity_key()`, `gap_identity_key()` |
+
+### 16.3 New package structure
+
+```text
+app/
+  intelligence/                    # NEW shared infrastructure
+    identity/                     # Identity Engine
+    measurements/                 # Measurement Engine
+    evidence/                     # Evidence Applicability Engine
+    investigation/                # Investigation Engine
+    actions/                      # Next-Best-Action Engine
+    safety/                       # Scientific Governor
+    identity_mutation/            # Idempotency primitives
+    data/
+      composition_graph_v1.json   # moved from discovery/data/
+      coverage_catalog_v1.json    # moved from discovery/data/
+  discovery/                      # CONSUMER after Phase 1
+  personal_evidence/              # CONSUMER after Phase 1
+```
+
+### 16.4 Four-phase refactor
+
+**Phase 1 — Extract shared intelligence (4–6 days)**
+Create `app/intelligence/` as a working package. Leave `app/discovery/` as a consumer via shim imports. All existing tests pass. No Discovery behavior changes.
+
+Exit: Shims in place. Full test suite passes.
+
+**Phase 2 — Make Discovery declarative (5–8 days)**
+Replace hardcoded symptom discriminators in `orchestrator.py` and `map.py` with `investigation_domains_v1.json`. The 8 existing `CatalogQuestion` entries and current `_PATTERN_UNKNOWNS` / `_GI_UNKNOWNS` tuples become declarative `Discriminator` entries.
+
+Exit: No hardcoded symptom strings in orchestrator.py or map.py.
+
+**Phase 3 — Unify next-best-action (5–7 days)**
+Extract `rank_next_actions()` into `app/intelligence/actions/ranker.py`. Define `ActionRankingContext` as a Pydantic model accepting context from any domain. Wire Personal Evidence modules to the same ranker.
+
+Exit: One `rank_next_actions()` used by all consumers.
+
+**Phase 4 — Expose governed enterprise interfaces (8–12 days)**
+Stabilize internal API contracts for Identity Resolution, Evidence Applicability, Coverage Evaluation, Investigation Domains, Next Action, and Regimen Assessment. Add auth, telemetry, and rate limiting. No external exposure yet.
+
+Exit: All 6 internal endpoints respond with governed output. No PHI in request/response bodies.
+
+### 16.5 Personal Evidence integration sequence
+
+| PE Module | Engine | Phase |
+|---|---|---|
+| Regimen | Identity Engine (`synonym_to_code`, `elemental_amount`) | Phase 1 |
+| Today | Measurement Engine (`assess_coverage`) | Phase 3 |
+| Signals | Measurement + Evidence Applicability | Phase 3–4 |
+| What I Learned | Evidence Applicability + Scientific Governor | Phase 4 |
+| Passport | All engines (read-only projection) | Phase 4 |
+
+### 16.6 Anti-patterns prohibited
+
+1. **"We can just add this to Ask."** — New capabilities go into the appropriate engine first. Ask is a consumer.
+2. **"The LLM knows this."** — Identity, coverage, and evidence applicability are deterministic functions. No model dependency in governing functions.
+3. **"No documented interaction = safe."** — `RegimenIntelligence` taxonomy distinguishes `unknown` and `no_documentation` from `compatible`. The UI must never render them as green.
+4. **"One effectiveness score for all forms."** — `forms_not_ranked_on_generic_effectiveness()` is the gate.
+5. **"We can infer the missing value."** — `missed`, `skipped`, `unknown`, and `not_applicable` are explicit types. No imputation.
+6. **"Batch evidence applies to the category."** — `claim_transfers()` is the gate.
+
+### 16.7 Ontology scaling
+
+The 29-concept seeded graph (B12, magnesium, biotin, grape, salt) is the proof of concept. Scaling is the overlay ingestion pipeline:
+
+1. Curated source → structured overlay JSON (human review required per concept)
+2. `overlay_uses_existing_layers()` test runs automatically
+3. If passes: merge into graph, available across all engines
+4. If fails: new layer required → requires ADR decision
+
+HerbaGraph does not need to know about every herb immediately. It needs a repeatable, governed process for adding them.
