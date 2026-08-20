@@ -323,6 +323,18 @@ window.HerbaGraphAuth = (function () {
     try {
       localStorage.removeItem("hg_creds");
     } catch (_) { /* ignore */ }
+
+    // Auto-guest: when allow_guest_auth is true and no session exists,
+    // silently create and sign in a guest account.
+    if (cfg.allow_guest_auth) {
+      try {
+        await continueAsGuest();
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
     return false;
   }
 

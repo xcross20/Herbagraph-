@@ -90,6 +90,7 @@ class SafetyAssessment:
     critic: str = "ok"
     recommended_action: str = "continue"
     message: str = ""
+    escalation_downgraded: bool = False  # True when S3/S4 was downgraded by critique
     preface: str = ""
 
     @property
@@ -607,6 +608,7 @@ def critique(assessment: SafetyAssessment) -> SafetyAssessment:
             assessment.recommended_action = "clarify"
             assessment.critic = "downgraded: interpretation or hypothesis cannot escalate"
             assessment.evidence_status = "INSUFFICIENT"
+            assessment.escalation_downgraded = True
             return assessment
     if any(item.concept == "jaundice" and item.temporality == "historical" for item in findings) and _definite_emergency(
         [item for item in findings if not (item.concept == "jaundice" and item.temporality == "historical")]
@@ -617,6 +619,7 @@ def critique(assessment: SafetyAssessment) -> SafetyAssessment:
             assessment.discovery_can_continue = True
             assessment.critic = "downgraded: historical finding was not current"
             assessment.recommended_action = "clarify"
+            assessment.escalation_downgraded = True
     if _definite_emergency(findings):
         assessment.state = "S4"
         assessment.override = True

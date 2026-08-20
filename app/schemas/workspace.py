@@ -52,6 +52,7 @@ class WorkspaceDashboardRead(BaseModel):
     recent_reports: list[DashboardReportSummary]
     recent_labs: list[DashboardLabSummary]
     recent_sessions: list[DashboardSessionSummary]
+    feature_flags: dict[str, bool] = {}
 
 
 class PatientOverviewRead(BaseModel):

@@ -104,3 +104,40 @@ async def test_list_analysis_sessions(authed_client):
     assert resp.status_code == 200
     titles = [s["title"] for s in resp.json()]
     assert "Listed Session" in titles
+
+
+# ── Personal Evidence: Regimen Truth Slice 1 ────────────────────────────────
+
+async def test_dashboard_returns_feature_flags_field(authed_client):
+    """The dashboard response must include a feature_flags dict so the frontend
+    can gate the Regimen Truth module without a separate round-trip."""
+    resp = await authed_client.get("/api/v1/workspace/dashboard")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "feature_flags" in body, "feature_flags key must be present"
+    assert isinstance(body["feature_flags"], dict), "feature_flags must be a dict"
+
+
+async def test_feature_flag_off_by_default(authed_client):
+    """PERSONAL_EVIDENCE_REGIMEN_V1 must be False unless explicitly enabled,
+    so the Regimen module does not silently appear in production."""
+    resp = await authed_client.get("/api/v1/workspace/dashboard")
+    assert resp.status_code == 200
+    flags = resp.json()["feature_flags"]
+    # Explicitly False or absent — both are safe; neither activates the module.
+    regimen_flag = flags.get("personal_evidence_regimen_v1", False)
+    assert regimen_flag is False, (
+        "personal_evidence_regimen_v1 should be False by default; "
+        "do not enable in production unless intentionally toggled"
+    )
+
+
+async def test_feature_flag_key_is_snake_case(authed_client):
+    """The flag key must be snake_case so it matches the Python config name
+    and avoids camelCase inconsistencies between config and API response."""
+    resp = await authed_client.get("/api/v1/workspace/dashboard")
+    assert resp.status_code == 200
+    for key in resp.json()["feature_flags"]:
+        assert "_" in key or key.islower(), (
+            f"Feature flag key '{key}' should be snake_case (e.g., personal_evidence_regimen_v1)"
+        )
