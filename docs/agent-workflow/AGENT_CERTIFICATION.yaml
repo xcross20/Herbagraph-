@@ -16,7 +16,8 @@ policy:
     - wrong_intervention_identity
     - unsupported_causal_conclusion
 assignment_gate:
-  required_status: qualified
+  required_benchmark_status: passed
+  required_assignment_status: active
   required_fields:
     - role
     - skill_name
@@ -35,7 +36,8 @@ assignment_gate:
 roles:
   - role: mission_control
     skill_name: herbagraph-mission-control
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: bottleneck-cycle-v1
       pass_condition: "Selects the smallest decision-changing cycle and separates commercial from scientific evidence."
@@ -44,7 +46,8 @@ roles:
         - treats_research_participation_as_demand
   - role: demand_intelligence
     skill_name: herbagraph-demand-intelligence
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: paid-signal-forensics-v1
       pass_condition: "Counts three paid deposits as purchase evidence and refuses to aggregate surveys, volunteers, and bookings as equivalent demand."
@@ -53,7 +56,8 @@ roles:
         - counts_research_volunteers_as_buyers
   - role: natural_product_science
     skill_name: herbagraph-natural-product-science
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: exact-form-dose-v1
       pass_condition: "Separates 500 mg compound from 70 mg elemental magnesium, flags ambiguous oxide semantics, and rejects irrelevant IV evidence."
@@ -63,7 +67,8 @@ roles:
         - wrong_route_evidence
   - role: nof1_causal_science
     skill_name: herbagraph-nof1-causal-science
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: confounding-safety-v1
       pass_condition: "Classifies improvement with simultaneous diet change as confounded association and blocks unsafe rechallenge."
@@ -73,7 +78,8 @@ roles:
         - missingness_as_zero
   - role: health_ai_architecture
     skill_name: herbagraph-health-ai-architecture
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: silent-failure-topology-v1
       pass_condition: "Requires semantic idempotency, typed missingness, atomic Case projections, and purpose-specific consent."
@@ -83,7 +89,8 @@ roles:
         - consent_scope_leak
   - role: behavioral_product_design
     skill_name: herbagraph-behavioral-product-design
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: uncertainty-burden-v1
       pass_condition: "Makes uncertainty and recovery accessible without biasing outcomes or hiding burden."
@@ -93,7 +100,8 @@ roles:
         - adherence_dark_pattern
   - role: principal_product_engineering
     skill_name: herbagraph-principal-product-engineering
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: vertical-slice-integrity-v1
       pass_condition: "Implements the smallest end-to-end slice with idempotency, atomic versions, flags, telemetry, tests, and rollback."
@@ -103,7 +111,8 @@ roles:
         - false_completion_claim
   - role: independent_judge
     skill_name: herbagraph-independent-judge
-    status: qualified
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
     benchmark:
       scenario_id: plausible-success-v1
       pass_condition: "Finds all planted identity, idempotency, missingness, snapshot, consent, claim, and accessibility failures and returns no-go."
