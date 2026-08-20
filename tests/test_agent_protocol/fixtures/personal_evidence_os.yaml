@@ -1,0 +1,350 @@
+# Non-PHI fixture — synthetic, no real identifiers
+# Used by tests/test_agent_protocol/test_personal_evidence_os.py
+
+# ── certification_blocked_pending ────────────────────────────────────────────
+# certification_records.status != active → blocked
+cert_blocked_pending: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: [skill_change, model_change]
+    non_compensable_failures: [safety_violation]
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields: [role, skill_name, expires_at, evaluator, scenario_id, evidence_uri]
+    reject_if: [expired, missing_evidence, critical_failure]
+  roles:
+    - role: synthetic_agent
+      skill_name: herbagraph-synthetic-test
+      benchmark_status: passed
+      assignment_status: blocked_pending_evidence
+      expires_at: "2026-12-31T00:00:00Z"
+      evaluator: founder
+      scenario_id: synthetic-scenario-v1
+      evidence_uri: https://example.com/evidence
+      benchmark:
+        scenario_id: synthetic-scenario-v1
+        pass_condition: "Returns ready when all conditions met."
+        critical_failures: []
+  certification_records:
+    status: evidence_pending_repository_registration
+    note: "Placeholder — not active."
+
+# ── role_expired ─────────────────────────────────────────────────────────────
+role_expired: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: [skill_change]
+    non_compensable_failures: [safety_violation]
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields: [role, skill_name, expires_at, evaluator, scenario_id, evidence_uri]
+    reject_if: [expired]
+  roles:
+    - role: expired_test_role
+      skill_name: herbagraph-expired-test
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2020-01-01T00:00:00Z"
+      evaluator: founder
+      scenario_id: test-v1
+      evidence_uri: https://example.com/evidence
+      benchmark:
+        scenario_id: test-v1
+        pass_condition: "Test role."
+        critical_failures: []
+  certification_records:
+    status: active
+
+# ── role_missing_evidence_uri ──────────────────────────────────────────────────
+role_missing_evidence_uri: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: []
+    non_compensable_failures: []
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields: [role, skill_name, expires_at, evaluator, scenario_id, evidence_uri]
+    reject_if: [missing_evidence]
+  roles:
+    - role: missing_uri_role
+      skill_name: herbagraph-missing-uri-test
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2026-12-31T00:00:00Z"
+      evaluator: founder
+      scenario_id: test-v1
+      benchmark:
+        scenario_id: test-v1
+        pass_condition: "Test."
+        critical_failures: []
+  certification_records:
+    status: active
+
+# ── role_critical_failure ────────────────────────────────────────────────────
+role_critical_failure: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: []
+    non_compensable_failures: [safety_violation]
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields: [role, skill_name, expires_at, evaluator, scenario_id, evidence_uri]
+    reject_if: [critical_failure]
+  roles:
+    - role: critical_fail_role
+      skill_name: herbagraph-critical-test
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2026-12-31T00:00:00Z"
+      evaluator: founder
+      scenario_id: test-v1
+      evidence_uri: https://example.com/evidence
+      benchmark:
+        scenario_id: test-v1
+        pass_condition: "Test."
+        critical_failures:
+          - unsupported_causality
+          - fake_critical_flag
+  certification_records:
+    status: active
+
+# ── role_wrong_authority ──────────────────────────────────────────────────────
+role_wrong_authority: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: []
+    non_compensable_failures: [safety_violation]
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields: [role, skill_name, expires_at, evaluator, scenario_id, evidence_uri]
+    reject_if: [incompatible_authority]
+  roles:
+    - role: wrong_authority_role
+      skill_name: herbagraph-wrong-auth-test
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2026-12-31T00:00:00Z"
+      evaluator: founder
+      scenario_id: test-v1
+      evidence_uri: https://example.com/evidence
+      benchmark:
+        scenario_id: test-v1
+        pass_condition: "Test."
+        critical_failures: []
+  certification_records:
+    status: active
+
+# ── cycle_charter_judge_equals_implementer ────────────────────────────────────
+cycle_judge_equals_implementer: |
+  issue: 67
+  stage: IMPLEMENTING
+  implementer: agent_x
+  judge: agent_x
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 0
+  authority_class: YELLOW
+  commercial_evidence:
+    payments: 0
+  scientific_evidence:
+    adherence: 0.0
+
+# ── cycle_charter_wrong_sha ───────────────────────────────────────────────────
+cycle_wrong_sha: |
+  issue: 67
+  stage: EXACT_SHA_JUDGMENT
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: fedcba9876543210fedcba9876543210fedcba98
+  correction_cycles: 0
+  authority_class: RED
+  commercial_evidence:
+    payments: 0
+  scientific_evidence:
+    adherence: 0.0
+
+# ── cycle_charter_changed_material ────────────────────────────────────────────
+cycle_changed_material: |
+  issue: 67
+  stage: IMPLEMENTING
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 0
+  authority_class: YELLOW
+  material_changes_declared: [model_change]
+  # recertification_recorded: false  ← absent → blocked
+  commercial_evidence: {}
+  scientific_evidence: {}
+
+# ── cycle_charter_commercial_in_research ─────────────────────────────────────
+cycle_commercial_in_research: |
+  issue: 67
+  stage: RESEARCH
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 0
+  authority_class: GREEN
+  # revenue is a purchase field leaking into scientific_evidence
+  commercial_evidence:
+    revenue: 1000
+  scientific_evidence:
+    causal_conclusion: "n/a"
+    feasibility: 0.8
+    efficacy: 0.0
+    revenue: 1000
+
+# ── cycle_charter_payment_in_scientific ───────────────────────────────────────
+cycle_payment_in_scientific: |
+  issue: 67
+  stage: RESEARCH
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 0
+  authority_class: GREEN
+  # paid_deposits is a purchase field in commercial; scientific_fields leak into commercial
+  commercial_evidence:
+    paid_deposits: 3
+    feasibility: 0.8
+  scientific_evidence:
+    efficacy: 0.6
+
+# ── synthetic_charter_valid ──────────────────────────────────────────────────
+synthetic_charter_valid: |
+  issue: 67
+  stage: ADVERSARIAL_CHALLENGE
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 0
+  authority_class: YELLOW
+  commercial_evidence:
+    paid_deposits: 0
+  scientific_evidence:
+    adherence: 0.0
+
+# ── correction_cycles_exhausted ────────────────────────────────────────────────
+correction_cycles_exhausted: |
+  issue: 67
+  stage: QA
+  implementer: agent_x
+  judge: agent_y
+  candidate_sha: abcdef0123456789abcdef0123456789abcdef01
+  verdict_sha: abcdef0123456789abcdef0123456789abcdef01
+  correction_cycles: 4
+  authority_class: YELLOW
+  commercial_evidence:
+    paid_deposits: 0
+  scientific_evidence:
+    adherence: 0.0
+
+# ── certification_active_valid ───────────────────────────────────────────────
+cert_active_valid: |
+  schema_version: "1.0"
+  policy:
+    expires_after_days: 90
+    fail_closed: true
+    recertify_on: [skill_change, model_change, tool_permission_change]
+    non_compensable_failures: [safety_violation, privacy_violation]
+  assignment_gate:
+    required_benchmark_status: passed
+    required_assignment_status: active
+    required_fields:
+      - role
+      - skill_name
+      - skill_version
+      - certified_at
+      - expires_at
+      - evaluator
+      - scenario_id
+      - evidence_uri
+      - critical_failures
+    reject_if:
+      - expired
+      - missing_evidence
+      - critical_failure
+      - incompatible_authority
+  roles:
+    - role: mission_control
+      skill_name: herbagraph-mission-control
+      skill_version: "1.0"
+      certified_at: "2026-08-19T00:00:00Z"
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2026-11-17T00:00:00Z"
+      evaluator: founder
+      scenario_id: bottleneck-cycle-v1
+      evidence_uri: https://example.com/mc-evidence
+      critical_failures: []
+      authority_class: GREEN
+      benchmark:
+        scenario_id: bottleneck-cycle-v1
+        pass_condition: "Selects smallest decision-changing cycle."
+        critical_failures: []
+    - role: demand_intelligence
+      skill_name: herbagraph-demand-intelligence
+      skill_version: "1.0"
+      certified_at: "2026-08-19T00:00:00Z"
+      benchmark_status: passed
+      assignment_status: active
+      expires_at: "2026-11-17T00:00:00Z"
+      evaluator: founder
+      scenario_id: paid-signal-forensics-v1
+      evidence_uri: https://example.com/di-evidence
+      critical_failures: []
+      authority_class: GREEN
+      benchmark:
+        scenario_id: paid-signal-forensics-v1
+        pass_condition: "Counts paid deposits as demand."
+        critical_failures: []
+  certification_records:
+    status: active
+    note: "Repository-registered as of 2026-08-19."
+
+# ── roles_valid ───────────────────────────────────────────────────────────────
+roles_valid: |
+  schema_version: "1.0"
+  roles:
+    mission_control:
+      objective: "Test."
+      owns: [cycle_charter]
+      forbids: []
+      outputs: [cycle_charter]
+    independent_judge:
+      objective: "Judge."
+      owns: [verdict]
+      forbids: [editing_candidate, reviewing_own_work]
+      outputs: [judge_report]
+  routing:
+    founder_intake: [mission_control]
+    adversarial_challenge: [independent_judge]
+    quality_and_release: [independent_judge, mission_control]
+    experience_architecture: [independent_judge]
+  reconciliation:
+    independent_first: true
+    maximum_correction_cycles: 3
+    unresolved_conflict: founder_escalation
+    critical_veto_domains:
+      safety: [mission_control, independent_judge]
