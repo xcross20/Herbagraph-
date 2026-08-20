@@ -1607,45 +1607,117 @@ async function renderEvidence(requestedPatientId) {
 /* ── Personal Evidence: Regimen Truth ──────────────────────────────── */
 
 async function renderRegimenView(requestedPatientId) {
-  const dash = await api("/api/v1/workspace/dashboard");
-  const PE = window.HerbaGraphPersonalEvidence || {};
-  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
-  const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
-
-  const opts = {
-    caseId: patientId,
-    patientId: patientId,
-    hgToken: window.hgToken,
-    enabled: enabled,
-  };
-
-  // Dev: ?fixture=partialIntake, ?fixture=needsIdentityConfirmation, etc.
-  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
-  if (fp) opts.fixture = fp;
-
   const main = document.getElementById("app-main");
-  main.innerHTML = PE.renderRegimen ? PE.renderRegimen(opts) : "Personal Evidence modules not loaded.";
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Dev fixtures bypass all API calls — renders mock data without auth.
+  // Use ?fixture=singleItem, empty, partialIntake, needsIdentityConfirmation,
+  // correctedDose, proprietaryBlend, stale
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  if (fp) {
+    main.innerHTML = PE.renderRegimen
+      ? PE.renderRegimen({ fixture: fp, enabled: true, caseId: null, patientId: null, hgToken: null })
+      : _notLoadedHTML();
+    if (PE.wireRegimenHandlers) PE.wireRegimenHandlers();
+    window.refreshRegimenView = function () { renderRegimenView(requestedPatientId); };
+    setActiveNav("evidence");
+    return;
+  }
+
+  // Normal path: requires auth + feature flag
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _featureFlagHTML();
+    return;
+  }
+
+  let patientId;
+  try {
+    const resolved = await resolveActivePatientId(requestedPatientId);
+    patientId = resolved.patientId;
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const opts = { caseId: patientId, patientId: patientId, hgToken: window.hgToken, enabled: true };
+  main.innerHTML = PE.renderRegimen ? PE.renderRegimen(opts) : _notLoadedHTML();
   if (PE.wireRegimenHandlers) PE.wireRegimenHandlers();
   window.refreshRegimenView = function () { renderRegimenView(requestedPatientId); };
   setActiveNav("evidence");
 }
 
+function _notLoadedHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>Personal Evidence module failed to load. Refresh to try again.</p>
+  </div>`;
+}
+function _authRequiredHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center">
+    <div style="max-width:480px;margin:4rem auto;background:var(--app-surface);border:1px solid var(--app-border);border-radius:12px;padding:2rem">
+      <h2 style="color:var(--app-ink);margin-bottom:0.75rem">Sign in required</h2>
+      <p style="color:var(--app-muted);margin-bottom:1.5rem">My Evidence is available after you sign in.</p>
+      <a href="/login.html" class="app-btn app-btn-primary">Sign in</a>
+    </div>
+  </div>`;
+}
+function _featureFlagHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>Regimen Truth is not yet enabled for your environment.</p>
+    <p style="font-size:0.85rem;margin-top:0.5rem">Contact your administrator to request access.</p>
+  </div>`;
+}
+
 async function renderIntakeRoute(requestedPatientId) {
-  const dash = await api("/api/v1/workspace/dashboard");
-  const PE = window.HerbaGraphPersonalEvidence || {};
-  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
-  const { patientId, patients } = await resolveActivePatientId(requestedPatientId);
-
-  const mode = new URLSearchParams(location.search.split("?")[1] || "").get("mode") || "start";
-  const opts = {
-    caseId: patientId,
-    patientId: patientId,
-    hgToken: window.hgToken,
-    mode: mode,
-  };
-
   const main = document.getElementById("app-main");
-  main.innerHTML = PE.renderIntakeView ? PE.renderIntakeView(opts) : "Intake module not loaded.";
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Dev fixtures bypass API + auth for intake form demo
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  const mode = new URLSearchParams(location.search.split("?")[1] || "").get("mode") || "start";
+  if (fp || mode) {
+    main.innerHTML = PE.renderIntakeView
+      ? PE.renderIntakeView({ mode: fp || mode, caseId: null, patientId: null, hgToken: null })
+      : _notLoadedHTML();
+    if (PE.wireIntakeHandlers) PE.wireIntakeHandlers();
+    window.renderIntakeView = PE.renderIntakeView;
+    setActiveNav("evidence");
+    return;
+  }
+
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _featureFlagHTML();
+    return;
+  }
+
+  let patientId;
+  try {
+    const resolved = await resolveActivePatientId(requestedPatientId);
+    patientId = resolved.patientId;
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const opts = { caseId: patientId, patientId: patientId, hgToken: window.hgToken, mode };
+  main.innerHTML = PE.renderIntakeView ? PE.renderIntakeView(opts) : _notLoadedHTML();
   if (PE.wireIntakeHandlers) PE.wireIntakeHandlers();
   window.renderIntakeView = PE.renderIntakeView;
   setActiveNav("evidence");
