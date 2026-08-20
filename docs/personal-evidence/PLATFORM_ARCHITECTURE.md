@@ -86,7 +86,8 @@ app/
     __init__.py
     commands.py
     identity.py
-    regimen.py
+    intake.py            # IntakeSession, IntakeResponse, IntakeObjective
+    regimen.py           # RegimenVersion, RegimenItem, relationship semantics
     observations.py
     signals.py
     eligibility.py
@@ -127,6 +128,84 @@ The frontend never writes directly to tables. Workers never bypass command handl
 A `DiscoveryCase` has zero or more regimen versions, products, exposure events, observations, candidate signals, experiment protocols, analyses, and Passport versions.
 
 The Case remains the owner. Patient-level longitudinal summaries may project across Cases only through the existing patient memory contract.
+
+### IntakeSession
+
+> **IntakeSession — Structured personal intake upstream of Regimen Truth.** An IntakeSession captures the user's current supplement and medication regimen, their health objectives, and their preferences before any product identity is resolved. It is the structured input surface that feeds Regimen Truth. IntakeSessions are read-only once submitted; corrections create new sessions or amendment events.
+
+**Purpose:** "Tell me what you take and what you're trying to achieve."
+
+An IntakeSession represents one intake conversation or form submission. It is NOT the same as a Discovery Case turn — it is a purpose-specific bounded session for regimen entry. Multiple IntakeSessions may occur over a Case's lifetime (e.g., initial intake, annual refresh, new objective added).
+
+**Fields:**
+
+- `id`, `case_id`, `owner_id`
+- `status`: `draft | active | submitted | superseded`
+- `purpose`: `initial | refresh | objective_added | correction`
+- `started_at`, `submitted_at`
+- `case_objective_ids`: ordered list of `CaseObjective` IDs created or linked by this session
+- `source_command_id`: semantic idempotency key
+- `provenance`, `created_at`, `updated_at`
+
+**IntakeResponse** (child of IntakeSession):
+
+Represents one answered intake question.
+
+Fields:
+
+- `id`, `intake_session_id`
+- `concept`: normalized intake concept (e.g., `supplement`, `medication`, `frequency`, `route`, `dose_unit`)
+- `raw_value`: user's raw text or number (preserved verbatim)
+- `normalized_value`: parsed structured value where determinable (e.g., `2`, `twice_daily`)
+- `unit`: e.g., `mg`, `capsule`, `drop`
+- `confidence`: `certain | estimated | uncertain`
+- `product_name_raw`: self-reported product name
+- `brand_raw`: self-reported brand (may be null)
+- `notes`: user's free-text notes
+- `position`: ordering within the session
+- `source_command_id`
+- `created_at`
+
+**IntakeObjective** (child of IntakeSession):
+
+Represents one health objective surfaced during intake.
+
+Fields:
+
+- `id`, `intake_session_id`
+- `original_wording`: verbatim user language
+- `normalized_concept`: derived from controlled vocabulary or expert mapping
+- `desired_direction`: `increase | decrease | stabilize | avoid | improve`
+- `priority` (1 = highest)
+- `measurable_outcome` (JSONB, optional): concept, scale, target, threshold, time_horizon
+- `time_horizon`: human-readable intent (e.g., "within 4 weeks")
+- `constraints` (JSONB, optional): "must avoid" objectives linked to this goal
+- `status`: `proposed | confirmed | declined`
+- `linked_case_objective_id`: FK to the `CaseObjective` created from this intake objective (populated on submit)
+- `created_at`
+
+**IntakeToRegimen flow:**
+
+1. User completes IntakeSession → submits.
+2. System parses `IntakeResponse` records into proposed `RegimenItem` drafts.
+3. Product identity candidates are generated from `product_name_raw` via `ProductCapture` workers.
+4. User reviews proposed `RegimenItem` drafts, confirms or corrects each.
+5. Identity confirmation creates or links `ProductIdentity` records.
+6. Confirmed items are published as a `RegimenVersion`.
+7. `IntakeObjective` records with `status = confirmed` create `CaseObjective` records.
+8. The `IntakeSession.submitted_at` and `linked_regimen_version_id` are recorded for audit.
+
+**Key invariants:**
+
+- An IntakeSession may reference products by self-reported name before identity is confirmed.
+- `IntakeResponse.product_name_raw` is NOT the same as `ProductIdentity.product_name` — it is the user's raw input.
+- IntakeSessions are immutable after submission. Corrections create a new session or an `IntakeAmendment` event.
+- A submitted IntakeSession may not be deleted if it has been used to create a RegimenVersion.
+- IntakeSession does NOT perform exposure recording — that is the job of `ExposureEvent`.
+
+**Scope in Regimen Truth slice:** IntakeSession and IntakeResponse are implemented. IntakeObjective (linked to CaseObjective) is in scope for Regimen Truth since objectives are needed for regimen purpose attribution. Optimization of regimen recommendations is out of scope for Slice 1.
+
+See ADR-0010.
 
 ### ProductCapture
 
@@ -169,16 +248,56 @@ Fields:
 
 `RegimenVersion` is an immutable snapshot of the planned or reported regimen at a Case version.
 
-`RegimenItem` contains:
+**RegimenVersion fields:**
 
-- product identity
-- intended amount, route, schedule, timing, start/stop
-- purpose in the user's language
-- reported versus verified status
-- active/superseded state
-- source event
+- `id`, `case_id`, `owner_id`
+- `version_number`: monotonically increasing per Case
+- `status`: `draft | published | superseded`
+- `source_intake_session_id`: FK to `IntakeSession` that produced this version (null if manually edited)
+- `case_objective_ids`: objectives this regimen version is intended to serve
+- `published_at`
+- `case_version` at time of publication
+- `provenance`, `created_at`
 
-Edits create a new version or append-only correction. They do not mutate historical exposure meaning.
+**RegimenItem** fields:
+
+- `id`, `regimen_version_id`, `case_id`
+- `product_identity_id` (FK, may be null for draft items with unresolved identity)
+- `product_capture_id` (FK, source capture; may be null for manual entries)
+- `intake_response_id` (FK, source `IntakeResponse` if derived from intake)
+- `product_name_raw`: the self-reported name at time of capture
+- `intended_amount`, `intended_unit`
+- `serving_basis`: e.g., `per capsule`, `per teaspoon`, `per drop`
+- `route`: `oral | topical | sublingual | transdermal | other`
+- `schedule`: e.g., `twice_daily`, `with_meals`, `at_bedtime`
+- `timing_notes`: free-text timing guidance
+- `start_date`, `stop_date`, `stop_reason`
+- `case_objective_id` (FK): the primary `CaseObjective` this item serves
+- `user_purpose_note`: free-text purpose when not linked to a formal `CaseObjective`
+- `identity_status_at_capture`: snapshot of `ProductIdentity.identity_status` at time of item creation
+- `identity_resolution_status`: current resolution status (may improve after confirmation)
+- `reported_vs_verified`: `reported | partially_verified | fully_verified`
+- `status`: `draft | proposed | confirmed | active | superseded | stopped`
+- `supersedes_item_id`: FK to the `RegimenItem` this one replaces
+- `stop_reason`: `user_stopped | adverse_reaction | objective_met | replaced | product_discontinued | other`
+- `source_command_id`
+- `provenance`, `created_at`, `updated_at`
+
+**Relationship semantics:**
+
+- **Ingredient-level identity**: Two `RegimenItem` records with different `product_identity_id` values may still share active ingredients at the elemental level. `RegimenIntelligence` must normalize to ingredient level for overlap detection (see Amendment 3).
+- **Objective linkage**: `RegimenItem.case_objective_id` links the item to its primary objective. Multiple items may serve the same objective (creating attribution ambiguity — see HC-5). An item may serve zero objectives (general wellness use).
+- **Identity confidence**: `RegimenItem.reported_vs_verified` distinguishes items confirmed against a `ProductCapture` from those entered manually. This is orthogonal to `identity_resolution_status` — a manually entered item may have `user_confirmed` status if the user verified it without a capture.
+- **Capture provenance**: `RegimenItem.intake_response_id` links back to the source `IntakeResponse` for audit. If the intake is corrected, the `RegimenItem` is superseded, not deleted.
+- **Stop vs. supersession**: Stopping an item (user discontinued) is different from superseding (item was replaced by a corrected version). Stop preserves the item with `status = stopped`; supersession creates a new item and marks the old `superseded`.
+
+**Editing rules:**
+
+- All edits create a new `RegimenVersion` or append-only corrections within the current version.
+- Corrections to `ProductIdentity` do NOT automatically update `RegimenItem.product_identity_id` — they trigger an analysis invalidation workflow. The user must confirm or correct the link.
+- `RegimenVersion` is immutable once published. Corrections create a new version.
+
+See ADR-0009 Amendment 3 (RegimenIntelligence), Amendment 4 (RegimenCompiler), and HC-2, HC-3, HC-4, HC-5.
 
 ### ExposureEvent
 
@@ -449,9 +568,13 @@ See ADR-0009 Amendment 4.
 
 Material events include:
 
+- `intake.session.started`
+- `intake.session.submitted`
+- `intake.objective.confirmed`
 - `product.capture.created`
 - `product.identity.confirmed`
 - `regimen.version.published`
+- `regimen.item.stopped`
 - `exposure.recorded`
 - `observation.recorded`
 - `signal.generated`
@@ -484,11 +607,16 @@ Add one router under `/api/v1/personal-evidence`.
 
 Representative resources:
 
+- `POST /cases/{case_id}/intake-sessions`
+- `GET /intake-sessions/{id}`
+- `POST /intake-sessions/{id}/responses`
+- `POST /intake-sessions/{id}/submit`
 - `POST /cases/{case_id}/product-captures`
 - `GET /product-captures/{id}`
 - `POST /product-identities/{id}/confirm`
 - `GET /cases/{case_id}/regimen`
 - `POST /cases/{case_id}/regimen-items`
+- `POST /cases/{case_id}/regimen-items/{id}/stop`
 - `POST /cases/{case_id}/exposures`
 - `POST /cases/{case_id}/observations`
 - `GET /cases/{case_id}/timeline`
@@ -587,6 +715,9 @@ Barcode/product APIs are candidate accelerators, not identity authorities. The e
 
 Non-PHI signals include:
 
+- intake-session abandonment rate
+- intake-to-regimen conversion rate
+- intake-response confidence distribution
 - product-capture processing latency
 - ambiguous-field rate
 - identity-confirmation abandonment
@@ -648,9 +779,15 @@ Flags default off. Research mode and production behavior require separate Founde
 
 Documentation, certification registry, state machine, issue templates, qualification tests, and no health-data mutation.
 
-### Slice 1 — Regimen truth
+### Slice 1 — Intake and Regimen Truth
 
-Upload/manual capture -> candidate extraction -> field-level uncertainty -> user confirmation -> immutable regimen version -> workspace display.
+**Intake flow:** IntakeSession -> IntakeResponse parsing -> proposed RegimenItem drafts -> user review -> product identity capture/confirmation -> RegimenVersion publication -> workspace projection.
+
+**Regimen flow:** ProductCapture/OCR -> candidate extraction -> field-level uncertainty -> user confirmation -> immutable regimen version -> correction -> coherent workspace/Ask projection.
+
+**Scope:** IntakeSession, IntakeResponse, IntakeObjective, CaseObjective (from IntakeObjective), ProductCapture, ProductIdentity, RegimenVersion, RegimenItem, correction workflows.
+
+**Out of scope for Slice 1:** Signals, Experiments, Attribution, Passport, wearable ingestion, RegimenIntelligence optimization, RegimenCompiler, agent-control infrastructure, experiment activation, research mode.
 
 ### Slice 2 — Exposure and observation truth
 

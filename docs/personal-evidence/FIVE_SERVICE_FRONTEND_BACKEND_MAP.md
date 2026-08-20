@@ -36,6 +36,7 @@ Dashboard
 Ask
 My Evidence
   Today
+  Intake           <-- new: first step before Regimen
   Regimen
   Signals
   Experiments
@@ -45,6 +46,8 @@ Case / Investigation
 Settings / Consent
 ```
 
+The Intake section is the structured entry point. Users complete an intake session to establish their current regimen and objectives before entering the Regimen service.
+
 For clinic roles, the same modules appear inside the selected patient context with read/review permissions determined by role and sharing consent.
 
 ### Route strategy
@@ -52,6 +55,7 @@ For clinic roles, the same modules appear inside the selected patient context wi
 The current workspace uses static HTML and hash-based navigation. Add routes incrementally:
 
 - `/me.html#evidence-today`
+- `/me.html#intake`
 - `/me.html#regimen`
 - `/me.html#signals`
 - `/me.html#experiments`
@@ -68,6 +72,7 @@ frontend/js/
     state.js
     components.js
     today.js
+    intake.js       # IntakeSession, IntakeResponse, IntakeObjective
     regimen.js
     signals.js
     experiments.js
@@ -109,7 +114,7 @@ Use:
 - insufficient data
 - inconclusive
 
-Do not use “normal,” “safe,” “works,” “caused,” or “recommended” without the governed scientific meaning.
+Do not use "normal," "safe," "works," "caused," or "recommended" without the governed scientific meaning.
 
 ### Required states for every module
 
@@ -140,13 +145,32 @@ Do not use “normal,” “safe,” “works,” “caused,” or “recommende
 - reduced-motion support
 - plain-language labels over internal ontology terms
 
-## 4. Service 1: Regimen
+## 4. Service 1: Intake and Regimen
 
 ### User job
 
-“I need a trustworthy account of what I take, in what form and amount, without reconstructing it from memory.”
+"I need a trustworthy account of what I take, in what form and amount, without reconstructing it from memory."
 
-### Frontend
+### Frontend -- Intake
+
+Primary screens:
+
+1. Intake session home (start new / resume draft / view history)
+2. Objective setting (what are you trying to achieve? priority? constraints?)
+3. Current products (what do you currently take? name, dose, frequency, route)
+4. Confidence indication (are you sure about this dose? estimate vs. exact?)
+5. Intake review and submit
+6. Post-submit: proposed regimen items for review
+
+Intake card displays:
+
+- self-reported product name and brand
+- user-estimated or confirmed dose and frequency
+- objective linkage (what goal this supports)
+- confidence level
+- intake status and submission timestamp
+
+### Frontend -- Regimen
 
 Primary screens:
 
@@ -155,7 +179,7 @@ Primary screens:
 3. Extraction review
 4. Identity confirmation
 5. Daily schedule/timeline
-6. Ingredient overlap
+6. Ingredient overlap (from RegimenIntelligence -- display only, no optimization)
 7. Regimen version history
 8. Correction flow
 
@@ -166,7 +190,7 @@ Regimen card displays:
 - label versus active/elemental amount
 - serving basis
 - route and timing
-- purpose in user language
+- purpose in user language (linked CaseObjective or free-text note)
 - verification status
 - unresolved fields
 - start/stop history
@@ -177,6 +201,7 @@ No product becomes active through OCR alone.
 
 New package responsibilities:
 
+- `intake.py`: IntakeSession, IntakeResponse, IntakeObjective lifecycle; intake-to-regimen parsing.
 - `identity.py`: product fingerprint, field confidence, confirmation rules, parent/form relationships.
 - `regimen.py`: regimen version publication, item lifecycle, overlap calculations.
 - `commands.py`: confirm identity, add/stop/correct item.
@@ -184,6 +209,10 @@ New package responsibilities:
 
 Tables:
 
+- `pe_intake_sessions`
+- `pe_intake_responses`
+- `pe_intake_objectives`
+- `pe_case_objectives` (linked from IntakeObjective; see ADR-0009 Amendment 2)
 - `pe_product_captures`
 - `pe_product_identities`
 - `pe_identity_confirmations`
@@ -192,11 +221,14 @@ Tables:
 
 First API:
 
+- create / submit intake session
+- add / update intake responses
+- submit intake -> generate proposed regimen items
 - create capture
 - poll capture
 - confirm identity
 - get current regimen
-- create/stop/correct regimen item
+- create / stop / correct regimen item
 - get version history
 
 ### Reused HerbaGraph components
@@ -211,19 +243,25 @@ First API:
 
 ### Slice-1 acceptance
 
+- Intake session captures current products and objectives before product identity is resolved.
+- Submitted IntakeObjective records with status = confirmed create linked CaseObjective records.
+- Intake responses are parsed into proposed RegimenItem drafts.
+- Intake-to-regimen flow is auditable: IntakeSession.submitted_at links to the generated RegimenVersion.
 - OCR uncertainty remains field-level and visible.
 - Exact form and active amount can remain unresolved.
 - User confirmation is required before active use.
 - Replayed finalize/confirm requests are idempotent.
 - Regimen changes create history rather than overwrite it.
 - Compound and elemental amount are never conflated.
+- Stopping an item transitions status to stopped; exposure history is preserved.
 - Seed ontology examples never enter a Case without active identity relevance.
+- Signals, Experiments, Attribution, wearable ingestion, and agent-control infrastructure are NOT implemented in Slice 1.
 
 ## 5. Service 2: Signals
 
 ### User job
 
-“Show me patterns worth investigating without pretending you have proven the cause.”
+"Show me patterns worth investigating without pretending you have proven the cause."
 
 ### Frontend
 
@@ -233,7 +271,7 @@ Primary screens:
 2. Signal detail with overlaid timeline
 3. Evidence for / evidence against
 4. Missing data and confounders
-5. “Collect more data” or “Test this safely” eligibility
+5. "Collect more data" or "Test this safely" eligibility
 6. Reject/not relevant
 7. Why this appeared
 
@@ -290,7 +328,7 @@ Workers may compute candidates. A governor verifies temporal order, identity, mi
 
 ### User job
 
-“Help me test one safe change in a structured way I can realistically complete.”
+"Help me test one safe change in a structured way I can realistically complete."
 
 ### Frontend
 
@@ -318,7 +356,7 @@ The screen must explain:
 - stop/escalation conditions
 - what the result cannot prove
 
-Prompts must be outcome-neutral. Do not ask “Did the supplement help today?”
+Prompts must be outcome-neutral. Do not ask "Did the supplement help today?"
 
 ### Backend
 
@@ -348,7 +386,7 @@ Initial designs:
 - Case findings and active constraints
 - consent and audit patterns
 - monitoring events
-- response-mode recognition for “what can I do now?”
+- response-mode recognition for "what can I do now?"
 - notification infrastructure if present; otherwise defer
 
 ### Slice-3 acceptance
@@ -365,7 +403,7 @@ Initial designs:
 
 ### User job
 
-“Tell me what the data suggests, how uncertain it is, and what else could explain it.”
+"Tell me what the data suggests, how uncertain it is, and what else could explain it."
 
 ### Frontend
 
@@ -434,7 +472,7 @@ Initial analysis may use transparent baseline-versus-intervention estimates and 
 
 ### User job
 
-“Remember what I tried and give me something credible that I can use later or show a clinician.”
+"Remember what I tried and give me something credible that I can use later or show a clinician."
 
 ### Frontend
 
@@ -519,13 +557,13 @@ Selection is deterministic by safety, protocol deadline, information value, and 
 
 Ask may interpret:
 
-- “Add this supplement.”
-- “I took it this morning.”
-- “What changed this week?”
-- “Could this be a trigger?”
-- “Help me test this.”
-- “What did I learn?”
-- “Show my Passport.”
+- "Add this supplement."
+- "I took it this morning."
+- "What changed this week?"
+- "Could this be a trigger?"
+- "Help me test this."
+- "What did I learn?"
+- "Show my Passport."
 
 Ask creates the same typed commands used by the workspace. It never maintains hidden chat-only regimen, exposure, protocol, analysis, or Passport state.
 
@@ -550,6 +588,7 @@ Do not use local storage as medical truth. It may hold non-sensitive UI preferen
 | Package | Owns | Must not own |
 |---|---|---|
 | identity | product candidate, fingerprint, confirmation | evidence conclusions or commerce rank |
+| intake | IntakeSession, IntakeResponse, IntakeObjective, intake-to-regimen flow | product identity confirmation or regimen truth |
 | regimen | planned/reported schedule and versions | actual exposure |
 | observations | actual exposure/outcome/context events | causal interpretation |
 | signals | candidate relationships | protocol activation |
