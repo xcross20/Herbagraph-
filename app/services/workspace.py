@@ -161,7 +161,20 @@ async def build_workspace_dashboard(db: AsyncSession, user: User) -> WorkspaceDa
         recent_reports=recent_reports,
         recent_labs=recent_labs,
         recent_sessions=recent_sessions,
+        feature_flags={
+            "personal_evidence_regimen_v1": _is_pe_regimen_enabled(),
+        },
     )
+
+
+def _is_pe_regimen_enabled() -> bool:
+    from app.config import get_settings
+
+    settings = get_settings()
+    env = (getattr(settings, "app_env", "") or "").lower()
+    if env in {"uat", "preview"}:
+        return True
+    return bool(getattr(settings, "personal_evidence_regimen_v1", False))
 
 
 async def build_patient_overview(db: AsyncSession, user: User, patient_id: uuid.UUID) -> PatientOverviewRead:
