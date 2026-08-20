@@ -98,8 +98,10 @@ def validate_scientific_output(
     violations: list[str] = []
     if commerce_boosted:
         violations.append("commerce_cannot_change_scientific_rank")
+        increment("commerce_changed_scientific_rank")
     if unknown_as_negative:
         violations.append("unknown_coverage_as_negative")
+        increment("unknown_coverage_as_negative")
     for item in items:
         blob = item.statement.lower()
         if any(token in blob for token in FORBIDDEN_DIAGNOSTIC) or _has_disguised_probability(blob):
@@ -110,6 +112,7 @@ def validate_scientific_output(
             violations.append(f"{item.id}:coverage_misuse")
         if item.item_type is not ScientificItemType.GAP and not item.provenance:
             violations.append(f"{item.id}:missing_provenance")
+            increment("sourceless_scientific_output")
         if item.evidence_strength and item.case_confidence and item.evidence_strength == item.case_confidence:
             if item.item_type is ScientificItemType.SYSTEM_INFERENCE:
                 violations.append(f"{item.id}:strength_collapsed_into_confidence")

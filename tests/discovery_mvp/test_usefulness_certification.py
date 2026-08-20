@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 from app.discovery.claim_cards import build_claim_card
-from app.discovery.decision_events import hashed_source
 from app.discovery.next_evidence import candidates_for_control, plan_next_evidence
 from app.discovery.orchestrator import orchestrate
 from app.discovery.ranker import rank_next_actions

@@ -253,6 +253,9 @@ def orchestrate(
             incoming.append(item)
             have.add(item.name)
     incoming.append(ExtractedFact(name="safety_state", value=safety.state, kind="assessment"))
+    if safety.escalation_downgraded:
+        from app.discovery.telemetry import increment
+        increment("safety_escalation_lost")
     if llm_fact_rows:
         incoming = merge_llm_facts(incoming, llm_fact_rows, allow_open=True)
     if "uncertainty" in intents and current_closes:
@@ -315,6 +318,8 @@ def orchestrate(
             if slot_is_answered(control, closes):
                 continue
             if filter_paused_questions(candidate.type, candidate.question_id, candidate.prompt, control):
+                from app.discovery.telemetry import increment
+                increment("paused_concern_selected")
                 continue
             kept.append(candidate)
         candidates = kept
