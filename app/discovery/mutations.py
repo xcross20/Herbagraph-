@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.discovery.coverage_catalog import normalize_label
 from app.discovery.identity import finding_identity_key
+from app.discovery.telemetry import increment
 from app.models.discovery import DiscoveryFinding
 from app.models.enums import DiscoveryFindingKind
 
@@ -41,6 +42,7 @@ async def apply_finding_drafts(
             source_event_id=source_event_id,
         )
         if identity_key in by_identity:
+            increment("semantic_repeat")
             continue
 
         name_key = normalize_label(item.name)

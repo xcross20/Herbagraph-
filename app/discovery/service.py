@@ -489,6 +489,7 @@ def snapshot_to_read(
         action_plan=(control_payload or {}).get("action_plan") if isinstance(control_payload, dict) else None
         or (action_extras.get("action_plan") if isinstance(action_extras, dict) else None),
         snapshot_id=snapshot_id,
+        case_version=case_version,
         disclaimer=snapshot.disclaimer,
         created_at=case.created_at,
         updated_at=case.updated_at,
@@ -505,6 +506,21 @@ async def apply_snapshot(
     case.presenting_concern = snapshot.presenting_concern
     case.investigation_coverage = snapshot.investigation_coverage
     case.snapshot = json.dumps(snapshot.as_dict())
+    # Persist version metadata to control_json so case_to_read() can derive
+    # snapshot_id and case_version for the CaseOverview projection.
+    event_id = source_event_id or str(uuid.uuid4())
+    current = 0
+    if case.control_json:
+        try:
+            parsed = json.loads(case.control_json)
+            current = int(parsed.get("case_version", 0))
+        except (json.JSONDecodeError, ValueError, TypeError):
+            current = 0
+    new_version = current + 1
+    case.control_json = json.dumps({
+        "case_version": new_version,
+        "snapshot_id": f"cv{new_version}",
+    })
     if case.id is not None:
         event_id = source_event_id or str(uuid.uuid4())
         from app.discovery.dark_launch import maybe_compare_and_block_write

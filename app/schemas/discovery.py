@@ -225,6 +225,7 @@ class DiscoveryCaseRead(BaseModel):
     explanation: dict | None = None
     action_plan: dict | None = None
     snapshot_id: str | None = None
+    case_version: int | None = None  # top-level; mirrors turn_state.case_version
     disclaimer: str
     created_at: datetime
     updated_at: datetime

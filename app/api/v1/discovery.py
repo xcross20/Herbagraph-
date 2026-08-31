@@ -18,6 +18,7 @@ from app.discovery.monitoring import monitoring_requires_safety_escalation, reco
 from app.discovery.authorization import require_open_case, require_owned_case
 from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
+from app.services.workspace import build_case_overview
 from app.discovery.service import (
     add_case_tests_to_plan,
     apply_opening_turn,
@@ -39,7 +40,7 @@ from app.discovery.service import (
     suggested_test_labels,
     snapshot_from_case,
 )
-from app.models.enums import AuditAction, MonitoringOutcomeKind, UserRole
+from app.models.enums import AuditAction, MonitoringOutcomeKind, UserRole, DiscoveryCaseStatus
 from app.models.lab import LabReport
 from app.models.user import User
 from app.models.discovery import DiscoveryMapVersion, DiscoveryTurn
@@ -58,6 +59,7 @@ from app.schemas.discovery import (
     DiscoveryTurnCreate,
     DiscoveryTurnRead,
 )
+from app.schemas.workspace import CaseOverview
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
 
@@ -119,6 +121,51 @@ async def list_case_summaries(
         )
         for row in rows
     ]
+
+
+@router.get("/my-case")
+async def get_my_case(
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Resolve the appropriate Discovery Case for the authenticated user's My Case view.
+
+    Returns the single most recently updated OPEN Discovery Case owned by the user.
+    Returns 404 if the user has no open case.
+
+    This endpoint intentionally does NOT accept a patient_id. My Case is scoped to the
+    authenticated user's case context, not to a specific patient record.
+
+    A Patient UUID is NOT a Discovery Case UUID. This endpoint prevents patient-ID-as-case-ID
+    confusion by always returning a canonical Discovery Case.
+    """
+    from app.models.discovery import DiscoveryCase
+    from app.services.workspace import _is_case_overview_enabled
+    from sqlalchemy import select
+
+    if not _is_case_overview_enabled():
+        raise HTTPException(status_code=403, detail="FEATURE_DISABLED")
+
+    # Get the most recently updated OPEN case owned by this user
+    result = await db.execute(
+        select(DiscoveryCase)
+        .where(
+            DiscoveryCase.user_id == current_user.id,
+            DiscoveryCase.status != DiscoveryCaseStatus.CLOSED,
+        )
+        .order_by(DiscoveryCase.updated_at.desc())
+        .limit(1)
+    )
+    case = result.scalar_one_or_none()
+    if case is None:
+        raise HTTPException(status_code=404, detail="NO_OPEN_CASE")
+
+    return {
+        "case_id": case.id,
+        "presenting_concern": case.presenting_concern,
+        "status": case.status.value if hasattr(case.status, "value") else str(case.status),
+        "updated_at": case.updated_at.isoformat() if case.updated_at else None,
+    }
 
 
 @router.get("/plan", response_model=list[DiscoveryTestPlanItemRead])
@@ -320,6 +367,48 @@ async def get_case(
         detail={"result": "ok"},
     )
     return await case_to_read(db, case)
+
+
+@router.get("/{case_id}/overview", response_model=CaseOverview)
+async def get_case_overview(
+    case_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> CaseOverview:
+    """My Case — read-only coherent projection of the canonical Discovery Case.
+
+    Exposes what HerbaGraph currently knows, what remains unresolved, what prior
+    workup was evaluated, open investigation branches, evidence gaps,
+    contradictions, coverage explanations, and the highest-value next action.
+
+    Returns 403 if the feature flag is off.
+    Returns 404 if the case is not found or not owned by the user.
+    """
+    from app.services.workspace import _is_case_overview_enabled
+
+    if not _is_case_overview_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Case Overview is not enabled. Set CASE_OVERVIEW_V1=true or use a UAT/preview environment.",
+        )
+    try:
+        overview = await build_case_overview(db, current_user.id, case_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except HTTPException:
+        # require_owned_case raises HTTPException(404) for missing or unauthorized cases.
+        # Re-raise as-is so foreign and missing cases are both 404.
+        raise
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_VIEWED,
+        summary="Case overview viewed",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case_id),
+        detail={"result": "overview"},
+    )
+    return overview
 
 
 @router.delete("/{case_id}", response_model=DiscoveryCaseRead)

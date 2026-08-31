@@ -25,7 +25,7 @@ function setSidebarOpen(open) {
   sidebar.classList.toggle("is-open", shouldOpen);
   shell?.classList.toggle("sidebar-open", shouldOpen);
   if (backdrop) {
-    // Class-based visibility — more reliable than [hidden] vs display:block on iOS Safari
+    // Class-based visibility -- more reliable than [hidden] vs display:block on iOS Safari
     backdrop.classList.toggle("is-visible", shouldOpen);
     backdrop.hidden = !shouldOpen;
     backdrop.setAttribute("aria-hidden", shouldOpen ? "false" : "true");
@@ -222,7 +222,7 @@ async function resolveActivePatientId(explicitId) {
 
 function renderPatientScopeBar(patients, selectedId, hashBase) {
   if (!isClinicianWorkspace()) {
-    return `<div class="patient-scope-bar consumer">Working on <strong>your profile</strong> — Discovery and Evidence stay on this one record.</div>`;
+    return `<div class="patient-scope-bar consumer">Working on <strong>your profile</strong> -- Discovery and Evidence stay on this one record.</div>`;
   }
   const opts = [`<option value="">Select a patient…</option>`]
     .concat(patients.map((p) => `<option value="${p.id}" ${p.id === selectedId ? "selected" : ""}>${esc(p.display_name)}</option>`))
@@ -257,12 +257,12 @@ function esc(s) {
 }
 
 function fmtDate(iso) {
-  if (!iso) return "—";
+  if (!iso) return "--";
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function relTime(iso) {
-  if (!iso) return "—";
+  if (!iso) return "--";
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
@@ -275,7 +275,7 @@ function relTime(iso) {
 }
 
 function fmtConfLabel(n) {
-  if (n == null) return "—";
+  if (n == null) return "--";
   if (n >= 0.8) return "High";
   if (n >= 0.6) return "Moderate";
   return "Low";
@@ -300,7 +300,7 @@ function patientStatus(p, recentLabs) {
 }
 
 function primaryFinding(title) {
-  if (!title || title === "Analysis Report") return "—";
+  if (!title || title === "Analysis Report") return "--";
   const t = title.toLowerCase();
   if (t.includes("iron")) return "Iron deficiency pattern";
   if (t.includes("inflamm")) return "Inflammatory pattern";
@@ -549,7 +549,7 @@ function renderDiscoveryChat(body, clinician) {
     html += `<div class="discovery-bubble system">I will not diagnose. ${clinician ? "What is going on for this patient?" : "What is going on?"}</div>`;
   }
   if (action && action.type === "show_safety_message") {
-    html += `<div class="discovery-bubble system discovery-safety">Safety pause — Discovery will not continue until this is evaluated in person.</div>`;
+    html += `<div class="discovery-bubble system discovery-safety">Safety pause -- Discovery will not continue until this is evaluated in person.</div>`;
   }
   const lastSystem = [...turns].reverse().find((t) => t.role === "system");
   for (const turn of turns) {
@@ -582,7 +582,7 @@ function renderDiscoveryCase(body) {
   if (plan.length) {
     html += `<div class="wallet-card"><h2>Next useful checks</h2><p class="muted">Only if a result would change management. Not a hunt for 90% confidence.</p><ul>`;
     for (const item of plan) {
-      html += `<li><strong>${esc(item.label)}</strong> <span class="muted">(${esc(item.group)})</span> — ${esc(item.reason)}</li>`;
+      html += `<li><strong>${esc(item.label)}</strong> <span class="muted">(${esc(item.group)})</span> -- ${esc(item.reason)}</li>`;
     }
     html += `</ul></div>`;
   }
@@ -648,7 +648,7 @@ function renderSafetyBanner(body) {
   const watch = (net.watch_for || []).slice(0, 5).map((item) => esc(item)).join("; ");
   const canContinue = body.turn_state ? body.turn_state.discovery_can_continue !== false : true;
   const label = {
-    S1: "Safety information incomplete — clarifying before any disposition.",
+    S1: "Safety information incomplete -- clarifying before any disposition.",
     S2: "Routine clinical follow-up is reasonable. Discovery can continue.",
     S3: "Prompt in-person assessment is advised. Only limited continuation here.",
     S4: "Urgent in-person evaluation is advised. Discovery is paused.",
@@ -656,7 +656,7 @@ function renderSafetyBanner(body) {
   if (!label) return "";
   return `<div class="safety-banner" data-safety-state="${esc(state)}">
     <p><strong>${esc(state)}</strong> ${label}</p>
-    ${watch && canContinue ? `<p class="muted">If the pattern changes — ${watch} — seek prompt medical evaluation.</p>` : ""}
+    ${watch && canContinue ? `<p class="muted">If the pattern changes -- ${watch} -- seek prompt medical evaluation.</p>` : ""}
   </div>`;
 }
 
@@ -678,7 +678,7 @@ function renderAtlasMemory(body) {
   ).join("") || "<li class=\"muted\">Chronology not established.</li>";
   const workRows = workup.map((item) =>
     `<li>${esc(item.name)}: ${esc(item.value || "")} <span class="prov-badge reported">Patient-reported</span></li>`
-  ).join("") || "<li class=\"muted\">Prior workup unknown — not the same as “labs were normal.”</li>";
+  ).join("") || "<li class=\"muted\">Prior workup unknown -- not the same as 'labs were normal.'</li>";
   return `<aside class="atlas-panel atlas-memory" data-atlas-panel="memory">
     <h2>What HerbaGraph knows</h2>
     ${body.problem_representation ? `<p class="discovery-problem">${esc(body.problem_representation)}</p>` : ""}
@@ -709,7 +709,7 @@ function renderAtlasInvestigation(body) {
       rationale: h.rationale || (h.why_limited && h.why_limited[0]) || h.not_a_diagnosis,
     });
     return `<li data-family-id="${esc(id)}"><strong>${esc(h.label)}</strong><br>
-      <span class="muted">${h.relationship ? esc(h.relationship) + " · " : ""}Coverage is completeness, not probability — not a diagnosis</span>
+      <span class="muted">${h.relationship ? esc(h.relationship) + " · " : ""}Coverage is completeness, not probability -- not a diagnosis</span>
       <button type="button" class="ask-why-open" data-why-family="${esc(id)}" data-explanation-drawer="1">Why is this here?</button></li>`;
   }).join("") || "<li class=\"muted\">No investigation family activated.</li>";
   const gapRows = increasers.map((item) =>
@@ -752,7 +752,7 @@ async function renderDiscovery(caseId, requestedPatientId) {
   }
 
   const subtitle = clinician
-    ? "Each case belongs to one patient. Select the person first — this is not a personal journal."
+    ? "Each case belongs to one patient. Select the person first -- this is not a personal journal."
     : "This investigation is about you. Relevance means worth looking into, not a diagnosis.";
 
   let caseList = "";
@@ -764,7 +764,7 @@ async function renderDiscovery(caseId, requestedPatientId) {
 
   const formDisabled = clinician && !scopeId;
   const chatPlaceholder = current && current.current_question
-    ? "Yes, no, not sure — or add a note"
+    ? "Yes, no, not sure -- or add a note"
     : (clinician ? "Describe this patient's concern…" : "What's going on?");
   document.getElementById("app-main").innerHTML = `
     ${pageHeader(clinician ? "Clinic Discovery" : "My discovery", subtitle)}
@@ -779,7 +779,7 @@ async function renderDiscovery(caseId, requestedPatientId) {
     <div class="atlas-workspace" id="atlas-workspace">
       ${renderAtlasMemory(current)}
       <section class="atlas-panel atlas-chat" data-atlas-panel="chat">
-        <p class="muted discovery-interface-note">Chat is only an interface — the Case is the source of truth. Every turn updates the Case first. Not a diagnosis.</p>
+        <p class="muted discovery-interface-note">Chat is only an interface -- the Case is the source of truth. Every turn updates the Case first. Not a diagnosis.</p>
         ${renderDiscoveryChat(current, clinician)}
         <form class="discovery-composer" id="discovery-open-form">
           <label class="sr-only" for="discovery-concern">${current ? "Your reply" : "What is going on?"}</label>
@@ -792,7 +792,7 @@ async function renderDiscovery(caseId, requestedPatientId) {
     </div>`}
     ${caseList}
     <details class="wallet-card discovery-case-board" id="discovery-result" ${current && current.turn_state && current.turn_state.selected_action && current.turn_state.selected_action.type === "show_investigation_map" ? "open" : ""} ${current ? "" : "hidden"}>
-      <summary>Investigation map — branches and gaps, not a diagnosis</summary>
+      <summary>Investigation map -- branches and gaps, not a diagnosis</summary>
       ${current ? renderDiscoveryCase(current) : ""}
     </details>
   `;
@@ -911,9 +911,9 @@ function clinicPatientRows(dash) {
       <td><a class="row-link" href="#patient/${p.id}">${esc(p.display_name)}</a></td>
       <td class="mono">${p.lab_report_count}</td>
       <td class="mono">${p.analysis_session_count}</td>
-      <td>${report ? esc(primaryFinding(report.title)) : "—"}</td>
+      <td>${report ? esc(primaryFinding(report.title)) : "--"}</td>
       <td><span class="status-chip ${st.cls}">${st.label}</span></td>
-      <td class="mono">${report ? relTime(report.created_at) : "—"}</td>
+      <td class="mono">${report ? relTime(report.created_at) : "--"}</td>
     </tr>`;
   }).join("") || `<tr class="no-hover"><td colspan="6" class="muted">No patients yet</td></tr>`;
 }
@@ -921,7 +921,7 @@ function clinicPatientRows(dash) {
 function reportRowsHtml(dash, clinician) {
   return dash.recent_reports.map(r => `
     <tr data-href="/report.html?report_id=${r.id}">
-      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
+      ${clinician ? `<td>${esc(r.patient_display_name || "--")}</td>` : ""}
       <td>${esc(primaryFinding(r.title))}</td>
       <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
       <td class="mono">${fmtDate(r.created_at)}</td>
@@ -935,7 +935,7 @@ function renderLaunchCards() {
   return `<div class="launch-grid">
     <a class="launch-card" href="${ask}">
       <h2>Talk to Discovery Guide</h2>
-      <p>Tell the investigation guide what's been going on. This opens Ask — it does not replace this workspace.</p>
+      <p>Tell the investigation guide what's been going on. This opens Ask -- it does not replace this workspace.</p>
     </a>
     <a class="launch-card" href="#upload">
       <h2>Analyze my labs</h2>
@@ -953,7 +953,7 @@ function renderClinicDashboard(dash, name) {
   const needsReview = buildAttentionItems(dash).length;
   return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Clinic portal — lab analysis, patients, and reports stay here. Discovery is an added layer.", `<a class="app-btn app-btn-primary" href="#patients">Add patient</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Clinic portal -- lab analysis, patients, and reports stay here. Discovery is an added layer.", `<a class="app-btn app-btn-primary" href="#patients">Add patient</a>`)}
     ${commandBar()}
     ${renderLaunchCards()}
     <div class="metric-grid">
@@ -996,7 +996,7 @@ function renderPersonalDashboard(dash, name) {
   const needsReview = buildAttentionItems(dash).length;
   return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Personal portal — labs, reports, and analysis stay here. Ask is an added layer.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Personal portal -- labs, reports, and analysis stay here. Ask is an added layer.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
     ${commandBar()}
     ${renderLaunchCards()}
     <div class="metric-grid">
@@ -1008,7 +1008,7 @@ function renderPersonalDashboard(dash, name) {
     <div class="form-grid-2">
       <div class="app-card" id="workspace-test-plan">
         <h2>Testing plan from Discovery</h2>
-        <p class="muted">Recommended by Ask. Upload or analyze them in this workspace — not a new product.</p>
+        <p class="muted">Recommended by Ask. Upload or analyze them in this workspace -- not a new product.</p>
         <div id="test-plan-mount"><p class="muted">Loading…</p></div>
       </div>
       <div class="app-card">
@@ -1122,8 +1122,8 @@ async function renderPatients() {
       <td><a class="row-link" href="#patient/${p.id}">${esc(p.display_name)}</a></td>
       <td class="mono">${summary.lab_report_count ?? 0}</td>
       <td class="mono">${summary.analysis_session_count ?? 0}</td>
-      <td>${p.age ?? "—"}</td>
-      <td>${esc(p.biological_sex || "—")}</td>
+      <td>${p.age ?? "--"}</td>
+      <td>${esc(p.biological_sex || "--")}</td>
       <td><span class="status-chip ${st.cls}">${st.label}</span></td>
       <td class="mono">${fmtDate(p.created_at)}</td>
     </tr>`;
@@ -1142,7 +1142,7 @@ async function renderPatients() {
         <div class="form-row"><label>Display name</label><input id="new-patient-name" value="Patient A"></div>
         <div class="form-grid-2">
           <div class="form-row"><label>Age (optional)</label><input id="new-patient-age" type="number"></div>
-          <div class="form-row"><label>Sex (optional)</label><select id="new-patient-sex"><option value="">—</option><option>female</option><option>male</option></select></div>
+          <div class="form-row"><label>Sex (optional)</label><select id="new-patient-sex"><option value="">--</option><option>female</option><option>male</option></select></div>
         </div>
         <button class="app-btn app-btn-primary" id="create-patient-btn">Create patient</button>
         <p id="patient-create-error" class="error"></p>
@@ -1310,7 +1310,7 @@ async function renderPatient(patientId, section = "overview") {
       <td>${esc(s.analysis_type)}</td>
       <td><span class="status-chip ${s.status === "complete" ? "complete" : s.status === "failed" ? "failed" : "processing"}">${esc(s.status)}</span></td>
       <td>${fmtConfLabel(s.report_confidence)}</td>
-      <td>${s.latest_report_id ? `<a href="/report.html?report_id=${s.latest_report_id}">View</a>` : "—"}</td>
+      <td>${s.latest_report_id ? `<a href="/report.html?report_id=${s.latest_report_id}">View</a>` : "--"}</td>
     </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No analyses</td></tr>`;
 
   const abnormal = overview.recent_abnormal_biomarkers.map(b =>
@@ -1364,7 +1364,7 @@ async function renderPatient(patientId, section = "overview") {
         </div>
         <div class="app-card" id="workspace-longitudinal-snapshot">
           <h3 style="margin:0 0 0.5rem;font-size:0.95rem">Longitudinal memory</h3>
-          <p class="muted">Built from existing labs and cases — not authored prose, and not a diagnosis.</p>
+          <p class="muted">Built from existing labs and cases -- not authored prose, and not a diagnosis.</p>
           <div id="snapshot-mount"><p class="muted">Loading…</p></div>
         </div>
         <div class="reasoning-graph-panel" id="overview-graph-shell" style="${overview.latest_report_id ? "" : "display:none"}">
@@ -1525,7 +1525,7 @@ async function wirePatientContext(patientId) {
       .map((i) => i.name);
     mount.innerHTML = library.length
       ? renderConditionMatrixHtml(library, activeConditions, { idPrefix: "pt" })
-      : `<p class="muted">Condition library unavailable. Use “Add other context” with type Condition.</p>`;
+      : `<p class="muted">Condition library unavailable. Use "Add other context" with type Condition.</p>`;
     if (library.length) wireConditionMatrix("pt");
 
     saveBtn.onclick = async () => {
@@ -1555,9 +1555,9 @@ async function renderReports(requestedPatientId) {
   const reports = (dash.recent_reports || []).filter((r) => !clinician || !patientId || r.patient_id === patientId);
   const rows = reports.map(r => `
     <tr data-href="/report.html?report_id=${r.id}">
-      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
+      ${clinician ? `<td>${esc(r.patient_display_name || "--")}</td>` : ""}
       <td>${esc(primaryFinding(r.title))}</td>
-      <td><span class="muted">—</span></td>
+      <td><span class="muted">--</span></td>
       <td><span class="status-chip ready">${fmtConfLabel(r.overall_confidence)}</span></td>
       <td class="mono">${fmtDate(r.created_at)}</td>
       <td><a href="/report.html?report_id=${r.id}">View report</a></td>
@@ -1579,11 +1579,11 @@ async function renderEvidence(requestedPatientId) {
   const reports = (dash.recent_reports || []).filter((r) => !patientId || r.patient_id === patientId);
   const latest = reports[0];
   const subtitle = clinician
-    ? "Evidence is attached to a specific patient's report — never the last report in the clinic."
+    ? "Evidence is attached to a specific patient's report -- never the last report in the clinic."
     : "Open your report to see why a recommendation is 78%: evidence, match, and missing data.";
   const list = reports.map((r) => `
     <tr data-href="/report.html?report_id=${r.id}#research-appendix">
-      ${clinician ? `<td>${esc(r.patient_display_name || "—")}</td>` : ""}
+      ${clinician ? `<td>${esc(r.patient_display_name || "--")}</td>` : ""}
       <td>${esc(primaryFinding(r.title))}</td>
       <td class="mono">${fmtDate(r.created_at)}</td>
       <td><a href="/report.html?report_id=${r.id}#research-appendix">Open evidence</a></td>
@@ -1603,6 +1603,255 @@ async function renderEvidence(requestedPatientId) {
     </tr></thead><tbody>${list}</tbody></table></div>`;
   wirePatientScopeSelect("evidence");
   wireTableRows();
+
+/* ── Personal Evidence: Regimen Truth ──────────────────────────────── */
+
+async function renderRegimenView(requestedPatientId) {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Dev fixtures bypass all API calls — renders mock data without auth.
+  // Use ?fixture=singleItem, empty, partialIntake, needsIdentityConfirmation,
+  // correctedDose, proprietaryBlend, stale
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  if (fp) {
+    main.innerHTML = PE.renderRegimen
+      ? PE.renderRegimen({ fixture: fp, enabled: true, caseId: null, patientId: null, hgToken: null })
+      : _notLoadedHTML();
+    if (PE.wireRegimenHandlers) PE.wireRegimenHandlers();
+    window.refreshRegimenView = function () { renderRegimenView(requestedPatientId); };
+    setActiveNav("evidence");
+    return;
+  }
+
+  // Normal path: requires auth + feature flag
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _featureFlagHTML();
+    return;
+  }
+
+  let patientId;
+  try {
+    const resolved = await resolveActivePatientId(requestedPatientId);
+    patientId = resolved.patientId;
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const opts = { caseId: patientId, patientId: patientId, hgToken: window.hgToken, enabled: true };
+  main.innerHTML = PE.renderRegimen ? PE.renderRegimen(opts) : _notLoadedHTML();
+  if (PE.wireRegimenHandlers) PE.wireRegimenHandlers();
+  window.refreshRegimenView = function () { renderRegimenView(requestedPatientId); };
+  setActiveNav("evidence");
+}
+
+function _notLoadedHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>Personal Evidence module failed to load. Refresh to try again.</p>
+  </div>`;
+}
+function _authRequiredHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center">
+    <div style="max-width:480px;margin:4rem auto;background:var(--app-surface);border:1px solid var(--app-border);border-radius:12px;padding:2rem">
+      <h2 style="color:var(--app-ink);margin-bottom:0.75rem">Sign in required</h2>
+      <p style="color:var(--app-muted);margin-bottom:1.5rem">My Evidence is available after you sign in.</p>
+      <a href="/login.html" class="app-btn app-btn-primary">Sign in</a>
+    </div>
+  </div>`;
+}
+function _featureFlagHTML() {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>Regimen Truth is not yet enabled for your environment.</p>
+    <p style="font-size:0.85rem;margin-top:0.5rem">Contact your administrator to request access.</p>
+  </div>`;
+}
+
+async function renderIntakeRoute(requestedPatientId) {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Dev fixtures bypass API + auth for intake form demo
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  const mode = new URLSearchParams(location.search.split("?")[1] || "").get("mode") || "start";
+  if (fp || mode) {
+    main.innerHTML = PE.renderIntakeView
+      ? PE.renderIntakeView({ mode: fp || mode, caseId: null, patientId: null, hgToken: null })
+      : _notLoadedHTML();
+    if (PE.wireIntakeHandlers) PE.wireIntakeHandlers();
+    window.renderIntakeView = PE.renderIntakeView;
+    setActiveNav("evidence");
+    return;
+  }
+
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peRegimenEnabled ? PE.peRegimenEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _featureFlagHTML();
+    return;
+  }
+
+  let patientId;
+  try {
+    const resolved = await resolveActivePatientId(requestedPatientId);
+    patientId = resolved.patientId;
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const opts = { caseId: patientId, patientId: patientId, hgToken: window.hgToken, mode };
+  main.innerHTML = PE.renderIntakeView ? PE.renderIntakeView(opts) : _notLoadedHTML();
+  if (PE.wireIntakeHandlers) PE.wireIntakeHandlers();
+  window.renderIntakeView = PE.renderIntakeView;
+  setActiveNav("evidence");
+}
+
+}
+
+function _peFeatureFlagHTML(moduleName) {
+  return `<div class="app-shell" style="padding:2rem;text-align:center;color:var(--app-muted)">
+    <p>${moduleName} is not yet enabled for your environment.</p>
+    <p style="font-size:0.85rem;margin-top:0.5rem">Contact your administrator to request access.</p>
+  </div>`;
+}
+
+async function renderTodayView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  const fp = new URLSearchParams(location.search.split("?")[1] || "").get("fixture");
+  if (fp) {
+    main.innerHTML = PE.renderToday
+      ? PE.renderToday({ fixture: fp })
+      : _notLoadedHTML();
+    if (PE.wireTodayHandlers) PE.wireTodayHandlers();
+    window.refreshTodayView = function () { renderTodayView(); };
+    setActiveNav("evidence");
+    return;
+  }
+  let dash;
+  try { dash = await api("/api/v1/workspace/dashboard"); } catch { main.innerHTML = _authRequiredHTML(); return; }
+  if (!dash?.feature_flags?.personal_evidence_regimen_v1) { main.innerHTML = _peFeatureFlagHTML("Today"); return; }
+  let resolved;
+  try { resolved = await resolveActivePatientId(null); } catch { main.innerHTML = _authRequiredHTML(); return; }
+  const opts = { caseId: resolved.patientId, patientId: resolved.patientId, hgToken: window.hgToken };
+  main.innerHTML = PE.renderToday ? PE.renderToday(opts) : _notLoadedHTML();
+  if (PE.wireTodayHandlers) PE.wireTodayHandlers();
+  window.refreshTodayView = function () { renderTodayView(); };
+  setActiveNav("evidence");
+}
+
+async function renderMyCaseRoute(requestedCaseId) {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Fetch dashboard to check the feature flag
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peCaseOverviewEnabled ? PE.peCaseOverviewEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _peFeatureFlagHTML("My Case");
+    return;
+  }
+
+  // Resolve the Case ID. A Patient UUID is NOT a Discovery Case UUID.
+  // Priority: explicit URL param > /api/v1/cases/my-case endpoint.
+  // sessionStorage["hg_active_patient_id"] is a Patient UUID and must never be used here.
+  let caseId = requestedCaseId || null;
+
+  if (!caseId) {
+    // Ask the backend for the user's most appropriate open Discovery Case.
+    // This prevents patient-ID-as-case-ID confusion.
+    try {
+      var myCase = await api("/api/v1/cases/my-case");
+      caseId = myCase.case_id;
+    } catch (err) {
+      if (err.status === 404) {
+        // User has no open Discovery Case — honest empty state with CTA.
+        main.innerHTML =
+          '<div class="co-empty">' +
+          '<svg class="empty-graph" viewBox="0 0 120 80" aria-hidden="true">' +
+          '<circle cx="30" cy="40" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/>' +
+          '<circle cx="60" cy="25" r="8" fill="none" stroke="#6978d8" stroke-width="1"/>' +
+          '<circle cx="90" cy="50" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/>' +
+          '<line x1="38" y1="38" x2="52" y2="28" stroke="#dde1db" stroke-width="1"/>' +
+          '<line x1="68" y1="28" x2="82" y2="46" stroke="#dde1db" stroke-width="1"/>' +
+          "</svg>" +
+          '<h2>No case yet</h2>' +
+          '<p class="muted">Start a Discovery conversation in Ask to build your case.</p>' +
+          '<a class="app-btn app-btn-primary" href="/ask.html">Open Ask</a>' +
+          "</div>";
+        setActiveNav("investigate");
+        return;
+      }
+      // Other error — treat as network/API failure
+      var detail = (err.detail && err.detail.message) ? err.detail.message : "An error occurred.";
+      if (PE.renderCaseOverview) {
+        main.innerHTML = PE.renderCaseOverview({});
+      } else {
+        main.innerHTML = '<div class="co-error"><h2>Could not load My Case</h2><p class="muted">' + esc(detail) + "</p></div>";
+      }
+      setActiveNav("investigate");
+      return;
+    }
+  }
+
+  await PE.mountCaseOverview({ caseId: caseId, token: window.hgToken });
+  setActiveNav("investigate");
+}
+
+async function renderSignalsView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderSignals ? PE.renderSignals({}) : _notLoadedHTML();
+  if (PE.wireSignalsHandlers) PE.wireSignalsHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderExperimentsView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderExperiments ? PE.renderExperiments({}) : _notLoadedHTML();
+  if (PE.wireExperimentsHandlers) PE.wireExperimentsHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderLearnedView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderLearned ? PE.renderLearned({}) : _notLoadedHTML();
+  if (PE.wireLearnedHandlers) PE.wireLearnedHandlers();
+  setActiveNav("evidence");
+}
+
+async function renderPassportView() {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+  main.innerHTML = PE.renderPassport ? PE.renderPassport({}) : _notLoadedHTML();
+  if (PE.wirePassportHandlers) PE.wirePassportHandlers();
+  setActiveNav("evidence");
 }
 
 async function ensurePatients() {
@@ -1744,7 +1993,7 @@ async function renderBiomarkerReview(labId) {
       <td>${esc(r.biomarker_name)}</td>
       <td class="mono">${r.value}</td>
       <td class="mono">${esc(r.unit || "")}</td>
-      <td class="mono">${r.reference_range_low ?? "—"} – ${r.reference_range_high ?? "—"}</td>
+      <td class="mono">${r.reference_range_low ?? "--"} - ${r.reference_range_high ?? "--"}</td>
       <td><span class="status-chip ${r.status === "normal" ? "ready" : "review"}">${esc(r.status)}</span></td>
     </tr>`).join("") || `<tr class="no-hover"><td colspan="5" class="muted">No biomarkers extracted</td></tr>`;
   document.getElementById("app-main").innerHTML = `
@@ -1780,7 +2029,7 @@ async function renderBiomarkerReview(labId) {
       const st = document.getElementById("review-status");
       const knowledgePath = await window.hgPickKnowledgePath({
         title: "Choose knowledge path for this analysis",
-        subtitle: "Same biomarkers. Different knowledge substrate — compare legacy catalogs vs the canonical intervention graph.",
+        subtitle: "Same biomarkers. Different knowledge substrate -- compare legacy catalogs vs the canonical intervention graph.",
       });
       if (!knowledgePath) return;
       st.textContent = `Starting analysis (${knowledgePath})…`;
@@ -2104,7 +2353,7 @@ function wireLabManage(patientId) {
   async function deleteLabs(ids, names) {
     if (!ids.length) return;
     const label = ids.length === 1
-      ? `Delete “${names[0] || "this lab"}”? Related reports linked only to this file will also be removed. This cannot be undone.`
+      ? `Delete "${names[0] || "this lab"}"? Related reports linked only to this file will also be removed. This cannot be undone.`
       : `Delete ${ids.length} lab files? Related reports linked only to these files will also be removed. This cannot be undone.`;
     if (!confirm(label)) return;
     if (statusEl) statusEl.textContent = `Deleting ${ids.length} file(s)…`;
@@ -2230,7 +2479,7 @@ async function render() {
   try {
     if (window.__hgAuthRedirecting) return;
     // OAuth / email-confirm may land with tokens in the URL. Clean them, then always continue rendering.
-    // Previously we returned early after setting #dashboard — if hash was already #dashboard,
+    // Previously we returned early after setting #dashboard -- if hash was already #dashboard,
     // hashchange never fired and the shell stayed hidden (gray screen on mobile).
     await Auth.handleAuthRedirect();
     if (!location.hash || location.hash === "#") {
@@ -2270,7 +2519,14 @@ async function render() {
     }
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
     else if (path === "reports") { setActiveNav("reports"); await renderReports(params.get("patient")); }
-    else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(params.get("patient")); }
+    else if (path === "today") { setActiveNav("evidence"); await renderTodayView(); }
+    else if (path === "signals") { setActiveNav("evidence"); await renderSignalsView(); }
+    else if (path === "experiments") { setActiveNav("evidence"); await renderExperimentsView(); }
+    else if (path === "learned") { setActiveNav("evidence"); await renderLearnedView(); }
+    else if (path === "passport") { setActiveNav("evidence"); await renderPassportView(); }
+    else if (path === "evidence" || path === "regimen") { await renderRegimenView(params.get("patient")); }
+    else if (path === "my-case") { await renderMyCaseRoute(params.get("case")); }
+    else if (path === "intake") { await renderIntakeRoute(params.get("patient")); }
     else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
     else if (path === "analysis") { setActiveNav("analysis"); await renderAnalysisBuilder(params.get("patient")); }
     else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }

@@ -129,6 +129,8 @@ async def run_turn(
     _stage("resolve_source_event")
     if existing is not None:
         increment("turn_idempotent_replay")
+        from app.discovery.tripwires import record_replay_converged
+        record_replay_converged()
         return TurnPipelineResult(
             snapshot=snapshot_from_case(case),
             stages=completed,

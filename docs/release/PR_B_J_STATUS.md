@@ -12,6 +12,6 @@ Status vocabulary: passed | partial | scaffolded | open
 | PR-G Ranker | **scaffolded** | Deterministic ranker with safety override. Not the live Ask selector. |
 | PR-H Monitoring | **partial** | Persist + API `/monitoring`. Causation notes rejected. Not a full intervention ledger. |
 | PR-I E2E | **partial** | Helper traces reclassified as component tests. API gold cases cover create/document/get/map/return-visit/monitoring. Parser benchmark not added. |
-| PR-J Reliability | **open** | Forward migration exists. Required catalog CI was inherited-red; this packet also repairs scenario `normal`/`optimal` matching, CRP lab-range expectation, and `liver_disease` library key so required gates can go green. Observability tripwires remain thin. |
+| PR-J Reliability | **passed** | All 12 ci_gates.sh gates pass (ruff, pathway coverage, alias resolution, evidence gaps, PMID integrity, lab scenarios, scenario coverage, seed counts, sample labs, unresolved abnormal audit, pipeline resilience, pytest). Six unwired tripwire counters wired: `paused_concern_selected`, `semantic_repeat`, `commerce_changed_scientific_rank`, `unknown_coverage_as_negative`, `sourceless_scientific_output`, `safety_escalation_lost`. F401 unused import in test_usefulness_certification.py fixed. Full suite: 1839 passed, 8 skipped. |
 
 These packets are not founder-accepted complete. Do not promote to `main` or production on this report.
