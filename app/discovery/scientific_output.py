@@ -33,6 +33,27 @@ COVERAGE_MISUSE = (
     "negative evidence that you do not",
     "emg rules out",
 )
+# Patterns that collapse distinct compounds into a false identity.
+# "Magnesium glycinate is equivalent to magnesium oxide." → REJECTED
+# "Vitamin C is the same as ascorbic acid." → REJECTED (allowed if same compound)
+FORBIDDEN_COMPOUND_EQUIVALENCE = (
+    " is equivalent to ",
+    " is identical to ",
+)
+# Patterns that collapse compound dose into elemental dose without fraction math.
+# "500 mg magnesium glycinate means 500 mg elemental magnesium." → REJECTED
+# "That gives you the same 500 mg elemental magnesium as oxide." → REJECTED
+# Key signals:
+#   1. [N] mg [compound words...] [verb means/equals/provides] [N] mg elemental
+#   2. the same [N] mg elemental (false equivalence via "the same...as")
+_COMPOUND_MASS_EQUIVALENCE_RE = re.compile(
+    r"(?<![a-zA-Z0-9])\d[\d.]*\s*mg\s*(?:\w+?\s+)*?(?:means?|equals?|provides?)\s+\d[\d.]*\s*mg\s+elemental",
+    re.IGNORECASE,
+)
+_COMPOUND_MASS_SAME_AS_RE = re.compile(
+    r"\bthe\s+same\s+\d[\d.]*\s*mg\s+elemental",
+    re.IGNORECASE,
+)
 SAFE_LIMITATION = "I updated the Case. I will not write a diagnosis or an unsupported causal claim."
 
 
@@ -110,6 +131,10 @@ def validate_scientific_output(
             violations.append(f"{item.id}:unsupported_causal_language")
         if any(token in blob for token in COVERAGE_MISUSE):
             violations.append(f"{item.id}:coverage_misuse")
+        if any(token in blob for token in FORBIDDEN_COMPOUND_EQUIVALENCE):
+            violations.append(f"{item.id}:compound_equivalence_collapse")
+        if _COMPOUND_MASS_EQUIVALENCE_RE.search(blob) or _COMPOUND_MASS_SAME_AS_RE.search(blob):
+            violations.append(f"{item.id}:compound_mass_as_elemental")
         if item.item_type is not ScientificItemType.GAP and not item.provenance:
             violations.append(f"{item.id}:missing_provenance")
             increment("sourceless_scientific_output")

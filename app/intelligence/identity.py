@@ -78,13 +78,34 @@ def claim_transfers(source_code: str, target_code: str, relation: str) -> bool:
 
 
 def assess_claim_transfer(source_code: str, target_code: str, relation: str) -> ClaimTransferResult:
-    """Full transfer assessment with typed reasons and provenance."""
+    """Full transfer assessment with typed reasons and provenance.
+
+    DENY-BY-DEFAULT: allowed=True only when an affirmative entitlement exists.
+    The absence of a blocking rule does NOT establish transfer entitlement.
+
+    Positive entitlement cases (allowed=True):
+      - source_code == target_code: evidence trivially transfers to itself
+
+    All other cases are denied by default. To establish entitlement, a governed
+    'allowed' relation must exist in the composition graph, or an explicit
+    inheritance transfer must be authorized by the identity catalog.
+    """
     graph = load_composition_graph()
     src = _concept(source_code, graph) or {}
     dst = _concept(target_code, graph) or {}
     reasons: list[str] = []
     blocked_by: list[str] = []
 
+    # Explicit entitlement: same concept trivially transfers to itself
+    if source_code == target_code:
+        return ClaimTransferResult(
+            allowed=True,
+            reasons=("Same concept — evidence trivially transfers.",),
+            blocked_by=(),
+            provenance=src.get("parent") or src.get("layer") or "unknown",
+        )
+
+    # Structural inheritance barriers
     if relation in INHERITANCE_FORBIDDEN:
         reasons.append(f"'{relation}' evidence does not transfer across parent/child or batch/category edges.")
         blocked_by.append("INHERITANCE_FORBIDDEN")
@@ -104,10 +125,12 @@ def assess_claim_transfer(source_code: str, target_code: str, relation: str) -> 
 
     provenance = src.get("parent") or src.get("layer") or "unknown"
 
+    # DENY BY DEFAULT: absence of a blocking rule does NOT grant entitlement
+    # Only explicit 'allowed' relations (not yet in graph) would enable transfer
     return ClaimTransferResult(
-        allowed=not blocked_by,
-        reasons=tuple(reasons) if reasons else ("No transfer barriers found.",),
-        blocked_by=tuple(blocked_by),
+        allowed=False,
+        reasons=tuple(reasons) if reasons else ("No affirmative transfer entitlement found.",),
+        blocked_by=tuple(blocked_by) if blocked_by else ("TRANSFER_ENTITLEMENT_UNESTABLISHED",),
         provenance=provenance,
     )
 

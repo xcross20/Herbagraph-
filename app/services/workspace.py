@@ -401,14 +401,20 @@ async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uui
     for key, fitems in concerns_map.items():
         if key == "other":
             continue
+        # Concern resolution is governed by Case/branch lifecycle logic (hypothesis status,
+        # DiscoveryOutcome). My Case is a read-only projection — it must NOT decide resolution.
+        # Status is set only from explicit governed signals; otherwise it remains "unknown".
         status = "unknown"
         if fitems:
+            governed_resolved = [f for f in fitems if f.status == "resolved"]
             if all(f.status == "resolved" for f in fitems):
+                # All findings are explicitly marked resolved by governed lifecycle
                 status = "resolved"
             elif any(f.status == "resolved" for f in fitems):
                 status = "addressed"
-            elif all(f.status in {"reported_normal", "verified_normal"} for f in fitems if f.value):
-                status = "resolved"
+            # NOTE: A collection of "normal" findings does NOT automatically resolve a concern.
+            # Normal findings are evidence, not resolution. The branch/coverage lifecycle engine
+            # owns resolution. My Case projects; it does not decide.
         concerns.append(
             CaseOverviewConcern(
                 label=concern_labels.get(key, key.title()),
@@ -451,28 +457,28 @@ async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uui
             gaps.append(CaseOverviewGap(concept=u, severity="minor"))
 
     # ── Coverage explanations ─────────────────────────────────────────────────
+    # Use governed coverage semantics from the coverage catalog/governor, NOT derived
+    # from arbitrary percentage thresholds. The coverage engine owns epistemic
+    # relationships; My Case is a projection and must not invent semantics.
+    from app.intelligence.measurements import assess_coverage as _assess_coverage
+    from app.intelligence.measurements import explain_coverage as _explain_coverage
+
     coverage_explanations: list[CaseOverviewCoverageExplanation] = []
-    # Derive explanations from branch_coverage rows
     for bc in case_read.branch_coverage:
-        pct = bc.coverage_percent
-        if pct >= 80:
-            relation = "DIRECTLY_ASSESSES"
-            msg = f"'{bc.label}' substantially covers the '{bc.branch}' branch."
-        elif pct >= 40:
-            relation = "PARTIALLY_ASSESSES"
-            msg = f"'{bc.label}' partially covers the '{bc.branch}' branch."
-        elif pct > 0:
-            relation = "INDIRECTLY_INFORMS"
-            msg = f"'{bc.label}' provides indirect information about '{bc.branch}'."
-        else:
-            relation = "DOES_NOT_DIRECTLY_ASSESS"
-            msg = f"'{bc.label}' does not directly assess the '{bc.branch}' branch."
+        # Resolve test_code from the branch_coverage label using the coverage catalog
+        from app.intelligence.measurements import test_known
+
+        test_code = test_known(bc.label) or bc.label
+        assessment = _assess_coverage(test_code, bc.branch)
+        # assessment.relation is the governed semantic from the coverage catalog
+        governed_relation = assessment.relation.value if hasattr(assessment.relation, "value") else str(assessment.relation)
+        governed_message = assessment.explanation or _explain_coverage(bc.label, bc.branch, governed_relation)
         coverage_explanations.append(
             CaseOverviewCoverageExplanation(
                 branch=bc.branch,
-                relation=relation,
+                relation=governed_relation,
                 test_concepts=[bc.label],
-                message=msg,
+                message=governed_message,
             )
         )
 
