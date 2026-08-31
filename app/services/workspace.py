@@ -337,8 +337,10 @@ async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uui
     case_read = await case_to_read(db, case)
 
     # ── Atomic Case rule ───────────────────────────────────────────────────────
-    # snapshot_id and case_version come from the same turn_state to ensure
+    # snapshot_id and case_version come from the same source to ensure
     # all rendered sections refer to a single coherent Case version.
+    # Prefer turn_state (orchestrated cases); fall back to case_read top-level
+    # (set from control_json by apply_snapshot for direct-snapshot cases).
     snapshot_id: str | None = None
     case_version: str | None = None
     contradictions: list[str] = []
@@ -355,10 +357,22 @@ async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uui
         contradictions = list(case_read.turn_state.contradictions or [])
         what_changed = list(case_read.turn_state.what_changed or [])
         unknowns = list(case_read.turn_state.unknowns or [])
+    else:
+        # apply_snapshot path: version metadata lives in case_read fields
+        snapshot_id = case_read.snapshot_id
+        case_version = str(case_read.case_version) if case_read.case_version is not None else None
 
     # ── Findings ───────────────────────────────────────────────────────────────
+    # Example/seed literature findings must not enter the My Case projection.
+    # Filter by known seed source IDs. Findings sourced from seed literature (e.g.
+    # pmc:8567006, pmc:7603209) are excluded even if they exist in the DB.
+    # This prevents seed evidence from contaminating a user's canonical Case state.
+    from app.discovery.composition import SEED_SOURCE_IDS as _SEED_SOURCE_IDS
+
     findings: list[CaseOverviewFinding] = []
     for f in case_read.findings:
+        if f.source in _SEED_SOURCE_IDS:
+            continue  # Seed evidence excluded from CaseOverview projection
         findings.append(
             CaseOverviewFinding(
                 kind=f.kind,
@@ -406,7 +420,6 @@ async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uui
         # Status is set only from explicit governed signals; otherwise it remains "unknown".
         status = "unknown"
         if fitems:
-            governed_resolved = [f for f in fitems if f.status == "resolved"]
             if all(f.status == "resolved" for f in fitems):
                 # All findings are explicitly marked resolved by governed lifecycle
                 status = "resolved"

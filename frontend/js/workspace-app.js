@@ -1761,9 +1761,6 @@ async function renderMyCaseRoute(requestedCaseId) {
   const main = document.getElementById("app-main");
   const PE = window.HerbaGraphPersonalEvidence || {};
 
-  // Determine the case ID: explicit param takes priority, then sessionStorage fallback
-  let caseId = requestedCaseId || sessionStorage.getItem("hg_active_patient_id") || null;
-
   // Fetch dashboard to check the feature flag
   let dash;
   try {
@@ -1779,9 +1776,46 @@ async function renderMyCaseRoute(requestedCaseId) {
     return;
   }
 
+  // Resolve the Case ID. A Patient UUID is NOT a Discovery Case UUID.
+  // Priority: explicit URL param > /api/v1/cases/my-case endpoint.
+  // sessionStorage["hg_active_patient_id"] is a Patient UUID and must never be used here.
+  let caseId = requestedCaseId || null;
+
   if (!caseId) {
-    main.innerHTML = PE.renderCaseOverview ? PE.renderCaseOverview({}) : _notLoadedHTML();
-    return;
+    // Ask the backend for the user's most appropriate open Discovery Case.
+    // This prevents patient-ID-as-case-ID confusion.
+    try {
+      var myCase = await api("/api/v1/cases/my-case");
+      caseId = myCase.case_id;
+    } catch (err) {
+      if (err.status === 404) {
+        // User has no open Discovery Case — honest empty state with CTA.
+        main.innerHTML =
+          '<div class="co-empty">' +
+          '<svg class="empty-graph" viewBox="0 0 120 80" aria-hidden="true">' +
+          '<circle cx="30" cy="40" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/>' +
+          '<circle cx="60" cy="25" r="8" fill="none" stroke="#6978d8" stroke-width="1"/>' +
+          '<circle cx="90" cy="50" r="8" fill="none" stroke="#2e7d57" stroke-width="1"/>' +
+          '<line x1="38" y1="38" x2="52" y2="28" stroke="#dde1db" stroke-width="1"/>' +
+          '<line x1="68" y1="28" x2="82" y2="46" stroke="#dde1db" stroke-width="1"/>' +
+          "</svg>" +
+          '<h2>No case yet</h2>' +
+          '<p class="muted">Start a Discovery conversation in Ask to build your case.</p>' +
+          '<a class="app-btn app-btn-primary" href="/ask.html">Open Ask</a>' +
+          "</div>";
+        setActiveNav("investigate");
+        return;
+      }
+      // Other error — treat as network/API failure
+      var detail = (err.detail && err.detail.message) ? err.detail.message : "An error occurred.";
+      if (PE.renderCaseOverview) {
+        main.innerHTML = PE.renderCaseOverview({});
+      } else {
+        main.innerHTML = '<div class="co-error"><h2>Could not load My Case</h2><p class="muted">' + esc(detail) + "</p></div>";
+      }
+      setActiveNav("investigate");
+      return;
+    }
   }
 
   await PE.mountCaseOverview({ caseId: caseId, token: window.hgToken });
