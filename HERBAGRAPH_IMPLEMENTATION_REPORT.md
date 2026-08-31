@@ -75,22 +75,30 @@ Duration: 7:51
 
 ## CI Status
 
-### GitHub Actions (SHA `83a99ce`)
+### GitHub Actions (SHA `093910f` — local commit after `83a99ce`)
 
 | Check | Status | Notes |
 |-------|--------|-------|
 | Railway PR Preview (Worker Service) | **SUCCESS** | Deploy successful |
 | Railway PR Preview (Herbagraph-) | **SUCCESS** | Deploy successful |
-| postgres-truth | **FAILURE** | Logs expired; ruff lint errors confirmed locally |
-| gates | **FAILURE** | 3 ruff F841 (unused variables): `governed_resolved`, `case1_id`, `hybrid_finding_count` |
-| merge-gates | **FAILURE** | Same ruff gate |
+| postgres-truth | **FAILURE** | Infrastructure: `runner_id=0`, no runner allocated |
+| gates | **FAILURE** | Infrastructure: `runner_id=0`, no runner allocated |
+| merge-gates | **FAILURE** | Infrastructure: `runner_id=0`, no runner allocated |
 
-**Root cause of CI failures (this session):** Three ruff `F841` (unused-variable) errors — all three fixed locally:
-1. `app/services/workspace.py:423` — `governed_resolved` assigned but never used (pre-existing; removed)
-2. `tests/discovery_mvp/test_case_overview.py:686` — `case1_id` unused after duplicate test removal (removed)
-3. `tests/discovery_mvp/test_case_overview.py:1040` — `hybrid_finding_count` unused in test_ct19 (removed)
+**CI root cause (this session and prior):** GitHub Actions infrastructure — `runner_id=0`, `runner_name=""` on all failing jobs. Jobs start and fail in 3–5 seconds without running any steps. No runner is being allocated. This is an account/infrastructure issue, not a code quality issue.
 
-**Action:** CI re-run triggered; awaiting fresh logs to confirm all gates pass at SHA `83a99ce`.
+**Evidence of infrastructure failure (not billing code):**
+- `postgres-truth` job at `093910f`: `started=2026-08-31T15:55:10Z`, `completed=2026-08-31T15:55:13Z` (3 seconds), `runner_id=0`
+- `gates` job at `093910f`: `started=2026-08-31T15:55:10Z`, `completed=2026-08-31T15:55:15Z` (5 seconds), `runner_id=0`
+- Same pattern at `83a99ce` (prior report noted as billing issue)
+- No job steps executed; no logs generated
+
+**Ruff gate status (local verification):**
+All three `F841` errors confirmed and fixed locally:
+1. `app/services/workspace.py:423` — `governed_resolved` unused (removed)
+2. `tests/discovery_mvp/test_case_overview.py:686` — `case1_id` unused (removed)
+3. `tests/discovery_mvp/test_case_overview.py:1040` — `hybrid_finding_count` unused (removed)
+`ruff check app tests`: **ALL PASS** (local)
 
 ### Railway UAT
 
@@ -247,7 +255,7 @@ Signals, Experiments, Attribution, Passport, and mock Regimen functionality are 
 
 ## Remaining Limitations
 
-1. **CI re-run pending:** CI ruff-gate failures are confirmed as code errors (not billing), all fixed locally. Fresh CI run triggered.
+1. **CI infrastructure (GHA runner allocation):** GitHub Actions `runner_id=0` on all jobs — no runner is being allocated for this repository's CI. This is an account or infrastructure issue, not a code issue. Railway PR previews confirm the application is functional. Local tests confirm code quality.
 
 2. **PR scope (B9):** PR #70 diff is not yet bounded to PR-1 only. Requires PR #66 merge to `integration/agent` first, then rebase.
 
@@ -256,8 +264,6 @@ Signals, Experiments, Attribution, Passport, and mock Regimen functionality are 
 4. **`integration/agent` stale:** Still at `1a9fcd06...` (August 18). The commercial architecture, My Case, and Regimen work are not yet in the persistent UAT branch.
 
 5. **pytest asyncio warnings:** `TestIdentityAdapters`, `TestCoverageRegressionGates`, `TestScientificOutputAdversarial` each have `pytestmark = pytest.mark.asyncio` applied as class-level marks but individual methods are synchronous. Cosmetic (warnings only, not failures). Can be cleaned up separately.
-
-6. **CI logs expired:** The `33358885479` (CI) and `33358885562` (Merge gates) workflow run logs have expired (blob not found). Re-run triggered to obtain fresh logs.
 
 ---
 
