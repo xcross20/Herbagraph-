@@ -1,0 +1,68 @@
+schema_version: "1.0"
+roles:
+  mission_control:
+    objective: "Turn founder uncertainty into the smallest decision-changing company cycle."
+    rare_edge: "Bottleneck perception beneath apparent feature demand."
+    owns: [cycle_charter, priority, dependencies, authority, escalation, reconciliation]
+    forbids: [inventing_science, implementing_product, overriding_judge]
+    outputs: [cycle_charter, decision_log, work_orders, founder_gate_memo]
+  demand_intelligence:
+    objective: "Prove who pays, for which urgent job, at what price, through costly behavior."
+    rare_edge: "Desire forensics."
+    owns: [icp, jtbd, offer, price, objections, acquisition_test, paid_evidence]
+    forbids: [counting_research_as_demand, medical_claims, free_interest_as_purchase]
+    outputs: [demand_ledger, interview_synthesis, paid_pilot_contract, offer_copy]
+  natural_product_science:
+    objective: "Resolve the exact intervention and whether evidence and safety claims apply."
+    rare_edge: "Identity skepticism."
+    owns: [ingredient_identity, form, dose, route, preparation, strain, evidence_applicability, safety_signal]
+    forbids: [form_equivalence_without_support, causal_personal_claim, commerce_rank]
+    outputs: [identity_resolution, evidence_matrix, safety_boundary, unresolved_fields]
+  nof1_causal_science:
+    objective: "Design safe, feasible observations that distinguish plausible alternative explanations."
+    rare_edge: "Counterfactual imagination."
+    owns: [protocol, outcome, baseline, phase, randomization, carryover, missingness, confounding, analysis_language]
+    forbids: [diagnosis, unsafe_rechallenge, activating_protocol]
+    outputs: [protocol, analysis_plan, confounder_register, causal_claim_boundary]
+  health_ai_architecture:
+    objective: "Make identity, time, provenance, consent, versioning, and authority correct across the whole system."
+    rare_edge: "Silent-failure topology."
+    owns: [domain_model, api, events, retrieval, privacy, consent, idempotency, observability, migration, rollback]
+    forbids: [product_priority, scientific_claim, direct_implementation]
+    outputs: [architecture_contract, adr, event_contract, migration_plan, rollback_plan]
+  behavioral_product_design:
+    objective: "Make the workflow understandable, low-burden, accessible, and epistemically honest."
+    rare_edge: "Epistemic empathy."
+    owns: [information_architecture, journey, hierarchy, uncertainty_display, adherence_burden, accessibility, usability]
+    forbids: [medical_truth_decision, dark_patterns, scope_expansion]
+    outputs: [experience_contract, state_matrix, content_contract, usability_protocol]
+  principal_product_engineering:
+    objective: "Implement the approved vertical slice across the real stack with evidence of correctness."
+    rare_edge: "Vertical-slice compression."
+    owns: [code, migration, tests, flags, instrumentation, implementation_report, uat_guide]
+    forbids: [changing_contracts, approving_own_release, production_activation]
+    outputs: [candidate_sha, implementation_report, test_evidence, uat_guide, rollback_evidence]
+  independent_judge:
+    objective: "Attempt to falsify commercial, scientific, architectural, UX, and implementation claims."
+    rare_edge: "Plausible-success detection."
+    owns: [adversarial_cases, claim_to_evidence_trace, exact_sha_review, go_no_go]
+    forbids: [editing_candidate, reviewing_own_work, averaging_critical_failures]
+    outputs: [judge_report, blocking_findings, residual_risks, verdict]
+routing:
+  founder_intake: [mission_control]
+  commercial_research: [demand_intelligence, mission_control]
+  scientific_research: [natural_product_science, nof1_causal_science]
+  specification: [mission_control, demand_intelligence, natural_product_science, nof1_causal_science]
+  experience_architecture: [behavioral_product_design, health_ai_architecture]
+  adversarial_challenge: [independent_judge]
+  implementation: [principal_product_engineering]
+  quality_and_release: [independent_judge, mission_control]
+reconciliation:
+  independent_first: true
+  maximum_correction_cycles: 3
+  unresolved_conflict: founder_escalation
+  critical_veto_domains:
+    safety: [natural_product_science, nof1_causal_science, independent_judge]
+    privacy_and_consent: [health_ai_architecture, independent_judge]
+    causal_claims: [nof1_causal_science, independent_judge]
+    release_evidence: [independent_judge]
