@@ -97,6 +97,8 @@ class Settings(BaseSettings):
     supplement_discussion_v1: bool = False
     # Personal Evidence — Regimen Truth + Intake Session slice (Slice 1)
     personal_evidence_regimen_v1: bool = False
+    # Personal Evidence — My Case / Case Overview (PR-1)
+    case_overview_v1: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

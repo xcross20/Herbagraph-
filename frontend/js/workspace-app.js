@@ -1757,6 +1757,37 @@ async function renderTodayView() {
   setActiveNav("evidence");
 }
 
+async function renderMyCaseRoute(requestedCaseId) {
+  const main = document.getElementById("app-main");
+  const PE = window.HerbaGraphPersonalEvidence || {};
+
+  // Determine the case ID: explicit param takes priority, then sessionStorage fallback
+  let caseId = requestedCaseId || sessionStorage.getItem("hg_active_patient_id") || null;
+
+  // Fetch dashboard to check the feature flag
+  let dash;
+  try {
+    dash = await api("/api/v1/workspace/dashboard");
+  } catch {
+    main.innerHTML = _authRequiredHTML();
+    return;
+  }
+
+  const enabled = PE.peCaseOverviewEnabled ? PE.peCaseOverviewEnabled(dash) : false;
+  if (!enabled) {
+    main.innerHTML = _peFeatureFlagHTML("My Case");
+    return;
+  }
+
+  if (!caseId) {
+    main.innerHTML = PE.renderCaseOverview ? PE.renderCaseOverview({}) : _notLoadedHTML();
+    return;
+  }
+
+  await PE.mountCaseOverview({ caseId: caseId, token: window.hgToken });
+  setActiveNav("investigate");
+}
+
 async function renderSignalsView() {
   const main = document.getElementById("app-main");
   const PE = window.HerbaGraphPersonalEvidence || {};
@@ -2460,6 +2491,7 @@ async function render() {
     else if (path === "learned") { setActiveNav("evidence"); await renderLearnedView(); }
     else if (path === "passport") { setActiveNav("evidence"); await renderPassportView(); }
     else if (path === "evidence" || path === "regimen") { await renderRegimenView(params.get("patient")); }
+    else if (path === "my-case") { await renderMyCaseRoute(params.get("case")); }
     else if (path === "intake") { await renderIntakeRoute(params.get("patient")); }
     else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
     else if (path === "analysis") { setActiveNav("analysis"); await renderAnalysisBuilder(params.get("patient")); }

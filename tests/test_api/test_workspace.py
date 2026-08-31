@@ -141,3 +141,35 @@ async def test_feature_flag_key_is_snake_case(authed_client):
         assert "_" in key or key.islower(), (
             f"Feature flag key '{key}' should be snake_case (e.g., personal_evidence_regimen_v1)"
         )
+
+
+async def test_case_overview_flag_off_by_default(authed_client):
+    """CASE_OVERVIEW_V1 must be False unless explicitly enabled, protecting
+    the My Case surface from accidental production exposure."""
+    resp = await authed_client.get("/api/v1/workspace/dashboard")
+    assert resp.status_code == 200
+    flags = resp.json()["feature_flags"]
+    co_flag = flags.get("case_overview_v1", False)
+    assert co_flag is False, (
+        "case_overview_v1 should be False by default; "
+        "do not enable in production unless intentionally toggled"
+    )
+
+
+async def test_case_overview_api_returns_403_by_default(authed_client):
+    """The /cases/{id}/overview endpoint must return 403 when the flag is off."""
+    # Create a case
+    case_resp = await authed_client.post(
+        "/api/v1/cases",
+        json={"presenting_concern": "Test case for 403"},
+    )
+    assert case_resp.status_code == 201
+    case_id = case_resp.json()["id"]
+
+    # Overview must be 403 with flag off
+    overview_resp = await authed_client.get(f"/api/v1/cases/{case_id}/overview")
+    assert overview_resp.status_code == 403, (
+        "case_overview_v1 off → 403, not " + str(overview_resp.status_code)
+    )
+    body = overview_resp.json()
+    assert "not enabled" in (body.get("detail") or "").lower()

@@ -15,6 +15,13 @@ from app.models.patient_context import PatientContext
 from app.models.report import RecommendationReport
 from app.models.user import User
 from app.schemas.workspace import (
+    CaseOverview,
+    CaseOverviewBranch,
+    CaseOverviewConcern,
+    CaseOverviewCoverageExplanation,
+    CaseOverviewDataCompleteness,
+    CaseOverviewFinding,
+    CaseOverviewGap,
     DashboardLabSummary,
     DashboardPatientSummary,
     DashboardReportSummary,
@@ -163,6 +170,7 @@ async def build_workspace_dashboard(db: AsyncSession, user: User) -> WorkspaceDa
         recent_sessions=recent_sessions,
         feature_flags={
             "personal_evidence_regimen_v1": _is_pe_regimen_enabled(),
+            "case_overview_v1": _is_case_overview_enabled(),
         },
     )
 
@@ -279,4 +287,245 @@ async def build_patient_overview(db: AsyncSession, user: User, patient_id: uuid.
         lab_reports=lab_reports,
         analysis_sessions=analysis_sessions,
         context_summary=context_summary,
+    )
+
+
+def _is_case_overview_enabled() -> bool:
+    from app.config import get_settings
+
+    settings = get_settings()
+    env = (getattr(settings, "app_env", "") or "").lower()
+    if env in {"uat", "preview"}:
+        return True
+    return bool(getattr(settings, "case_overview_v1", False))
+
+
+def _finding_provenance(source: str | None, kind: str, value: str | None) -> str:
+    """Derive provenance label from a finding's source, kind, and value."""
+    if source == "lab_engine":
+        return "verified"
+    val = (value or "").lower()
+    if "unverified" in val or val in {"mentioned", "reported_normal", "reported_abnormal"}:
+        return "reported"
+    if kind == "assessment" and val == "already_assessed":
+        return "reported"
+    if source in {"intake", "user"}:
+        return "reported"
+    return "inferred"
+
+
+async def build_case_overview(db: AsyncSession, user_id: uuid.UUID, case_id: uuid.UUID) -> CaseOverview:
+    """Build a read-only coherent CaseOverview from the canonical Discovery Case.
+
+    Raises ValueError if the user does not own the case or the case does not exist.
+    The caller is responsible for surfacing a stale/reload state to the caller.
+
+    This function does NOT create or modify any persistent state.
+    """
+    from app.discovery.authorization import require_owned_case
+    from app.discovery.service import case_to_read
+    from app.models.discovery import DiscoveryCase
+    from app.models.enums import DiscoveryCaseStatus
+
+    # Load canonical Case with authorization check
+    raw_case = await db.get(DiscoveryCase, case_id)
+    if raw_case is None or raw_case.user_id != user_id:
+        raise ValueError("Case not found")
+    case = await require_owned_case(db, case_id, user_id)
+
+    # Get the full Case read (this is the canonical source of truth)
+    case_read = await case_to_read(db, case)
+
+    # ── Atomic Case rule ───────────────────────────────────────────────────────
+    # snapshot_id and case_version come from the same turn_state to ensure
+    # all rendered sections refer to a single coherent Case version.
+    snapshot_id: str | None = None
+    case_version: str | None = None
+    contradictions: list[str] = []
+    what_changed: list[str] = []
+    unknowns: list[str] = []
+
+    if case_read.turn_state is not None:
+        snapshot_id = case_read.turn_state.snapshot_id
+        case_version = (
+            str(case_read.turn_state.case_version)
+            if case_read.turn_state.case_version is not None
+            else None
+        )
+        contradictions = list(case_read.turn_state.contradictions or [])
+        what_changed = list(case_read.turn_state.what_changed or [])
+        unknowns = list(case_read.turn_state.unknowns or [])
+
+    # ── Findings ───────────────────────────────────────────────────────────────
+    findings: list[CaseOverviewFinding] = []
+    for f in case_read.findings:
+        findings.append(
+            CaseOverviewFinding(
+                kind=f.kind,
+                name=f.name,
+                value=f.value,
+                status=f.status,
+                source=f.source,
+                provenance=_finding_provenance(f.source, f.kind, f.value),
+                why_this_is_here=None,  # provenance in discovery is implicit from source
+            )
+        )
+
+    # ── Concerns ───────────────────────────────────────────────────────────────
+    # Cluster findings by kind into concerns.
+    concerns_map: dict[str, list[CaseOverviewFinding]] = {}
+    for f in findings:
+        if f.kind in {"concern", "symptom", "context"}:
+            key = f.kind
+        elif f.kind == "lab":
+            key = "lab_result"
+        elif f.kind == "medication":
+            key = "medication"
+        elif f.kind == "supplement":
+            key = "supplement"
+        else:
+            key = "other"
+        concerns_map.setdefault(key, []).append(f)
+
+    concern_labels: dict[str, str] = {
+        "concern": "Reported Concerns",
+        "symptom": "Symptoms",
+        "context": "Clinical Context",
+        "lab_result": "Lab Results",
+        "medication": "Medications",
+        "supplement": "Supplements",
+        "other": "Other Findings",
+    }
+
+    concerns: list[CaseOverviewConcern] = []
+    for key, fitems in concerns_map.items():
+        if key == "other":
+            continue
+        status = "unknown"
+        if fitems:
+            if all(f.status == "resolved" for f in fitems):
+                status = "resolved"
+            elif any(f.status == "resolved" for f in fitems):
+                status = "addressed"
+            elif all(f.status in {"reported_normal", "verified_normal"} for f in fitems if f.value):
+                status = "resolved"
+        concerns.append(
+            CaseOverviewConcern(
+                label=concern_labels.get(key, key.title()),
+                findings=fitems,
+                status=status,
+            )
+        )
+
+    # ── Open branches ─────────────────────────────────────────────────────────
+    open_branches: list[CaseOverviewBranch] = []
+    branch_tests: dict[str, list[str]] = {}
+    for bc in case_read.branch_coverage:
+        branch_tests.setdefault(bc.branch, []).append(bc.label)
+
+    for h in case_read.hypotheses:
+        if h.status in {"open", "active", "pending"}:
+            open_branches.append(
+                CaseOverviewBranch(
+                    branch=h.branch,
+                    label=h.label,
+                    status="open",
+                    tests_conducted=branch_tests.get(h.branch, []),
+                )
+            )
+
+    # ── Evidence gaps ─────────────────────────────────────────────────────────
+    gaps: list[CaseOverviewGap] = []
+    gap_concepts: set[str] = set()
+    for h in case_read.hypotheses:
+        for marker in h.missing_markers:
+            if marker not in gap_concepts:
+                gap_concepts.add(marker)
+                severity = "critical" if h.status == "open" else "minor"
+                gaps.append(CaseOverviewGap(concept=marker, severity=severity))
+
+    # Also surface unknowns as minor gaps
+    for u in unknowns:
+        if u not in gap_concepts:
+            gap_concepts.add(u)
+            gaps.append(CaseOverviewGap(concept=u, severity="minor"))
+
+    # ── Coverage explanations ─────────────────────────────────────────────────
+    coverage_explanations: list[CaseOverviewCoverageExplanation] = []
+    # Derive explanations from branch_coverage rows
+    for bc in case_read.branch_coverage:
+        pct = bc.coverage_percent
+        if pct >= 80:
+            relation = "DIRECTLY_ASSESSES"
+            msg = f"'{bc.label}' substantially covers the '{bc.branch}' branch."
+        elif pct >= 40:
+            relation = "PARTIALLY_ASSESSES"
+            msg = f"'{bc.label}' partially covers the '{bc.branch}' branch."
+        elif pct > 0:
+            relation = "INDIRECTLY_INFORMS"
+            msg = f"'{bc.label}' provides indirect information about '{bc.branch}'."
+        else:
+            relation = "DOES_NOT_DIRECTLY_ASSESS"
+            msg = f"'{bc.label}' does not directly assess the '{bc.branch}' branch."
+        coverage_explanations.append(
+            CaseOverviewCoverageExplanation(
+                branch=bc.branch,
+                relation=relation,
+                test_concepts=[bc.label],
+                message=msg,
+            )
+        )
+
+    # ── Next best action ─────────────────────────────────────────────────────
+    next_best_action: dict | None = None
+    if case_read.action_plan is not None and isinstance(case_read.action_plan, dict):
+        next_best_action = case_read.action_plan
+
+    # ── Prior workup ─────────────────────────────────────────────────────────
+    prior_workup: list[dict] = list(case_read.prior_workup or [])
+
+    # ── Data completeness ─────────────────────────────────────────────────────
+    data_completeness = CaseOverviewDataCompleteness(
+        investigation_coverage_percent=case_read.investigation_coverage_percent,
+        total_findings=len(findings),
+        total_hypotheses=len(case_read.hypotheses),
+        open_branches=len(open_branches),
+        unresolved_gaps=len(gaps),
+    )
+
+    unresolved_count = len(gaps) + len(open_branches) + len(contradictions)
+
+    # ── Permissions ───────────────────────────────────────────────────────────
+    permissions: dict = {
+        "can_investigate": case_read.status == DiscoveryCaseStatus.OPEN.value,
+        "can_export": True,
+        "can_monitor": True,
+    }
+
+    # ── Feature flags ─────────────────────────────────────────────────────────
+    feature_flags: dict[str, bool] = {
+        "personal_evidence_regimen_v1": _is_pe_regimen_enabled(),
+        "case_overview_v1": _is_case_overview_enabled(),
+    }
+
+    return CaseOverview(
+        case_id=case_id,
+        case_version=case_version,
+        snapshot_id=snapshot_id,
+        generated_at=case.updated_at or case.created_at,
+        presenting_concern=case_read.presenting_concern,
+        status=case_read.status.value if hasattr(case_read.status, "value") else str(case_read.status),
+        concerns=concerns,
+        current_findings=findings,
+        prior_workup=prior_workup,
+        open_branches=open_branches,
+        evidence_gaps=gaps,
+        contradictions=contradictions,
+        coverage_explanations=coverage_explanations,
+        next_best_action=next_best_action,
+        what_changed=what_changed,
+        data_completeness=data_completeness,
+        unresolved_count=unresolved_count,
+        permissions=permissions,
+        feature_flags=feature_flags,
     )

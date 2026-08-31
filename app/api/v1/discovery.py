@@ -18,6 +18,7 @@ from app.discovery.monitoring import monitoring_requires_safety_escalation, reco
 from app.discovery.authorization import require_open_case, require_owned_case
 from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
+from app.services.workspace import build_case_overview
 from app.discovery.service import (
     add_case_tests_to_plan,
     apply_opening_turn,
@@ -58,6 +59,7 @@ from app.schemas.discovery import (
     DiscoveryTurnCreate,
     DiscoveryTurnRead,
 )
+from app.schemas.workspace import CaseOverview
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
 
@@ -320,6 +322,44 @@ async def get_case(
         detail={"result": "ok"},
     )
     return await case_to_read(db, case)
+
+
+@router.get("/{case_id}/overview", response_model=CaseOverview)
+async def get_case_overview(
+    case_id: uuid.UUID,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> CaseOverview:
+    """My Case — read-only coherent projection of the canonical Discovery Case.
+
+    Exposes what HerbaGraph currently knows, what remains unresolved, what prior
+    workup was evaluated, open investigation branches, evidence gaps,
+    contradictions, coverage explanations, and the highest-value next action.
+
+    Returns 403 if the feature flag is off.
+    Returns 404 if the case is not found or not owned by the user.
+    """
+    from app.services.workspace import _is_case_overview_enabled
+
+    if not _is_case_overview_enabled():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Case Overview is not enabled. Set CASE_OVERVIEW_V1=true or use a UAT/preview environment.",
+        )
+    try:
+        overview = await build_case_overview(db, current_user.id, case_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_VIEWED,
+        summary="Case overview viewed",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case_id),
+        detail={"result": "overview"},
+    )
+    return overview
 
 
 @router.delete("/{case_id}", response_model=DiscoveryCaseRead)

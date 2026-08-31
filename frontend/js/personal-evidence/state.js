@@ -15,7 +15,13 @@
     return Boolean(flags && flags.personal_evidence_regimen_v1);
   }
 
-  global.HerbaGraphPersonalEvidence = { peRegimenEnabled };
+  /** True when the Case Overview / My Case slice is activated. */
+  function peCaseOverviewEnabled(dashboard) {
+    const flags = dashboard && dashboard.feature_flags;
+    return Boolean(flags && flags.case_overview_v1);
+  }
+
+  global.HerbaGraphPersonalEvidence = { peRegimenEnabled, peCaseOverviewEnabled };
 
   /* ── PHI-safe telemetry ───────────────────────────────────────────────── */
 
