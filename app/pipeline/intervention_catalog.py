@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.knowledge_graph.claim_layers import card_eligible_claims
 from app.knowledge_graph.food_seed_data import COMPOUND_TO_FOOD_SOURCES
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
@@ -19,7 +20,6 @@ _INTENT_RANK = {
 _EVIDENCE_LEVEL_RANK = {"high": 0, "moderate": 1, "low": 2, "preclinical": 3}
 _MAX_PER_ROUTE = 12
 
-# Trees that should prefer biomarker-direct claims over generic pathway neighbors.
 _BIOMARKER_DIRECT_TREES = frozenset({
     RecommendationTree.ETIOLOGICAL,
     RecommendationTree.CELIAC,
@@ -32,7 +32,7 @@ _BIOMARKER_DIRECT_TREES = frozenset({
 
 
 def _all_evidence_claims() -> list[dict]:
-    return [*EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS]
+    return card_eligible_claims([*EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS])
 
 
 def _abnormal_biomarker_names(labs: list[NormalizedLabResult]) -> set[str]:
@@ -65,7 +65,6 @@ def _claims_for_pathways(pathway_codes: set[str]) -> list[dict]:
 def _rank_claim(claim: dict, primary_tree: RecommendationTree | None) -> tuple[int, int, int]:
     intent = claim.get("recommendation_intent", RecommendationIntent.PRIMARY.value)
     intent_rank = _INTENT_RANK.get(intent, 9)
-    # Boost primary-tree biomarker-direct claims
     tree_boost = 0
     if primary_tree == RecommendationTree.ETIOLOGICAL and claim.get("pathway_code", "").startswith("GASTRIC"):
         tree_boost = -1
@@ -91,7 +90,6 @@ def build_interventions_for_routing(
     use_biomarker_first = any(t in _BIOMARKER_DIRECT_TREES for t in routing.trees)
     claims = biomarker_claims + pathway_claims if use_biomarker_first else pathway_claims + biomarker_claims
 
-    # PGx tree: context-only interventions, no broad pathway sweep
     if routing.primary_tree == RecommendationTree.PGX_CONTEXT:
         claims = [c for c in biomarker_claims if c.get("recommendation_intent") == RecommendationIntent.CONTEXT_ONLY.value]
 
@@ -109,7 +107,6 @@ def build_interventions_for_routing(
         if len(names) >= _MAX_PER_ROUTE:
             continue
 
-    # Ensure activated pathways without claims still appear (empty list filtered later)
     for activation in pathway_activations:
         result.setdefault(activation.pathway_code, [])
 
@@ -125,7 +122,6 @@ def build_pathway_intervention_map(
     if routing and pathway_activations is not None and normalized_labs is not None:
         return build_interventions_for_routing(routing, pathway_activations, normalized_labs)
 
-    # Fallback: pathway-only map from seeded claims (tests / legacy callers).
     grouped: dict[str, list[str]] = {}
     for claim in _all_evidence_claims():
         code = claim.get("pathway_code")
