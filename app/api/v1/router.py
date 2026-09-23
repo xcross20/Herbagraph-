@@ -13,6 +13,7 @@ from app.api.v1 import (
     labs,
     patient_context,
     patients,
+    public,
     reports,
     safety,
     system,
@@ -28,6 +29,7 @@ api_router.include_router(admin_users.router)
 api_router.include_router(audit.router)
 api_router.include_router(analysis_sessions.router)
 api_router.include_router(labs.router)
+api_router.include_router(public.router)
 api_router.include_router(reports.router)
 api_router.include_router(validation.router)
 api_router.include_router(evidence.router)
