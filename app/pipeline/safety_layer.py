@@ -9,7 +9,6 @@ from __future__ import annotations
 from app.safety_engine.engine import evaluate_interventions
 from app.schemas.pipeline import LLMRecommendation, SafetyReport
 
-# Re-export legacy helpers for tests and gradual migration.
 from app.safety_engine.legacy_data import (  # noqa: F401
     _CONTRAINDICATIONS,
     _DRUG_HERB_INTERACTIONS,
@@ -24,10 +23,12 @@ def check_safety(
     recommendations: list[LLMRecommendation],
     health_profile: dict,
     normalized_labs: list | None = None,
+    ranking_mode: str = "clinician",
 ) -> SafetyReport:
     """Stage 6 entry point — delegates to Safety Engine v1.0."""
     return evaluate_interventions(
         recommendations,
         health_profile=health_profile,
         normalized_labs=normalized_labs,
+        ranking_mode=ranking_mode,
     )
