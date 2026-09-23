@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack Check | HerbaGraph</title>
+<meta name="description" content="Check a supplement stack against your labs before you buy. Not a diagnosis.">
+<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/landing.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="landing-page">
+<header class="landing-nav">
+  <a class="logo" href="/">HerbaGraph</a>
+  <nav class="landing-nav-links">
+    <a href="/stack.html">Stack Check</a>
+    <a href="/ask.html">Ask</a>
+  </nav>
+</header>
+<main class="app-main" style="max-width:880px;margin:2rem auto;padding:0 1.25rem 4rem">
+  <p class="section-eyebrow">Metabolic wedge</p>
+  <h1>Before you buy berberine, check it against your labs.</h1>
+  <form id="stack-form" class="app-card" style="padding:1.25rem;display:grid;gap:1rem">
+    <h2>Labs</h2>
+    <div id="lab-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem"></div>
+    <label>Stack<input id="stack-items" value="Berberine, Red yeast rice"></label>
+    <label>Medications<input id="stack-meds" placeholder="Crestor, metformin…"></label>
+    <label>Conditions<input id="stack-conds" placeholder="pregnancy, NAFLD…"></label>
+    <button type="submit" class="landing-btn landing-btn-primary">Check this stack</button>
+    <p class="muted">Not a diagnosis. Nothing is stored from this public check.</p>
+  </form>
+  <section id="stack-receipt" hidden></section>
+</main>
+<script src="/js/stack-app.js"></script>
+</body>
+</html>
