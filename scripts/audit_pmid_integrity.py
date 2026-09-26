@@ -2154,6 +2154,11 @@ _INTERVENTION_KEYWORDS: dict[str, tuple[str, ...]] = {
     "Testosterone Replacement Therapy": ('testosterone replacement therapy', 'testosterone', 'replacement', 'therapy',),
     "Testosterone Replacement Therapy": ('testosterone replacement therapy', 'testosterone', 'replacement', 'therapy',),
     "Testosterone Replacement Therapy": ('testosterone replacement therapy', 'testosterone', 'replacement', 'therapy',),
+    "DIM Supplement": ('dim supplement', 'dim', 'supplement',),
+    "Glutathione": ('glutathione',),
+    "Bulgur": ('bulgur',),
+    "Lamb": ('lamb',),
+    "Split Peas": ('split peas', 'split', 'peas',),
 }
 
 
