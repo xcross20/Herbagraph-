@@ -19,6 +19,7 @@ from app.api.v1.public import StackCheckRequest
 from app.pipeline.safety_language import CLINICIAN, CONSUMER, present_verdict
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
 from app.discovery.authorization import require_open_case, require_owned_case
+from app.discovery.follow_up_case import compare_follow_up
 from app.discovery.intent import route_opening_door
 from app.discovery.stack_case import SAVED_REPORT, attach_stack_check
 from app.discovery.schema_ready import public_schema_error
@@ -354,6 +355,49 @@ async def add_monitoring_event(
         causal_kind=event.causal_kind.value,
         safety_escalation=monitoring_requires_safety_escalation(event.outcome_kind),
     )
+
+
+class FollowUpLab(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    value: float = Field(gt=-1_000_000, lt=1_000_000)
+    unit: str | None = Field(default=None, max_length=40)
+
+
+class FollowUpBody(BaseModel):
+    follow_up_lab_report_id: uuid.UUID | None = None
+    labs: list[FollowUpLab] | None = Field(default=None, max_length=30)
+
+
+@router.post("/{case_id}/follow-up")
+async def read_follow_up(
+    case_id: uuid.UUID,
+    payload: FollowUpBody,
+    audience: str = Query(default=CONSUMER),
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Show how later labs moved. Does not attribute the move to a supplement."""
+    case = await require_owned_case(db, case_id, current_user.id)
+    shown = audience if audience in {CONSUMER, CLINICIAN} else CONSUMER
+    compared = await compare_follow_up(
+        db,
+        current_user,
+        case,
+        follow_up_lab_report_id=payload.follow_up_lab_report_id,
+        labs=[row.model_dump() for row in payload.labs] if payload.labs else None,
+        audience=shown,
+    )
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_VIEWED,
+        summary="Follow-up compare viewed",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case.id),
+        detail={"audience": shown},
+    )
+    await db.commit()
+    return compared
 
 
 @router.get("/{case_id}/report")
