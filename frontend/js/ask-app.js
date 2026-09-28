@@ -569,11 +569,25 @@
     }
     sending = true;
     if (!currentCase || !currentCase.turns) currentCase = currentCase && currentCase.id ? currentCase : emptyCase();
-    renderThread({ pendingUser: text, thinking: true, thinkLabel: "Discovery Guide is thinking…" });
     const input = document.getElementById("ask-input");
     if (input) input.value = "";
     try {
       const existingId = currentCase && currentCase.id;
+      if (!existingId) {
+        const route = await api("/api/v1/cases/route", "POST", { text });
+        if (route && route.opens_case === false) {
+          sending = false;
+          if (route.destination === "labs" && WS) {
+            location.href = WS.workspaceHome(currentUser && currentUser.role, { hash: "#upload?mode=manual" });
+            return;
+          }
+          if (route.destination === "stack") {
+            location.href = "/stack.html";
+            return;
+          }
+        }
+      }
+      renderThread({ pendingUser: text, thinking: true, thinkLabel: "Discovery Guide is thinking…" });
       const path = existingId ? `/api/v1/cases/${existingId}/turns/stream` : "/api/v1/cases/stream";
       const body = existingId ? { text } : { presenting_concern: text, patient_id: patientId || null };
       await apiStream(path, body, (ev) => {

@@ -19,7 +19,13 @@ _INTENTS = (
 # Opening-door classifier for Ask vs labs vs stack (M09). Deterministic; does not diagnose.
 _STACK_TERMS = re.compile(
     r"\b(berberine|red yeast|monacolin|cinnamon|olive leaf|oleuropein|"
-    r"glucose disposal|i(?:['’]?m| am) (?:considering|starting|taking|buying))\b",
+    r"magnesium|b12|glucose disposal|"
+    r"i(?:['’]?m| am) (?:considering|starting|taking|buying)|i take)\b",
+    re.I,
+)
+_SAFETY = re.compile(
+    r"\b(is it safe|safe with|interaction|interact(?:s|ing)?|contraindicat\w*|"
+    r"side effects?|with my statin|while pregnant)\b",
     re.I,
 )
 _LABS_ON_HAND = re.compile(
@@ -38,23 +44,35 @@ _DIAGNOSIS_DEMAND = re.compile(
 
 
 def classify_opening_door(text: str) -> str:
-    """Return one of: labs_on_hand | stack_eval | investigation | diagnosis_demand | new_information."""
+    """Return labs_on_hand, stack_eval, investigation, safety, diagnosis_demand, or new_information.
+
+    A symptom story wins over a supplement mention. Safety is its own door only
+    when the person is not describing an ongoing illness.
+    """
     lowered = (text or "").strip()
     if not lowered:
         return "new_information"
     if _DIAGNOSIS_DEMAND.search(lowered):
         return "diagnosis_demand"
-    if _LABS_ON_HAND.search(lowered) and not _INVESTIGATION.search(lowered):
-        return "labs_on_hand"
-    if _STACK_TERMS.search(lowered) and not _INVESTIGATION.search(lowered):
-        return "stack_eval"
     if _INVESTIGATION.search(lowered):
         return "investigation"
+    if _SAFETY.search(lowered):
+        return "safety"
     if _LABS_ON_HAND.search(lowered):
         return "labs_on_hand"
     if _STACK_TERMS.search(lowered):
         return "stack_eval"
     return "new_information"
+
+
+def route_opening_door(text: str) -> dict:
+    """Where an opening sentence goes. Ask creates a case only for investigation."""
+    door = classify_opening_door(text)
+    if door == "labs_on_hand":
+        return {"door": door, "opens_case": False, "destination": "labs"}
+    if door in {"stack_eval", "safety"}:
+        return {"door": door, "opens_case": False, "destination": "stack"}
+    return {"door": door, "opens_case": True, "destination": "ask"}
 
 
 def classify_intent(text: str, *, current_question_closes: str | None = None) -> list[str]:

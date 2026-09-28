@@ -7,6 +7,7 @@ import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -16,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_db, get_verified_user
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
 from app.discovery.authorization import require_open_case, require_owned_case
+from app.discovery.intent import route_opening_door
 from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
 from app.discovery.service import (
@@ -60,6 +62,19 @@ from app.schemas.discovery import (
 )
 
 router = APIRouter(prefix="/cases", tags=["discovery"])
+
+
+class OpeningRouteBody(BaseModel):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/route")
+async def route_case_opening(
+    payload: OpeningRouteBody,
+    _: User = Depends(get_verified_user),
+) -> dict:
+    """Classify an opening sentence. Does not create a case and does not store the text."""
+    return route_opening_door(payload.text)
 
 
 def _ndjson_stream(work):
