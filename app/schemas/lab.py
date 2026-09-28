@@ -24,6 +24,23 @@ class LabUploadResponse(BaseModel):
     status: LabReportStatus
 
 
+class ManualLabRow(BaseModel):
+    name: str
+    value: float
+    unit: str | None = None
+    reference_range_low: float | None = None
+    reference_range_high: float | None = None
+
+
+class ManualLabCreate(BaseModel):
+    results: list[ManualLabRow]
+    patient_id: uuid.UUID | None = None
+
+
+class LabResultsPatch(BaseModel):
+    results: list[ManualLabRow]
+
+
 class LabReportRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

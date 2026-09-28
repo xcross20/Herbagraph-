@@ -22,6 +22,7 @@ from app.pipeline.user_biomarker_profile import (
     resolve_canonical_name,
 )
 from app.pipeline.lab_parser import parse_lab_file_with_llm_fallback
+from app.pipeline.manual_labs import is_manual_report
 from app.services.integrated_analysis import run_integrated_analysis
 from app.services.report_generation import run_report_generation
 from app.workers.celery_app import celery_app
@@ -75,6 +76,15 @@ def process_lab_report(lab_report_id: str, *, force: bool = False) -> dict:
         lab_report = session.get(LabReport, lab_report_id)
         if lab_report is None:
             return {"status": "failed", "error": "lab_report_not_found"}
+
+        # Typed entry already ran the normalizer. Do not open a file that does not exist.
+        if is_manual_report(lab_report):
+            return {
+                "status": "complete",
+                "lab_report_id": lab_report_id,
+                "biomarker_count": len(lab_report.lab_results or []),
+                "skipped_parse": True,
+            }
 
         lab_report.status = LabReportStatus.PROCESSING
         lab_report.error_message = None

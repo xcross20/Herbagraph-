@@ -519,7 +519,7 @@ function renderDiscoveryInteraction(body) {
   if (interaction && interaction.type === "file_upload") {
     return `<div class="discovery-question">
       <a class="app-btn app-btn-primary" href="#upload">Upload records</a>
-      <a class="app-btn" href="#upload">Add a test manually</a>
+      <a class="app-btn" href="#upload?mode=manual">Add a test manually</a>
     </div>`;
   }
   if (interaction && interaction.type === "single_select" && (interaction.options || []).length) {
@@ -1626,16 +1626,34 @@ function renderUploadStages(activeIdx) {
   }).join("");
 }
 
-async function renderUpload(preselectedPatient) {
+async function renderUpload(preselectedPatient, mode) {
   const { patientId, patients } = await resolveActivePatientId(preselectedPatient);
   const clinician = isClinicianWorkspace();
   const opts = patients.map(p => `<option value="${p.id}" ${p.id === patientId ? "selected" : ""}>${esc(p.display_name)}</option>`).join("");
+  const manual = mode === "manual";
+  const manualRows = Array.from({ length: 7 }, () => `
+      <div class="form-row manual-lab-row" style="display:grid;grid-template-columns:1.4fr .7fr .7fr .7fr .7fr;gap:.4rem;margin-bottom:.4rem">
+        <input class="manual-name" placeholder="LDL Cholesterol" aria-label="Biomarker name">
+        <input class="manual-value" inputmode="decimal" placeholder="160" aria-label="Value">
+        <input class="manual-unit" placeholder="mg/dL" aria-label="Unit">
+        <input class="manual-low" inputmode="decimal" placeholder="Low" aria-label="Reference low">
+        <input class="manual-high" inputmode="decimal" placeholder="High" aria-label="Reference high">
+      </div>`).join("");
   document.getElementById("app-main").innerHTML = `
-    ${pageHeader("Upload laboratory reports", clinician ? "Files attach to the selected patient." : "These labs stay on your profile.")}
+    ${pageHeader(manual ? "Type laboratory values" : "Upload laboratory reports", clinician ? "Files attach to the selected patient." : "These labs stay on your profile.")}
     ${renderPatientScopeBar(patients, patientId, "upload")}
+    <p class="muted" style="margin-bottom:.75rem">
+      <a href="#upload${patientId ? `?patient=${patientId}` : ""}">Upload a file</a>
+      · <a href="#upload?mode=manual${patientId ? `&patient=${patientId}` : ""}">Type values</a>
+    </p>
     <div class="app-card">
       <div class="form-row" ${clinician ? "" : "hidden"}><label>Patient</label><select id="upload-patient">${opts}</select></div>
-      <div class="upload-zone" id="upload-zone">
+      <div id="manual-grid" style="${manual ? "" : "display:none"}">
+        <p class="muted">Seven rows. Blank rows are ignored. These values enter the same normalizer as an uploaded file.</p>
+        ${manualRows}
+        <button type="button" class="app-btn app-btn-primary" id="save-manual-labs">Save typed labs</button>
+      </div>
+      <div class="upload-zone" id="upload-zone" style="${manual ? "display:none" : ""}">
         <h3>Drag and drop PDF files</h3>
         <p>or <label style="color:var(--app-green);cursor:pointer;text-decoration:underline"><input id="upload-files" type="file" multiple accept=".pdf,.txt,.csv,.png,.jpg,.jpeg" style="display:none">browse files</label></p>
         <p style="margin-top:0.5rem;font-size:0.78rem">Supported: PDF, TXT, CSV, images · Multiple reports</p>
@@ -1658,6 +1676,47 @@ async function renderUpload(preselectedPatient) {
     }
   });
   fileInput.addEventListener("change", () => { if (fileInput.files.length) startUpload(); });
+
+  const saveManual = document.getElementById("save-manual-labs");
+  if (saveManual) saveManual.onclick = saveTypedLabs;
+
+  async function saveTypedLabs() {
+    const status = document.getElementById("upload-status");
+    const selectedPatient = (document.getElementById("upload-patient") && document.getElementById("upload-patient").value) || patientId;
+    const rows = [...document.querySelectorAll(".manual-lab-row")].map(row => ({
+      name: row.querySelector(".manual-name").value.trim(),
+      value: row.querySelector(".manual-value").value.trim(),
+      unit: row.querySelector(".manual-unit").value.trim() || null,
+      reference_range_low: row.querySelector(".manual-low").value.trim(),
+      reference_range_high: row.querySelector(".manual-high").value.trim(),
+    })).filter(row => row.name && row.value !== "");
+    if (!rows.length) {
+      status.textContent = "Enter at least one name and value.";
+      status.className = "error";
+      return;
+    }
+    const results = rows.map(row => ({
+      name: row.name,
+      value: Number(row.value),
+      unit: row.unit,
+      reference_range_low: row.reference_range_low === "" ? null : Number(row.reference_range_low),
+      reference_range_high: row.reference_range_high === "" ? null : Number(row.reference_range_high),
+    }));
+    try {
+      const body = { results };
+      if (selectedPatient) body.patient_id = selectedPatient;
+      const saved = await api("/api/v1/labs/manual", "POST", body);
+      status.className = "muted";
+      status.textContent = `Saved ${saved.lab_results.length} values.`;
+      if (selectedPatient) {
+        location.hash = `#patient/${selectedPatient}/labs`;
+        render();
+      }
+    } catch (e) {
+      status.textContent = e.message;
+      status.className = "error";
+    }
+  }
 
   async function uploadLabFile(file, patientId) {
     const fd = new FormData();
@@ -2271,7 +2330,7 @@ async function render() {
     else if (path === "patients") { setActiveNav("patients"); await renderPatients(); }
     else if (path === "reports") { setActiveNav("reports"); await renderReports(params.get("patient")); }
     else if (path === "evidence") { setActiveNav("evidence"); await renderEvidence(params.get("patient")); }
-    else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient")); }
+    else if (path === "upload") { setActiveNav("upload"); await renderUpload(params.get("patient"), params.get("mode")); }
     else if (path === "analysis") { setActiveNav("analysis"); await renderAnalysisBuilder(params.get("patient")); }
     else if (path === "settings") { setActiveNav("settings"); await renderSettings(); }
     else if (path.startsWith("patient/")) {
