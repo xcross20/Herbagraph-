@@ -14,6 +14,7 @@ from app.api.v1 import (
     manual_labs_api,
     patient_context,
     patients,
+    public,
     reports,
     safety,
     system,
@@ -38,6 +39,7 @@ api_router.include_router(explainability.router)
 api_router.include_router(safety.router)
 api_router.include_router(discovery.router)
 api_router.include_router(patients.router)
+api_router.include_router(public.router)
 api_router.include_router(patient_context.router)
 api_router.include_router(workspace.router)
 api_router.include_router(system.router)
