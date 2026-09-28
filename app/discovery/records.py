@@ -51,7 +51,7 @@ class DocumentClassification:
 
 
 def document_checksum(filename: str, text: str) -> str:
-    payload = f"{filename}\n{text or ""}".encode()
+    payload = f"{filename}\n{text or ''}".encode()
     return hashlib.sha256(payload).hexdigest()
 
 
