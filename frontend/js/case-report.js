@@ -50,6 +50,37 @@
     }).join("");
     const empty = items ? "" : "<p>No stack check is saved on this case.</p>";
     mount.innerHTML = labs + empty + items + '<p class="muted">' + esc(data.disclaimer) + "</p>";
+    const form = document.getElementById("follow-up-form");
+    form.hidden = false;
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      const later = [];
+      const ldl = document.getElementById("follow-ldl").value;
+      const a1c = document.getElementById("follow-a1c").value;
+      if (ldl !== "") later.push({ name: "LDL", value: Number(ldl), unit: "mg/dL" });
+      if (a1c !== "") later.push({ name: "HbA1c", value: Number(a1c), unit: "%" });
+      const result = document.getElementById("follow-up-result");
+      result.textContent = "Comparing…";
+      fetch("/api/v1/cases/" + encodeURIComponent(caseId) + "/follow-up", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+        body: JSON.stringify({ labs: later }),
+      }).then(function (resp) {
+        return resp.json().then(function (body) { return { ok: resp.ok, body: body }; });
+      }).then(function (compared) {
+        if (!compared.ok) {
+          const detail = compared.body && compared.body.detail;
+          result.textContent = typeof detail === "string" ? detail : "Could not compare those labs.";
+          return;
+        }
+        const lines = (compared.body.changes || []).concat(compared.body.missing || []).map(function (row) {
+          return "<p>" + esc(row.text) + "</p>";
+        }).join("");
+        result.innerHTML = lines + '<p class="muted">' + esc(compared.body.disclaimer) + "</p>";
+      }).catch(function () {
+        result.textContent = "Could not compare those labs.";
+      });
+    });
   }).catch(function () {
     mount.textContent = "Could not read that report.";
   });

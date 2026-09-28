@@ -22,6 +22,14 @@
   <h1>Your stack check</h1>
   <p class="muted">Same result as the check. Different words. Not a diagnosis.</p>
   <section id="case-report" class="app-card" style="padding:1.25rem">Reading…</section>
+  <form id="follow-up-form" class="app-card" style="padding:1.25rem;margin-top:1rem;display:grid;gap:0.75rem" hidden>
+    <h2>Later labs</h2>
+    <p class="muted">Compare a later number with the labs already on this case. A change is not a cause.</p>
+    <label>LDL<input id="follow-ldl" inputmode="decimal" placeholder="mg/dL"></label>
+    <label>HbA1c<input id="follow-a1c" inputmode="decimal" placeholder="%"></label>
+    <button type="submit" class="landing-btn landing-btn-primary">Compare these labs</button>
+    <section id="follow-up-result"></section>
+  </form>
 </main>
 <script src="/js/case-report.js"></script>
 </body>
