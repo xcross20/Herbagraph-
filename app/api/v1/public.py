@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.api.public_rate_limit import enforce_public_rate_limit
+from app.pipeline.safety_language import CONSUMER, CLINICIAN, present_verdict
 from app.pipeline.stack_verdicts import evaluate_stack
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -27,6 +28,7 @@ class StackCheckRequest(BaseModel):
     stack: list[str] = Field(min_length=1, max_length=12)
     medications: list[str] | None = Field(default=None, max_length=12)
     conditions: list[str] | None = Field(default=None, max_length=12)
+    audience: str = CONSUMER
 
     @field_validator("stack", "medications", "conditions")
     @classmethod
@@ -46,10 +48,14 @@ async def _limited(request: Request, db: AsyncSession = Depends(get_db)) -> None
 async def public_stack_check(payload: StackCheckRequest, _: None = Depends(_limited)) -> dict:
     if not payload.labs:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter at least one lab value.")
+    audience = payload.audience if payload.audience in {CONSUMER, CLINICIAN} else CONSUMER
     decision = evaluate_stack(
         labs=[row.model_dump() for row in payload.labs],
         stack=payload.stack,
         medications=payload.medications,
         conditions=payload.conditions,
     )
-    return {"verdicts": decision["verdicts"], "disclaimer": DISCLAIMER}
+    return {
+        "verdicts": [present_verdict(row, audience) for row in decision["verdicts"]],
+        "disclaimer": DISCLAIMER,
+    }
