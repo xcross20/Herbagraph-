@@ -186,7 +186,9 @@ def build_claim(row: dict, pmid: str, title: str) -> dict:
     pathway = _infer_pathway(row.get("category") or "supplement", row.get("mechanism") or "")
     if pathway not in PATHWAY_DISPLAY_NAMES:
         pathway = "NUTRIENT_DEFICIENCY"
-    effect, intent, level = _infer_effect_and_intent(row.get("category") or "supplement", pathway)
+    effect, _intent, level = _infer_effect_and_intent(row.get("category") or "supplement", pathway)
+    # Growth rows are context literature. They must not be born as card authors.
+    intent = "context_only"
     name = row["name"]
     summary = (
         f"PubMed literature on {name} (PMID {pmid}): {title[:140].rstrip('.')}. "
@@ -200,6 +202,7 @@ def build_claim(row: dict, pmid: str, title: str) -> dict:
         "evidence_level": level,
         "pmid": str(pmid),
         "recommendation_intent": intent,
+        "source_layer": "growth",
         "summary": summary[:320],
     }
 
@@ -260,6 +263,7 @@ def _write_generated_claims(claims: list[dict]) -> int:
             f"\"evidence_level\": {c.get('evidence_level')!r}, "
             f"\"pmid\": {str(c.get('pmid'))!r}, "
             f"\"recommendation_intent\": {c.get('recommendation_intent')!r}, "
+            f"\"source_layer\": {c.get('source_layer', 'growth')!r}, "
             f"\"summary\": {c.get('summary')!r}"
             "},"
         )

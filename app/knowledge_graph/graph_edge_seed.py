@@ -22,6 +22,7 @@ from app.knowledge_graph.entity_registry import (
 )
 from app.knowledge_graph.food_catalog import FOOD_INTERVENTIONS
 from app.knowledge_graph.herb_catalog import HERB_INTERVENTIONS
+from app.knowledge_graph.claim_layers import ensure_growth_tagged, is_growth_claim
 from app.knowledge_graph.peptide_catalog import PEPTIDE_EVIDENCE_CLAIMS, PEPTIDE_INTERVENTIONS
 from app.knowledge_graph.phytochemical_catalog import PHYTOCHEMICAL_COMPOUNDS
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS, INTERVENTIONS
@@ -92,6 +93,7 @@ _EVIDENCE_LEVEL_TO_GRAPH: dict[str, tuple[GraphEvidenceType, float]] = {
 
 
 def _all_claims() -> list[dict]:
+    ensure_growth_tagged()
     return [*TIER_A_EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS, *EVIDENCE_CLAIMS]
 
 
@@ -256,11 +258,19 @@ async def bootstrap_graph_modulation_edges(db: AsyncSession) -> dict[str, int]:
         name = claim.get("intervention_name")
         if not name:
             continue
-        claimed_interventions.add(name)
+        growth = is_growth_claim(claim)
+        # Growth literature may exist as context. It must not count as a card-grade claim,
+        # or the catalog pass will treat the name as already recommended.
+        if not growth:
+            claimed_interventions.add(name)
         pathway_code = claim.get("pathway_code")
         pmid = str(claim.get("pmid") or "") or None
         level = claim.get("evidence_level", "low")
         ev_type, conf = _EVIDENCE_LEVEL_TO_GRAPH.get(level, (GraphEvidenceType.MECHANISTIC, 0.5))
+        if growth:
+            ev_type = GraphEvidenceType.PREDICTED
+            conf = min(conf, 0.35)
+            level = "preclinical"
         effect = (claim.get("effect") or "").lower()
         if effect == "decreases":
             rel = GraphRelationshipType.INHIBITS
@@ -285,12 +295,12 @@ async def bootstrap_graph_modulation_edges(db: AsyncSession) -> dict[str, int]:
                 evidence_type=ev_type,
                 confidence=conf,
                 citation=f"PMID:{pmid}" if pmid else None,
-                provenance="evidence_claim",
+                provenance="growth_context" if growth else "evidence_claim",
                 notes=claim.get("summary"),
                 direction=direction,
-                review_status=EntityReviewStatus.PRODUCTION_APPROVED
-                if level in ("high", "moderate")
-                else EntityReviewStatus.MACHINE_VERIFIED,
+                review_status=EntityReviewStatus.MACHINE_GENERATED
+                if growth or level not in ("high", "moderate")
+                else EntityReviewStatus.PRODUCTION_APPROVED,
             )
             if created:
                 stats["modulates_from_claims"] += 1
@@ -305,7 +315,7 @@ async def bootstrap_graph_modulation_edges(db: AsyncSession) -> dict[str, int]:
                 evidence_type=ev_type,
                 confidence=conf,
                 citation=f"PMID:{pmid}" if pmid else None,
-                provenance="evidence_claim_inverse",
+                provenance="growth_context_inverse" if growth else "evidence_claim_inverse",
                 notes=f"Inverse: {claim.get('summary') or name}",
                 direction=direction,
                 review_status=EntityReviewStatus.PRODUCTION_APPROVED

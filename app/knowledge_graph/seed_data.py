@@ -120,6 +120,11 @@ EVIDENCE_CLAIMS: list[dict] = [
     c for c in TIER_A_EVIDENCE_CLAIMS if c["intervention_name"] not in _LIFESTYLE_EVIDENCE_NAMES
 ] + LIFESTYLE_EVIDENCE_CLAIMS
 
+# Same dict objects as TIER_A. Re-tag so a later import order cannot leave growth as primary.
+from app.knowledge_graph.claim_layers import ensure_growth_tagged as _ensure_growth_tagged  # noqa: E402
+
+_ensure_growth_tagged()
+
 
 def expected_seeded_intervention_count(
     *,

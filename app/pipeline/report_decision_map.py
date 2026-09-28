@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from app.knowledge_graph.claim_layers import card_eligible_claims
 from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
@@ -182,7 +183,7 @@ def _claim_matches_abnormal(claim: dict, abnormal_names: set[str], intervention_
 def _claims_for_intervention(name: str, abnormal_names: set[str]) -> list[dict]:
     return [
         c
-        for c in _ALL_CLAIMS
+        for c in card_eligible_claims(_ALL_CLAIMS)
         if c["intervention_name"] == name
         and (
             _claim_matches_abnormal(c, abnormal_names, name)
@@ -194,7 +195,7 @@ def _claims_for_intervention(name: str, abnormal_names: set[str]) -> list[dict]:
 def _direct_abnormal_claims(name: str, abnormal_names: set[str]) -> list[dict]:
     return [
         c
-        for c in _ALL_CLAIMS
+        for c in card_eligible_claims(_ALL_CLAIMS)
         if c["intervention_name"] == name and _claim_matches_abnormal(c, abnormal_names, name)
     ]
 
@@ -214,11 +215,11 @@ def _recommendation_intent_for(name: str, abnormal_names: set[str]) -> str:
     if abnormal_names:
         matching = [
             c
-            for c in _ALL_CLAIMS
+            for c in card_eligible_claims(_ALL_CLAIMS)
             if c["intervention_name"] == name and _claim_matches_abnormal(c, abnormal_names, name)
         ]
     else:
-        matching = [c for c in _ALL_CLAIMS if c["intervention_name"] == name]
+        matching = [c for c in card_eligible_claims(_ALL_CLAIMS) if c["intervention_name"] == name]
     if not matching:
         return RecommendationIntent.COLLATERAL.value
     best = min(matching, key=lambda c: _INTENT_RANK.get(c.get("recommendation_intent", "collateral"), 9))

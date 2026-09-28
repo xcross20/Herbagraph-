@@ -7,6 +7,7 @@ routed interventions without inventing citations.
 
 from __future__ import annotations
 
+from app.knowledge_graph.claim_layers import card_eligible_claims
 from app.knowledge_graph.peptide_catalog import PEPTIDE_EVIDENCE_CLAIMS, PEPTIDE_INTERVENTIONS
 from app.knowledge_graph.tier_a_catalog import TIER_A_INTERVENTIONS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
@@ -39,7 +40,8 @@ _EVIDENCE_LEVEL_STUDY_TYPE = {
 
 
 def _all_catalog_claims() -> list[dict]:
-    return [*TIER_A_EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS]
+    """Claims allowed to author a recommendation snippet. Growth stays out."""
+    return card_eligible_claims([*TIER_A_EVIDENCE_CLAIMS, *PEPTIDE_EVIDENCE_CLAIMS])
 
 
 def _trees(routing: RecommendationRoutingContext | None) -> list[RecommendationTree]:
