@@ -72,6 +72,9 @@
       const extra = row.next_clarification ? "<br><span class=\"muted\">" + esc(row.next_clarification) + "</span>" : "";
       return "<p><strong style=\"color:" + (colors[row.verdict] || "#1A1F1C") + "\">" + esc(String(row.verdict || "").toUpperCase()) + "</strong> " + esc(row.name) + " — " + esc(row.reason) + extra + "</p>";
     }).join("");
-    receipt.innerHTML = '<div class="app-card" style="padding:1.25rem"><h2>Receipt</h2>' + rows + '<p class="muted">' + esc(data.disclaimer) + '</p><p><a href="/ask.html">A longer unexplained illness belongs in Ask, not here.</a></p></div>';
+    const saved = data.case_id
+      ? '<p><a href="/case-report.html?case=' + encodeURIComponent(data.case_id) + '">Open the saved report</a></p>'
+      : "";
+    receipt.innerHTML = '<div class="app-card" style="padding:1.25rem"><h2>Receipt</h2>' + rows + '<p class="muted">' + esc(data.disclaimer) + "</p>" + saved + '<p><a href="/ask.html">A longer unexplained illness belongs in Ask, not here.</a></p></div>';
   });
 })();
