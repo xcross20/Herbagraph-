@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, field_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.public_rate_limit import enforce_public_rate_limit, get_public_rate_store
+from app.api.deps import get_db
+from app.api.public_rate_limit import enforce_public_rate_limit
 from app.pipeline.stack_verdicts import evaluate_stack
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -36,8 +38,8 @@ class StackCheckRequest(BaseModel):
         return [item.strip() for item in value]
 
 
-def _limited(request: Request, store=Depends(get_public_rate_store)) -> None:
-    enforce_public_rate_limit(request, store)
+async def _limited(request: Request, db: AsyncSession = Depends(get_db)) -> None:
+    await enforce_public_rate_limit(request, db)
 
 
 @router.post("/stack-check")
