@@ -76,9 +76,25 @@ class StackVerdict:
         return asdict(self)
 
 
+_DECLARED_NONE = frozenset({"none", "no", "n/a", "na", "no medications", "none reported"})
+
+
 def _text_hits(values: list[str] | None, names: frozenset[str]) -> bool:
     blob = " ".join(values or []).lower()
     return any(name in blob for name in names)
+
+
+def _known_medication(text: str) -> bool:
+    blob = text.strip().lower()
+    if blob in _DECLARED_NONE:
+        return True
+    return any(name in blob for name in _STATIN_NAMES | _GLUCOSE_LOWERING)
+
+
+def _unrecognized_medications(medications: list[str] | None) -> tuple[str, ...]:
+    if not medications:
+        return ()
+    return tuple(item for item in medications if not _known_medication(item))
 
 
 def _abnormal_families(labs: list[dict]) -> set[str]:
@@ -221,6 +237,9 @@ def verdict_for_item(
         )
 
     missing: list[str] = []
+    medication_gate = flags.get("pharmacologic_analogue") == "statin" or code == "berberine"
+    if medication_gate and _unrecognized_medications(medications):
+        missing.append("unrecognized medication")
     if flags.get("pharmacologic_analogue") == "statin" and not meds_known:
         missing.append("current medications")
     if flags.get("pregnancy_hold") and not conditions_known:
