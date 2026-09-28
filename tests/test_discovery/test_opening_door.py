@@ -32,6 +32,11 @@ def test_diagnosis_demand_is_not_investigation():
     assert classify_opening_door("What disease do I have?") == "diagnosis_demand"
 
 
+def test_burning_feet_plus_magnesium_stays_investigation():
+    text = "I've had burning feet for six months and I take magnesium and B12"
+    assert classify_opening_door(text) == "investigation"
+
+
 def test_overlapping_symptoms_beat_stack_mention():
     text = (
         "Burning feet for a year, gallbladder pain, nobody knows what's going on. "

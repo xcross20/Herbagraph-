@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.knowledge_graph.claim_layers import card_eligible_claims
 from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
@@ -53,7 +54,7 @@ def recommendation_intent_for(
 ) -> str:
     matching = [
         c
-        for c in _ALL_CLAIMS
+        for c in card_eligible_claims(_ALL_CLAIMS)
         if c["intervention_name"] == intervention_name
         and (c.get("biomarker_name") in abnormal_biomarkers or c.get("biomarker_name") is None)
     ]
@@ -94,7 +95,7 @@ def _is_lifestyle_pattern(rec: dict) -> bool:
 def _direct_abnormal_claims(intervention_name: str, abnormal_biomarkers: set[str]) -> list[dict]:
     return [
         c
-        for c in _ALL_CLAIMS
+        for c in card_eligible_claims(_ALL_CLAIMS)
         if c["intervention_name"] == intervention_name and c.get("biomarker_name") in abnormal_biomarkers
     ]
 

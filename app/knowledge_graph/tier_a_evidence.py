@@ -1132,3 +1132,8 @@ TIER_A_EVIDENCE_CLAIMS: list[dict] = [
 TIER_A_EVIDENCE_CLAIMS.extend(LONGTAIL_EVIDENCE_CLAIMS)
 # Cloud/local automated PMID growth batches (scripts/pmid_growth_batch.py).
 TIER_A_EVIDENCE_CLAIMS.extend(GENERATED_PMID_CLAIMS)
+
+# Generated rows share this list. Tag them before any card builder reads the module.
+from app.knowledge_graph.claim_layers import ensure_growth_tagged  # noqa: E402
+
+ensure_growth_tagged()

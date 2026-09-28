@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.knowledge_graph.claim_layers import card_eligible_claims
 from app.knowledge_graph.lifestyle_evidence import LIFESTYLE_EVIDENCE_CLAIMS
 from app.knowledge_graph.seed_data import EVIDENCE_CLAIMS
 from app.knowledge_graph.tier_a_evidence import TIER_A_EVIDENCE_CLAIMS
@@ -234,7 +235,7 @@ def _interventions_for_biomarker(
         name = rec.get("intervention_name", "")
         claims = [
             c
-            for c in _ALL_CLAIMS
+            for c in card_eligible_claims(_ALL_CLAIMS)
             if c["intervention_name"] == name and c.get("biomarker_name") == biomarker_name
         ]
         if not claims:
@@ -282,7 +283,7 @@ def intervention_clinical_tags(rec: dict, biomarker_name: str) -> list[str]:
 
     if any(
         c.get("biomarker_name") == biomarker_name
-        for c in _ALL_CLAIMS
+        for c in card_eligible_claims(_ALL_CLAIMS)
         if c.get("intervention_name") == name
     ):
         if "iron" in problem:
