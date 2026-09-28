@@ -23,6 +23,10 @@ def test_labs_on_hand_without_symptom_story():
     assert classify_opening_door("I already have labs — take me to upload.") == "labs_on_hand"
 
 
+def test_safety_question_is_not_a_purchase_check():
+    assert classify_opening_door("Is berberine safe with Crestor?") == "safety"
+
+
 def test_stack_eval_for_berberine_purchase():
     text = "I'm considering berberine and red yeast rice. I'm on Crestor."
     assert classify_opening_door(text) == "stack_eval"
