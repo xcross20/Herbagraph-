@@ -11,6 +11,7 @@ from app.api.v1 import (
     explainability,
     knowledge,
     labs,
+    manual_labs_api,
     patient_context,
     patients,
     reports,
@@ -28,6 +29,7 @@ api_router.include_router(admin_users.router)
 api_router.include_router(audit.router)
 api_router.include_router(analysis_sessions.router)
 api_router.include_router(labs.router)
+api_router.include_router(manual_labs_api.router)
 api_router.include_router(reports.router)
 api_router.include_router(validation.router)
 api_router.include_router(evidence.router)
