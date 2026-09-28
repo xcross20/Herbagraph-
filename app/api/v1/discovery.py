@@ -15,9 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_db, get_verified_user
+from app.api.v1.public import StackCheckRequest
+from app.pipeline.safety_language import CLINICIAN, CONSUMER, present_verdict
 from app.discovery.monitoring import monitoring_requires_safety_escalation, record_monitoring_event
 from app.discovery.authorization import require_open_case, require_owned_case
 from app.discovery.intent import route_opening_door
+from app.discovery.stack_case import SAVED_REPORT, attach_stack_check
 from app.discovery.schema_ready import public_schema_error
 from app.services.audit import record_audit_event
 from app.discovery.service import (
@@ -75,6 +78,40 @@ async def route_case_opening(
 ) -> dict:
     """Classify an opening sentence. Does not create a case and does not store the text."""
     return route_opening_door(payload.text)
+
+
+class CaseStackCheckBody(StackCheckRequest):
+    case_id: uuid.UUID | None = None
+
+
+@router.post("/stack-check")
+async def save_stack_on_case(
+    payload: CaseStackCheckBody,
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Save this check on the caller's Case. The public route remains the one that stores nothing."""
+    saved = await attach_stack_check(
+        db,
+        current_user,
+        labs=[row.model_dump() for row in payload.labs],
+        stack=payload.stack,
+        medications=payload.medications,
+        conditions=payload.conditions,
+        case_id=payload.case_id,
+    )
+    await db.commit()
+    audience = payload.audience if payload.audience in {CONSUMER, CLINICIAN} else CONSUMER
+    disclaimer = "Not a diagnosis. Saved to your case."
+    if saved["labs_source"] == SAVED_REPORT:
+        disclaimer = "Not a diagnosis. Saved to your case. The labs already saved were used."
+    return {
+        "case_id": saved["case"].id,
+        "lab_report_id": saved["lab_report_id"],
+        "labs_source": saved["labs_source"],
+        "verdicts": [present_verdict(row, audience) for row in saved["verdicts"]],
+        "disclaimer": disclaimer,
+    }
 
 
 def _ndjson_stream(work):
