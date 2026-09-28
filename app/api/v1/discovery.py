@@ -6,7 +6,7 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
@@ -47,7 +47,8 @@ from app.discovery.service import (
 from app.models.enums import AuditAction, MonitoringOutcomeKind, UserRole
 from app.models.lab import LabReport
 from app.models.user import User
-from app.models.discovery import DiscoveryMapVersion, DiscoveryTurn
+from app.models.discovery import DiscoveryFinding, DiscoveryMapVersion, DiscoveryTurn
+from app.pipeline.consumer_report import build_case_report
 from app.schemas.discovery import (
     DiscoveryAnswerCreate,
     DiscoveryCaseCreate,
@@ -353,6 +354,32 @@ async def add_monitoring_event(
         causal_kind=event.causal_kind.value,
         safety_escalation=monitoring_requires_safety_escalation(event.outcome_kind),
     )
+
+
+@router.get("/{case_id}/report")
+async def read_consumer_report(
+    case_id: uuid.UUID,
+    audience: str = Query(default=CONSUMER),
+    current_user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Phrase the saved stack check. Does not score again and does not write findings."""
+    case = await require_owned_case(db, case_id, current_user.id)
+    rows = (
+        await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case.id))
+    ).scalars().all()
+    shown = audience if audience in {CONSUMER, CLINICIAN} else CONSUMER
+    await record_audit_event(
+        db,
+        action=AuditAction.CASE_VIEWED,
+        summary="Consumer report viewed",
+        user=current_user,
+        resource_type="discovery_case",
+        resource_id=str(case.id),
+        detail={"audience": shown},
+    )
+    await db.commit()
+    return build_case_report(case_id=case.id, findings=rows, audience=shown)
 
 
 @router.get("/{case_id}", response_model=DiscoveryCaseRead)

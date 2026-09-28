@@ -37,6 +37,11 @@ _CLINICIAN_BY_REF = {
 }
 
 
+def known_phrase_ref(ref: str | None) -> bool:
+    """True when this key has a consumer sentence and a clinician sentence."""
+    return bool(ref) and ref in _CONSUMER_BY_REF and ref in _CLINICIAN_BY_REF
+
+
 def _ref(row: dict) -> str | None:
     for key in ("safety_refs", "missing_information"):
         values = row.get(key) or []

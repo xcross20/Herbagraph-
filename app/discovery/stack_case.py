@@ -14,10 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.discovery.authorization import require_owned_case
+from app.discovery.coverage_catalog import normalize_label
 from app.discovery.engine import FindingDraft
 from app.discovery.mutations import apply_finding_drafts
 from app.discovery.service import create_case
-from app.models.discovery import DiscoveryCase
+from app.models.discovery import DiscoveryCase, DiscoveryFinding
 from app.models.enums import (
     DiscoveryCaseStatus,
     DiscoveryFindingKind,
@@ -26,10 +27,10 @@ from app.models.enums import (
 )
 from app.models.lab import LabReport
 from app.models.user import User
+from app.pipeline.consumer_report import STACK_SOURCE, ref_for_verdict
 from app.pipeline.manual_labs import MANUAL_PATH, normalize_typed_rows, persist_normalized
 from app.pipeline.stack_verdicts import evaluate_stack
 
-STACK_SOURCE = "stack_check"
 STACK_CONCERN = "Stack check"
 SAVED_REPORT = "saved_report"
 ENTERED_WITH_CHECK = "entered_with_check"
@@ -82,6 +83,7 @@ async def attach_stack_check(
         _drafts(normalized, decision["verdicts"]),
         source_event_id=STACK_SOURCE,
     )
+    await _stamp_phrase_refs(db, case.id, decision["verdicts"])
     await db.flush()
     return {
         "case": case,
@@ -174,6 +176,28 @@ async def _write_manual_report(
     await db.flush()
     await persist_normalized(db, report, normalized, replace=False)
     return report
+
+
+async def _stamp_phrase_refs(db: AsyncSession, case_id: uuid.UUID, verdicts: list[dict]) -> None:
+    """Keep the phrase key on the finding. The verdict code in value stays the fact."""
+    rows = list(
+        (
+            await db.execute(select(DiscoveryFinding).where(DiscoveryFinding.case_id == case_id))
+        ).scalars()
+    )
+    by_name = {
+        normalize_label(row.name): row
+        for row in rows
+        if getattr(row, "active", True)
+        and row.source == STACK_SOURCE
+        and row.kind == DiscoveryFindingKind.CONTEXT
+    }
+    for verdict in verdicts:
+        row = by_name.get(normalize_label(verdict["input"]))
+        if row is None:
+            continue
+        ref = ref_for_verdict(verdict)
+        row.source_event_id = f"{STACK_SOURCE}:{ref}" if ref else STACK_SOURCE
 
 
 def _drafts(normalized, verdicts: list[dict]) -> list[FindingDraft]:
