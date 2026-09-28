@@ -1,0 +1,182 @@
+{
+  "version": "composition-graph-v1-metabolic-overlay",
+  "provenance": {"source": "hg-m04-metabolic-identity", "reviewed": "2026-09-28"},
+  "concepts": [
+    {
+      "code": "berberine",
+      "layer": "concept",
+      "label": "berberine",
+      "kind": "defined_molecule",
+      "synonyms": ["berberine hcl"],
+      "identity": {"chemical_identity": "berberine"},
+      "clinical": {"indication_families": ["glycemic", "lipid"], "pregnancy_hold": true}
+    },
+    {
+      "code": "goldenseal",
+      "layer": "concept",
+      "label": "goldenseal",
+      "kind": "plant",
+      "synonyms": ["hydrastis canadensis"],
+      "identity": {"chemical_identity": "hydrastis canadensis"}
+    },
+    {
+      "code": "red_yeast_rice",
+      "layer": "preparation",
+      "label": "red yeast rice",
+      "synonyms": ["ryr", "red yeast"],
+      "identity": {"preparation": "fermented rice"},
+      "clinical": {"pharmacologic_analogue": "statin", "liver_caution": true, "pregnancy_hold": true, "indication_families": ["lipid"]}
+    },
+    {
+      "code": "monacolin_k",
+      "layer": "measured_composition",
+      "label": "monacolin K",
+      "parent": "red_yeast_rice",
+      "synonyms": ["monacolin"],
+      "identity": {"parent": "red_yeast_rice", "chemical_identity": "monacolin K"}
+    },
+    {
+      "code": "unknown_ryr_product",
+      "layer": "product_batch",
+      "label": "unspecified red yeast rice product",
+      "parent": "red_yeast_rice",
+      "identity": {"parent": "red_yeast_rice", "form": null}
+    },
+    {
+      "code": "cinnamon_species",
+      "layer": "concept",
+      "label": "cinnamon species",
+      "identity": {"chemical_identity": "cinnamon bark, species unspecified"}
+    },
+    {
+      "code": "cinnamon_cassia",
+      "layer": "form",
+      "label": "cassia cinnamon",
+      "parent": "cinnamon_species",
+      "synonyms": ["cassia", "cinnamomum cassia"],
+      "identity": {"parent": "cinnamon_species", "form": "cassia", "chemical_identity": "cinnamomum cassia"},
+      "clinical": {"coumarin_bearing": true, "liver_caution": true, "indication_families": ["glycemic"]}
+    },
+    {
+      "code": "cinnamon_ceylon",
+      "layer": "form",
+      "label": "ceylon cinnamon",
+      "parent": "cinnamon_species",
+      "synonyms": ["ceylon", "ceylon cinnamon", "cinnamomum verum"],
+      "identity": {"parent": "cinnamon_species", "form": "ceylon", "chemical_identity": "cinnamomum verum"},
+      "clinical": {"coumarin_bearing": false, "indication_families": ["glycemic"]}
+    },
+    {
+      "code": "unknown_cinnamon_product",
+      "layer": "product_batch",
+      "label": "unspecified cinnamon product",
+      "parent": "cinnamon_species",
+      "synonyms": ["cinnamon"],
+      "identity": {"parent": "cinnamon_species", "form": null}
+    },
+    {
+      "code": "olive",
+      "layer": "concept",
+      "label": "olive",
+      "identity": {"chemical_identity": "olea europaea"}
+    },
+    {
+      "code": "olive_leaf",
+      "layer": "part",
+      "label": "olive leaf",
+      "parent": "olive",
+      "synonyms": ["olive leaf extract"],
+      "identity": {"parent": "olive", "part": "leaf"}
+    },
+    {
+      "code": "psyllium_husk",
+      "layer": "preparation",
+      "label": "psyllium husk",
+      "synonyms": ["psyllium", "psyllium husk"],
+      "identity": {"preparation": "husk"},
+      "clinical": {"food_first": true, "indication_families": ["lipid"]}
+    },
+    {
+      "code": "extra_virgin_olive_oil",
+      "layer": "preparation",
+      "label": "extra-virgin olive oil",
+      "synonyms": ["evoo", "olive oil"],
+      "identity": {"preparation": "extra virgin oil"},
+      "clinical": {"food_first": true, "indication_families": ["lipid"]}
+    },
+    {
+      "code": "omega_3",
+      "layer": "concept",
+      "label": "omega-3",
+      "synonyms": ["omega-3", "fish oil"],
+      "identity": {"chemical_identity": "long-chain omega-3"},
+      "clinical": {"indication_families": ["lipid"]}
+    }
+  ],
+  "relations": [
+    {
+      "from": "goldenseal",
+      "to": "berberine",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Goldenseal is not berberine. Berberine outcome papers do not transfer."
+    },
+    {
+      "from": "berberine",
+      "to": "goldenseal",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Defined-molecule berberine evidence does not transfer to the goldenseal plant."
+    },
+    {
+      "from": "cinnamon_cassia",
+      "to": "cinnamon_ceylon",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Cassia is coumarin-bearing bark. Its evidence and liver caution do not transfer to Ceylon."
+    },
+    {
+      "from": "cinnamon_ceylon",
+      "to": "cinnamon_cassia",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Ceylon evidence does not transfer to cassia."
+    },
+    {
+      "from": "cinnamon_cassia",
+      "to": "cinnamon_species",
+      "relation": "has_form",
+      "provenance": "composition-graph-v1",
+      "limitation": "A named bark does not inherit every unspecified cinnamon claim."
+    },
+    {
+      "from": "monacolin_k",
+      "to": "red_yeast_rice",
+      "relation": "contains_measured",
+      "provenance": "composition-graph-v1",
+      "limitation": "Monacolin K measured in one batch does not transfer to every red yeast rice product."
+    },
+    {
+      "from": "unknown_ryr_product",
+      "to": "monacolin_k",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "An unlabeled red yeast rice product has no known monacolin dose."
+    },
+    {
+      "from": "unknown_cinnamon_product",
+      "to": "cinnamon_cassia",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Unspecified cinnamon is not known cassia."
+    },
+    {
+      "from": "unknown_cinnamon_product",
+      "to": "cinnamon_ceylon",
+      "relation": "does_not_address",
+      "provenance": "composition-graph-v1",
+      "limitation": "Unspecified cinnamon is not Ceylon."
+    }
+  ],
+  "sources": []
+}
