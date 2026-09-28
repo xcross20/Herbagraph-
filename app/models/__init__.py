@@ -32,6 +32,7 @@ from app.models.intervention import Intervention
 from app.models.lab import LabReport, LabResult
 from app.models.organization import Organization
 from app.models.patient import Patient
+from app.models.public_rate_bucket import PublicRateBucket
 from app.models.patient_context import PatientContext
 from app.models.pathway import Pathway
 from app.models.report import Recommendation, RecommendationReport, ReportCitation
@@ -76,6 +77,7 @@ __all__ = [
     "LabResult",
     "Organization",
     "Patient",
+    "PublicRateBucket",
     "PatientContext",
     "Pathway",
     "Recommendation",
