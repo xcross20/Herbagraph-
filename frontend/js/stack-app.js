@@ -27,6 +27,16 @@
     grid.appendChild(wrap);
   });
 
+  function accessToken() {
+    if (window.hgToken) return window.hgToken;
+    try {
+      const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
+      return stored && stored.access_token;
+    } catch (err) {
+      return null;
+    }
+  }
+
   document.getElementById("stack-form").addEventListener("submit", async function (event) {
     event.preventDefault();
     const labs = Array.from(document.querySelectorAll("[data-lab]")).map(function (el) {
@@ -44,9 +54,12 @@
     const receipt = document.getElementById("stack-receipt");
     receipt.hidden = false;
     receipt.textContent = "Checking…";
-    const resp = await fetch("/api/v1/public/stack-check", {
+    const token = accessToken();
+    const headers = { "Content-Type": "application/json" };
+    if (token) headers.Authorization = "Bearer " + token;
+    const resp = await fetch(token ? "/api/v1/cases/stack-check" : "/api/v1/public/stack-check", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify({ labs: labs, stack: stack, medications: medications, conditions: conditions }),
     });
     const data = await resp.json().catch(function () { return {}; });
