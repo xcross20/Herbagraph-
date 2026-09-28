@@ -33,6 +33,7 @@ KNOWN_LAYERS = frozenset(
 )
 
 OVERLAY_PATH = Path(__file__).resolve().parent / "data" / "composition_graph_extensibility_folate.json"
+METABOLIC_OVERLAY_PATH = Path(__file__).resolve().parent / "data" / "composition_graph_metabolic.json"
 
 
 @lru_cache(maxsize=4)
@@ -68,6 +69,15 @@ def merge_overlay(base: dict, overlay: dict) -> dict:
 
 def load_extensibility_overlay() -> dict:
     return json.loads(OVERLAY_PATH.read_text(encoding="utf-8"))
+
+
+def load_metabolic_overlay() -> dict:
+    return json.loads(METABOLIC_OVERLAY_PATH.read_text(encoding="utf-8"))
+
+
+def load_metabolic_graph() -> dict:
+    """Base identity graph plus the metabolic wedge. No second identity engine."""
+    return merge_overlay(load_composition_graph(), load_metabolic_overlay())
 
 
 def concept(code: str, graph: dict | None = None) -> dict | None:
