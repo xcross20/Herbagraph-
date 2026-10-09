@@ -53,6 +53,11 @@ def test_stack_action_is_green_on_the_light_page():
     assert "color: #fff" in rule
 
 
+def test_worker_parses_one_lab_at_a_time():
+    script = (ROOT / "scripts" / "start_worker.sh").read_text(encoding="utf-8")
+    assert "--concurrency=1" in script
+
+
 def test_short_laptop_screen_keeps_the_doors_in_play():
     rule = CSS.split("@media (max-height: 980px) and (min-width: 900px)")[1].split("}")[0]
     assert ".landing-hero" in rule
