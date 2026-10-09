@@ -26,7 +26,13 @@ window.HerbaGraphWorkspace = (function () {
     const resp = await fetch(`${window.location.origin}/api/v1/auth/me`, {
       headers: window.hgToken ? { Authorization: `Bearer ${window.hgToken}` } : {},
     });
-    if (!resp.ok) return "/login.html";
+    if (!resp.ok) {
+      // Leave the dead pair in place and login.html reloads itself.
+      if (resp.status === 401 || resp.status === 403) {
+        try { await Auth.signOut(); } catch (_) { /* storage already cleared */ }
+      }
+      return "/login.html";
+    }
     const me = await resp.json();
     return workspaceHome(me.role, options);
   }

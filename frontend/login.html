@@ -104,7 +104,7 @@
         </div>
 
         <button class="auth-submit" id="login-btn" type="submit">Sign in</button>
-        <button class="auth-guest-btn" id="magic-link-btn" type="button">Email me a sign-in link</button>
+        <button class="auth-guest-btn" id="magic-link-btn" type="button" hidden>Email me a sign-in link</button>
         <button class="auth-guest-btn hidden" id="guest-btn" type="button">Continue as guest (demo only)</button>
       </form>
 
@@ -139,20 +139,33 @@ function formatLoginError(message) {
   return message || "Could not sign in. Please try again.";
 }
 
+async function goToWorkspace(options) {
+  const dest = await window.HerbaGraphWorkspace.homeForCurrentSession(options);
+  if (!dest || dest.startsWith("/login")) return false;
+  location.href = dest;
+  return true;
+}
+
 async function init() {
   if (window.__hgAuthRedirecting) return;
   if (await Auth.handleAuthRedirect()) {
     const onboard = localStorage.getItem("hg_onboarding_pending") === "1";
-    location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ onboard, hash: "#dashboard" });
-    return;
+    if (await goToWorkspace({ onboard, hash: "#dashboard" })) return;
   }
   if (await Auth.ensureSession()) {
     if (nextUrl && !nextUrl.includes("/app.html") && nextUrl.startsWith("/")) {
       location.href = nextUrl;
-    } else {
-      location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" });
+      return;
     }
-    return;
+    if (await goToWorkspace({ hash: "#dashboard" })) return;
+  }
+  if (sessionStorage.getItem("hg_session_expired") === "1") {
+    sessionStorage.removeItem("hg_session_expired");
+    UI.setBanner(
+      document.getElementById("auth-banner"),
+      "That saved sign-in is no longer valid. Enter your email and password to continue.",
+      "error"
+    );
   }
   const cfg = await Auth.loadConfig();
   const guestBtn = document.getElementById("guest-btn");
@@ -229,7 +242,7 @@ document.getElementById("login-form").addEventListener("submit", async (e) => {
     if (nextUrl && !nextUrl.includes("/app.html") && nextUrl.startsWith("/")) {
       location.href = nextUrl;
     } else {
-      location.href = await window.HerbaGraphWorkspace.homeForCurrentSession({ hash: "#dashboard" });
+      await goToWorkspace({ hash: "#dashboard" });
     }
   } catch (err) {
     const msg = formatLoginError(err.message);
@@ -249,7 +262,11 @@ document.getElementById("guest-btn").onclick = async () => {
   UI.setButtonLoading(btn, true, "Continuing…");
   try {
     await Auth.continueAsGuest();
-    location.href = nextUrl;
+    if (nextUrl && !nextUrl.includes("/app.html") && nextUrl.startsWith("/")) {
+      location.href = nextUrl;
+    } else {
+      await goToWorkspace({ hash: "#dashboard" });
+    }
   } catch (e) {
     UI.setBanner(document.getElementById("auth-banner"), e.message, "error");
   } finally {

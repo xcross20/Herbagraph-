@@ -299,6 +299,31 @@ window.HerbaGraphAuth = (function () {
     localStorage.setItem("hg_auth_provider", "supabase");
   }
 
+  function clearStoredSession() {
+    localStorage.removeItem("hg_tokens");
+    try {
+      localStorage.removeItem("hg_creds");
+    } catch (_) { /* ignore */ }
+    localStorage.removeItem("hg_auth_provider");
+    window.hgToken = null;
+    window.hgRefreshToken = null;
+  }
+
+  function discardDeadLocalSession() {
+    // Login reads this once so a reload loop can explain itself as an expired sign-in.
+    try {
+      sessionStorage.setItem("hg_session_expired", "1");
+    } catch (_) { /* private mode */ }
+    clearStoredSession();
+  }
+
+  async function localAccessAccepted() {
+    const resp = await fetch(API + "/api/v1/auth/me", {
+      headers: { Authorization: `Bearer ${window.hgToken}` },
+    });
+    return resp;
+  }
+
   async function ensureSession() {
     const cfg = await loadConfig();
 
@@ -315,14 +340,34 @@ window.HerbaGraphAuth = (function () {
     }
 
     const stored = JSON.parse(localStorage.getItem("hg_tokens") || "null");
-    if (stored?.access_token && stored?.refresh_token) {
-      window.hgToken = stored.access_token;
-      window.hgRefreshToken = stored.refresh_token;
-      return true;
+    if (!(stored?.access_token && stored?.refresh_token)) {
+      try {
+        localStorage.removeItem("hg_creds");
+      } catch (_) { /* ignore */ }
+      return false;
     }
+
+    // Access tokens last 30 minutes. Treating a stored pair as proof of a
+    // session sent /auth/me to 401 and bounced straight back to this page.
+    window.hgToken = stored.access_token;
+    window.hgRefreshToken = stored.refresh_token;
+    let resp;
     try {
-      localStorage.removeItem("hg_creds");
-    } catch (_) { /* ignore */ }
+      resp = await localAccessAccepted();
+    } catch (_) {
+      return false;
+    }
+    if (resp.status === 401 || resp.status === 403) {
+      try {
+        await refreshTokens();
+        resp = await localAccessAccepted();
+      } catch (_) {
+        discardDeadLocalSession();
+        return false;
+      }
+    }
+    if (resp.ok) return true;
+    if (resp.status === 401 || resp.status === 403) discardDeadLocalSession();
     return false;
   }
 
@@ -555,11 +600,7 @@ window.HerbaGraphAuth = (function () {
       const sb = await initSupabase();
       if (sb) await sb.auth.signOut();
     }
-    localStorage.removeItem("hg_tokens");
-    localStorage.removeItem("hg_creds");
-    localStorage.removeItem("hg_auth_provider");
-    window.hgToken = null;
-    window.hgRefreshToken = null;
+    clearStoredSession();
   }
 
   async function continueAsGuest() {
