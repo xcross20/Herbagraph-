@@ -1051,8 +1051,8 @@ function renderPersonalDashboard(dash, name) {
     </div>
     <div class="form-grid-2">
       <div class="app-card" id="workspace-test-plan">
-        <h2>Testing plan from Discovery</h2>
-        <p class="muted">Recommended by Ask. Upload or analyze them in this workspace — not a new product.</p>
+        <h2>From Ask</h2>
+        <p class="muted">Suggestions from a conversation show up here. A stack check does not need them.</p>
         <div id="test-plan-mount"><p class="muted">Loading…</p></div>
       </div>
       <div class="app-card">

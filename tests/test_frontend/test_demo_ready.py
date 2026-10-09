@@ -17,6 +17,8 @@ def test_personal_home_offers_typed_labs_and_stack_check():
     assert "Upload my labs" not in dash
     assert "Existing workflow" not in dash
     assert "Personal portal" in dash
+    assert "not a new product" not in dash
+    assert "Suggestions from a conversation show up here." in dash
 
 
 def test_personal_command_bar_has_no_new_patient():
