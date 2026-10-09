@@ -187,6 +187,14 @@ async function ensureSession() {
   return true;
 }
 
+function accountLabel(user) {
+  const email = user && user.email;
+  if (!email) return "";
+  const role = isClinicianWorkspace() ? "Clinician" : "Personal";
+  if (email.endsWith("@guest.herbagraph-app.io")) return `Guest · ${role}`;
+  return `${email} · ${role}`;
+}
+
 function isClinicianWorkspace() {
   const role = String((currentUser && currentUser.role) || "").toLowerCase();
   return role === "clinician" || role === "organization_admin" || role === "admin";
@@ -407,6 +415,13 @@ function pageHeader(title, subtitle, actionsHtml = "") {
 }
 
 function commandBar() {
+  if (!isClinicianWorkspace()) {
+    return `<div class="command-bar">
+      <a class="app-btn app-btn-primary" href="#upload?mode=manual">Type lab values</a>
+      <a class="app-btn" href="/stack.html">Check a stack</a>
+      <input class="command-search" id="workspace-search" type="search" placeholder="Search workspace  ⌘K" aria-label="Search workspace">
+    </div>`;
+  }
   return `<div class="command-bar">
     <a class="app-btn" href="#patients">+ New patient</a>
     <a class="app-btn app-btn-primary" href="#upload">Upload labs</a>
@@ -415,10 +430,22 @@ function commandBar() {
   </div>`;
 }
 
-function renderAttentionList(items) {
+async function backgroundQueueDown() {
+  try {
+    const resp = await fetch(API + "/api/v1/system/status");
+    if (!resp.ok) return false;
+    const body = await resp.json();
+    return body.redis_reachable === false;
+  } catch (_) {
+    return false;
+  }
+}
+
+function renderAttentionList(items, emptyText) {
   if (!items.length) {
+    const empty = emptyText || "No items need attention. Upload labs or run an analysis to get started.";
     return `<div class="empty-state" style="padding:1.5rem">
-      <p class="muted">No items need attention. Upload labs or run an analysis to get started.</p>
+      <p class="muted">${empty}</p>
     </div>`;
   }
   return `<div class="attention-list">${items.map(it => `
@@ -990,15 +1017,32 @@ function renderClinicDashboard(dash, name) {
     </div>`;
 }
 
+function renderPersonalLaunchCards() {
+  return `<div class="launch-grid">
+    <a class="launch-card" href="#upload?mode=manual">
+      <h2>Type lab values</h2>
+      <p>Enter the numbers you already have. Blank rows are ignored.</p>
+    </a>
+    <a class="launch-card" href="/stack.html">
+      <h2>Check a stack</h2>
+      <p>See whether a supplement fits those labs. A signed-in check is saved on your case.</p>
+    </a>
+    <a class="launch-card" href="/ask.html">
+      <h2>Talk to Discovery Guide</h2>
+      <p>A months-long symptom story belongs here. A supplement check does not.</p>
+    </a>
+  </div>`;
+}
+
 function renderPersonalDashboard(dash, name) {
   const latest = dash.recent_reports[0];
   const labs = dash.recent_labs || [];
   const needsReview = buildAttentionItems(dash).length;
   return `
     ${renderOnboardingBanner()}
-    ${pageHeader(`${greeting()}${name}`, "Personal portal — labs, reports, and analysis stay here. Ask is an added layer.", `<a class="app-btn app-btn-primary" href="#upload">Upload my labs</a>`)}
+    ${pageHeader(`${greeting()}${name}`, "Personal portal. Type a lab, then check a stack.", `<a class="app-btn app-btn-primary" href="#upload?mode=manual">Type lab values</a>`)}
     ${commandBar()}
-    ${renderLaunchCards()}
+    ${renderPersonalLaunchCards()}
     <div class="metric-grid">
       <div class="metric-card"><div class="metric-label">Your profile</div><div class="metric-value">Self</div><div class="metric-delta">Personal record</div></div>
       <div class="metric-card"><div class="metric-label">Labs</div><div class="metric-value">${labs.length}</div><div class="metric-delta">Uploaded files</div></div>
@@ -1015,12 +1059,12 @@ function renderPersonalDashboard(dash, name) {
         <h2>Latest report</h2>
         ${latest
           ? `<p>${esc(primaryFinding(latest.title))}</p><a class="app-btn" href="/report.html?report_id=${latest.id}">Open my report</a>`
-          : `<p class="muted">No report yet. Upload labs to run your first analysis.</p>`}
+          : `<p class="muted">No saved report yet. Type a lab, then check a stack.</p>`}
       </div>
     </div>
     <div class="workspace-section">
       <h2>Needs attention</h2>
-      ${renderAttentionList(buildAttentionItems(dash))}
+      ${renderAttentionList(buildAttentionItems(dash), "Nothing needs attention.")}
     </div>
     <div class="workspace-section">
       <h2>My reports</h2>
@@ -1743,6 +1787,11 @@ async function renderUpload(preselectedPatient, mode) {
       status.textContent = "Select a patient first.";
       return;
     }
+    if (await backgroundQueueDown()) {
+      status.textContent = "File reading is paused. Type the values instead.";
+      status.className = "error";
+      return;
+    }
     rememberPatientId(selectedPatient);
     const stagesEl = document.getElementById("upload-stages");
     stagesEl.style.display = "flex";
@@ -1906,6 +1955,11 @@ async function renderAnalysisBuilder(preselectedPatient) {
     const pipeline = document.getElementById("analysis-pipeline");
     const selected = [...document.querySelectorAll(".analysis-lab:checked")].map(el => el.value);
     if (selected.length < 1) { st.textContent = "Select at least one lab report."; return; }
+    if (await backgroundQueueDown()) {
+      st.textContent = "Analysis is paused. A stack check still uses the labs you typed.";
+      st.className = "error";
+      return;
+    }
     const knowledgePath = await window.hgPickKnowledgePath({
       title: "Choose knowledge path for integrated analysis",
       subtitle: "Pick legacy catalogs or the canonical graph before merging reports into one reasoning run.",
@@ -2309,9 +2363,7 @@ async function render() {
     }
 
     document.getElementById("app-shell").classList.remove("hidden");
-    document.getElementById("nav-user").textContent = currentUser?.email
-      ? `${currentUser.email} · ${isClinicianWorkspace() ? "Clinician" : "Personal"}`
-      : "";
+    document.getElementById("nav-user").textContent = accountLabel(currentUser);
     document.getElementById("logout-btn").onclick = signOut;
     wireMobileNav();
     closeSidebar();
