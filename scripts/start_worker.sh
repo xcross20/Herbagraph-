@@ -38,4 +38,5 @@ health_pid=$!
 trap 'kill "$health_pid" 2>/dev/null || true' EXIT
 
 echo "Starting Celery worker (broker: ${REDIS_URL%%@*}@...)"
-exec celery -A app.workers.celery_app worker --loglevel=info
+# The container sees the host CPU count. One child is enough to parse a lab.
+exec celery -A app.workers.celery_app worker --loglevel=info --concurrency=1
