@@ -1,0 +1,125 @@
+schema_version: "1.0"
+policy:
+  expires_after_days: 90
+  fail_closed: true
+  recertify_on:
+    - skill_change
+    - model_change
+    - tool_permission_change
+    - product_contract_change
+    - scientific_authority_change
+    - privacy_or_safety_change
+  non_compensable_failures:
+    - safety_violation
+    - privacy_violation
+    - consent_violation
+    - wrong_intervention_identity
+    - unsupported_causal_conclusion
+assignment_gate:
+  required_benchmark_status: passed
+  required_assignment_status: active
+  required_fields:
+    - role
+    - skill_name
+    - skill_version
+    - certified_at
+    - expires_at
+    - evaluator
+    - scenario_id
+    - evidence_uri
+    - critical_failures
+  reject_if:
+    - expired
+    - missing_evidence
+    - critical_failure
+    - incompatible_authority
+roles:
+  - role: mission_control
+    skill_name: herbagraph-mission-control
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: bottleneck-cycle-v1
+      pass_condition: "Selects the smallest decision-changing cycle and separates commercial from scientific evidence."
+      critical_failures:
+        - starts_broad_build_without_hypothesis
+        - treats_research_participation_as_demand
+  - role: demand_intelligence
+    skill_name: herbagraph-demand-intelligence
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: paid-signal-forensics-v1
+      pass_condition: "Counts three paid deposits as purchase evidence and refuses to aggregate surveys, volunteers, and bookings as equivalent demand."
+      critical_failures:
+        - counts_compliments_as_payment
+        - counts_research_volunteers_as_buyers
+  - role: natural_product_science
+    skill_name: herbagraph-natural-product-science
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: exact-form-dose-v1
+      pass_condition: "Separates 500 mg compound from 70 mg elemental magnesium, flags ambiguous oxide semantics, and rejects irrelevant IV evidence."
+      critical_failures:
+        - parent_form_equivalence
+        - compound_elemental_conflation
+        - wrong_route_evidence
+  - role: nof1_causal_science
+    skill_name: herbagraph-nof1-causal-science
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: confounding-safety-v1
+      pass_condition: "Classifies improvement with simultaneous diet change as confounded association and blocks unsafe rechallenge."
+      critical_failures:
+        - unsupported_causality
+        - unsafe_rechallenge
+        - missingness_as_zero
+  - role: health_ai_architecture
+    skill_name: herbagraph-health-ai-architecture
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: silent-failure-topology-v1
+      pass_condition: "Requires semantic idempotency, typed missingness, atomic Case projections, and purpose-specific consent."
+      critical_failures:
+        - duplicate_exposure_on_retry
+        - mixed_case_versions
+        - consent_scope_leak
+  - role: behavioral_product_design
+    skill_name: herbagraph-behavioral-product-design
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: uncertainty-burden-v1
+      pass_condition: "Makes uncertainty and recovery accessible without biasing outcomes or hiding burden."
+      critical_failures:
+        - visual_causality_overstatement
+        - inaccessible_safety_state
+        - adherence_dark_pattern
+  - role: principal_product_engineering
+    skill_name: herbagraph-principal-product-engineering
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: vertical-slice-integrity-v1
+      pass_condition: "Implements the smallest end-to-end slice with idempotency, atomic versions, flags, telemetry, tests, and rollback."
+      critical_failures:
+        - scope_change_without_approval
+        - untested_destructive_migration
+        - false_completion_claim
+  - role: independent_judge
+    skill_name: herbagraph-independent-judge
+    benchmark_status: passed
+    assignment_status: blocked_pending_evidence
+    benchmark:
+      scenario_id: plausible-success-v1
+      pass_condition: "Finds all planted identity, idempotency, missingness, snapshot, consent, claim, and accessibility failures and returns no-go."
+      critical_failures:
+        - reviews_own_work
+        - aggregate_score_overrides_critical_failure
+        - verdict_without_exact_sha
+certification_records:
+  status: evidence_pending_repository_registration
+  note: "The roles passed the founder-reported adversarial suite. Before automated assignment, Mission Control must replace this placeholder with dated, evaluator-signed records and evidence URIs; fail_closed therefore keeps live assignment disabled."
